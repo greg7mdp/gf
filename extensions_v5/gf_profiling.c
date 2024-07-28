@@ -60,61 +60,57 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #endif
 
 typedef struct GfProfilingEntry {
-	void *thisFunction;
-	uint64_t timeStamp;
+   void*    thisFunction;
+   uint64_t timeStamp;
 } GfProfilingEntry;
 
 static __thread bool gfProfilingEnabledOnThisThread;
-static bool gfProfilingEnabled;
-static size_t gfProfilingBufferSize;
-GfProfilingEntry *gfProfilingBuffer;
-uintptr_t gfProfilingBufferPosition;
-uint64_t gfProfilingTicksPerMs;
+static bool          gfProfilingEnabled;
+static size_t        gfProfilingBufferSize;
+GfProfilingEntry*    gfProfilingBuffer;
+uintptr_t            gfProfilingBufferPosition;
+uint64_t             gfProfilingTicksPerMs;
 
-#define GF_PROFILING_FUNCTION(_exiting) \
-	(void) callSite; \
-	\
-	if (gfProfilingBufferPosition < gfProfilingBufferSize && gfProfilingEnabledOnThisThread) { \
-		GfProfilingEntry *entry = (GfProfilingEntry *) &gfProfilingBuffer[gfProfilingBufferPosition++]; \
-		entry->thisFunction = thisFunction; \
-		struct timespec time; \
-		clock_gettime(GF_PROFILING_CLOCK, &time); \
-		entry->timeStamp = ((uint64_t) time.tv_sec * 1000000000 + time.tv_nsec) | ((uint64_t) _exiting << 63); \
-	}
+#define GF_PROFILING_FUNCTION(_exiting)                                                                    \
+   (void)callSite;                                                                                         \
+                                                                                                           \
+   if (gfProfilingBufferPosition < gfProfilingBufferSize && gfProfilingEnabledOnThisThread) {              \
+      GfProfilingEntry* entry = (GfProfilingEntry*)&gfProfilingBuffer[gfProfilingBufferPosition++];        \
+      entry->thisFunction     = thisFunction;                                                              \
+      struct timespec time;                                                                                \
+      clock_gettime(GF_PROFILING_CLOCK, &time);                                                            \
+      entry->timeStamp = ((uint64_t)time.tv_sec * 1000000000 + time.tv_nsec) | ((uint64_t)_exiting << 63); \
+   }
 
-GF_PROFILING_EXTERN __attribute__((no_instrument_function))
-void __cyg_profile_func_enter(void *thisFunction, void *callSite) {
-	GF_PROFILING_FUNCTION(0);
+GF_PROFILING_EXTERN __attribute__((no_instrument_function)) void __cyg_profile_func_enter(void* thisFunction,
+                                                                                          void* callSite) {
+   GF_PROFILING_FUNCTION(0);
 }
 
-GF_PROFILING_EXTERN __attribute__((no_instrument_function))
-void __cyg_profile_func_exit(void *thisFunction, void *callSite) {
-	GF_PROFILING_FUNCTION(1);
+GF_PROFILING_EXTERN __attribute__((no_instrument_function)) void __cyg_profile_func_exit(void* thisFunction,
+                                                                                         void* callSite) {
+   GF_PROFILING_FUNCTION(1);
 }
 
-GF_PROFILING_EXTERN __attribute__((no_instrument_function))
-void GfProfilingStart() {
-	assert(!gfProfilingEnabled);
-	assert(!gfProfilingEnabledOnThisThread);
-	assert(gfProfilingBufferSize);
-	gfProfilingEnabled = true;
-	gfProfilingEnabledOnThisThread = true;
-	gfProfilingBufferPosition = 0;
+GF_PROFILING_EXTERN __attribute__((no_instrument_function)) void GfProfilingStart() {
+   assert(!gfProfilingEnabled);
+   assert(!gfProfilingEnabledOnThisThread);
+   assert(gfProfilingBufferSize);
+   gfProfilingEnabled             = true;
+   gfProfilingEnabledOnThisThread = true;
+   gfProfilingBufferPosition      = 0;
 }
 
-GF_PROFILING_EXTERN __attribute__((no_instrument_function))
-void GfProfilingStop() {
-	assert(gfProfilingEnabled);
-	assert(gfProfilingEnabledOnThisThread);
-	gfProfilingEnabled = false;
-	gfProfilingEnabledOnThisThread = false;
+GF_PROFILING_EXTERN __attribute__((no_instrument_function)) void GfProfilingStop() {
+   assert(gfProfilingEnabled);
+   assert(gfProfilingEnabledOnThisThread);
+   gfProfilingEnabled             = false;
+   gfProfilingEnabledOnThisThread = false;
 }
 
-__attribute__((constructor)) 
-__attribute__((no_instrument_function))
-void GfProfilingInitialise() {
-	gfProfilingBufferSize = GF_PROFILING_BUFFER_BYTES / sizeof(GfProfilingEntry);
-	gfProfilingBuffer = (GfProfilingEntry *) malloc(GF_PROFILING_BUFFER_BYTES);
-	gfProfilingTicksPerMs = 1000000;
-	assert(gfProfilingBufferSize && gfProfilingBuffer);
+__attribute__((constructor)) __attribute__((no_instrument_function)) void GfProfilingInitialise() {
+   gfProfilingBufferSize = GF_PROFILING_BUFFER_BYTES / sizeof(GfProfilingEntry);
+   gfProfilingBuffer     = (GfProfilingEntry*)malloc(GF_PROFILING_BUFFER_BYTES);
+   gfProfilingTicksPerMs = 1000000;
+   assert(gfProfilingBufferSize && gfProfilingBuffer);
 }
