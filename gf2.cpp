@@ -10,91 +10,22 @@
 
 // TODO More data visualization tools in the data window.
 
-#include <stdint.h>
+#include <cstdint>
 #include <pthread.h>
-#include <unistd.h>
 #include <signal.h>
 #include <spawn.h>
-#include <stdio.h>
+#include <cstdio>
 #include <ctype.h>
 #include <sys/stat.h>
-#include <stdarg.h>
+#include <cstdarg>
 #include <dirent.h>
 #include <fcntl.h>
 #include <poll.h>
-#include <time.h>
+#include <ctime>
 
-#ifdef __APPLE__
-#include <sys/syslimits.h>
-#define UI_COCOA
-#else
-#define UI_LINUX
-#endif
+#define UI_IMPLEMENTATION  // define this only in one file
 
-extern "C" {
-#define UI_FONT_PATH
-#define UI_IMPLEMENTATION
-#include "luigi2.h"
-}
-
-// Data structures:
-
-template <class T>
-struct Array {
-   T*     array;
-   size_t length, allocated;
-
-   void InsertMany(T* newItems, uintptr_t index, size_t newCount) {
-      if (length + newCount > allocated) {
-         allocated *= 2;
-         if (length + newCount > allocated)
-            allocated = length + newCount;
-         array = (T*)realloc(array, allocated * sizeof(T));
-      }
-
-      length += newCount;
-      memmove(array + index + newCount, array + index, (length - index - newCount) * sizeof(T));
-      memcpy(array + index, newItems, newCount * sizeof(T));
-   }
-
-   void Delete(uintptr_t index, size_t count = 1) {
-      memmove(array + index, array + index + count, (length - index - count) * sizeof(T));
-      length -= count;
-   }
-
-   bool Contains(T item, uintptr_t* index) {
-      for (uintptr_t i = 0; i < length; i++) {
-         if (array[i] == item) {
-            if (index)
-               *index = i;
-            return true;
-         }
-      }
-
-      return false;
-   }
-
-   void Insert(T item, uintptr_t index) { InsertMany(&item, index, 1); }
-   void Add(T item) { Insert(item, length); }
-   void Free() {
-      free(array);
-      array  = nullptr;
-      length = allocated = 0;
-   }
-   int Length() { return length; }
-   T&  First() { return array[0]; }
-   T&  Last() { return array[length - 1]; }
-   T&  operator[](uintptr_t index) {
-      assert(index < length);
-      return array[index];
-   }
-   void Pop() { length--; }
-   void DeleteSwap(uintptr_t index) {
-      if (index != length - 1)
-         array[index] = Last();
-      Pop();
-   }
-};
+#include "gf2.hpp"
 
 uint64_t Hash(const uint8_t* key, size_t keyBytes) {
    uint64_t hash = 0xCBF29CE484222325;
@@ -103,88 +34,7 @@ uint64_t Hash(const uint8_t* key, size_t keyBytes) {
    return hash;
 }
 
-template <class K, class V>
-struct MapShort {
-   struct {
-      K key;
-      V value;
-   }*     array;
-   size_t used, capacity;
-
-   V* At(K key, bool createIfNeeded) {
-      if (used + 1 > capacity / 2) {
-         MapShort grow        = {};
-         grow.capacity        = capacity ? (capacity + 1) * 2 - 1 : 15;
-         *(void**)&grow.array = calloc(sizeof(array[0]), grow.capacity);
-         for (uintptr_t i = 0; i < capacity; i++)
-            if (array[i].key)
-               grow.Put(array[i].key, array[i].value);
-         free(array);
-         *this = grow;
-      }
-
-      uintptr_t slot = Hash((uint8_t*)&key, sizeof(key)) % capacity;
-      while (array[slot].key && array[slot].key != key)
-         slot = (slot + 1) % capacity;
-
-      if (!array[slot].key && createIfNeeded) {
-         used++;
-         array[slot].key = key;
-      }
-
-      return &array[slot].value;
-   }
-
-   bool Has(K key) {
-      if (!capacity)
-         return false;
-      uintptr_t slot = Hash((uint8_t*)&key, sizeof(key)) % capacity;
-      while (array[slot].key && array[slot].key != key)
-         slot = (slot + 1) % capacity;
-      return array[slot].key;
-   }
-
-   V    Get(K key) { return *At(key, false); }
-   void Put(K key, V value) { *At(key, true) = value; }
-   void Free() {
-      free(array);
-      array = nullptr;
-      used = capacity = 0;
-   }
-};
-
-// General:
-
-struct InterfaceCommand {
-   const char* label;
-   UIShortcut  shortcut;
-};
-
-struct InterfaceWindow {
-   const char* name;
-   UIElement* (*create)(UIElement* parent);
-   void (*update)(const char* data, UIElement* element);
-   void (*focus)(UIElement* element);
-   UIElement* element;
-   bool       queuedUpdate, alwaysUpdate;
-   void (*config)(const char* key, const char* value);
-};
-
-struct InterfaceDataViewer {
-   const char* addButtonLabel;
-   void (*addButtonCallback)(void* _unused);
-};
-
-struct INIState {
-   char * buffer, *section, *key, *value;
-   size_t bytes, sectionBytes, keyBytes, valueBytes;
-};
-
-struct ReceiveMessageType {
-   UIMessage message;
-   void (*callback)(char* input);
-};
-
+// --------------------------------------------------------------------------------------------
 FILE*                      commandLog;
 char                       emptyString;
 bool                       programRunning = true;
@@ -2026,11 +1876,6 @@ int GfMain(int argc, char** argv) {
    return 0;
 }
 
-#ifdef UI_COCOA
-int main(int argc, char** argv) {
-   return UICocoaMain(argc, argv, GfMain);
-}
-#else
 int main(int argc, char** argv) {
    int code = GfMain(argc, argv);
    if (code)
@@ -2057,4 +1902,3 @@ int main(int argc, char** argv) {
 
    return 0;
 }
-#endif

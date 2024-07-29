@@ -619,8 +619,8 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
          double factor = powf(1.02, element->window->cursorY - report->dragInitialPoint2);
          double mouse  = (double)(element->window->cursorX - report->client.l) / UI_RECT_WIDTH(report->client);
 #if 0
-			mouse = 0.5;
-			XWarpPointer(ui.display, None, windowMain->window, 0, 0, 0, 0, report->dragInitialPoint, report->dragInitialPoint2);
+         mouse = 0.5;
+         XWarpPointer(ui.display, None, windowMain->window, 0, 0, 0, 0, report->dragInitialPoint, report->dragInitialPoint2);
 #else
          report->dragInitialPoint  = element->window->cursorX;
          report->dragInitialPoint2 = element->window->cursorY;
