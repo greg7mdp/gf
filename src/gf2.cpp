@@ -213,9 +213,9 @@ void       WatchAddExpression2(char* string);
 int        WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp);
 void       CommandInspectLine(void*);
 
-//////////////////////////////////////////////////////
+// ------------------------------------------------------
 // Utilities:
-//////////////////////////////////////////////////////
+// ------------------------------------------------------
 
 int StringFormat(char* buffer, size_t bufferSize, const char* format, ...) {
    va_list arguments;
@@ -421,9 +421,9 @@ UIMessage ReceiveMessageRegister(void (*callback)(char* input)) {
    return receiveMessageTypes.Last().message;
 }
 
-//////////////////////////////////////////////////////
+// ------------------------------------------------------
 // Debugger interaction:
-//////////////////////////////////////////////////////
+// ------------------------------------------------------
 
 volatile int       pipeToGDB;
 volatile pid_t     gdbPID;
@@ -853,9 +853,9 @@ void TabCompleterRun(TabCompleter* completer, UITextbox* textbox, bool lastKeyWa
    }
 }
 
-//////////////////////////////////////////////////////
+// ------------------------------------------------------
 // Commands:
-//////////////////////////////////////////////////////
+// ------------------------------------------------------
 
 bool CommandParseInternal(const char* command, bool synchronous) {
    if (0 == strcmp(command, "gf-step")) {
@@ -1098,9 +1098,9 @@ void CommandCustom(void* _command) {
    }
 }
 
-//////////////////////////////////////////////////////
+// ------------------------------------------------------
 // Settings:
-//////////////////////////////////////////////////////
+// ------------------------------------------------------
 
 const char* themeItems[] = {
    "panel1",         "panel2",       "selected",         "border",        "text",           "textDisabled",
@@ -1347,9 +1347,9 @@ void SettingsLoad(bool earlyPass) {
    }
 }
 
-//////////////////////////////////////////////////////
+// ------------------------------------------------------
 // Debug windows:
-//////////////////////////////////////////////////////
+// ------------------------------------------------------
 
 #include "windows.cpp"
 
@@ -1361,9 +1361,9 @@ void SettingsLoad(bool earlyPass) {
    #include "plugins.cpp"
 #endif
 
-//////////////////////////////////////////////////////
+// ------------------------------------------------------
 // Interface and main:
-//////////////////////////////////////////////////////
+// ------------------------------------------------------
 
 bool ElementHidden(UIElement* element) {
    while (element) {

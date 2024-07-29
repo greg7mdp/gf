@@ -1,14 +1,14 @@
 #include "luigi2.hpp"
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Global variables.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 UI ui;
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Themes.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 UITheme uiThemeClassic = {
    .panel1   = 0xFFF0F0F0,
@@ -72,9 +72,9 @@ UITheme uiThemeDark = {
    .accent2 = 0x45F94E,
 };
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Helper functions.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 UIRectangle UIRectangleIntersection(UIRectangle a, UIRectangle b) {
    if (a.l < b.l)
@@ -270,9 +270,9 @@ char* UIStringCopy(const char* in, ptrdiff_t inBytes) {
    return buffer;
 }
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Animations.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 bool UIElementAnimate(UIElement* element, bool stop) {
    if (stop) {
@@ -316,9 +316,9 @@ void _UIProcessAnimations() {
    }
 }
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Rendering.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 void UIDrawBlock(UIPainter* painter, UIRectangle rectangle, uint32_t color) {
    rectangle = UIRectangleIntersection(painter->clip, rectangle);
@@ -802,9 +802,9 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
    }
 }
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Element hierarchy.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 void _UIElementDestroyDescendents(UIElement* element, bool topLevel) {
    for (uint32_t i = 0; i < element->childCount; i++) {
@@ -965,9 +965,9 @@ UIElement* UIParentPop() {
    return ui.parentStack[ui.parentStackCount];
 }
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Panels.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 int _UIPanelCalculatePerFill(UIPanel* panel, int* _count, int hSpace, int vSpace, float scale) {
    bool horizontal = panel->e.flags & UI_PANEL_HORIZONTAL;
@@ -1247,9 +1247,9 @@ UISwitcher* UISwitcherCreate(UIElement* parent, uint32_t flags) {
    return (UISwitcher*)UIElementCreate(sizeof(UISwitcher), parent, flags, _UISwitcherMessage, "Switcher");
 }
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Checkboxes and buttons.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 int _UIButtonMessage(UIElement* element, UIMessage message, int di, void* dp) {
    UIButton* button     = (UIButton*)element;
@@ -1363,9 +1363,9 @@ UICheckbox* UICheckboxCreate(UIElement* parent, uint32_t flags, const char* labe
    return box;
 }
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Labels.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 int _UILabelMessage(UIElement* element, UIMessage message, int di, void* dp) {
    UILabel* label = (UILabel*)element;
@@ -1398,9 +1398,9 @@ UILabel* UILabelCreate(UIElement* parent, uint32_t flags, const char* string, pt
    return label;
 }
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Split panes.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 int _UISplitPaneMessage(UIElement* element, UIMessage message, int di, void* dp);
 
@@ -1495,9 +1495,9 @@ UISplitPane* UISplitPaneCreate(UIElement* parent, uint32_t flags, float weight) 
    return splitPane;
 }
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Tab panes.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 int _UITabPaneMessage(UIElement* element, UIMessage message, int di, void* dp) {
    UITabPane* tabPane = (UITabPane*)element;
@@ -1606,9 +1606,9 @@ UITabPane* UITabPaneCreate(UIElement* parent, uint32_t flags, const char* tabs) 
    return tabPane;
 }
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Spacers.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 int _UISpacerMessage(UIElement* element, UIMessage message, int di, void* dp) {
    UISpacer* spacer = (UISpacer*)element;
@@ -1629,9 +1629,9 @@ UISpacer* UISpacerCreate(UIElement* parent, uint32_t flags, int width, int heigh
    return spacer;
 }
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Scroll bars.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 int _UIScrollBarMessage(UIElement* element, UIMessage message, int di, void* dp) {
    UIScrollBar* scrollBar = (UIScrollBar*)element;
@@ -1794,9 +1794,9 @@ UIScrollBar* UIScrollBarCreate(UIElement* parent, uint32_t flags) {
    return scrollBar;
 }
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Code views.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 int _UICodeColumnToByte(UICode* code, int line, int column) {
    int byte = 0;
@@ -2430,9 +2430,9 @@ UICode* UICodeCreate(UIElement* parent, uint32_t flags) {
    return code;
 }
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Gauges.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 int _UIGaugeMessage(UIElement* element, UIMessage message, int di, void* dp) {
    UIGauge* gauge = (UIGauge*)element;
@@ -2461,9 +2461,9 @@ UIGauge* UIGaugeCreate(UIElement* parent, uint32_t flags) {
    return (UIGauge*)UIElementCreate(sizeof(UIGauge), parent, flags, _UIGaugeMessage, "Gauge");
 }
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Sliders.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 int _UISliderMessage(UIElement* element, UIMessage message, int di, void* dp) {
    UISlider* slider = (UISlider*)element;
@@ -2500,9 +2500,9 @@ UISlider* UISliderCreate(UIElement* parent, uint32_t flags) {
    return (UISlider*)UIElementCreate(sizeof(UISlider), parent, flags, _UISliderMessage, "Slider");
 }
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Tables.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 int UITableHitTest(UITable* table, int x, int y) {
    x -= table->e.bounds.l;
@@ -2766,9 +2766,9 @@ UITable* UITableCreate(UIElement* parent, uint32_t flags, const char* columns) {
    return table;
 }
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Textboxes.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 char* UITextboxToCString(UITextbox* textbox) {
    char* buffer = (char*)UI_MALLOC(textbox->bytes + 1);
@@ -3004,9 +3004,9 @@ UITextbox* UITextboxCreate(UIElement* parent, uint32_t flags) {
                                       "Textbox");
 }
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // MDI clients.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 int _UIMDIChildHitTest(UIMDIChild* mdiChild, int x, int y) {
    UIElement* element = &mdiChild->e;
@@ -3211,9 +3211,9 @@ UIMDIClient* UIMDIClientCreate(UIElement* parent, uint32_t flags) {
    return (UIMDIClient*)UIElementCreate(sizeof(UIMDIClient), parent, flags, _UIMDIClientMessage, "MDIClient");
 }
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Image displays.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 void _UIImageDisplayUpdateViewport(UIImageDisplay* display) {
    UIRectangle bounds = display->e.bounds;
@@ -3370,9 +3370,9 @@ UIImageDisplay* UIImageDisplayCreate(UIElement* parent, uint32_t flags, uint32_t
    return display;
 }
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Modal dialogs.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 int _UIDialogWrapperMessage(UIElement* element, UIMessage message, int di, void* dp) {
    if (message == UI_MSG_LAYOUT) {
@@ -3599,9 +3599,9 @@ const char* UIDialogShow(UIWindow* window, uint32_t flags, const char* format, .
    return ui.dialogResult ? ui.dialogResult : "";
 }
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Menus (common).
-/////////////////////////////////////////
+// --------------------------------------------------
 
 bool _UIMenusClose() {
    UIWindow* window    = ui.windows;
@@ -3738,9 +3738,9 @@ UIMenu* UIMenuCreate(UIElement* parent, uint32_t flags) {
 }
 #endif // !defined(UI_ESSENCE) && !defined(UI_COCOA)
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Miscellaneous core functions.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 UIRectangle UIElementScreenBounds(UIElement* element) {
    int x = 0, y = 0;
@@ -3790,9 +3790,9 @@ void UIElementFocus(UIElement* element) {
 #endif
 }
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Update cycles.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 void UIElementRefresh(UIElement* element) {
    UIElementRelayout(element);
@@ -3997,9 +3997,9 @@ void _UIUpdate() {
    }
 }
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Input event handling.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 void _UIWindowSetPressed(UIWindow* window, UIElement* element, int button) {
    UIElement* previous   = window->pressed;
@@ -4235,9 +4235,9 @@ end:
    return handled;
 }
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Font handling.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 // Taken from https://commons.wikimedia.org/wiki/File:Codepage-437.png
 // Public domain.
@@ -4442,9 +4442,9 @@ UIFont* UIFontActivate(UIFont* font) {
    return previous;
 }
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Debugging.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 #ifdef UI_DEBUG
 
@@ -4588,9 +4588,9 @@ void _UIInspectorRefresh() {}
 
 #endif // UI_DEBUG
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Automation for tests.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 #ifdef UI_AUTOMATION_TESTS
 
@@ -4681,9 +4681,9 @@ bool UIAutomationCheckTableItemMatches(UITable* table, int row, int column, cons
 
 #endif // UI_AUTOMATION_TESTS
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Common platform layer functionality.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 void _UIWindowDestroyCommon(UIWindow* window) {
    UI_FREE(window->bits);
@@ -4735,9 +4735,9 @@ int UIMessageLoop() {
 #endif
 }
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Platform layers.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 #ifdef UI_LINUX
 

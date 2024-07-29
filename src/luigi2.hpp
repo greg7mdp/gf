@@ -3,9 +3,9 @@
 // TODO Keyboard navigation in menus.
 // TODO Easier to use fonts.
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Header includes.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 #include <cstdint>
 #include <cstddef>
@@ -102,9 +102,9 @@ void _UIMessageProcess(EsMessage* message);
    #include <freetype/ftbitmap.h>
 #endif
 
-/////////////////////////////////////////
+// --------------------------------------------------
 // Definitions.
-/////////////////////////////////////////
+// --------------------------------------------------
 
 #define _UI_TO_STRING_1(x) #x
 #define _UI_TO_STRING_2(x) _UI_TO_STRING_1(x)
