@@ -1,11 +1,20 @@
-#define UI_LINUX
-#define UI_FONT_PATH
+#include <cstdint>
+#include <cstddef>
+#include <cstdarg>
+#include <cassert>
 
 #include "luigi2.hpp"
 
 // ---------------------------------------------------------------------------------------------
 //                              Data structures
 // ---------------------------------------------------------------------------------------------
+
+inline uint64_t Hash(const uint8_t* key, size_t keyBytes) {
+   uint64_t hash = 0xCBF29CE484222325;
+   for (uintptr_t i = 0; i < keyBytes; i++)
+      hash = (hash ^ key[i]) * 0x100000001B3;
+   return hash;
+}
 
 template <class T>
 struct Array {

@@ -23,16 +23,7 @@
 #include <poll.h>
 #include <ctime>
 
-#define UI_IMPLEMENTATION  // define this only in one file
-
 #include "gf2.hpp"
-
-uint64_t Hash(const uint8_t* key, size_t keyBytes) {
-   uint64_t hash = 0xCBF29CE484222325;
-   for (uintptr_t i = 0; i < keyBytes; i++)
-      hash = (hash ^ key[i]) * 0x100000001B3;
-   return hash;
-}
 
 // --------------------------------------------------------------------------------------------
 FILE*                      commandLog;
@@ -116,12 +107,12 @@ struct StackEntry {
 };
 
 Array<StackEntry> stack;
-int stackSelected;
-bool stackChanged;
+int               stackSelected;
+bool              stackChanged;
 
 // Python code:
 
-const char *pythonCode = R"(py
+const char* pythonCode = R"(py
 
 def _gf_hook_string(basic_type):
     hook_string = str(basic_type)
@@ -1363,11 +1354,11 @@ void SettingsLoad(bool earlyPass) {
 #include "windows.cpp"
 
 #if __has_include("extensions.cpp")
-#include "extensions.cpp"
+   #include "extensions.cpp"
 #endif
 
 #if __has_include("plugins.cpp")
-#include "plugins.cpp"
+   #include "plugins.cpp"
 #endif
 
 //////////////////////////////////////////////////////
