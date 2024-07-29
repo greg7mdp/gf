@@ -10,20 +10,18 @@
 
 // TODO More data visualization tools in the data window.
 
-#include <cstdint>
+#include "gf2.hpp"
+
 #include <pthread.h>
 #include <signal.h>
 #include <spawn.h>
 #include <cstdio>
 #include <ctype.h>
 #include <sys/stat.h>
-#include <cstdarg>
 #include <dirent.h>
 #include <fcntl.h>
 #include <poll.h>
 #include <ctime>
-
-#include "gf2.hpp"
 
 // --------------------------------------------------------------------------------------------
 FILE*                      commandLog;
