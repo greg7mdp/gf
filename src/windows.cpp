@@ -781,7 +781,7 @@ int DataViewerAutoUpdateButtonMessage(UIElement* element, UIMessage message, int
          AutoUpdateViewer v = {.element = element->parent, .callback = (void (*)(UIElement*))element->cp};
          autoUpdateViewers.Add(v);
       } else {
-         bool found = DataViewerRemoveFromAutoUpdateList(element->parent);
+         [[maybe_unused]] bool found = DataViewerRemoveFromAutoUpdateList(element->parent);
          assert(found);
       }
    }
@@ -1262,7 +1262,7 @@ void WatchDeleteExpression(WatchWindow* w, bool fieldsOnly = false) {
    Watch* watch = w->rows[w->selectedRow];
 
    if (!fieldsOnly) {
-      bool found = false;
+      [[maybe_unused]] bool found = false;
 
       for (int i = 0; i < w->baseExpressions.Length(); i++) {
          if (watch == w->baseExpressions[i]) {
@@ -2291,7 +2291,7 @@ void WatchWindowUpdate(const char*, UIElement* element) {
                }
 
                if (!matched) {
-                  bool found = false;
+                  [[maybe_unused]] bool found = false;
                   for (int rowIndex = 0; rowIndex < w->rows.Length(); rowIndex++) {
                      if (w->rows[rowIndex] == watch) {
                         w->selectedRow = rowIndex;

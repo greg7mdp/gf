@@ -1834,7 +1834,7 @@ int UIElementMessage(UIElement* element, UIMessage message, int di, void* dp) {
 }
 
 UIElement* UIElementChangeParent(UIElement* element, UIElement* newParent, UIElement* insertBefore) {
-   bool       found     = false;
+   [[maybe_unused]] bool       found     = false;
    UIElement* oldBefore = NULL;
 
    for (uint32_t i = 0; i < element->parent->childCount; i++) {
