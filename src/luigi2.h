@@ -3034,11 +3034,7 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
 
       UIDrawBlock(painter, element->bounds, ui.theme.codeBackground);
 
-#ifdef __cplusplus
       UIStringSelection selection = {};
-#else
-      UIStringSelection selection = {0};
-#endif
       selection.colorBackground = ui.theme.selected;
       selection.colorText       = ui.theme.textSelected;
 
@@ -3871,11 +3867,7 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
          textbox->scroll = caretX - UI_RECT_WIDTH(textBounds) + textbox->scroll + 1;
       }
 
-#ifdef __cplusplus
       UIStringSelection selection = {};
-#else
-      UIStringSelection selection = {0};
-#endif
       selection.carets[0]       = textbox->carets[0];
       selection.carets[1]       = textbox->carets[1];
       selection.colorBackground = ui.theme.selected;
@@ -4953,11 +4945,7 @@ void _UIUpdate() {
          UIElementMessage(&window->e, UI_MSG_WINDOW_UPDATE_BEFORE_PAINT, 0, 0);
 
          if (UI_RECT_VALID(window->updateRegion)) {
-#ifdef __cplusplus
             UIPainter painter = {};
-#else
-            UIPainter painter = {0};
-#endif
             painter.bits   = window->bits;
             painter.width  = window->width;
             painter.height = window->height;
