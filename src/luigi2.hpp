@@ -88,8 +88,8 @@
    #define UI_CLOCK_T uint64_t
    #define UI_MEMMOVE EsCRTmemmove
 
-// Callback to allow the application to process messages.
-void _UIMessageProcess(EsMessage* message);
+   // Callback to allow the application to process messages.
+   void _UIMessageProcess(EsMessage* message);
 #endif
 
 #ifdef UI_DEBUG
@@ -230,9 +230,9 @@ typedef enum UIMessage {
 #ifdef UI_ESSENCE
    #define UIRectangle EsRectangle
 #else
-typedef struct UIRectangle {
-   int l, r, t, b;
-} UIRectangle;
+   typedef struct UIRectangle {
+      int l, r, t, b;
+   } UIRectangle;
 #endif
 
 typedef struct UITheme {
@@ -599,6 +599,7 @@ typedef struct UIScrollBar {
       hScrollBarBounds.b - (element->hScroll->page < element->hScroll->maximum ? scrollBarSize : 0);                 \
    UIElementMove(&element->vScroll->e, vScrollBarBounds, true);                                                      \
    UIElementMove(&element->hScroll->e, hScrollBarBounds, true);
+
 #define _UI_KEY_INPUT_VSCROLL(element, rowHeight, pageHeight) \
    if (m->code == UI_KEYCODE_UP)                              \
       element->vScroll->position -= (rowHeight);              \
