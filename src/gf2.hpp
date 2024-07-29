@@ -1,9 +1,7 @@
 #define UI_LINUX
 #define UI_FONT_PATH
 
-extern "C" {
-   #include "luigi2.h"
-}
+#include "luigi2.hpp"
 
 // ---------------------------------------------------------------------------------------------
 //                              Data structures
