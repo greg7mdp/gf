@@ -216,6 +216,8 @@ struct UIRectangle {
    UIPoint center() const { return { l + width() / 2, t + height() / 2 }; }
 
    bool    valid()  const { return l < r && t < b; }
+   bool    contains(const UIPoint& p) const { return p.x >= l && p.x < r && p.y >= t && p.y < b; }
+   bool    contains(int x, int y) const { return x >= l && x < r && y >= t && y < b; }
 
    auto operator<=>(const UIRectangle&) const = default;
 };
@@ -826,8 +828,6 @@ UIRectangle UIRectangleAdd(const UIRectangle& a, const UIRectangle& b);
 UIRectangle UIRectangleTranslate(const UIRectangle& a, const UIRectangle& b);
 UIRectangle UIRectangleCenter(const UIRectangle& parent, UIRectangle child);
 UIRectangle UIRectangleFit(UIRectangle parent, UIRectangle child, bool allowScalingUp);
-bool        UIRectangleEquals(UIRectangle a, UIRectangle b);
-bool        UIRectangleContains(UIRectangle a, int x, int y);
 
 bool UIColorToHSV(uint32_t rgb, float* hue, float* saturation, float* value);
 void UIColorToRGB(float hue, float saturation, float value, uint32_t* rgb);

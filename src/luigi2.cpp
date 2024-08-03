@@ -119,10 +119,6 @@ UIRectangle UIRectangleFit(UIRectangle parent, UIRectangle child, bool allowScal
    }
 }
 
-bool UIRectangleContains(UIRectangle a, int x, int y) {
-   return a.l <= x && a.r > x && a.t <= y && a.b > y;
-}
-
 typedef union _UIConvertFloatInteger {
    float    f;
    uint32_t i;
@@ -1524,7 +1520,7 @@ int _UITabPaneMessage(UIElement* element, UIMessage message, int di, void* dp) {
          int width = UIMeasureStringWidth(tabPane->tabs, end - position);
          tab.r     = tab.l + width + UI_SIZE_BUTTON_PADDING;
 
-         if (UIRectangleContains(tab, element->window->cursor.x, element->window->cursor.y)) {
+         if (tab.contains(element->window->cursor)) {
             tabPane->active = index;
             UIElementRelayout(element);
             UIElementRepaint(element, NULL);
@@ -2507,7 +2503,7 @@ int UITableHeaderHitTest(UITable* table, int x, int y) {
       for (; table->columns[end] != '\t' && table->columns[end]; end++)
          ;
       header.r = header.l + table->columnWidths[index];
-      if (UIRectangleContains(header, x, y))
+      if (header.contains(x, y))
          return index;
       header.l += table->columnWidths[index] + UI_SIZE_TABLE_COLUMN_GAP * table->e.window->scale;
       if (table->columns[end] != '\t')
@@ -2984,7 +2980,7 @@ int _UIMDIChildHitTest(UIMDIChild* mdiChild, int x, int y) {
    UIElement* element = &mdiChild->e;
    UI_MDI_CHILD_CALCULATE_LAYOUT(element->bounds, element->window->scale);
    int cornerSize = UI_SIZE_MDI_CHILD_CORNER * element->window->scale;
-   if (!UIRectangleContains(element->bounds, x, y) || UIRectangleContains(content, x, y))
+   if (!element->bounds.contains(x, y) || content.contains(x, y))
       return -1;
    else if (x < element->bounds.l + cornerSize && y < element->bounds.t + cornerSize)
       return 0b1010;
@@ -3002,7 +2998,7 @@ int _UIMDIChildHitTest(UIMDIChild* mdiChild, int x, int y) {
       return 0b0010;
    else if (y > element->bounds.b - borderSize)
       return 0b0001;
-   else if (UIRectangleContains(title, x, y))
+   else if (title.contains(x, y))
       return 0b1111;
    else
       return -1;
@@ -3994,7 +3990,7 @@ UIElement* UIElementFindByPoint(UIElement* element, int x, int y) {
    for (uint32_t i = element->childCount; i > 0; i--) {
       UIElement* child = element->children[i - 1];
 
-      if ((~child->flags & UI_ELEMENT_HIDE) && UIRectangleContains(child->clip, x, y)) {
+      if ((~child->flags & UI_ELEMENT_HIDE) && child->clip.contains(x, y)) {
          return UIElementFindByPoint(child, x, y);
       }
    }
@@ -4068,7 +4064,7 @@ bool _UIWindowInputEvent(UIWindow* window, UIMessage message, int di, void* dp) 
    }
 
    if (window->pressed) {
-      bool inside = UIRectangleContains(window->pressed->clip, window->cursor.x, window->cursor.y);
+      bool inside = window->pressed->clip.contains(window->cursor);
 
       if (inside && window->hovered == &window->e) {
          window->hovered = window->pressed;

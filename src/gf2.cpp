@@ -6579,8 +6579,8 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
             0.5f;
 
          if (mouseXSample >= 0 && mouseXSample < sampleCount &&
-             UIRectangleContains(element->clip, element->window->cursor.x, element->window->cursor.y) &&
-             !UIRectangleContains(display->scrollBar->e.clip, element->window->cursor.x, element->window->cursor.y)) {
+             element->clip.contains(element->window->cursor) &&
+             !display->scrollBar->e.clip.contains(element->window->cursor)) {
             int         stringOffset = 20 * element->window->scale;
             UIRectangle stringRectangle =
                UI_RECT_4(client.l + stringOffset, client.r - stringOffset, client.t + stringOffset,
