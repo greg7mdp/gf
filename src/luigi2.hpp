@@ -204,11 +204,15 @@ typedef enum UIMessage {
    UI_MSG_USER,
 } UIMessage;
 
-typedef struct UIRectangle {
+struct UIRectangle {
    int l, r, t, b;
-} UIRectangle;
 
-typedef struct UITheme {
+   int width()  const { assert(r >= l); return r - l; }
+   int height() const { assert(b >= t); return b - t; }
+   bool valid() const { return l < r && t < b; }
+};
+
+struct UITheme {
    uint32_t panel1, panel2, selected, border;
    uint32_t text, textDisabled, textSelected;
    uint32_t buttonNormal, buttonHovered, buttonPressed, buttonDisabled;
@@ -216,18 +220,18 @@ typedef struct UITheme {
    uint32_t codeFocused, codeBackground, codeDefault, codeComment, codeString, codeNumber, codeOperator,
       codePreprocessor;
    uint32_t accent1, accent2;
-} UITheme;
+};
 
-typedef struct UIPainter {
+struct UIPainter {
    UIRectangle clip;
    uint32_t*   bits;
    int         width, height;
 #ifdef UI_DEBUG
    int fillCount;
 #endif
-} UIPainter;
+};
 
-typedef struct UIFont {
+struct UIFont {
    int glyphWidth, glyphHeight;
 
 #ifdef UI_FREETYPE
@@ -237,39 +241,39 @@ typedef struct UIFont {
    bool      glyphsRendered[128];
    int       glyphOffsetsX[128], glyphOffsetsY[128];
 #endif
-} UIFont;
+};
 
-typedef struct UIShortcut {
+struct UIShortcut {
    intptr_t code;
    bool     ctrl, shift, alt;
    void (*invoke)(void* cp);
    void* cp;
-} UIShortcut;
+};
 
-typedef struct UIStringSelection {
+struct UIStringSelection {
    int      carets[2];
    uint32_t colorText, colorBackground;
-} UIStringSelection;
+};
 
-typedef struct UIKeyTyped {
+struct UIKeyTyped {
    char*    text;
    int      textBytes;
    intptr_t code;
-} UIKeyTyped;
+};
 
-typedef struct UITableGetItem {
+struct UITableGetItem {
    char*  buffer;
    size_t bufferBytes;
    int    index, column;
    bool   isSelected;
-} UITableGetItem;
+};
 
-typedef struct UICodeDecorateLine {
+struct UICodeDecorateLine {
    UIRectangle bounds;
    int         index; // Starting at 1!
    int         x, y;  // Position where additional text can be drawn.
    UIPainter*  painter;
-} UICodeDecorateLine;
+};
 
 #define UI_RECT_1(x) ((UIRectangle){(x), (x), (x), (x)})
 #define UI_RECT_1I(x) ((UIRectangle){(x), -(x), (x), -(x)})
@@ -287,7 +291,6 @@ typedef struct UICodeDecorateLine {
 #define UI_RECT_BOTTOM_LEFT(_r) (_r).l, (_r).b
 #define UI_RECT_BOTTOM_RIGHT(_r) (_r).r, (_r).b
 #define UI_RECT_ALL(_r) (_r).l, (_r).r, (_r).t, (_r).b
-#define UI_RECT_VALID(_r) ((_r).l < (_r).r && (_r).t < (_r).b)
 
 #define UI_COLOR_ALPHA_F(x) ((((x) >> 24) & 0xFF) / 255.0f)
 #define UI_COLOR_RED_F(x) ((((x) >> 16) & 0xFF) / 255.0f)
@@ -397,7 +400,11 @@ extern const int UI_KEYCODE_PAGE_DOWN;
 
 #define UI_ELEMENT_FILL (UI_ELEMENT_V_FILL | UI_ELEMENT_H_FILL)
 
-typedef struct UIElement {
+struct UIWindow;
+struct UIRectangle;
+struct UIScrollBar;
+
+struct UIElement {
 #define UI_ELEMENT_V_FILL (1 << 16)
 #define UI_ELEMENT_H_FILL (1 << 17)
 #define UI_ELEMENT_WINDOW (1 << 18)
@@ -418,24 +425,24 @@ typedef struct UIElement {
    uint32_t childCount;
    uint32_t _unused0;
 
-   struct UIElement*  parent;
-   struct UIElement** children;
-   struct UIWindow*   window;
+   UIElement*  parent;
+   UIElement** children;
+   UIWindow*   window;
 
    UIRectangle bounds, clip;
 
    void* cp; // Context pointer (for user).
 
-   int (*messageClass)(struct UIElement* element, UIMessage message, int di /* data integer */,
+   int (*messageClass)(UIElement* element, UIMessage message, int di /* data integer */,
                        void* dp /* data pointer */);
-   int (*messageUser)(struct UIElement* element, UIMessage message, int di, void* dp);
+   int (*messageUser)(UIElement* element, UIMessage message, int di, void* dp);
 
    const char* cClassName;
-} UIElement;
+};
 
 #define UI_SHORTCUT(code, ctrl, shift, alt, invoke, cp) ((UIShortcut){(code), (ctrl), (shift), (alt), (invoke), (cp)})
 
-typedef struct UIWindow {
+struct UIWindow {
 #define UI_WINDOW_MENU (1 << 0)
 #define UI_WINDOW_INSPECTOR (1 << 1)
 #define UI_WINDOW_CENTER_IN_OWNER (1 << 2)
@@ -476,9 +483,9 @@ typedef struct UIWindow {
    HWND hwnd;
    bool trackingLeave;
 #endif
-} UIWindow;
+};
 
-typedef struct UIPanel {
+struct UIPanel {
 #define UI_PANEL_HORIZONTAL (1 << 0)
 #define UI_PANEL_COLOR_1 (1 << 2)
 #define UI_PANEL_COLOR_2 (1 << 3)
@@ -488,12 +495,12 @@ typedef struct UIPanel {
 #define UI_PANEL_SCROLL (1 << 8)
 #define UI_PANEL_EXPAND (1 << 9)
    UIElement           e;
-   struct UIScrollBar* scrollBar;
+   UIScrollBar* scrollBar;
    UIRectangle         border;
    int                 gap;
-} UIPanel;
+};
 
-typedef struct UIButton {
+struct UIButton {
 #define UI_BUTTON_SMALL (1 << 0)
 #define UI_BUTTON_MENU_ITEM (1 << 1)
 #define UI_BUTTON_CAN_FOCUS (1 << 2)
@@ -503,9 +510,9 @@ typedef struct UIButton {
    char*     label;
    ptrdiff_t labelBytes;
    void (*invoke)(void* cp);
-} UIButton;
+};
 
-typedef struct UICheckbox {
+struct UICheckbox {
 #define UI_CHECKBOX_ALLOW_INDETERMINATE (1 << 0)
    UIElement e;
 #define UI_CHECK_UNCHECKED (0)
@@ -515,32 +522,32 @@ typedef struct UICheckbox {
    char*     label;
    ptrdiff_t labelBytes;
    void (*invoke)(void* cp);
-} UICheckbox;
+};
 
-typedef struct UILabel {
+struct UILabel {
    UIElement e;
    char*     label;
    ptrdiff_t labelBytes;
-} UILabel;
+};
 
-typedef struct UISpacer {
+struct UISpacer {
    UIElement e;
    int       width, height;
-} UISpacer;
+};
 
-typedef struct UISplitPane {
+struct UISplitPane {
 #define UI_SPLIT_PANE_VERTICAL (1 << 0)
    UIElement e;
    float     weight;
-} UISplitPane;
+};
 
-typedef struct UITabPane {
+struct UITabPane {
    UIElement e;
    char*     tabs;
    uint32_t  active;
-} UITabPane;
+};
 
-typedef struct UIScrollBar {
+struct UIScrollBar {
 #define UI_SCROLL_BAR_HORIZONTAL (1 << 0)
    UIElement  e;
    int64_t    maximum, page;
@@ -548,7 +555,7 @@ typedef struct UIScrollBar {
    double     position;
    UI_CLOCK_T lastAnimateTime;
    bool       inDrag, horizontal;
-} UIScrollBar;
+};
 
 #define _UI_LAYOUT_SCROLL_BAR_PAIR(element)                                                                          \
    element->vScroll->page       = vSpace - (element->hScroll->page < element->hScroll->maximum ? scrollBarSize : 0); \
@@ -577,11 +584,11 @@ typedef struct UIScrollBar {
       element->vScroll->position = element->vScroll->maximum; \
    UIElementRefresh(&element->e);
 
-typedef struct UICodeLine {
+struct UICodeLine {
    int offset, bytes;
-} UICodeLine;
+};
 
-typedef struct UICode {
+struct UICode {
 #define UI_CODE_NO_MARGIN (1 << 0)
 #define UI_CODE_SELECTABLE (1 << 1)
    UIElement    e;
@@ -602,54 +609,54 @@ typedef struct UICode {
    int  verticalMotionColumn;
    bool useVerticalMotionColumn;
    bool moveScrollToCaretNextLayout;
-} UICode;
+};
 
-typedef struct UIGauge {
+struct UIGauge {
    UIElement e;
    double    position;
-} UIGauge;
+};
 
-typedef struct UITable {
+struct UITable {
    UIElement    e;
    UIScrollBar *vScroll, *hScroll;
    int          itemCount;
    char*        columns;
    int *        columnWidths, columnCount, columnHighlight;
-} UITable;
+};
 
-typedef struct UITextbox {
+struct UITextbox {
    UIElement e;
    char*     string;
    ptrdiff_t bytes;
    int       carets[2];
    int       scroll;
    bool      rejectNextKey;
-} UITextbox;
+};
 
 #define UI_MENU_PLACE_ABOVE (1 << 0)
 #define UI_MENU_NO_SCROLL (1 << 1)
 
-typedef struct UIMenu {
+struct UIMenu {
    UIElement    e;
    int          pointX, pointY;
    UIScrollBar* vScroll;
    UIWindow*    parentWindow;
-} UIMenu;
+};
 
-typedef struct UISlider {
+struct UISlider {
    UIElement e;
    double    position;
    int       steps;
-} UISlider;
+};
 
-typedef struct UIMDIClient {
+struct UIMDIClient {
 #define UI_MDI_CLIENT_TRANSPARENT (1 << 0)
    UIElement          e;
    struct UIMDIChild* active;
    int                cascade;
-} UIMDIClient;
+};
 
-typedef struct UIMDIChild {
+struct UIMDIChild {
 #define UI_MDI_CHILD_CLOSE_BUTTON (1 << 0)
    UIElement   e;
    UIRectangle bounds;
@@ -657,16 +664,16 @@ typedef struct UIMDIChild {
    ptrdiff_t   titleBytes;
    int         dragHitTest;
    UIRectangle dragOffset;
-} UIMDIChild;
+};
 
-typedef struct UIExpandPane {
+struct UIExpandPane {
    UIElement e;
    UIButton* button;
    UIPanel*  panel;
    bool      expanded;
-} UIExpandPane;
+};
 
-typedef struct UIImageDisplay {
+struct UIImageDisplay {
 #define UI_IMAGE_DISPLAY_INTERACTIVE (1 << 0)
 #define _UI_IMAGE_DISPLAY_ZOOM_FIT (1 << 1)
 
@@ -678,16 +685,16 @@ typedef struct UIImageDisplay {
    // Internals:
    int previousWidth, previousHeight;
    int previousPanPointX, previousPanPointY;
-} UIImageDisplay;
+};
 
-typedef struct UIWrapPanel {
+struct UIWrapPanel {
    UIElement e;
-} UIWrapPanel;
+};
 
-typedef struct UISwitcher {
+struct UISwitcher {
    UIElement  e;
    UIElement* active;
-} UISwitcher;
+};
 
 void UIInitialise();
 int  UIMessageLoop();

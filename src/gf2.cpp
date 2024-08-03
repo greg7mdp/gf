@@ -2770,7 +2770,7 @@ void WatchEnsureRowVisible(WatchWindow* w, int index) {
       w->selectedRow = w->rows.Length();
    UIScrollBar* scroll    = ((UIPanel*)w->element->parent)->scrollBar;
    int          rowHeight = (int)(UI_SIZE_TEXTBOX_HEIGHT * w->element->window->scale);
-   int  start = index * rowHeight, end = (index + 1) * rowHeight, height = UI_RECT_HEIGHT(w->element->parent->bounds);
+   int  start = index * rowHeight, end = (index + 1) * rowHeight, height = w->element->parent->bounds.height();
    bool unchanged = false;
    if (end >= scroll->position + height)
       scroll->position = end - height;
@@ -3329,7 +3329,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
          row.t += i * rowHeight, row.b = row.t + rowHeight;
 
          UIRectangle intersection = UIRectangleIntersection(row, painter->clip);
-         if (!UI_RECT_VALID(intersection))
+         if (!intersection.valid())
             break;
 
          bool focused = i == w->selectedRow && element->window->focused == element;
@@ -4878,13 +4878,13 @@ void ProfFillView(void* _report) {
 
 void ProfDrawTransparentOverlay(UIPainter* painter, UIRectangle rectangle, uint32_t color) {
    rectangle = UIRectangleIntersection(painter->clip, rectangle);
-   if (!UI_RECT_VALID(rectangle))
+   if (!rectangle.valid())
       return;
 
    for (int line = rectangle.t; line < rectangle.b; line++) {
       uint32_t* bits = painter->bits + line * painter->width + rectangle.l;
 
-      for (int x = 0; x < UI_RECT_WIDTH(rectangle); x++) {
+      for (int x = 0; x < rectangle.width(); x++) {
          uint32_t original = bits[x];
          uint32_t m1       = 180;
          uint32_t m2       = 255 - m1;
@@ -4915,7 +4915,7 @@ void* ProfFlameGraphRenderThread(void* _unused) {
       ProfFlameGraphReport* report  = profRenderReport;
       UIElement*            element = &report->e;
 
-      double     zoomX    = (double)UI_RECT_WIDTH(report->client) / (report->xEnd - report->xStart);
+      double     zoomX    = (double)report->client.width() / (report->xEnd - report->xStart);
       UIPainter  _painter = *profRenderPainter; // Some of the draw functions modify the painter's clip, so make a copy.
       UIPainter* painter  = &_painter;
 
@@ -4967,7 +4967,7 @@ void* ProfFlameGraphRenderThread(void* _unused) {
             /// uint32_t color = hovered ? profHoverColor : profMainColor;
             UIDrawBlock(painter, UI_RECT_4(r.l + 1, r.r - 1, r.t + 1, r.b - 1), color);
 
-            if (UI_RECT_WIDTH(r) > 40) {
+            if (r.width() > 40) {
                char string[128];
                StringFormat(string, sizeof(string), "%s %fms", entry->cName, entry->endTime - entry->startTime);
                UIDrawString(painter, UI_RECT_4(r.l + 2, r.r, r.t, r.b), string, -1, profTextColor, UI_ALIGN_LEFT, NULL);
@@ -5004,7 +5004,7 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
       if (report->xEnd < report->xStart + 1e-7)
          report->xEnd = report->xStart + 1e-7;
 
-      double zoomX = (double)UI_RECT_WIDTH(report->client) / (report->xEnd - report->xStart);
+      double zoomX = (double)report->client.width() / (report->xEnd - report->xStart);
 
       if (!profRenderThreadCount) {
          profRenderThreadCount = sysconf(_SC_NPROCESSORS_CONF);
@@ -5074,14 +5074,14 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
          UIRectangle zoomBar =
             UI_RECT_4(report->client.l, report->client.r, report->client.b - profZoomBarHeight, report->client.b);
          UIRectangle zoomBarThumb = zoomBar;
-         zoomBarThumb.l           = zoomBar.l + UI_RECT_WIDTH(zoomBar) * (report->xStart / report->totalTime);
-         zoomBarThumb.r           = zoomBar.l + UI_RECT_WIDTH(zoomBar) * (report->xEnd / report->totalTime);
+         zoomBarThumb.l           = zoomBar.l + zoomBar.width() * (report->xStart / report->totalTime);
+         zoomBarThumb.r           = zoomBar.l + zoomBar.width() * (report->xEnd / report->totalTime);
          UIRectangle drawBounds   = UIRectangleIntersection(zoomBar, painter->clip);
 
          for (int i = drawBounds.t; i < drawBounds.b; i++) {
             for (int j = drawBounds.l; j < drawBounds.r; j++) {
-               int si = (i - zoomBar.t) * report->thumbnailHeight / UI_RECT_HEIGHT(zoomBar);
-               int sj = (j - zoomBar.l) * report->thumbnailWidth / UI_RECT_WIDTH(zoomBar);
+               int si = (i - zoomBar.t) * report->thumbnailHeight / zoomBar.height();
+               int sj = (j - zoomBar.l) * report->thumbnailWidth / zoomBar.width();
 
                if (si >= 0 && si < report->thumbnailHeight && sj >= 0 && sj < report->thumbnailWidth) {
                   painter->bits[i * painter->width + j] = report->thumbnail[si * report->thumbnailWidth + sj];
@@ -5137,7 +5137,7 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
 
       UIFontActivate(previousFont);
    } else if (message == UI_MSG_MOUSE_MOVE) {
-      double               zoomX = (double)UI_RECT_WIDTH(report->client) / (report->xEnd - report->xStart);
+      double               zoomX = (double)report->client.width() / (report->xEnd - report->xStart);
       ProfFlameGraphEntry* hover = nullptr;
       int                  depth =
          (element->window->cursorY - report->client.t + report->vScroll->position - profScaleHeight) / profRowHeight;
@@ -5187,9 +5187,9 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
          report->dragScrollRate   = 1.0;
 
          if (element->window->cursorX <
-                report->client.l + UI_RECT_WIDTH(report->client) * (report->xStart / report->totalTime) ||
+                report->client.l + report->client.width() * (report->xStart / report->totalTime) ||
              element->window->cursorY >=
-                report->client.l + UI_RECT_WIDTH(report->client) * (report->xEnd / report->totalTime)) {
+                report->client.l + report->client.width() * (report->xEnd / report->totalTime)) {
             report->dragScrollRate = 0.2;
          }
       }
@@ -5212,7 +5212,7 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
          r.l = report->dragInitialPoint, r.r = report->dragCurrentPoint;
          if (r.l > r.r)
             r.r = report->dragInitialPoint, r.l = report->dragCurrentPoint;
-         double zoomX   = (double)UI_RECT_WIDTH(report->client) / (report->xEnd - report->xStart);
+         double zoomX   = (double)report->client.width() / (report->xEnd - report->xStart);
          report->xEnd   = (r.r - report->client.l) / zoomX + report->xStart;
          report->xStart = (r.l - report->client.l) / zoomX + report->xStart;
       } else if (!report->dragStarted && message == UI_MSG_RIGHT_UP && report->hover) {
@@ -5237,7 +5237,7 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
       if (report->dragMode == FLAME_GRAPH_DRAG_PAN) {
          double delta   = report->xEnd - report->xStart;
          report->xStart = report->dragInitialValue - (double)(element->window->cursorX - report->dragInitialPoint) *
-                                                        report->totalTime / UI_RECT_WIDTH(report->client) * delta /
+                                                        report->totalTime / report->client.width() * delta /
                                                         report->totalTime;
          report->xEnd = report->xStart + delta;
          if (report->xStart < 0) {
@@ -5254,7 +5254,7 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
       } else if (report->dragMode == FLAME_GRAPH_DRAG_X_SCROLL) {
          double delta   = report->xEnd - report->xStart;
          report->xStart = report->dragInitialValue + (double)(element->window->cursorX - report->dragInitialPoint) *
-                                                        report->totalTime / UI_RECT_WIDTH(report->client) *
+                                                        report->totalTime / report->client.width() *
                                                         report->dragScrollRate;
          report->xEnd = report->xStart + delta;
          if (report->xStart < 0) {
@@ -5268,10 +5268,10 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
       } else if (report->dragMode == FLAME_GRAPH_DRAG_X_PAN_AND_ZOOM) {
          double delta = report->xEnd - report->xStart;
          report->xStart += (double)(element->window->cursorX - report->dragInitialPoint) * report->totalTime /
-                           UI_RECT_WIDTH(report->client) * delta / report->totalTime * 3.0;
+                           report->client.width() * delta / report->totalTime * 3.0;
          report->xEnd  = report->xStart + delta;
          double factor = powf(1.02, element->window->cursorY - report->dragInitialPoint2);
-         double mouse  = (double)(element->window->cursorX - report->client.l) / UI_RECT_WIDTH(report->client);
+         double mouse  = (double)(element->window->cursorX - report->client.l) / report->client.width();
 #if 0
          mouse = 0.5;
          XWarpPointer(ui.display, None, windowMain->window, 0, 0, 0, 0, report->dragInitialPoint, report->dragInitialPoint2);
@@ -5295,7 +5295,7 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
          factor *= perDivision, divisions--;
       while (divisions < 0)
          factor /= perDivision, divisions++;
-      double mouse   = (double)(element->window->cursorX - report->client.l) / UI_RECT_WIDTH(report->client);
+      double mouse   = (double)(element->window->cursorX - report->client.l) / report->client.width();
       double newZoom = (report->xEnd - report->xStart) / report->totalTime * factor;
       report->xStart += mouse * (report->xEnd - report->xStart) * (1 - factor);
       report->xEnd = newZoom * report->totalTime + report->xStart;
@@ -5308,7 +5308,7 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
    } else if (message == UI_MSG_LAYOUT) {
       UIRectangle scrollBarBounds = element->bounds;
       scrollBarBounds.l           = scrollBarBounds.r - UI_SIZE_SCROLL_BAR * element->window->scale;
-      report->vScroll->page       = UI_RECT_HEIGHT(element->bounds) - profZoomBarHeight;
+      report->vScroll->page       = element->bounds.height() - profZoomBarHeight;
       UIElementMove(&report->vScroll->e, scrollBarBounds, true);
       report->client   = element->bounds;
       report->client.r = scrollBarBounds.l;
@@ -6041,12 +6041,12 @@ int ViewWindowMatrixGridMessage(UIElement* element, UIMessage message, int di, v
       UIRectangle scrollBarBounds = element->bounds;
       scrollBarBounds.l           = scrollBarBounds.r - UI_SIZE_SCROLL_BAR * element->window->scale;
       scrollBarBounds.b -= UI_SIZE_SCROLL_BAR * element->window->scale;
-      grid->vScroll->page = UI_RECT_HEIGHT(scrollBarBounds);
+      grid->vScroll->page = scrollBarBounds.height();
       UIElementMove(&grid->vScroll->e, scrollBarBounds, true);
       scrollBarBounds   = element->bounds;
       scrollBarBounds.t = scrollBarBounds.b - UI_SIZE_SCROLL_BAR * element->window->scale;
       scrollBarBounds.r -= UI_SIZE_SCROLL_BAR * element->window->scale;
-      grid->hScroll->page = UI_RECT_WIDTH(scrollBarBounds);
+      grid->hScroll->page = scrollBarBounds.width();
       UIElementMove(&grid->hScroll->e, scrollBarBounds, true);
    } else if (message == UI_MSG_SCROLLED) {
       UIElementRepaint(element, nullptr);
@@ -6123,7 +6123,7 @@ int ViewWindowStringMessage(UIElement* element, UIMessage message, int di, void*
       UIRectangle clientBounds    = element->bounds;
       clientBounds.r -= UI_SIZE_SCROLL_BAR * element->window->scale;
       display->vScroll->maximum = ViewWindowStringLayout(display, nullptr, 0);
-      display->vScroll->page    = UI_RECT_HEIGHT(element->bounds);
+      display->vScroll->page    = element->bounds.height();
       UIElementMove(&display->vScroll->e, scrollBarBounds, true);
    } else if (message == UI_MSG_PAINT) {
       UIDrawBlock((UIPainter*)dp, element->bounds, ui.theme.codeBackground);
@@ -6400,7 +6400,7 @@ struct WaveformDisplay {
 void WaveformDisplayDrawVerticalLineWithTranslucency(UIPainter* painter, UIRectangle rectangle, uint32_t color,
                                                      uint32_t alpha) {
    rectangle = UIRectangleIntersection(painter->clip, rectangle);
-   if (!UI_RECT_VALID(rectangle))
+   if (!rectangle.valid())
       return;
    uint32_t* bits = painter->bits + rectangle.t * painter->width + rectangle.l;
 
@@ -6460,7 +6460,7 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
    } else if (message == UI_MSG_MOUSE_DRAG && element->window->pressedButton == 1) {
       display->scrollBar->position += display->dragLastModification;
       display->dragLastModification =
-         (element->window->cursorX - display->dragLastX) * display->samplesOnScreen / UI_RECT_WIDTH(element->bounds);
+         (element->window->cursorX - display->dragLastX) * display->samplesOnScreen / element->bounds.width();
       display->scrollBar->position -= display->dragLastModification;
       UIElementRefresh(&display->e);
    } else if (message == UI_MSG_MOUSE_DRAG && element->window->pressedButton == 2) {
@@ -6474,8 +6474,8 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
          l     = r;
          r     = t;
       }
-      float lf = (float)l / UI_RECT_WIDTH(element->bounds) * display->samplesOnScreen + display->scrollBar->position;
-      float rf = (float)r / UI_RECT_WIDTH(element->bounds) * display->samplesOnScreen + display->scrollBar->position;
+      float lf = (float)l / element->bounds.width() * display->samplesOnScreen + display->scrollBar->position;
+      float rf = (float)r / element->bounds.width() * display->samplesOnScreen + display->scrollBar->position;
 
       if (rf - lf >= display->minimumZoom) {
          display->scrollBar->position = lf;
@@ -6494,7 +6494,7 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
          factor *= perDivision, divisions--;
       while (divisions < 0)
          factor /= perDivision, divisions++;
-      double mouse   = (double)(element->window->cursorX - element->bounds.l) / UI_RECT_WIDTH(element->bounds);
+      double mouse   = (double)(element->window->cursorX - element->bounds.l) / element->bounds.width();
       double newZoom = (double)display->samplesOnScreen / display->sampleCount * factor;
 
       if (newZoom * display->sampleCount >= display->minimumZoom) {
@@ -6507,7 +6507,7 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
       UIElementRepaint(element, NULL);
    } else if (message == UI_MSG_PAINT) {
       UIRectangle client = element->bounds;
-      client.b -= UI_RECT_HEIGHT(display->scrollBar->e.bounds);
+      client.b -= display->scrollBar->e.bounds.height();
 
       UIPainter*  painter = (UIPainter*)dp;
       UIRectangle oldClip = painter->clip;
@@ -6526,7 +6526,7 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
       int    sampleCount  = display->samplesOnScreen;
       UI_ASSERT(sampleOffset + sampleCount <= (int)display->sampleCount);
 
-      if (sampleCount > UI_RECT_WIDTH(client)) {
+      if (sampleCount > client.width()) {
          uint32_t alpha = 255 - 80 * (display->channels - 1);
 
          for (size_t channel = 0; channel < display->channels; channel++) {
@@ -6556,18 +6556,18 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
             yp = ym + h2 * yScale * samples[channel + 0];
 
             for (int32_t i = 0; i < sampleCount; i++) {
-               int32_t x0 = (int)((float)i / sampleCount * UI_RECT_WIDTH(client)) + client.l;
-               int32_t x1 = (int)((float)(i + 1) / sampleCount * UI_RECT_WIDTH(client)) + client.l;
+               int32_t x0 = (int)((float)i / sampleCount * client.width()) + client.l;
+               int32_t x1 = (int)((float)(i + 1) / sampleCount * client.width()) + client.l;
                int32_t y  = ym + h2 * yScale * samples[channel + display->channels * (int)i];
                UIDrawLine(painter, x0, yp, x1, y, ui.theme.text);
                yp = y;
             }
          }
 
-         if (sampleCount < UI_RECT_WIDTH(client) / 4) {
+         if (sampleCount < client.width() / 4) {
             for (size_t channel = 0; channel < display->channels; channel++) {
                for (int32_t i = 0; i < sampleCount; i++) {
-                  int32_t x1 = (int)((float)(i + 1) / sampleCount * UI_RECT_WIDTH(client)) + client.l;
+                  int32_t x1 = (int)((float)(i + 1) / sampleCount * client.width()) + client.l;
                   int32_t y  = ym + h2 * yScale * samples[channel + display->channels * (int)i];
                   UIDrawBlock(painter, UI_RECT_4(x1 - 2, x1 + 2, y - 2, y + 2), channel % 2 ? 0xFFFF00FF : 0xFF00FFFF);
                }
@@ -6575,7 +6575,7 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
          }
 
          int mouseXSample =
-            (float)(element->window->cursorX - client.l) / UI_RECT_WIDTH(element->bounds) * display->samplesOnScreen -
+            (float)(element->window->cursorX - client.l) / element->bounds.width() * display->samplesOnScreen -
             0.5f;
 
          if (mouseXSample >= 0 && mouseXSample < sampleCount &&
@@ -6599,7 +6599,7 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
 
             UIDrawString(painter, stringRectangle, buffer, -1, ui.theme.text, UI_ALIGN_RIGHT, NULL);
 
-            int32_t x1 = (int)((float)(mouseXSample + 1) / sampleCount * UI_RECT_WIDTH(client)) + client.l;
+            int32_t x1 = (int)((float)(mouseXSample + 1) / sampleCount * client.width()) + client.l;
             WaveformDisplayDrawVerticalLineWithTranslucency(painter, UI_RECT_4(x1, x1 + 1, client.t, client.b),
                                                             0xFFFFFF, 100);
          }
