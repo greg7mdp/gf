@@ -210,6 +210,8 @@ struct UIRectangle {
    int width()  const { assert(r >= l); return r - l; }
    int height() const { assert(b >= t); return b - t; }
    bool valid() const { return l < r && t < b; }
+
+   auto operator<=>(const UIRectangle&) const = default;
 };
 
 struct UITheme {
@@ -814,9 +816,9 @@ UIElement* UIParentPop();
 
 UIRectangle UIRectangleIntersection(const UIRectangle& a, const UIRectangle& b);
 UIRectangle UIRectangleBounding(const UIRectangle& a, const UIRectangle& b);
-UIRectangle UIRectangleAdd(UIRectangle a, const UIRectangle& b);
-UIRectangle UIRectangleTranslate(UIRectangle a, const UIRectangle& b);
-UIRectangle UIRectangleCenter(UIRectangle parent, UIRectangle child);
+UIRectangle UIRectangleAdd(const UIRectangle& a, const UIRectangle& b);
+UIRectangle UIRectangleTranslate(const UIRectangle& a, const UIRectangle& b);
+UIRectangle UIRectangleCenter(const UIRectangle& parent, UIRectangle child);
 UIRectangle UIRectangleFit(UIRectangle parent, UIRectangle child, bool allowScalingUp);
 bool        UIRectangleEquals(UIRectangle a, UIRectangle b);
 bool        UIRectangleContains(UIRectangle a, int x, int y);

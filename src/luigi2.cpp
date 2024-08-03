@@ -77,30 +77,22 @@ UITheme uiThemeDark = {
 // --------------------------------------------------
 
 UIRectangle UIRectangleIntersection(const UIRectangle& a, const UIRectangle& b) {
-   return UIRectangle{std::max(a.l, b.l), std::min(a.r, b.r), std::max(a.t, b.t), std::min(a.b, b.b)};
+   return {std::max(a.l, b.l), std::min(a.r, b.r), std::max(a.t, b.t), std::min(a.b, b.b)};
 }
 
 UIRectangle UIRectangleBounding(const UIRectangle& a, const UIRectangle& b) {
-   return UIRectangle{std::min(a.l, b.l), std::max(a.r, b.r), std::min(a.t, b.t), std::max(a.b, b.b)};
+   return {std::min(a.l, b.l), std::max(a.r, b.r), std::min(a.t, b.t), std::max(a.b, b.b)};
 }
 
-UIRectangle UIRectangleAdd(UIRectangle a, const UIRectangle& b) {
-   a.l += b.l;
-   a.t += b.t;
-   a.r += b.r;
-   a.b += b.b;
-   return a;
+UIRectangle UIRectangleAdd(const UIRectangle& a, const UIRectangle& b) {
+   return { a.l + b.l, a.r + b.r, a.t + b.t, a.b + b.b };
 }
 
-UIRectangle UIRectangleTranslate(UIRectangle a, const UIRectangle& b) {
-   a.l += b.l;
-   a.t += b.t;
-   a.r += b.l;
-   a.b += b.t;
-   return a;
+UIRectangle UIRectangleTranslate(const UIRectangle& a, const UIRectangle& b) {
+   return { a.l + b.l, a.r + b.l, a.t + b.t, a.b + b.t };
 }
 
-UIRectangle UIRectangleCenter(UIRectangle parent, UIRectangle child) {
+UIRectangle UIRectangleCenter(const UIRectangle& parent, UIRectangle child) {
    int childWidth = child.width(), childHeight = child.height();
    int parentWidth = parent.width(), parentHeight = parent.height();
    child.l = parentWidth / 2 - childWidth / 2 + parent.l, child.r = child.l + childWidth;
@@ -125,10 +117,6 @@ UIRectangle UIRectangleFit(UIRectangle parent, UIRectangle child, bool allowScal
    } else {
       return UIRectangleCenter(parent, UI_RECT_2S(childMaximumWidth, parentHeight));
    }
-}
-
-bool UIRectangleEquals(UIRectangle a, UIRectangle b) {
-   return a.l == b.l && a.r == b.r && a.t == b.t && a.b == b.b;
 }
 
 bool UIRectangleContains(UIRectangle a, int x, int y) {
@@ -3136,7 +3124,7 @@ int _UIMDIClientMessage(UIElement* element, UIMessage message, int di, void* dp)
          UIMDIChild* mdiChild = (UIMDIChild*)element->children[i];
          UI_ASSERT(mdiChild->e.messageClass == _UIMDIChildMessage);
 
-         if (UIRectangleEquals(mdiChild->bounds, UI_RECT_1(0))) {
+         if (mdiChild->bounds == UI_RECT_1(0)) {
             int width  = UIElementMessage(&mdiChild->e, UI_MSG_GET_WIDTH, 0, 0);
             int height = UIElementMessage(&mdiChild->e, UI_MSG_GET_HEIGHT, width, 0);
             if (client->cascade + width > element->bounds.r || client->cascade + height > element->bounds.b)
@@ -3833,7 +3821,7 @@ void UIElementRepaint(UIElement* element, UIRectangle* region) {
 
 void UIElementMove(UIElement* element, UIRectangle bounds, bool layout) {
    UIRectangle clip  = element->parent ? UIRectangleIntersection(element->parent->clip, bounds) : bounds;
-   bool        moved = !UIRectangleEquals(element->bounds, bounds) || !UIRectangleEquals(element->clip, clip);
+   bool        moved = element->bounds != bounds || element->clip != clip;
 
    if (moved) {
       layout = true;
