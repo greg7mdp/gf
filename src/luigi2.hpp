@@ -204,12 +204,18 @@ typedef enum UIMessage {
    UI_MSG_USER,
 } UIMessage;
 
+struct UIPoint {
+   int x, y;
+};
+
 struct UIRectangle {
    int l, r, t, b;
 
-   int width()  const { assert(r >= l); return r - l; }
-   int height() const { assert(b >= t); return b - t; }
-   bool valid() const { return l < r && t < b; }
+   int     width()  const { assert(r >= l); return r - l; }
+   int     height() const { assert(b >= t); return b - t; }
+   UIPoint center() const { return { l + width() / 2, t + height() / 2 }; }
+
+   bool    valid()  const { return l < r && t < b; }
 
    auto operator<=>(const UIRectangle&) const = default;
 };

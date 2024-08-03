@@ -93,10 +93,10 @@ UIRectangle UIRectangleTranslate(const UIRectangle& a, const UIRectangle& b) {
 }
 
 UIRectangle UIRectangleCenter(const UIRectangle& parent, UIRectangle child) {
+   auto c = parent.center();
    int childWidth = child.width(), childHeight = child.height();
-   int parentWidth = parent.width(), parentHeight = parent.height();
-   child.l = parentWidth / 2 - childWidth / 2 + parent.l, child.r = child.l + childWidth;
-   child.t = parentHeight / 2 - childHeight / 2 + parent.t, child.b = child.t + childHeight;
+   child.l = c.x - childWidth  / 2, child.r = child.l + childWidth;
+   child.t = c.y - childHeight / 2, child.b = child.t + childHeight;
    return child;
 }
 
