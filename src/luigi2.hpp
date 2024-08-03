@@ -466,7 +466,7 @@ struct UIWindow {
    struct UIWindow* next;
    UIElement *      hovered, *pressed, *focused, *dialogOldFocus;
    int              pressedButton;
-   int              cursorX, cursorY;
+   UIPoint          cursor;
    int              cursorStyle;
 
    // Set when a textbox is modified.

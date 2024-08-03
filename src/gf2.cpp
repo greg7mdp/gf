@@ -1651,7 +1651,7 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
    UICode* code = (UICode*)element;
 
    if (message == UI_MSG_CLICKED && !showingDisassembly) {
-      int result = UICodeHitTest(code, element->window->cursorX, element->window->cursorY);
+      int result = UICodeHitTest(code, element->window->cursor.x, element->window->cursor.y);
 
       if (result < 0 && code->leftDownInMargin) {
          int line = -result;
@@ -1672,7 +1672,7 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
          }
       }
    } else if (message == UI_MSG_RIGHT_DOWN && !showingDisassembly) {
-      int result = UICodeHitTest(code, element->window->cursorX, element->window->cursorY);
+      int result = UICodeHitTest(code, element->window->cursor.x, element->window->cursor.y);
 
       bool atLeastOneBreakpointEnabled = false;
 
@@ -1734,7 +1734,7 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
          UIDrawString(m->painter, rectangle, autoPrintResult, -1, ui.theme.codeComment, UI_ALIGN_LEFT, NULL);
       }
 
-      if (UICodeHitTest(code, element->window->cursorX, element->window->cursorY) == m->index &&
+      if (UICodeHitTest(code, element->window->cursor.x, element->window->cursor.y) == m->index &&
           element->window->hovered == element &&
           (element->window->ctrl || element->window->alt || element->window->shift) &&
           !element->window->textboxModifiedFlag) {
@@ -1755,9 +1755,9 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
                      ifConditionEvaluation == 2 ? ui.theme.accent2 : ui.theme.accent1);
       }
    } else if (message == UI_MSG_MOUSE_MOVE || message == UI_MSG_UPDATE) {
-      if (element->window->cursorX != lastCursorX || element->window->cursorY != lastCursorY) {
-         lastCursorX                          = element->window->cursorX;
-         lastCursorY                          = element->window->cursorY;
+      if (element->window->cursor.x != lastCursorX || element->window->cursor.y != lastCursorY) {
+         lastCursorX                          = element->window->cursor.x;
+         lastCursorY                          = element->window->cursor.y;
          element->window->textboxModifiedFlag = false;
       }
 
@@ -2912,7 +2912,7 @@ int WatchLoggerTableMessage(UIElement* element, UIMessage message, int di, void*
          }
       }
    } else if (message == UI_MSG_LEFT_DOWN || message == UI_MSG_MOUSE_DRAG) {
-      int index = UITableHitTest((UITable*)element, element->window->cursorX, element->window->cursorY);
+      int index = UITableHitTest((UITable*)element, element->window->cursor.x, element->window->cursor.y);
 
       if (index != -1 && logger->selectedEntry != index) {
          logger->selectedEntry    = index;
@@ -2944,7 +2944,7 @@ int WatchLoggerTraceMessage(UIElement* element, UIMessage message, int di, void*
          return StringFormat(m->buffer, m->bufferBytes, "0x%lX", entry->address);
       }
    } else if (message == UI_MSG_LEFT_DOWN || message == UI_MSG_MOUSE_DRAG) {
-      int index = UITableHitTest((UITable*)element, element->window->cursorX, element->window->cursorY);
+      int index = UITableHitTest((UITable*)element, element->window->cursor.x, element->window->cursor.y);
       WatchLoggerTraceSelectFrame(element, index, logger);
    }
 
@@ -3387,11 +3387,11 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
    } else if (message == UI_MSG_GET_HEIGHT) {
       return (WatchLastRow(w) + 1) * rowHeight;
    } else if (message == UI_MSG_LEFT_DOWN) {
-      w->selectedRow = (element->window->cursorY - element->bounds.t) / rowHeight;
+      w->selectedRow = (element->window->cursor.y - element->bounds.t) / rowHeight;
 
       if (w->selectedRow >= 0 && w->selectedRow < w->rows.Length()) {
          Watch* watch = w->rows[w->selectedRow];
-         int    x     = (element->window->cursorX - element->bounds.l) / ui.activeFont->glyphWidth;
+         int    x     = (element->window->cursor.x - element->bounds.l) / ui.activeFont->glyphWidth;
 
          if (x >= watch->depth * 3 - 1 && x <= watch->depth * 3 + 1 && watch->hasFields) {
             UIKeyTyped m = {0};
@@ -3403,7 +3403,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
       UIElementFocus(element);
       UIElementRepaint(element, nullptr);
    } else if (message == UI_MSG_RIGHT_DOWN) {
-      int index = (element->window->cursorY - element->bounds.t) / rowHeight;
+      int index = (element->window->cursor.y - element->bounds.t) / rowHeight;
 
       if (index >= 0 && index < w->rows.Length()) {
          WatchWindowMessage(element, UI_MSG_LEFT_DOWN, di, dp);
@@ -3781,7 +3781,7 @@ int TableStackMessage(UIElement* element, UIMessage message, int di, void* dp) {
          return StringFormat(m->buffer, m->bufferBytes, "0x%lX", entry->address);
       }
    } else if (message == UI_MSG_LEFT_DOWN || message == UI_MSG_MOUSE_DRAG) {
-      StackSetFrame(element, UITableHitTest((UITable*)element, element->window->cursorX, element->window->cursorY));
+      StackSetFrame(element, UITableHitTest((UITable*)element, element->window->cursor.x, element->window->cursor.y));
    } else if (message == UI_MSG_KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
@@ -3861,7 +3861,7 @@ int TableBreakpointsMessage(UIElement* element, UIMessage message, int di, void*
          }
       }
    } else if (message == UI_MSG_RIGHT_DOWN) {
-      int index = UITableHitTest((UITable*)element, element->window->cursorX, element->window->cursorY);
+      int index = UITableHitTest((UITable*)element, element->window->cursor.x, element->window->cursor.y);
 
       if (index != -1) {
          Breakpoint* entry = &breakpoints[index];
@@ -3902,7 +3902,7 @@ int TableBreakpointsMessage(UIElement* element, UIMessage message, int di, void*
          UIMenuShow(menu);
       }
    } else if (message == UI_MSG_LEFT_DOWN) {
-      int index = UITableHitTest((UITable*)element, element->window->cursorX, element->window->cursorY);
+      int index = UITableHitTest((UITable*)element, element->window->cursor.x, element->window->cursor.y);
 
       if (index != -1) {
          Breakpoint* entry = &breakpoints[index];
@@ -4402,7 +4402,7 @@ int ThreadTableMessage(UIElement* element, UIMessage message, int di, void* dp) 
          return StringFormat(m->buffer, m->bufferBytes, "%s", window->threads[m->index].frame);
       }
    } else if (message == UI_MSG_LEFT_DOWN) {
-      int index = UITableHitTest((UITable*)element, element->window->cursorX, element->window->cursorY);
+      int index = UITableHitTest((UITable*)element, element->window->cursor.x, element->window->cursor.y);
 
       if (index != -1) {
          char buffer[1024];
@@ -5118,12 +5118,12 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
             width = line3Width;
          int lineHeight = UIMeasureStringHeight();
          int height     = 3 * lineHeight;
-         int x          = element->window->cursorX;
+         int x          = element->window->cursor.x;
          if (x + width > element->clip.r)
             x = element->clip.r - width;
-         int y = element->window->cursorY + 25;
+         int y = element->window->cursor.y + 25;
          if (y + height > element->clip.b)
-            y = element->window->cursorY - height - 10;
+            y = element->window->cursor.y - height - 10;
          UIRectangle rectangle = UI_RECT_4(x, x + width, y, y + height);
 
          ProfDrawTransparentOverlay(painter, UIRectangleAdd(rectangle, UI_RECT_1I(-5)), 0xFF000000);
@@ -5140,7 +5140,7 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
       double               zoomX = (double)report->client.width() / (report->xEnd - report->xStart);
       ProfFlameGraphEntry* hover = nullptr;
       int                  depth =
-         (element->window->cursorY - report->client.t + report->vScroll->position - profScaleHeight) / profRowHeight;
+         (element->window->cursor.y - report->client.t + report->vScroll->position - profScaleHeight) / profRowHeight;
       float xStartF = (float)report->xStart;
       float xEndF   = (float)report->xEnd;
 
@@ -5157,7 +5157,7 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
          (void)rt;
          (void)rb;
 
-         if (element->window->cursorX >= rl && element->window->cursorX < rr) {
+         if (element->window->cursor.x >= rl && element->window->cursor.x < rr) {
             hover = &report->entries[i];
             break;
          }
@@ -5173,38 +5173,38 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
          UIElementRepaint(element, NULL);
       }
    } else if (message == UI_MSG_LEFT_DOWN) {
-      if (element->window->cursorY < report->client.b - profZoomBarHeight) {
+      if (element->window->cursor.y < report->client.b - profZoomBarHeight) {
          report->dragMode          = FLAME_GRAPH_DRAG_PAN;
          report->dragInitialValue  = report->xStart;
-         report->dragInitialPoint  = element->window->cursorX;
+         report->dragInitialPoint  = element->window->cursor.x;
          report->dragInitialValue2 = report->vScroll->position;
-         report->dragInitialPoint2 = element->window->cursorY;
+         report->dragInitialPoint2 = element->window->cursor.y;
          _UIWindowSetCursor(element->window, UI_CURSOR_HAND);
       } else {
          report->dragMode         = FLAME_GRAPH_DRAG_X_SCROLL;
          report->dragInitialValue = report->xStart;
-         report->dragInitialPoint = element->window->cursorX;
+         report->dragInitialPoint = element->window->cursor.x;
          report->dragScrollRate   = 1.0;
 
-         if (element->window->cursorX <
+         if (element->window->cursor.x <
                 report->client.l + report->client.width() * (report->xStart / report->totalTime) ||
-             element->window->cursorY >=
+             element->window->cursor.y >=
                 report->client.l + report->client.width() * (report->xEnd / report->totalTime)) {
             report->dragScrollRate = 0.2;
          }
       }
    } else if (message == UI_MSG_MIDDLE_DOWN) {
-      if (element->window->cursorY < report->client.b - profZoomBarHeight) {
+      if (element->window->cursor.y < report->client.b - profZoomBarHeight) {
          report->dragMode          = FLAME_GRAPH_DRAG_X_PAN_AND_ZOOM;
          report->dragInitialValue  = report->xStart;
-         report->dragInitialPoint  = element->window->cursorX;
-         report->dragInitialPoint2 = element->window->cursorY;
+         report->dragInitialPoint  = element->window->cursor.x;
+         report->dragInitialPoint2 = element->window->cursor.y;
          _UIWindowSetCursor(element->window, UI_CURSOR_CROSS_HAIR);
       }
    } else if (message == UI_MSG_RIGHT_DOWN) {
-      if (element->window->cursorY < report->client.b - profZoomBarHeight) {
+      if (element->window->cursor.y < report->client.b - profZoomBarHeight) {
          report->dragMode         = FLAME_GRAPH_DRAG_ZOOM_RANGE;
-         report->dragInitialPoint = element->window->cursorX;
+         report->dragInitialPoint = element->window->cursor.x;
       }
    } else if (message == UI_MSG_LEFT_UP || message == UI_MSG_RIGHT_UP || message == UI_MSG_MIDDLE_UP) {
       if (report->dragMode == FLAME_GRAPH_DRAG_ZOOM_RANGE && report->dragStarted) {
@@ -5236,7 +5236,7 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
 
       if (report->dragMode == FLAME_GRAPH_DRAG_PAN) {
          double delta   = report->xEnd - report->xStart;
-         report->xStart = report->dragInitialValue - (double)(element->window->cursorX - report->dragInitialPoint) *
+         report->xStart = report->dragInitialValue - (double)(element->window->cursor.x - report->dragInitialPoint) *
                                                         report->totalTime / report->client.width() * delta /
                                                         report->totalTime;
          report->xEnd = report->xStart + delta;
@@ -5249,11 +5249,11 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
             report->xEnd = report->totalTime;
          }
          report->vScroll->position =
-            report->dragInitialValue2 - (double)(element->window->cursorY - report->dragInitialPoint2);
+            report->dragInitialValue2 - (double)(element->window->cursor.y - report->dragInitialPoint2);
          UIElementRefresh(&report->vScroll->e);
       } else if (report->dragMode == FLAME_GRAPH_DRAG_X_SCROLL) {
          double delta   = report->xEnd - report->xStart;
-         report->xStart = report->dragInitialValue + (double)(element->window->cursorX - report->dragInitialPoint) *
+         report->xStart = report->dragInitialValue + (double)(element->window->cursor.x - report->dragInitialPoint) *
                                                         report->totalTime / report->client.width() *
                                                         report->dragScrollRate;
          report->xEnd = report->xStart + delta;
@@ -5267,23 +5267,23 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
          }
       } else if (report->dragMode == FLAME_GRAPH_DRAG_X_PAN_AND_ZOOM) {
          double delta = report->xEnd - report->xStart;
-         report->xStart += (double)(element->window->cursorX - report->dragInitialPoint) * report->totalTime /
+         report->xStart += (double)(element->window->cursor.x - report->dragInitialPoint) * report->totalTime /
                            report->client.width() * delta / report->totalTime * 3.0;
          report->xEnd  = report->xStart + delta;
-         double factor = powf(1.02, element->window->cursorY - report->dragInitialPoint2);
-         double mouse  = (double)(element->window->cursorX - report->client.l) / report->client.width();
+         double factor = powf(1.02, element->window->cursor.y - report->dragInitialPoint2);
+         double mouse  = (double)(element->window->cursor.x - report->client.l) / report->client.width();
 #if 0
          mouse = 0.5;
          XWarpPointer(ui.display, None, windowMain->window, 0, 0, 0, 0, report->dragInitialPoint, report->dragInitialPoint2);
 #else
-         report->dragInitialPoint  = element->window->cursorX;
-         report->dragInitialPoint2 = element->window->cursorY;
+         report->dragInitialPoint  = element->window->cursor.x;
+         report->dragInitialPoint2 = element->window->cursor.y;
 #endif
          double newZoom = (report->xEnd - report->xStart) / report->totalTime * factor;
          report->xStart += mouse * (report->xEnd - report->xStart) * (1 - factor);
          report->xEnd = newZoom * report->totalTime + report->xStart;
       } else if (report->dragMode == FLAME_GRAPH_DRAG_ZOOM_RANGE) {
-         report->dragCurrentPoint = element->window->cursorX;
+         report->dragCurrentPoint = element->window->cursor.x;
       }
 
       UIElementRepaint(element, NULL);
@@ -5295,7 +5295,7 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
          factor *= perDivision, divisions--;
       while (divisions < 0)
          factor /= perDivision, divisions++;
-      double mouse   = (double)(element->window->cursorX - report->client.l) / report->client.width();
+      double mouse   = (double)(element->window->cursor.x - report->client.l) / report->client.width();
       double newZoom = (report->xEnd - report->xStart) / report->totalTime * factor;
       report->xStart += mouse * (report->xEnd - report->xStart) * (1 - factor);
       report->xEnd = newZoom * report->totalTime + report->xStart;
@@ -5388,7 +5388,7 @@ int ProfTableMessage(UIElement* element, UIMessage message, int di, void* dp) {
          return StringFormat(m->buffer, m->bufferBytes, "%f", entry->totalTime / report->totalTime * 100);
       }
    } else if (message == UI_MSG_LEFT_DOWN) {
-      int index = UITableHeaderHitTest(table, element->window->cursorX, element->window->cursorY);
+      int index = UITableHeaderHitTest(table, element->window->cursor.x, element->window->cursor.y);
 
       if (index != -1) {
          if (index == 0) {
@@ -5412,7 +5412,7 @@ int ProfTableMessage(UIElement* element, UIMessage message, int di, void* dp) {
          table->columnHighlight = index;
       }
    } else if (message == UI_MSG_GET_CURSOR) {
-      return UITableHeaderHitTest(table, element->window->cursorX, element->window->cursorY) == -1 ? UI_CURSOR_ARROW
+      return UITableHeaderHitTest(table, element->window->cursor.x, element->window->cursor.y) == -1 ? UI_CURSOR_ARROW
                                                                                                    : UI_CURSOR_HAND;
    }
 
@@ -6460,7 +6460,7 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
    } else if (message == UI_MSG_MOUSE_DRAG && element->window->pressedButton == 1) {
       display->scrollBar->position += display->dragLastModification;
       display->dragLastModification =
-         (element->window->cursorX - display->dragLastX) * display->samplesOnScreen / element->bounds.width();
+         (element->window->cursor.x - display->dragLastX) * display->samplesOnScreen / element->bounds.width();
       display->scrollBar->position -= display->dragLastModification;
       UIElementRefresh(&display->e);
    } else if (message == UI_MSG_MOUSE_DRAG && element->window->pressedButton == 2) {
@@ -6468,7 +6468,7 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
    } else if (message == UI_MSG_MOUSE_MOVE) {
       UIElementRepaint(&display->e, NULL);
    } else if (message == UI_MSG_MIDDLE_UP) {
-      int l = element->window->cursorX - element->bounds.l, r = display->dragLastX - element->bounds.l;
+      int l = element->window->cursor.x - element->bounds.l, r = display->dragLastX - element->bounds.l;
       if (r < l) {
          int t = l;
          l     = r;
@@ -6484,7 +6484,7 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
 
       UIElementRefresh(&display->e);
    } else if (message == UI_MSG_LEFT_DOWN || message == UI_MSG_MIDDLE_DOWN) {
-      display->dragLastX            = element->window->cursorX;
+      display->dragLastX            = element->window->cursor.x;
       display->dragLastModification = 0;
    } else if (message == UI_MSG_MOUSE_WHEEL) {
       int    divisions   = di / 72;
@@ -6494,7 +6494,7 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
          factor *= perDivision, divisions--;
       while (divisions < 0)
          factor /= perDivision, divisions++;
-      double mouse   = (double)(element->window->cursorX - element->bounds.l) / element->bounds.width();
+      double mouse   = (double)(element->window->cursor.x - element->bounds.l) / element->bounds.width();
       double newZoom = (double)display->samplesOnScreen / display->sampleCount * factor;
 
       if (newZoom * display->sampleCount >= display->minimumZoom) {
@@ -6575,12 +6575,12 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
          }
 
          int mouseXSample =
-            (float)(element->window->cursorX - client.l) / element->bounds.width() * display->samplesOnScreen -
+            (float)(element->window->cursor.x - client.l) / element->bounds.width() * display->samplesOnScreen -
             0.5f;
 
          if (mouseXSample >= 0 && mouseXSample < sampleCount &&
-             UIRectangleContains(element->clip, element->window->cursorX, element->window->cursorY) &&
-             !UIRectangleContains(display->scrollBar->e.clip, element->window->cursorX, element->window->cursorY)) {
+             UIRectangleContains(element->clip, element->window->cursor.x, element->window->cursor.y) &&
+             !UIRectangleContains(display->scrollBar->e.clip, element->window->cursor.x, element->window->cursor.y)) {
             int         stringOffset = 20 * element->window->scale;
             UIRectangle stringRectangle =
                UI_RECT_4(client.l + stringOffset, client.r - stringOffset, client.t + stringOffset,
@@ -6606,7 +6606,7 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
       }
 
       if (element->window->pressedButton == 2 && element->window->pressed) {
-         int l = element->window->cursorX, r = display->dragLastX;
+         int l = element->window->cursor.x, r = display->dragLastX;
          UIDrawInvert(painter, UI_RECT_4(l > r ? r : l, l > r ? l : r, element->bounds.t, element->bounds.r));
       }
 
