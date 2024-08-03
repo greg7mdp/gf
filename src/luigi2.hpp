@@ -805,10 +805,10 @@ UIElement* UIElementChangeParent(UIElement* element, UIElement* newParent,
 UIElement* UIParentPush(UIElement* element);
 UIElement* UIParentPop();
 
-UIRectangle UIRectangleIntersection(UIRectangle a, UIRectangle b);
-UIRectangle UIRectangleBounding(UIRectangle a, UIRectangle b);
-UIRectangle UIRectangleAdd(UIRectangle a, UIRectangle b);
-UIRectangle UIRectangleTranslate(UIRectangle a, UIRectangle b);
+UIRectangle UIRectangleIntersection(const UIRectangle& a, const UIRectangle& b);
+UIRectangle UIRectangleBounding(const UIRectangle& a, const UIRectangle& b);
+UIRectangle UIRectangleAdd(UIRectangle a, const UIRectangle& b);
+UIRectangle UIRectangleTranslate(UIRectangle a, const UIRectangle& b);
 UIRectangle UIRectangleCenter(UIRectangle parent, UIRectangle child);
 UIRectangle UIRectangleFit(UIRectangle parent, UIRectangle child, bool allowScalingUp);
 bool        UIRectangleEquals(UIRectangle a, UIRectangle b);

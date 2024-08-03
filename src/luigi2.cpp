@@ -76,31 +76,15 @@ UITheme uiThemeDark = {
 // Helper functions.
 // --------------------------------------------------
 
-UIRectangle UIRectangleIntersection(UIRectangle a, UIRectangle b) {
-   if (a.l < b.l)
-      a.l = b.l;
-   if (a.t < b.t)
-      a.t = b.t;
-   if (a.r > b.r)
-      a.r = b.r;
-   if (a.b > b.b)
-      a.b = b.b;
-   return a;
+UIRectangle UIRectangleIntersection(const UIRectangle& a, const UIRectangle& b) {
+   return UIRectangle{std::max(a.l, b.l), std::min(a.r, b.r), std::max(a.t, b.t), std::min(a.b, b.b)};
 }
 
-UIRectangle UIRectangleBounding(UIRectangle a, UIRectangle b) {
-   if (a.l > b.l)
-      a.l = b.l;
-   if (a.t > b.t)
-      a.t = b.t;
-   if (a.r < b.r)
-      a.r = b.r;
-   if (a.b < b.b)
-      a.b = b.b;
-   return a;
+UIRectangle UIRectangleBounding(const UIRectangle& a, const UIRectangle& b) {
+   return UIRectangle{std::min(a.l, b.l), std::max(a.r, b.r), std::min(a.t, b.t), std::max(a.b, b.b)};
 }
 
-UIRectangle UIRectangleAdd(UIRectangle a, UIRectangle b) {
+UIRectangle UIRectangleAdd(UIRectangle a, const UIRectangle& b) {
    a.l += b.l;
    a.t += b.t;
    a.r += b.r;
@@ -108,7 +92,7 @@ UIRectangle UIRectangleAdd(UIRectangle a, UIRectangle b) {
    return a;
 }
 
-UIRectangle UIRectangleTranslate(UIRectangle a, UIRectangle b) {
+UIRectangle UIRectangleTranslate(UIRectangle a, const UIRectangle& b) {
    a.l += b.l;
    a.t += b.t;
    a.r += b.l;
@@ -4740,6 +4724,7 @@ int UIMessageLoop() {
 #ifdef UI_LINUX
 
 const int UI_KEYCODE_A         = XK_a;
+const int UI_KEYCODE_0         = XK_0;
 const int UI_KEYCODE_BACKSPACE = XK_BackSpace;
 const int UI_KEYCODE_DELETE    = XK_Delete;
 const int UI_KEYCODE_DOWN      = XK_Down;
@@ -4754,10 +4739,9 @@ const int UI_KEYCODE_SPACE     = XK_space;
 const int UI_KEYCODE_TAB       = XK_Tab;
 const int UI_KEYCODE_UP        = XK_Up;
 const int UI_KEYCODE_INSERT    = XK_Insert;
-const int UI_KEYCODE_0         = XK_0;
 const int UI_KEYCODE_BACKTICK  = XK_grave;
-const int UI_KEYCODE_PAGE_DOWN = XK_Page_Down;
 const int UI_KEYCODE_PAGE_UP   = XK_Page_Up;
+const int UI_KEYCODE_PAGE_DOWN = XK_Page_Down;
 
 int _UIWindowMessage(UIElement* element, UIMessage message, int di, void* dp) {
    if (message == UI_MSG_DEALLOCATE) {
@@ -5529,6 +5513,7 @@ const int UI_KEYCODE_SPACE     = VK_SPACE;
 const int UI_KEYCODE_TAB       = VK_TAB;
 const int UI_KEYCODE_UP        = VK_UP;
 const int UI_KEYCODE_INSERT    = VK_INSERT;
+const int UI_KEYCODE_BACKTICK  = VK_OEM_3;
 const int UI_KEYCODE_PAGE_UP   = VK_PRIOR;
 const int UI_KEYCODE_PAGE_DOWN = VK_NEXT;
 
