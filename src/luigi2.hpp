@@ -45,18 +45,12 @@
    #define UI_MEMMOVE _UIMemmove
 #endif
 
-#ifdef UI_COCOA
-   #import <Foundation/Foundation.h>
-   #import <Cocoa/Cocoa.h>
-   #import <Carbon/Carbon.h>
-#endif
-
-#if defined(UI_LINUX) || defined(UI_COCOA)
-   #include <stdlib.h>
-   #include <string.h>
-   #include <assert.h>
-   #include <time.h>
-   #include <math.h>
+#if defined(UI_LINUX)
+   #include <cstdlib>
+   #include <cstring>
+   #include <cassert>
+   #include <ctime>
+   #include <cmath>
 
    #define UI_ASSERT assert
    #define UI_CALLOC(x) calloc(1, (x))
@@ -73,23 +67,6 @@
             memmove(d, s, _n); \
          }                     \
       } while (0)
-#endif
-
-#if defined(UI_ESSENCE)
-   #include <essence.h>
-
-   #define UI_ASSERT EsAssert
-   #define UI_CALLOC(x) EsHeapAllocate((x), true)
-   #define UI_FREE EsHeapFree
-   #define UI_MALLOC(x) EsHeapAllocate((x), false)
-   #define UI_REALLOC(x, y) EsHeapReallocate((x), (y), false)
-   #define UI_CLOCK EsTimeStampMs
-   #define UI_CLOCKS_PER_SECOND 1000
-   #define UI_CLOCK_T uint64_t
-   #define UI_MEMMOVE EsCRTmemmove
-
-   // Callback to allow the application to process messages.
-   void _UIMessageProcess(EsMessage* message);
 #endif
 
 #ifdef UI_DEBUG
@@ -227,13 +204,9 @@ typedef enum UIMessage {
    UI_MSG_USER,
 } UIMessage;
 
-#ifdef UI_ESSENCE
-   #define UIRectangle EsRectangle
-#else
-   typedef struct UIRectangle {
-      int l, r, t, b;
-   } UIRectangle;
-#endif
+typedef struct UIRectangle {
+   int l, r, t, b;
+} UIRectangle;
 
 typedef struct UITheme {
    uint32_t panel1, panel2, selected, border;
@@ -503,17 +476,6 @@ typedef struct UIWindow {
    HWND hwnd;
    bool trackingLeave;
 #endif
-
-#ifdef UI_ESSENCE
-   EsWindow*  window;
-   EsElement* canvas;
-   int        cursor;
-#endif
-
-#ifdef UI_COCOA
-   NSWindow* window;
-   void*     view;
-#endif
 } UIWindow;
 
 typedef struct UIPanel {
@@ -666,18 +628,13 @@ typedef struct UITextbox {
 
 #define UI_MENU_PLACE_ABOVE (1 << 0)
 #define UI_MENU_NO_SCROLL (1 << 1)
-#if defined(UI_COCOA)
-typedef NSMenu UIMenu;
-#elif defined(UI_ESSENCE)
-typedef EsMenu UIMenu;
-#else
+
 typedef struct UIMenu {
    UIElement    e;
    int          pointX, pointY;
    UIScrollBar* vScroll;
    UIWindow*    parentWindow;
 } UIMenu;
-#endif
 
 typedef struct UISlider {
    UIElement e;
@@ -911,20 +868,6 @@ struct UI {
    bool    assertionFailure;
 #endif
 
-#ifdef UI_ESSENCE
-   EsInstance* instance;
-#endif
-
-#if defined(UI_ESSENCE) || defined(UI_COCOA)
-   void*     menuData[256]; // HACK This limits the number of menu items to 128.
-   uintptr_t menuIndex;
-#endif
-
-#ifdef UI_COCOA
-   int       menuX, menuY;
-   UIWindow* menuWindow;
-#endif
-
 #ifdef UI_FREETYPE
    FT_Library ft;
 #endif
@@ -945,7 +888,7 @@ bool  _UIMessageLoopSingle(int* result);
 void  _UIInspectorRefresh();
 void  _UIUpdate();
 
-#if defined(UI_LINUX) || defined(UI_COCOA)
+#if defined(UI_LINUX)
 inline UI_CLOCK_T _UIClock() {
    struct timespec spec;
    clock_gettime(CLOCK_REALTIME, &spec);
