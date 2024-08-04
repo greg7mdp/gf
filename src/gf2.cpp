@@ -54,7 +54,7 @@ struct WatchWindow* firstWatchWindow;
 bool                maximize;
 bool                confirmCommandConnect = true, confirmCommandKill = true;
 int                 backtraceCountLimit = 50;
-UIMessage           msgReceivedData, msgReceivedLog, msgReceivedControl, msgReceivedNext = (UIMessage)(UI_MSG_USER + 1);
+UIMessage           msgReceivedData, msgReceivedLog, msgReceivedControl, msgReceivedNext = (UIMessage)(UIMessage::USER_PLUS_1);
 
 // Current file and line:
 
@@ -303,7 +303,7 @@ bool INIParse(INIState* s) {
 }
 
 int ModifiedRowMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   if (message == UI_MSG_PAINT) {
+   if (message == UIMessage::PAINT) {
       UIDrawBorder((UIPainter*)dp, element->bounds, ui.theme.selected, ui_rect_1(2));
    }
 
@@ -311,7 +311,7 @@ int ModifiedRowMessage(UIElement* element, UIMessage message, int di, void* dp) 
 }
 
 int TrafficLightMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   if (message == UI_MSG_PAINT) {
+   if (message == UIMessage::PAINT) {
       UIDrawRectangle((UIPainter*)dp, element->bounds, programRunning ? ui.theme.accent1 : ui.theme.accent2,
                       ui.theme.border, ui_rect_1(1));
    }
@@ -416,7 +416,7 @@ bool SourceFindOuterFunctionCall(char** start, char** end) {
 
 UIMessage ReceiveMessageRegister(void (*callback)(char* input)) {
    receiveMessageTypes.Add({.message = msgReceivedNext, .callback = callback});
-   msgReceivedNext = (UIMessage)(msgReceivedNext + 1);
+   msgReceivedNext = (UIMessage)((uint32_t)msgReceivedNext + 1);
    return receiveMessageTypes.Last().message;
 }
 
@@ -1650,7 +1650,7 @@ DISPLAY_CODE_COMMAND_FOR_ALL_BREAKPOINTS_ON_LINE(CommandEnableAllBreakpointsOnLi
 int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
    UICode* code = (UICode*)element;
 
-   if (message == UI_MSG_CLICKED && !showingDisassembly) {
+   if (message == UIMessage::CLICKED && !showingDisassembly) {
       int result = UICodeHitTest(code, element->window->cursor.x, element->window->cursor.y);
 
       if (result < 0 && code->leftDownInMargin) {
@@ -1671,7 +1671,7 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
             DebuggerSend(buffer, true, false);
          }
       }
-   } else if (message == UI_MSG_RIGHT_DOWN && !showingDisassembly) {
+   } else if (message == UIMessage::RIGHT_DOWN && !showingDisassembly) {
       int result = UICodeHitTest(code, element->window->cursor.x, element->window->cursor.y);
 
       bool atLeastOneBreakpointEnabled = false;
@@ -1695,7 +1695,7 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
             UIMenuShow(menu);
          }
       }
-   } else if (message == UI_MSG_CODE_GET_MARGIN_COLOR && !showingDisassembly) {
+   } else if (message == UIMessage::CODE_GET_MARGIN_COLOR && !showingDisassembly) {
       bool atLeastOneBreakpointDisabled = false;
 
       for (int i = 0; i < breakpoints.Length(); i++) {
@@ -1711,7 +1711,7 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
          return (((ui.theme.accent1 & 0xFF0000) >> 1) & 0xFF0000) | (((ui.theme.accent1 & 0xFF00) >> 1) & 0xFF00) |
                 ((ui.theme.accent1 & 0xFF) >> 1);
       }
-   } else if (message == UI_MSG_PAINT) {
+   } else if (message == UIMessage::PAINT) {
       element->messageClass(element, message, di, dp);
 
       if (inInspectLineMode) {
@@ -1721,7 +1721,7 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
       }
 
       return 1;
-   } else if (message == UI_MSG_CODE_DECORATE_LINE) {
+   } else if (message == UIMessage::CODE_DECORATE_LINE) {
       UICodeDecorateLine* m = (UICodeDecorateLine*)dp;
 
       if (m->index == currentLine) {
@@ -1754,7 +1754,7 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
                                m->bounds.l + columnTo * ui.activeFont->glyphWidth, m->bounds.b - 2, m->bounds.b),
                      ifConditionEvaluation == 2 ? ui.theme.accent2 : ui.theme.accent1);
       }
-   } else if (message == UI_MSG_MOUSE_MOVE || message == UI_MSG_UPDATE) {
+   } else if (message == UIMessage::MOUSE_MOVE || message == UIMessage::UPDATE) {
       if (element->window->cursor.x != lastCursorX || element->window->cursor.y != lastCursorY) {
          lastCursorX                          = element->window->cursor.x;
          lastCursorY                          = element->window->cursor.y;
@@ -2060,9 +2060,9 @@ void InspectLineModeExit(UIElement* element) {
 }
 
 int InspectLineModeMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   if (message == UI_MSG_UPDATE && element->window->focused != element) {
+   if (message == UIMessage::UPDATE && element->window->focused != element) {
       InspectLineModeExit(element);
-   } else if (message == UI_MSG_KEY_TYPED) {
+   } else if (message == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
       if ((m->textBytes == 1 && m->text[0] == '`') || m->code == UI_KEYCODE_ESCAPE) {
@@ -2126,7 +2126,7 @@ bool DataViewerRemoveFromAutoUpdateList(UIElement* element) {
 }
 
 int DataViewerAutoUpdateButtonMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   if (message == UI_MSG_CLICKED) {
+   if (message == UIMessage::CLICKED) {
       element->flags ^= UI_BUTTON_CHECKED;
 
       if (element->flags & UI_BUTTON_CHECKED) {
@@ -2168,13 +2168,13 @@ struct BitmapViewer {
 };
 
 int BitmapViewerWindowMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   if (message == UI_MSG_DESTROY) {
+   if (message == UIMessage::DESTROY) {
       DataViewerRemoveFromAutoUpdateList(element);
       free(element->cp);
-   } else if (message == UI_MSG_GET_WIDTH) {
+   } else if (message == UIMessage::GET_WIDTH) {
       int fit = ((BitmapViewer*)element->cp)->parsedWidth + 40;
       return fit > 300 ? fit : 300;
-   } else if (message == UI_MSG_GET_HEIGHT) {
+   } else if (message == UIMessage::GET_HEIGHT) {
       int fit = ((BitmapViewer*)element->cp)->parsedHeight + 40;
       return fit > 100 ? fit : 100;
    }
@@ -2186,7 +2186,7 @@ void BitmapViewerUpdate(const char* pointerString, const char* widthString, cons
                         const char* strideString, UIElement* owner = nullptr);
 
 int BitmapViewerRefreshMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   if (message == UI_MSG_CLICKED) {
+   if (message == UIMessage::CLICKED) {
       BitmapViewer* bitmap = (BitmapViewer*)element->parent->cp;
       BitmapViewerUpdate(bitmap->pointer, bitmap->width, bitmap->height, bitmap->stride, element->parent);
    }
@@ -2254,7 +2254,7 @@ const char* BitmapViewerGetBits(const char* pointerString, const char* widthStri
 }
 
 int BitmapViewerDisplayMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   if (message == UI_MSG_RIGHT_UP) {
+   if (message == UIMessage::RIGHT_UP) {
       UIMenu* menu = UIMenuCreate(&element->window->e, UI_MENU_NO_SCROLL);
 
       UIMenuAddItem(
@@ -2397,7 +2397,7 @@ void CommandClearOutput(void*) {
 int TextboxInputMessage(UIElement* element, UIMessage message, int di, void* dp) {
    UITextbox* textbox = (UITextbox*)element;
 
-   if (message == UI_MSG_KEY_TYPED) {
+   if (message == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
       static TabCompleter tabCompleter  = {};
@@ -2540,12 +2540,12 @@ int WatchLastRow(WatchWindow* w) {
 int WatchTextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
    UITextbox* textbox = (UITextbox*)element;
 
-   if (message == UI_MSG_UPDATE) {
+   if (message == UIMessage::UPDATE) {
       if (element->window->focused != element) {
          UIElementDestroy(element);
          ((WatchWindow*)element->cp)->textbox = nullptr;
       }
-   } else if (message == UI_MSG_KEY_TYPED) {
+   } else if (message == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
       static TabCompleter tabCompleter  = {};
@@ -2844,7 +2844,7 @@ void WatchAddExpression2(char* string) {
 }
 
 int WatchLoggerWindowMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   if (message == UI_MSG_DESTROY) {
+   if (message == UIMessage::DESTROY) {
       if (element->cp) {
          WatchLogger* logger = (WatchLogger*)element->cp;
 
@@ -2868,7 +2868,7 @@ int WatchLoggerWindowMessage(UIElement* element, UIMessage message, int di, void
          free(logger->expressionsToEvaluate);
          free(logger);
       }
-   } else if (message == UI_MSG_GET_WIDTH || message == UI_MSG_GET_HEIGHT) {
+   } else if (message == UIMessage::GET_WIDTH || message == UIMessage::GET_HEIGHT) {
       return element->window->scale * 400;
    }
 
@@ -2895,7 +2895,7 @@ void WatchLoggerTraceSelectFrame(UIElement* element, int index, WatchLogger* log
 int WatchLoggerTableMessage(UIElement* element, UIMessage message, int di, void* dp) {
    WatchLogger* logger = (WatchLogger*)element->cp;
 
-   if (message == UI_MSG_TABLE_GET_ITEM) {
+   if (message == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m     = (UITableGetItem*)dp;
       WatchLogEntry*  entry = &logger->entries[m->index];
       m->isSelected         = m->index == logger->selectedEntry;
@@ -2911,7 +2911,7 @@ int WatchLoggerTableMessage(UIElement* element, UIMessage message, int di, void*
             return 0;
          }
       }
-   } else if (message == UI_MSG_LEFT_DOWN || message == UI_MSG_MOUSE_DRAG) {
+   } else if (message == UIMessage::LEFT_DOWN || message == UIMessage::MOUSE_DRAG) {
       int index = UITableHitTest((UITable*)element, element->window->cursor.x, element->window->cursor.y);
 
       if (index != -1 && logger->selectedEntry != index) {
@@ -2930,7 +2930,7 @@ int WatchLoggerTableMessage(UIElement* element, UIMessage message, int di, void*
 int WatchLoggerTraceMessage(UIElement* element, UIMessage message, int di, void* dp) {
    WatchLogger* logger = (WatchLogger*)element->cp;
 
-   if (message == UI_MSG_TABLE_GET_ITEM) {
+   if (message == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m     = (UITableGetItem*)dp;
       StackEntry*     entry = &logger->entries[logger->selectedEntry].trace[m->index];
 
@@ -2943,7 +2943,7 @@ int WatchLoggerTraceMessage(UIElement* element, UIMessage message, int di, void*
       } else if (m->column == 3) {
          return StringFormat(m->buffer, m->bufferBytes, "0x%lX", entry->address);
       }
-   } else if (message == UI_MSG_LEFT_DOWN || message == UI_MSG_MOUSE_DRAG) {
+   } else if (message == UIMessage::LEFT_DOWN || message == UIMessage::MOUSE_DRAG) {
       int index = UITableHitTest((UITable*)element, element->window->cursor.x, element->window->cursor.y);
       WatchLoggerTraceSelectFrame(element, index, logger);
    }
@@ -3321,7 +3321,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
    int          rowHeight = (int)(ui_size::TEXTBOX_HEIGHT * element->window->scale);
    int          result    = 0;
 
-   if (message == UI_MSG_PAINT) {
+   if (message == UIMessage::PAINT) {
       UIPainter* painter = (UIPainter*)dp;
 
       for (int i = (painter->clip.t - element->bounds.t) / rowHeight; i <= WatchLastRow(w); i++) {
@@ -3384,9 +3384,9 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
             }
          }
       }
-   } else if (message == UI_MSG_GET_HEIGHT) {
+   } else if (message == UIMessage::GET_HEIGHT) {
       return (WatchLastRow(w) + 1) * rowHeight;
-   } else if (message == UI_MSG_LEFT_DOWN) {
+   } else if (message == UIMessage::LEFT_DOWN) {
       w->selectedRow = (element->window->cursor.y - element->bounds.t) / rowHeight;
 
       if (w->selectedRow >= 0 && w->selectedRow < w->rows.Length()) {
@@ -3396,17 +3396,17 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
          if (x >= watch->depth * 3 - 1 && x <= watch->depth * 3 + 1 && watch->hasFields) {
             UIKeyTyped m = {0};
             m.code       = watch->open ? UI_KEYCODE_LEFT : UI_KEYCODE_RIGHT;
-            WatchWindowMessage(element, UI_MSG_KEY_TYPED, 0, &m);
+            WatchWindowMessage(element, UIMessage::KEY_TYPED, 0, &m);
          }
       }
 
       UIElementFocus(element);
       UIElementRepaint(element, nullptr);
-   } else if (message == UI_MSG_RIGHT_DOWN) {
+   } else if (message == UIMessage::RIGHT_DOWN) {
       int index = (element->window->cursor.y - element->bounds.t) / rowHeight;
 
       if (index >= 0 && index < w->rows.Length()) {
-         WatchWindowMessage(element, UI_MSG_LEFT_DOWN, di, dp);
+         WatchWindowMessage(element, UIMessage::LEFT_DOWN, di, dp);
          UIMenu* menu = UIMenuCreate(&element->window->e, UI_MENU_NO_SCROLL);
 
          if (w->mode == WATCH_NORMAL && !w->rows[index]->parent) {
@@ -3452,9 +3452,9 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
 
          UIMenuShow(menu);
       }
-   } else if (message == UI_MSG_UPDATE) {
+   } else if (message == UIMessage::UPDATE) {
       UIElementRepaint(element, nullptr);
-   } else if (message == UI_MSG_KEY_TYPED) {
+   } else if (message == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
       result        = 1;
 
@@ -3566,7 +3566,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
 }
 
 int WatchPanelMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   if (message == UI_MSG_LEFT_DOWN) {
+   if (message == UIMessage::LEFT_DOWN) {
       UIElement* window = ((WatchWindow*)element->cp)->element;
       UIElementFocus(window);
       UIElementRepaint(window, nullptr);
@@ -3766,7 +3766,7 @@ void StackSetFrame(UIElement* element, int index) {
 }
 
 int TableStackMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   if (message == UI_MSG_TABLE_GET_ITEM) {
+   if (message == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m = (UITableGetItem*)dp;
       m->isSelected     = m->index == stackSelected;
       StackEntry* entry = &stack[m->index];
@@ -3780,9 +3780,9 @@ int TableStackMessage(UIElement* element, UIMessage message, int di, void* dp) {
       } else if (m->column == 3) {
          return StringFormat(m->buffer, m->bufferBytes, "0x%lX", entry->address);
       }
-   } else if (message == UI_MSG_LEFT_DOWN || message == UI_MSG_MOUSE_DRAG) {
+   } else if (message == UIMessage::LEFT_DOWN || message == UIMessage::MOUSE_DRAG) {
       StackSetFrame(element, UITableHitTest((UITable*)element, element->window->cursor.x, element->window->cursor.y));
-   } else if (message == UI_MSG_KEY_TYPED) {
+   } else if (message == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
       if (m->code == UI_KEYCODE_UP || m->code == UI_KEYCODE_DOWN) {
@@ -3839,7 +3839,7 @@ BREAKPOINT_WINDOW_COMMAND_FOR_EACH_SELECTED(CommandEnableSelectedBreakpoints, "e
 int TableBreakpointsMessage(UIElement* element, UIMessage message, int di, void* dp) {
    BreakpointTableData* data = (BreakpointTableData*)element->cp;
 
-   if (message == UI_MSG_TABLE_GET_ITEM) {
+   if (message == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m     = (UITableGetItem*)dp;
       Breakpoint*     entry = &breakpoints[m->index];
       m->isSelected         = data->selected.Contains(entry->number, nullptr);
@@ -3860,7 +3860,7 @@ int TableBreakpointsMessage(UIElement* element, UIMessage message, int di, void*
             return StringFormat(m->buffer, m->bufferBytes, "%d", entry->hit);
          }
       }
-   } else if (message == UI_MSG_RIGHT_DOWN) {
+   } else if (message == UIMessage::RIGHT_DOWN) {
       int index = UITableHitTest((UITable*)element, element->window->cursor.x, element->window->cursor.y);
 
       if (index != -1) {
@@ -3901,7 +3901,7 @@ int TableBreakpointsMessage(UIElement* element, UIMessage message, int di, void*
 
          UIMenuShow(menu);
       }
-   } else if (message == UI_MSG_LEFT_DOWN) {
+   } else if (message == UIMessage::LEFT_DOWN) {
       int index = UITableHitTest((UITable*)element, element->window->cursor.x, element->window->cursor.y);
 
       if (index != -1) {
@@ -3946,7 +3946,7 @@ int TableBreakpointsMessage(UIElement* element, UIMessage message, int di, void*
          data->selected.Free();
       }
       UIElementFocus(element);
-   } else if (message == UI_MSG_KEY_TYPED) {
+   } else if (message == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
       if (m->code == UI_KEYCODE_DELETE && data->selected.Length() > 0) {
@@ -3978,7 +3978,7 @@ void BreakpointsWindowUpdate(const char*, UIElement* _table) {
 UIButton* buttonFillWindow;
 
 int DataTabMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   if (message == UI_MSG_TAB_SELECTED && autoUpdateViewersQueued) {
+   if (message == UIMessage::TAB_SELECTED && autoUpdateViewersQueued) {
       // If we've switched to the data tab, we may need to update the bitmap viewers.
 
       for (int i = 0; i < autoUpdateViewers.Length(); i++) {
@@ -4001,7 +4001,7 @@ void CommandToggleFillDataTab(void*) {
       UISwitcherSwitchTo(switcherMain, switcherMain->e.children[0]);
       UIElementChangeParent(&dataTab->e, oldParent, oldBefore);
    } else {
-      UIElementMessage(&dataTab->e, UI_MSG_TAB_SELECTED, 0, 0);
+      UIElementMessage(&dataTab->e, UIMessage::TAB_SELECTED, 0, 0);
       oldParent = dataTab->e.parent;
       oldBefore = UIElementChangeParent(&dataTab->e, &switcherMain->e, NULL);
       UISwitcherSwitchTo(switcherMain, &dataTab->e);
@@ -4036,7 +4036,7 @@ struct StructWindow {
 int TextboxStructNameMessage(UIElement* element, UIMessage message, int di, void* dp) {
    StructWindow* window = (StructWindow*)element->cp;
 
-   if (message == UI_MSG_KEY_TYPED) {
+   if (message == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
       if (m->code == UI_KEYCODE_ENTER) {
@@ -4093,7 +4093,7 @@ mode_t FilesGetMode(FilesWindow* window, UIButton* button, size_t* oldLength) {
 int FilesButtonMessage(UIElement* element, UIMessage message, int di, void* dp) {
    UIButton* button = (UIButton*)element;
 
-   if (message == UI_MSG_CLICKED) {
+   if (message == UIMessage::CLICKED) {
       FilesWindow* window = (FilesWindow*)element->cp;
       size_t       oldLength;
       mode_t       mode = FilesGetMode(window, button, &oldLength);
@@ -4110,7 +4110,7 @@ int FilesButtonMessage(UIElement* element, UIMessage message, int di, void* dp) 
       }
 
       window->directory[oldLength] = 0;
-   } else if (message == UI_MSG_PAINT) {
+   } else if (message == UIMessage::PAINT) {
       UIPainter* painter = (UIPainter*)dp;
       int        i       = (element == element->window->pressed) + (element == element->window->hovered);
       if (i)
@@ -4392,7 +4392,7 @@ struct ThreadWindow {
 int ThreadTableMessage(UIElement* element, UIMessage message, int di, void* dp) {
    ThreadWindow* window = (ThreadWindow*)element->cp;
 
-   if (message == UI_MSG_TABLE_GET_ITEM) {
+   if (message == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m = (UITableGetItem*)dp;
       m->isSelected     = window->threads[m->index].active;
 
@@ -4401,7 +4401,7 @@ int ThreadTableMessage(UIElement* element, UIMessage message, int di, void* dp) 
       } else if (m->column == 1) {
          return StringFormat(m->buffer, m->bufferBytes, "%s", window->threads[m->index].frame);
       }
-   } else if (message == UI_MSG_LEFT_DOWN) {
+   } else if (message == UIMessage::LEFT_DOWN) {
       int index = UITableHitTest((UITable*)element, element->window->cursor.x, element->window->cursor.y);
 
       if (index != -1) {
@@ -4571,7 +4571,7 @@ struct CommandSearchWindow {
 int TextboxSearchCommandMessage(UIElement* element, UIMessage message, int di, void* dp) {
    CommandSearchWindow* window = (CommandSearchWindow*)element->cp;
 
-   if (message == UI_MSG_KEY_TYPED) {
+   if (message == UIMessage::KEY_TYPED) {
       if (!window->commands.Length()) {
          EvaluateCommand("help all");
 
@@ -4994,7 +4994,7 @@ void* ProfFlameGraphRenderThread(void* _unused) {
 int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* dp) {
    ProfFlameGraphReport* report = (ProfFlameGraphReport*)element;
 
-   if (message == UI_MSG_PAINT) {
+   if (message == UIMessage::PAINT) {
       UIFont* previousFont = UIFontActivate(report->font);
 
       if (report->xStart < 0)
@@ -5136,7 +5136,7 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
       }
 
       UIFontActivate(previousFont);
-   } else if (message == UI_MSG_MOUSE_MOVE) {
+   } else if (message == UIMessage::MOUSE_MOVE) {
       double               zoomX = (double)report->client.width() / (report->xEnd - report->xStart);
       ProfFlameGraphEntry* hover = nullptr;
       int                  depth =
@@ -5167,12 +5167,12 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
          report->hover = hover;
          UIElementRepaint(element, NULL);
       }
-   } else if (message == UI_MSG_UPDATE) {
+   } else if (message == UIMessage::UPDATE) {
       if (report->hover && element->window->hovered != element) {
          report->hover = NULL;
          UIElementRepaint(element, NULL);
       }
-   } else if (message == UI_MSG_LEFT_DOWN) {
+   } else if (message == UIMessage::LEFT_DOWN) {
       if (element->window->cursor.y < report->client.b - profZoomBarHeight) {
          report->dragMode          = FLAME_GRAPH_DRAG_PAN;
          report->dragInitialValue  = report->xStart;
@@ -5193,7 +5193,7 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
             report->dragScrollRate = 0.2;
          }
       }
-   } else if (message == UI_MSG_MIDDLE_DOWN) {
+   } else if (message == UIMessage::MIDDLE_DOWN) {
       if (element->window->cursor.y < report->client.b - profZoomBarHeight) {
          report->dragMode          = FLAME_GRAPH_DRAG_X_PAN_AND_ZOOM;
          report->dragInitialValue  = report->xStart;
@@ -5201,12 +5201,12 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
          report->dragInitialPoint2 = element->window->cursor.y;
          _UIWindowSetCursor(element->window, UI_CURSOR_CROSS_HAIR);
       }
-   } else if (message == UI_MSG_RIGHT_DOWN) {
+   } else if (message == UIMessage::RIGHT_DOWN) {
       if (element->window->cursor.y < report->client.b - profZoomBarHeight) {
          report->dragMode         = FLAME_GRAPH_DRAG_ZOOM_RANGE;
          report->dragInitialPoint = element->window->cursor.x;
       }
-   } else if (message == UI_MSG_LEFT_UP || message == UI_MSG_RIGHT_UP || message == UI_MSG_MIDDLE_UP) {
+   } else if (message == UIMessage::LEFT_UP || message == UIMessage::RIGHT_UP || message == UIMessage::MIDDLE_UP) {
       if (report->dragMode == FLAME_GRAPH_DRAG_ZOOM_RANGE && report->dragStarted) {
          UIRectangle r = report->client;
          r.l = report->dragInitialPoint, r.r = report->dragCurrentPoint;
@@ -5215,14 +5215,14 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
          double zoomX   = (double)report->client.width() / (report->xEnd - report->xStart);
          report->xEnd   = (r.r - report->client.l) / zoomX + report->xStart;
          report->xStart = (r.l - report->client.l) / zoomX + report->xStart;
-      } else if (!report->dragStarted && message == UI_MSG_RIGHT_UP && report->hover) {
+      } else if (!report->dragStarted && message == UIMessage::RIGHT_UP && report->hover) {
          report->menuItem = report->hover;
          UIMenu* menu     = UIMenuCreate(&element->window->e, UI_MENU_NO_SCROLL);
          UIMenuAddItem(menu, 0, "Show source", -1, ProfShowSource, report);
          UIMenuAddItem(menu, 0, "Add breakpoint", -1, ProfAddBreakpoint, report->hover);
          UIMenuAddItem(menu, 0, "Fill view", -1, ProfFillView, report);
          UIMenuShow(menu);
-      } else if (!report->dragStarted && message == UI_MSG_MIDDLE_UP && report->hover) {
+      } else if (!report->dragStarted && message == UIMessage::MIDDLE_UP && report->hover) {
          report->menuItem = report->hover;
          ProfFillView(report);
       }
@@ -5231,7 +5231,7 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
       report->dragStarted = false;
       UIElementRepaint(element, NULL);
       _UIWindowSetCursor(element->window, UI_CURSOR_ARROW);
-   } else if (message == UI_MSG_MOUSE_DRAG) {
+   } else if (message == UIMessage::MOUSE_DRAG) {
       report->dragStarted = true;
 
       if (report->dragMode == FLAME_GRAPH_DRAG_PAN) {
@@ -5287,7 +5287,7 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
       }
 
       UIElementRepaint(element, NULL);
-   } else if (message == UI_MSG_MOUSE_WHEEL) {
+   } else if (message == UIMessage::MOUSE_WHEEL) {
       int    divisions   = di / 72;
       double factor      = 1;
       double perDivision = 1.2f;
@@ -5301,20 +5301,20 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
       report->xEnd = newZoom * report->totalTime + report->xStart;
       UIElementRepaint(element, NULL);
       return 1;
-   } else if (message == UI_MSG_GET_CURSOR) {
+   } else if (message == UIMessage::GET_CURSOR) {
       return report->dragMode == FLAME_GRAPH_DRAG_PAN              ? UI_CURSOR_HAND
              : report->dragMode == FLAME_GRAPH_DRAG_X_PAN_AND_ZOOM ? UI_CURSOR_CROSS_HAIR
                                                                    : UI_CURSOR_ARROW;
-   } else if (message == UI_MSG_LAYOUT) {
+   } else if (message == UIMessage::LAYOUT) {
       UIRectangle scrollBarBounds = element->bounds;
       scrollBarBounds.l           = scrollBarBounds.r - ui_size::SCROLL_BAR * element->window->scale;
       report->vScroll->page       = element->bounds.height() - profZoomBarHeight;
       UIElementMove(&report->vScroll->e, scrollBarBounds, true);
       report->client   = element->bounds;
       report->client.r = scrollBarBounds.l;
-   } else if (message == UI_MSG_SCROLLED) {
+   } else if (message == UIMessage::SCROLLED) {
       UIElementRefresh(element);
-   } else if (message == UI_MSG_DESTROY) {
+   } else if (message == UIMessage::DESTROY) {
       report->entries.Free();
       report->functions.Free();
       report->sourceFiles.Free();
@@ -5328,7 +5328,7 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
 int ProfReportWindowMessage(UIElement* element, UIMessage message, int di, void* dp) {
    ProfFlameGraphReport* report = (ProfFlameGraphReport*)element->cp;
 
-   if (message == UI_MSG_LAYOUT) {
+   if (message == UIMessage::LAYOUT) {
       if (report->showingTable) {
          report->e.flags |= UIElement::HIDE;
          report->table->e.flags &= ~UIElement::HIDE;
@@ -5372,7 +5372,7 @@ int ProfTableMessage(UIElement* element, UIMessage message, int di, void* dp) {
    ProfFlameGraphReport* report = (ProfFlameGraphReport*)element->cp;
    UITable*              table  = report->table;
 
-   if (message == UI_MSG_TABLE_GET_ITEM) {
+   if (message == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem*    m     = (UITableGetItem*)dp;
       ProfFunctionEntry* entry = &report->sortedFunctions[m->index];
 
@@ -5387,7 +5387,7 @@ int ProfTableMessage(UIElement* element, UIMessage message, int di, void* dp) {
       } else if (m->column == 4) {
          return StringFormat(m->buffer, m->bufferBytes, "%f", entry->totalTime / report->totalTime * 100);
       }
-   } else if (message == UI_MSG_LEFT_DOWN) {
+   } else if (message == UIMessage::LEFT_DOWN) {
       int index = UITableHeaderHitTest(table, element->window->cursor.x, element->window->cursor.y);
 
       if (index != -1) {
@@ -5411,7 +5411,7 @@ int ProfTableMessage(UIElement* element, UIMessage message, int di, void* dp) {
          UIElementRefresh(element);
          table->columnHighlight = index;
       }
-   } else if (message == UI_MSG_GET_CURSOR) {
+   } else if (message == UIMessage::GET_CURSOR) {
       return UITableHeaderHitTest(table, element->window->cursor.x, element->window->cursor.y) == -1 ? UI_CURSOR_ARROW
                                                                                                    : UI_CURSOR_HAND;
    }
@@ -5692,7 +5692,7 @@ void ProfLoadProfileData(void* _window) {
       painter.clip      = ui_rect_4(0, painter.width, 0, painter.height);
       painter.bits      = (uint32_t*)malloc(painter.width * painter.height * 4);
       report->client = report->e.bounds = report->e.clip = painter.clip;
-      ProfFlameGraphMessage(&report->e, UI_MSG_PAINT, 0, &painter);
+      ProfFlameGraphMessage(&report->e, UIMessage::PAINT, 0, &painter);
       int newHeight = 30;
       ThumbnailResize(painter.bits, painter.width, painter.height, painter.width, newHeight);
       painter.height          = newHeight;
@@ -5774,7 +5774,7 @@ struct MemoryWindow {
 int MemoryWindowMessage(UIElement* element, UIMessage message, int di, void* dp) {
    MemoryWindow* window = (MemoryWindow*)element;
 
-   if (message == UI_MSG_PAINT) {
+   if (message == UIMessage::PAINT) {
       UIPainter* painter = (UIPainter*)dp;
       UIDrawBlock(painter, element->bounds, ui.theme.panel1);
 
@@ -5862,13 +5862,13 @@ int MemoryWindowMessage(UIElement* element, UIMessage message, int di, void* dp)
          row.b += rowHeight;
          address += 0x10;
       }
-   } else if (message == UI_MSG_LAYOUT) {
+   } else if (message == UIMessage::LAYOUT) {
       UIRectangle bounds = element->bounds + ui_rect_1i(10);
       UIElementMove(&window->gotoButton->e,
-                    ui_rect_4(bounds.r - UIElementMessage(&window->gotoButton->e, UI_MSG_GET_WIDTH, 0, 0), bounds.r,
-                              bounds.t, bounds.t + UIElementMessage(&window->gotoButton->e, UI_MSG_GET_HEIGHT, 0, 0)),
+                    ui_rect_4(bounds.r - UIElementMessage(&window->gotoButton->e, UIMessage::GET_WIDTH, 0, 0), bounds.r,
+                              bounds.t, bounds.t + UIElementMessage(&window->gotoButton->e, UIMessage::GET_HEIGHT, 0, 0)),
                     false);
-   } else if (message == UI_MSG_MOUSE_WHEEL) {
+   } else if (message == UIMessage::MOUSE_WHEEL) {
       window->offset += di / 72 * 0x10;
       window->loadedBytes.Free();
       UIElementRepaint(&window->e, nullptr);
@@ -5951,9 +5951,9 @@ struct ViewWindowString {
 };
 
 int ViewWindowColorSwatchMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   if (message == UI_MSG_GET_HEIGHT) {
+   if (message == UIMessage::GET_HEIGHT) {
       return UIMeasureStringHeight();
-   } else if (message == UI_MSG_PAINT) {
+   } else if (message == UIMessage::PAINT) {
       uint32_t    color   = ((ViewWindowColorSwatch*)element)->color;
       UIPainter*  painter = (UIPainter*)dp;
       const char* message = "Col: ";
@@ -5999,7 +5999,7 @@ double ViewWindowMatrixCalculateDeterminant(double* matrix, int n) {
 int ViewWindowMatrixGridMessage(UIElement* element, UIMessage message, int di, void* dp) {
    ViewWindowMatrixGrid* grid = (ViewWindowMatrixGrid*)element;
 
-   if (message == UI_MSG_PAINT) {
+   if (message == UIMessage::PAINT) {
       // TODO Optimise for really large arrays.
       // TODO Calculate eigenvectors/values.
 
@@ -6036,7 +6036,7 @@ int ViewWindowMatrixGridMessage(UIElement* element, UIMessage message, int di, v
                   ui_rect_4(element->bounds.r - scrollBarSize, element->bounds.r, element->bounds.b - scrollBarSize,
                             element->bounds.b),
                   ui.theme.panel1);
-   } else if (message == UI_MSG_LAYOUT) {
+   } else if (message == UIMessage::LAYOUT) {
       UIRectangle scrollBarBounds = element->bounds;
       scrollBarBounds.l           = scrollBarBounds.r - ui_size::SCROLL_BAR * element->window->scale;
       scrollBarBounds.b -= ui_size::SCROLL_BAR * element->window->scale;
@@ -6047,9 +6047,9 @@ int ViewWindowMatrixGridMessage(UIElement* element, UIMessage message, int di, v
       scrollBarBounds.r -= ui_size::SCROLL_BAR * element->window->scale;
       grid->hScroll->page = scrollBarBounds.width();
       UIElementMove(&grid->hScroll->e, scrollBarBounds, true);
-   } else if (message == UI_MSG_SCROLLED) {
+   } else if (message == UIMessage::SCROLLED) {
       UIElementRepaint(element, nullptr);
-   } else if (message == UI_MSG_DESTROY) {
+   } else if (message == UIMessage::DESTROY) {
       free(grid->data);
    }
 
@@ -6114,9 +6114,9 @@ int ViewWindowStringLayout(ViewWindowString* display, UIPainter* painter, int of
 int ViewWindowStringMessage(UIElement* element, UIMessage message, int di, void* dp) {
    ViewWindowString* display = (ViewWindowString*)element;
 
-   if (message == UI_MSG_DESTROY) {
+   if (message == UIMessage::DESTROY) {
       free(display->data);
-   } else if (message == UI_MSG_LAYOUT) {
+   } else if (message == UIMessage::LAYOUT) {
       UIRectangle scrollBarBounds = element->bounds;
       scrollBarBounds.l           = scrollBarBounds.r - ui_size::SCROLL_BAR * element->window->scale;
       UIRectangle clientBounds    = element->bounds;
@@ -6124,12 +6124,12 @@ int ViewWindowStringMessage(UIElement* element, UIMessage message, int di, void*
       display->vScroll->maximum = ViewWindowStringLayout(display, nullptr, 0);
       display->vScroll->page    = element->bounds.height();
       UIElementMove(&display->vScroll->e, scrollBarBounds, true);
-   } else if (message == UI_MSG_PAINT) {
+   } else if (message == UIMessage::PAINT) {
       UIDrawBlock((UIPainter*)dp, element->bounds, ui.theme.codeBackground);
       ViewWindowStringLayout(display, (UIPainter*)dp, display->vScroll->position);
-   } else if (message == UI_MSG_MOUSE_WHEEL) {
+   } else if (message == UIMessage::MOUSE_WHEEL) {
       return UIElementMessage(&display->vScroll->e, message, di, dp);
-   } else if (message == UI_MSG_SCROLLED) {
+   } else if (message == UIMessage::SCROLLED) {
       UIElementRepaint(element, nullptr);
    }
 
@@ -6419,14 +6419,14 @@ void WaveformDisplayDrawVerticalLineWithTranslucency(UIPainter* painter, UIRecta
 int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* dp) {
    WaveformDisplay* display = (WaveformDisplay*)element;
 
-   if (display->sampleCount == 0 && message != UI_MSG_DESTROY) {
+   if (display->sampleCount == 0 && message != UIMessage::DESTROY) {
       return 0;
    }
 
-   if (message == UI_MSG_DESTROY) {
+   if (message == UIMessage::DESTROY) {
       free(display->samples);
       display->samples = nullptr;
-   } else if (message == UI_MSG_LAYOUT) {
+   } else if (message == UIMessage::LAYOUT) {
       if (display->samplesOnScreen > (int)display->sampleCount) {
          display->samplesOnScreen = display->sampleCount;
       }
@@ -6456,17 +6456,17 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
                               element->bounds.t + (int)(15 * element->window->scale),
                               element->bounds.t + (int)(45 * element->window->scale)),
                     true);
-   } else if (message == UI_MSG_MOUSE_DRAG && element->window->pressedButton == 1) {
+   } else if (message == UIMessage::MOUSE_DRAG && element->window->pressedButton == 1) {
       display->scrollBar->position += display->dragLastModification;
       display->dragLastModification =
          (element->window->cursor.x - display->dragLastX) * display->samplesOnScreen / element->bounds.width();
       display->scrollBar->position -= display->dragLastModification;
       UIElementRefresh(&display->e);
-   } else if (message == UI_MSG_MOUSE_DRAG && element->window->pressedButton == 2) {
+   } else if (message == UIMessage::MOUSE_DRAG && element->window->pressedButton == 2) {
       UIElementRepaint(&display->e, NULL);
-   } else if (message == UI_MSG_MOUSE_MOVE) {
+   } else if (message == UIMessage::MOUSE_MOVE) {
       UIElementRepaint(&display->e, NULL);
-   } else if (message == UI_MSG_MIDDLE_UP) {
+   } else if (message == UIMessage::MIDDLE_UP) {
       int l = element->window->cursor.x - element->bounds.l, r = display->dragLastX - element->bounds.l;
       if (r < l) {
          int t = l;
@@ -6482,10 +6482,10 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
       }
 
       UIElementRefresh(&display->e);
-   } else if (message == UI_MSG_LEFT_DOWN || message == UI_MSG_MIDDLE_DOWN) {
+   } else if (message == UIMessage::LEFT_DOWN || message == UIMessage::MIDDLE_DOWN) {
       display->dragLastX            = element->window->cursor.x;
       display->dragLastModification = 0;
-   } else if (message == UI_MSG_MOUSE_WHEEL) {
+   } else if (message == UIMessage::MOUSE_WHEEL) {
       int    divisions   = di / 72;
       double factor      = 1;
       double perDivision = 1.2f;
@@ -6502,9 +6502,9 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
       }
 
       UIElementRefresh(&display->e);
-   } else if (message == UI_MSG_SCROLLED) {
+   } else if (message == UIMessage::SCROLLED) {
       UIElementRepaint(element, NULL);
-   } else if (message == UI_MSG_PAINT) {
+   } else if (message == UIMessage::PAINT) {
       UIRectangle client = element->bounds;
       client.b -= display->scrollBar->e.bounds.height();
 
@@ -6618,7 +6618,7 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
 int WaveformDisplayZoomButtonMessage(UIElement* element, UIMessage message, int di, void* dp) {
    WaveformDisplay* display = (WaveformDisplay*)element->parent;
 
-   if (message == UI_MSG_CLICKED) {
+   if (message == UIMessage::CLICKED) {
       if (element == &display->zoomOut->e) {
          display->scrollBar->position -= display->samplesOnScreen / 2;
          display->samplesOnScreen *= 2;
@@ -6636,7 +6636,7 @@ int WaveformDisplayZoomButtonMessage(UIElement* element, UIMessage message, int 
 int WaveformDisplayNormalizeButtonMessage(UIElement* element, UIMessage message, int di, void* dp) {
    WaveformDisplay* display = (WaveformDisplay*)element->parent;
 
-   if (message == UI_MSG_CLICKED) {
+   if (message == UIMessage::CLICKED) {
       element->flags ^= UI_BUTTON_CHECKED;
       UIElementRefresh(&display->e);
    }
@@ -6752,12 +6752,12 @@ const char* WaveformViewerGetSamples(const char* pointerString, const char* samp
 }
 
 int WaveformViewerWindowMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   if (message == UI_MSG_DESTROY) {
+   if (message == UIMessage::DESTROY) {
       DataViewerRemoveFromAutoUpdateList(element);
       free(element->cp);
-   } else if (message == UI_MSG_GET_WIDTH) {
+   } else if (message == UIMessage::GET_WIDTH) {
       return 300;
-   } else if (message == UI_MSG_GET_HEIGHT) {
+   } else if (message == UIMessage::GET_HEIGHT) {
       return 300;
    }
 
@@ -6770,7 +6770,7 @@ void WaveformViewerAutoUpdateCallback(UIElement* element) {
 }
 
 int WaveformViewerRefreshMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   if (message == UI_MSG_CLICKED) {
+   if (message == UIMessage::CLICKED) {
       WaveformViewerAutoUpdateCallback(element->parent);
    }
 
@@ -6824,7 +6824,7 @@ void WaveformViewerSaveToFile(void* cp) {
 }
 
 int WaveformViewerDisplayMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   if (message == UI_MSG_RIGHT_UP) {
+   if (message == UIMessage::RIGHT_UP) {
       UIMenu* menu = UIMenuCreate(&element->window->e, UI_MENU_NO_SCROLL);
       UIMenuAddItem(
          menu, 0, "Save to .wav...", -1, [](void* cp) { WaveformViewerSaveToFile(cp); }, element);
@@ -7197,7 +7197,7 @@ UIElement* InterfaceWindowSwitchToAndFocus(const char* name) {
 }
 
 int WindowMessage(UIElement*, UIMessage message, int di, void* dp) {
-   if (message == UI_MSG_WINDOW_ACTIVATE) {
+   if (message == UIMessage::WINDOW_ACTIVATE) {
       DisplaySetPosition(currentFileFull, currentLine, false);
    } else {
       for (int i = 0; i < receiveMessageTypes.Length(); i++) {
@@ -7212,7 +7212,7 @@ int WindowMessage(UIElement*, UIMessage message, int di, void* dp) {
 }
 
 int InterfaceTabPaneMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   if (message == UI_MSG_LAYOUT) {
+   if (message == UIMessage::LAYOUT) {
       element->messageClass(element, message, di, dp);
 
       for (int i = 0; i < interfaceWindows.Length(); i++) {

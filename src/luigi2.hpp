@@ -135,69 +135,63 @@ inline constexpr int MDI_CASCADE              = 30;
 } // namespace ui_size
 
 
-#define UI_MDI_CHILD_CALCULATE_LAYOUT(bounds, scale)                                          \
-   int         titleSize  = ui_size::MDI_CHILD_TITLE * scale;                                 \
-   int         borderSize = ui_size::MDI_CHILD_BORDER * scale;                                \
-   UIRectangle title      = UIRectangleAdd(bounds, ui_rect_4(borderSize, -borderSize, 0, 0)); \
-   title.b                = title.t + titleSize;                                              \
-   UIRectangle content    = UIRectangleAdd(bounds, ui_rect_4(borderSize, -borderSize, titleSize, -borderSize));
-
 #define UI_UPDATE_HOVERED (1)
 #define UI_UPDATE_PRESSED (2)
 #define UI_UPDATE_FOCUSED (3)
 #define UI_UPDATE_DISABLED (4)
 
-enum UIMessage {
+enum class UIMessage : uint32_t {
    // General messages.
-   UI_MSG_PAINT,            // dp = pointer to UIPainter
-   UI_MSG_PAINT_FOREGROUND, // after children have painted
-   UI_MSG_LAYOUT,
-   UI_MSG_DESTROY,
-   UI_MSG_DEALLOCATE,
-   UI_MSG_UPDATE, // di = UI_UPDATE_... constant
-   UI_MSG_ANIMATE,
-   UI_MSG_SCROLLED,
-   UI_MSG_GET_WIDTH,           // di = height (if known); return width
-   UI_MSG_GET_HEIGHT,          // di = width (if known); return height
-   UI_MSG_GET_CHILD_STABILITY, // dp = child element; return stable axes, 1 (width) | 2 (height)
+   PAINT,               // dp = pointer to UIPainter
+   PAINT_FOREGROUND,    // after children have painted
+   LAYOUT,
+   DESTROY,
+   DEALLOCATE,
+   UPDATE,              // di = UI_UPDATE_... constant
+   ANIMATE,
+   SCROLLED,
+   GET_WIDTH,           // di = height (if known); return width
+   GET_HEIGHT,          // di = width (if known); return height
+   GET_CHILD_STABILITY, // dp = child element; return stable axes, 1 (width) | 2 (height)
 
    // Input events.
-   UI_MSG_INPUT_EVENTS_START, // not sent to disabled elements
-   UI_MSG_LEFT_DOWN,
-   UI_MSG_LEFT_UP,
-   UI_MSG_MIDDLE_DOWN,
-   UI_MSG_MIDDLE_UP,
-   UI_MSG_RIGHT_DOWN,
-   UI_MSG_RIGHT_UP,
-   UI_MSG_KEY_TYPED,    // dp = pointer to UIKeyTyped; return 1 if handled
-   UI_MSG_KEY_RELEASED, // dp = pointer to UIKeyTyped; return 1 if handled
-   UI_MSG_MOUSE_MOVE,
-   UI_MSG_MOUSE_DRAG,
-   UI_MSG_MOUSE_WHEEL, // di = delta; return 1 if handled
-   UI_MSG_CLICKED,
-   UI_MSG_GET_CURSOR,         // return cursor code
-   UI_MSG_PRESSED_DESCENDENT, // dp = pointer to child that is/contains pressed element
-   UI_MSG_INPUT_EVENTS_END,
+   INPUT_EVENTS_START,  // not sent to disabled elements
+   LEFT_DOWN,
+   LEFT_UP,
+   MIDDLE_DOWN,
+   MIDDLE_UP,
+   RIGHT_DOWN,
+   RIGHT_UP,
+   KEY_TYPED,           // dp = pointer to UIKeyTyped; return 1 if handled
+   KEY_RELEASED,        // dp = pointer to UIKeyTyped; return 1 if handled
+   MOUSE_MOVE,
+   MOUSE_DRAG,
+   MOUSE_WHEEL,         // di = delta; return 1 if handled
+   CLICKED,
+   GET_CURSOR,          // return cursor code
+   PRESSED_DESCENDENT,  // dp = pointer to child that is/contains pressed element
+   INPUT_EVENTS_END,
 
    // Specific elements.
-   UI_MSG_VALUE_CHANGED,         // sent to notify that the element's value has changed
-   UI_MSG_TABLE_GET_ITEM,        // dp = pointer to UITableGetItem; return string length
-   UI_MSG_CODE_GET_MARGIN_COLOR, // di = line index (starts at 1); return color
-   UI_MSG_CODE_DECORATE_LINE,    // dp = pointer to UICodeDecorateLine
-   UI_MSG_TAB_SELECTED,          // sent to the tab that was selected (not the tab pane itself)
+   VALUE_CHANGED,         // sent to notify that the element's value has changed
+   TABLE_GET_ITEM,        // dp = pointer to UITableGetItem; return string length
+   CODE_GET_MARGIN_COLOR, // di = line index (starts at 1); return color
+   CODE_DECORATE_LINE,    // dp = pointer to UICodeDecorateLine
+   TAB_SELECTED,          // sent to the tab that was selected (not the tab pane itself)
 
    // Windows.
-   UI_MSG_WINDOW_DROP_FILES, // di = count, dp = char ** of paths
-   UI_MSG_WINDOW_ACTIVATE,
-   UI_MSG_WINDOW_CLOSE, // return 1 to prevent default (process exit for UIWindow; close for UIMDIChild)
-   UI_MSG_WINDOW_UPDATE_START,
-   UI_MSG_WINDOW_UPDATE_BEFORE_DESTROY,
-   UI_MSG_WINDOW_UPDATE_BEFORE_LAYOUT,
-   UI_MSG_WINDOW_UPDATE_BEFORE_PAINT,
-   UI_MSG_WINDOW_UPDATE_END,
+   WINDOW_DROP_FILES,     // di = count, dp = char ** of paths
+   WINDOW_ACTIVATE,
+   WINDOW_CLOSE,          // return 1 to prevent default (process exit for UIWindow; close for UIMDIChild)
+   WINDOW_UPDATE_START,
+   WINDOW_UPDATE_BEFORE_DESTROY,
+   WINDOW_UPDATE_BEFORE_LAYOUT,
+   WINDOW_UPDATE_BEFORE_PAINT,
+   WINDOW_UPDATE_END,
 
    // User-defined messages.
-   UI_MSG_USER,
+   USER,
+   USER_PLUS_1,
 };
 
 struct UIPoint {
@@ -207,8 +201,8 @@ struct UIPoint {
 struct UIRectangle {
    int l, r, t, b;
 
-   int     width()  const { assert(r >= l); return r - l; }
-   int     height() const { assert(b >= t); return b - t; }
+   int     width()  const { return r - l; }
+   int     height() const { return b - t; }
    UIPoint center() const { return { l + width() / 2, t + height() / 2 }; }
 
    bool    valid()  const { return l < r && t < b; }
@@ -326,8 +320,8 @@ inline uint32_t ui_color_from_rgb(float r, float g, float b) {
 }
 
 inline uint32_t ui_color_from_rgba(float r, float g, float b, float a) {
-   return (((uint32_t)((r) * 255.0f) << 16) | ((uint32_t)((g) * 255.0f) << 8) | ((uint32_t)((b) * 255.0f) << 0) |
-           ((uint32_t)((a) * 255.0f) << 24));
+   return (((uint32_t)(r * 255.0f) << 16) | ((uint32_t)(g * 255.0f) << 8) | ((uint32_t)(b * 255.0f) << 0) |
+           ((uint32_t)(a * 255.0f) << 24));
 }
 
 
