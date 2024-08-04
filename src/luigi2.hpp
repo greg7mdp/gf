@@ -328,6 +328,8 @@ inline uint32_t ui_color_from_rgba(float r, float g, float b, float a) {
 #ifndef UI_DRAW_CONTROL_CUSTOM
    #define UIDrawControl UIDrawControlDefault
 #endif
+
+
 #define UI_DRAW_CONTROL_PUSH_BUTTON (1)
 #define UI_DRAW_CONTROL_DROP_DOWN (2)
 #define UI_DRAW_CONTROL_MENU_ITEM (3)
@@ -359,11 +361,6 @@ inline uint32_t ui_color_from_rgba(float r, float g, float b, float a) {
 #define UI_DRAW_CONTROL_STATE_FOCUSED (1 << 29)
 #define UI_DRAW_CONTROL_STATE_PRESSED (1 << 30)
 #define UI_DRAW_CONTROL_STATE_DISABLED (1 << 31)
-#define UI_DRAW_CONTROL_STATE_FROM_ELEMENT(x)                                   \
-   ((((x)->flags & UIElement::DISABLED) ? UI_DRAW_CONTROL_STATE_DISABLED : 0) | \
-    (((x)->window->hovered == (x)) ? UI_DRAW_CONTROL_STATE_HOVERED : 0) |       \
-    (((x)->window->focused == (x)) ? UI_DRAW_CONTROL_STATE_FOCUSED : 0) |       \
-    (((x)->window->pressed == (x)) ? UI_DRAW_CONTROL_STATE_PRESSED : 0))
 
 #define UI_CURSOR_ARROW (0)
 #define UI_CURSOR_TEXT (1)
@@ -451,7 +448,9 @@ struct UIElement {
    int (*messageUser)(UIElement* element, UIMessage message, int di, void* dp);
 
    const char* cClassName;
-};
+
+   uint32_t state() const;
+ };
 
 #define UI_SHORTCUT(code, ctrl, shift, alt, invoke, cp) ((UIShortcut){(code), (ctrl), (shift), (alt), (invoke), (cp)})
 

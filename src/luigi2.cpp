@@ -74,6 +74,16 @@ UITheme uiThemeDark = {
 };
 
 // --------------------------------------------------
+// Member functions.
+// --------------------------------------------------
+uint32_t UIElement::state() const {
+   return (((flags & UIElement::DISABLED) ? UI_DRAW_CONTROL_STATE_DISABLED : 0) |
+           ((window->hovered == this) ? UI_DRAW_CONTROL_STATE_HOVERED : 0) |
+           ((window->focused == this) ? UI_DRAW_CONTROL_STATE_FOCUSED : 0) |
+           ((window->pressed == this) ? UI_DRAW_CONTROL_STATE_PRESSED : 0));
+}
+
+// --------------------------------------------------
 // Helper functions.
 // --------------------------------------------------
 
@@ -1254,8 +1264,7 @@ int _UIButtonMessage(UIElement* element, UIMessage message, int di, void* dp) {
                     (isMenuItem   ? UI_DRAW_CONTROL_MENU_ITEM
                      : isDropDown ? UI_DRAW_CONTROL_DROP_DOWN
                                   : UI_DRAW_CONTROL_PUSH_BUTTON) |
-                       ((element->flags & UI_BUTTON_CHECKED) ? UI_DRAW_CONTROL_STATE_CHECKED : 0) |
-                       UI_DRAW_CONTROL_STATE_FROM_ELEMENT(element),
+                       ((element->flags & UI_BUTTON_CHECKED) ? UI_DRAW_CONTROL_STATE_CHECKED : 0) | element->state(),
                     button->label, button->labelBytes, 0, element->window->scale);
    } else if (message == UIMessage::UPDATE) {
       UIElementRepaint(element, NULL);
@@ -1310,7 +1319,7 @@ int _UICheckboxMessage(UIElement* element, UIMessage message, int di, void* dp) 
                        (box->check == UI_CHECK_INDETERMINATE ? UI_DRAW_CONTROL_STATE_INDETERMINATE
                         : box->check == UI_CHECK_CHECKED     ? UI_DRAW_CONTROL_STATE_CHECKED
                                                              : 0) |
-                       UI_DRAW_CONTROL_STATE_FROM_ELEMENT(element),
+                       element->state(),
                     box->label, box->labelBytes, 0, element->window->scale);
    } else if (message == UIMessage::UPDATE) {
       UIElementRepaint(element, NULL);
@@ -1352,8 +1361,7 @@ int _UILabelMessage(UIElement* element, UIMessage message, int di, void* dp) {
    } else if (message == UIMessage::GET_WIDTH) {
       return UIMeasureStringWidth(label->label, label->labelBytes);
    } else if (message == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, element->bounds,
-                    UI_DRAW_CONTROL_LABEL | UI_DRAW_CONTROL_STATE_FROM_ELEMENT(element), label->label,
+      UIDrawControl((UIPainter*)dp, element->bounds, UI_DRAW_CONTROL_LABEL | element->state(), label->label,
                     label->labelBytes, 0, element->window->scale);
    } else if (message == UIMessage::DEALLOCATE) {
       UI_FREE(label->label);
@@ -1387,9 +1395,8 @@ int _UISplitterMessage(UIElement* element, UIMessage message, int di, void* dp) 
 
    if (message == UIMessage::PAINT) {
       UIDrawControl((UIPainter*)dp, element->bounds,
-                    UI_DRAW_CONTROL_SPLITTER | (vertical ? UI_DRAW_CONTROL_STATE_VERTICAL : 0) |
-                       UI_DRAW_CONTROL_STATE_FROM_ELEMENT(element),
-                    NULL, 0, 0, element->window->scale);
+                    UI_DRAW_CONTROL_SPLITTER | (vertical ? UI_DRAW_CONTROL_STATE_VERTICAL : 0) | element->state(), NULL,
+                    0, 0, element->window->scale);
    } else if (message == UIMessage::GET_CURSOR) {
       return vertical ? UI_CURSOR_SPLIT_V : UI_CURSOR_SPLIT_H;
    } else if (message == UIMessage::MOUSE_DRAG) {
@@ -1692,8 +1699,7 @@ int _UIScrollUpDownMessage(UIElement* element, UIMessage message, int di, void* 
    if (message == UIMessage::PAINT) {
       UIDrawControl((UIPainter*)dp, element->bounds,
                     (isDown ? UI_DRAW_CONTROL_SCROLL_DOWN : UI_DRAW_CONTROL_SCROLL_UP) |
-                       (scrollBar->horizontal ? 0 : UI_DRAW_CONTROL_STATE_VERTICAL) |
-                       UI_DRAW_CONTROL_STATE_FROM_ELEMENT(element),
+                       (scrollBar->horizontal ? 0 : UI_DRAW_CONTROL_STATE_VERTICAL) | element->state(),
                     NULL, 0, 0, element->window->scale);
    } else if (message == UIMessage::UPDATE) {
       UIElementRepaint(element, NULL);
@@ -1728,7 +1734,7 @@ int _UIScrollThumbMessage(UIElement* element, UIMessage message, int di, void* d
    if (message == UIMessage::PAINT) {
       UIDrawControl((UIPainter*)dp, element->bounds,
                     UI_DRAW_CONTROL_SCROLL_THUMB | (scrollBar->horizontal ? 0 : UI_DRAW_CONTROL_STATE_VERTICAL) |
-                       UI_DRAW_CONTROL_STATE_FROM_ELEMENT(element),
+                       element->state(),
                     NULL, 0, 0, element->window->scale);
    } else if (message == UIMessage::UPDATE) {
       UIElementRepaint(element, NULL);
@@ -2419,8 +2425,7 @@ int _UIGaugeMessage(UIElement* element, UIMessage message, int di, void* dp) {
    } else if (message == UIMessage::GET_WIDTH) {
       return ui_size::GAUGE_WIDTH * element->window->scale;
    } else if (message == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, element->bounds,
-                    UI_DRAW_CONTROL_GAUGE | UI_DRAW_CONTROL_STATE_FROM_ELEMENT(element), NULL, 0, gauge->position,
+      UIDrawControl((UIPainter*)dp, element->bounds, UI_DRAW_CONTROL_GAUGE | element->state(), NULL, 0, gauge->position,
                     element->window->scale);
    }
 
@@ -2451,7 +2456,7 @@ int _UISliderMessage(UIElement* element, UIMessage message, int di, void* dp) {
       return ui_size::SLIDER_WIDTH * element->window->scale;
    } else if (message == UIMessage::PAINT) {
       UIDrawControl((UIPainter*)dp, element->bounds,
-                    UI_DRAW_CONTROL_SLIDER | UI_DRAW_CONTROL_STATE_FROM_ELEMENT(element), NULL, 0, slider->position,
+                    UI_DRAW_CONTROL_SLIDER | element->state(), NULL, 0, slider->position,
                     element->window->scale);
    } else if (message == UIMessage::LEFT_DOWN || (message == UIMessage::MOUSE_DRAG && element->window->pressedButton == 1)) {
       UIRectangle bounds    = element->bounds;
@@ -2603,8 +2608,7 @@ int _UITableMessage(UIElement* element, UIMessage message, int di, void* dp) {
       UIPainter*  painter = (UIPainter*)dp;
       UIRectangle bounds  = element->bounds;
       bounds.r            = table->vScroll->e.bounds.l;
-      UIDrawControl(painter, element->bounds,
-                    UI_DRAW_CONTROL_TABLE_BACKGROUND | UI_DRAW_CONTROL_STATE_FROM_ELEMENT(element), NULL, 0, 0,
+      UIDrawControl(painter, element->bounds, UI_DRAW_CONTROL_TABLE_BACKGROUND | element->state(), NULL, 0, 0,
                     element->window->scale);
       char           buffer[256];
       UIRectangle    row       = bounds;
@@ -2850,8 +2854,7 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
    } else if (message == UIMessage::GET_WIDTH) {
       return ui_size::TEXTBOX_WIDTH * element->window->scale;
    } else if (message == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, element->bounds,
-                    UI_DRAW_CONTROL_TEXTBOX | UI_DRAW_CONTROL_STATE_FROM_ELEMENT(element), NULL, 0, 0,
+      UIDrawControl((UIPainter*)dp, element->bounds, UI_DRAW_CONTROL_TEXTBOX | element->state(), NULL, 0, 0,
                     element->window->scale);
 
       int         scaledMargin = ui_size::TEXTBOX_MARGIN * element->window->scale;
