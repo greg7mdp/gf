@@ -27,5 +27,5 @@ target_link_libraries(${EXE_NAME} ${FREETYPE_LIBRARIES} ${X11_LIBRARIES} Threads
 target_include_directories(${EXE_NAME} PRIVATE ${FREETYPE_INCLUDE_DIRS} ${X11_INCLUDE_DIR} )
 target_compile_options(${EXE_NAME} PRIVATE -DUI_LINUX -DUI_FONT_PATH -DUI_SSE2 -DUI_FREETYPE)
 
-target_compile_options(${EXE_NAME} PRIVATE -Wall -Wextra -Wno-unused-parameter -Wno-unused-result
-                                   -Wno-missing-field-initializers -Wno-format-truncation)
+target_compile_options(${EXE_NAME} PRIVATE -Wall -Wextra -Wno-unused-parameter
+                                   -Wno-missing-field-initializers  -Wno-deprecated-enum-enum-conversion)

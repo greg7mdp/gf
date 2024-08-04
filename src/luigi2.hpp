@@ -74,7 +74,6 @@
 #endif
 
 #ifdef UI_LINUX
-
 enum class UIKeycode : int {
     A         = XK_a,
     ZERO      = XK_0,
@@ -491,10 +490,12 @@ struct UIElement {
 #define UI_SHORTCUT(code, ctrl, shift, alt, invoke, cp) ((UIShortcut){(code), (ctrl), (shift), (alt), (invoke), (cp)})
 
 struct UIWindow {
-#define UI_WINDOW_MENU (1 << 0)
-#define UI_WINDOW_INSPECTOR (1 << 1)
-#define UI_WINDOW_CENTER_IN_OWNER (1 << 2)
-#define UI_WINDOW_MAXIMIZE (1 << 3)
+   enum {
+      MENU            = (1 << 0),
+      INSPECTOR       = (1 << 1),
+      CENTER_IN_OWNER = (1 << 2),
+      MAXIMIZE        = (1 << 3),
+   };
 
    UIElement        e;
    UIElement*       dialog;
@@ -534,26 +535,32 @@ struct UIWindow {
 };
 
 struct UIPanel {
-#define UI_PANEL_HORIZONTAL (1 << 0)
-#define UI_PANEL_COLOR_1 (1 << 2)
-#define UI_PANEL_COLOR_2 (1 << 3)
-#define UI_PANEL_SMALL_SPACING (1 << 5)
-#define UI_PANEL_MEDIUM_SPACING (1 << 6)
-#define UI_PANEL_LARGE_SPACING (1 << 7)
-#define UI_PANEL_SCROLL (1 << 8)
-#define UI_PANEL_EXPAND (1 << 9)
-   UIElement           e;
+   enum {
+      HORIZONTAL     = 1 << 0,
+      COLOR_1        = 1 << 2,
+      COLOR_2        = 1 << 3,
+      SMALL_SPACING  = 1 << 5,
+      MEDIUM_SPACING = 1 << 6,
+      LARGE_SPACING  = 1 << 7,
+      SCROLL         = 1 << 8,
+      EXPAND         = 1 << 9,
+   };
+
+   UIElement    e;
    UIScrollBar* scrollBar;
-   UIRectangle         border;
-   int                 gap;
+   UIRectangle  border;
+   int          gap;
 };
 
 struct UIButton {
-#define UI_BUTTON_SMALL (1 << 0)
-#define UI_BUTTON_MENU_ITEM (1 << 1)
-#define UI_BUTTON_CAN_FOCUS (1 << 2)
-#define UI_BUTTON_DROP_DOWN (1 << 3)
-#define UI_BUTTON_CHECKED (1 << 15)
+   enum {
+      SMALL     = 1 << 0,
+      MENU_ITEM = 1 << 1,
+      CAN_FOCUS = 1 << 2,
+      DROP_DOWN = 1 << 3,
+      CHECKED   = 1 << 15,
+   };
+
    UIElement e;
    char*     label;
    ptrdiff_t labelBytes;
@@ -561,11 +568,15 @@ struct UIButton {
 };
 
 struct UICheckbox {
-#define UI_CHECKBOX_ALLOW_INDETERMINATE (1 << 0)
+   enum { ALLOW_INDETERMINATE = 1 << 0 };
+
+   enum {
+      UNCHECKED = 0,
+      CHECKED = 1,
+      INDETERMINATE = 2
+   };
+
    UIElement e;
-#define UI_CHECK_UNCHECKED (0)
-#define UI_CHECK_CHECKED (1)
-#define UI_CHECK_INDETERMINATE (2)
    uint8_t   check;
    char*     label;
    ptrdiff_t labelBytes;
@@ -584,7 +595,8 @@ struct UISpacer {
 };
 
 struct UISplitPane {
-#define UI_SPLIT_PANE_VERTICAL (1 << 0)
+   enum { VERTICAL = 1 << 0 };
+
    UIElement e;
    float     weight;
 };
@@ -596,7 +608,8 @@ struct UITabPane {
 };
 
 struct UIScrollBar {
-#define UI_SCROLL_BAR_HORIZONTAL (1 << 0)
+   enum { HORIZONTAL = 1 << 0 };
+
    UIElement  e;
    int64_t    maximum, page;
    int64_t    dragOffset;
@@ -637,8 +650,11 @@ struct UICodeLine {
 };
 
 struct UICode {
-#define UI_CODE_NO_MARGIN (1 << 0)
-#define UI_CODE_SELECTABLE (1 << 1)
+   enum {
+      NO_MARGIN  = 1 << 0,
+      SELECTABLE = 1 << 1
+   };
+
    UIElement    e;
    UIScrollBar *vScroll, *hScroll;
    UICodeLine*  lines;
@@ -651,9 +667,11 @@ struct UICode {
    int          tabSize;
    int          columns;
    UI_CLOCK_T   lastAnimateTime;
+
    struct {
       int line, offset;
    } selection[4 /* start, end, anchor, caret */];
+
    int  verticalMotionColumn;
    bool useVerticalMotionColumn;
    bool moveScrollToCaretNextLayout;
@@ -681,10 +699,12 @@ struct UITextbox {
    bool      rejectNextKey;
 };
 
-#define UI_MENU_PLACE_ABOVE (1 << 0)
-#define UI_MENU_NO_SCROLL (1 << 1)
-
 struct UIMenu {
+   enum {
+      PLACE_ABOVE = 1 << 0,
+      NO_SCROLL   = 1 << 1
+   };
+
    UIElement    e;
    int          pointX, pointY;
    UIScrollBar* vScroll;

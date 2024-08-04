@@ -1541,7 +1541,7 @@ void CommandToggleDisassembly(void*) {
    showingDisassembly     = !showingDisassembly;
    autoPrintResultLine    = 0;
    autoPrintExpression[0] = 0;
-   displayCode->e.flags ^= UI_CODE_NO_MARGIN;
+   displayCode->e.flags ^= UICode::NO_MARGIN;
 
    if (showingDisassembly) {
       UICodeInsertContent(displayCode, "Disassembly could not be loaded.\nPress Ctrl+D to return to source view.", -1,
@@ -1686,7 +1686,7 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
 
       for (int i = 0; i < breakpoints.Length(); i++) {
          if (breakpoints[i].line == -result && 0 == strcmp(breakpoints[i].fileFull, currentFileFull)) {
-            UIMenu* menu = UIMenuCreate(&element->window->e, UI_MENU_NO_SCROLL);
+            UIMenu* menu = UIMenuCreate(&element->window->e, UIMenu::NO_SCROLL);
             UIMenuAddItem(menu, 0, "Delete", -1, CommandDeleteAllBreakpointsOnLine, (void*)(intptr_t)-result);
             UIMenuAddItem(menu, 0, atLeastOneBreakpointEnabled ? "Disable" : "Enable", -1,
                           atLeastOneBreakpointEnabled ? CommandDisableAllBreakpointsOnLine
@@ -1768,7 +1768,7 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
 }
 
 UIElement* SourceWindowCreate(UIElement* parent) {
-   displayCode                = UICodeCreate(parent, selectableSource ? UI_CODE_SELECTABLE : 0);
+   displayCode                = UICodeCreate(parent, selectableSource ? UICode::SELECTABLE : 0);
    displayCode->font          = fontCode;
    displayCode->e.messageUser = DisplayCodeMessage;
    return &displayCode->e;
@@ -2127,9 +2127,9 @@ bool DataViewerRemoveFromAutoUpdateList(UIElement* element) {
 
 int DataViewerAutoUpdateButtonMessage(UIElement* element, UIMessage message, int di, void* dp) {
    if (message == UIMessage::CLICKED) {
-      element->flags ^= UI_BUTTON_CHECKED;
+      element->flags ^= UIButton::CHECKED;
 
-      if (element->flags & UI_BUTTON_CHECKED) {
+      if (element->flags & UIButton::CHECKED) {
          AutoUpdateViewer v = {.element = element->parent, .callback = (void (*)(UIElement*))element->cp};
          autoUpdateViewers.Add(v);
       } else {
@@ -2255,7 +2255,7 @@ const char* BitmapViewerGetBits(const char* pointerString, const char* widthStri
 
 int BitmapViewerDisplayMessage(UIElement* element, UIMessage message, int di, void* dp) {
    if (message == UIMessage::RIGHT_UP) {
-      UIMenu* menu = UIMenuCreate(&element->window->e, UI_MENU_NO_SCROLL);
+      UIMenu* menu = UIMenuCreate(&element->window->e, UIMenu::NO_SCROLL);
 
       UIMenuAddItem(
          menu, 0, "Save to file...", -1,
@@ -2312,17 +2312,17 @@ void BitmapViewerUpdate(const char* pointerString, const char* widthString, cons
       UIMDIChild* window    = UIMDIChildCreate(&dataWindow->e, UI_MDI_CHILD_CLOSE_BUTTON, ui_rect_1(0), "Bitmap", -1);
       window->e.messageUser = BitmapViewerWindowMessage;
       window->e.cp          = bitmap;
-      bitmap->autoToggle    = UIButtonCreate(&window->e, UI_BUTTON_SMALL | UIElement::NON_CLIENT, "Auto", -1);
+      bitmap->autoToggle    = UIButtonCreate(&window->e, UIButton::SMALL | UIElement::NON_CLIENT, "Auto", -1);
       bitmap->autoToggle->e.cp          = (void*)BitmapViewerAutoUpdateCallback;
       bitmap->autoToggle->e.messageUser = DataViewerAutoUpdateButtonMessage;
-      UIButtonCreate(&window->e, UI_BUTTON_SMALL | UIElement::NON_CLIENT, "Refresh", -1)->e.messageUser =
+      UIButtonCreate(&window->e, UIButton::SMALL | UIElement::NON_CLIENT, "Refresh", -1)->e.messageUser =
          BitmapViewerRefreshMessage;
       owner = &window->e;
 
-      UIPanel* panel = UIPanelCreate(owner, UI_PANEL_EXPAND);
+      UIPanel* panel = UIPanelCreate(owner, UIPanel::EXPAND);
       bitmap->display =
          UIImageDisplayCreate(&panel->e, UI_IMAGE_DISPLAY_INTERACTIVE | UIElement::V_FILL, bits, width, height, stride);
-      bitmap->labelPanel             = UIPanelCreate(&panel->e, UI_PANEL_COLOR_1 | UIElement::V_FILL);
+      bitmap->labelPanel             = UIPanelCreate(&panel->e, UIPanel::COLOR_1 | UIElement::V_FILL);
       bitmap->label                  = UILabelCreate(&bitmap->labelPanel->e, UIElement::H_FILL, nullptr, 0);
       bitmap->display->e.messageUser = BitmapViewerDisplayMessage;
    }
@@ -2462,9 +2462,9 @@ int TextboxInputMessage(UIElement* element, UIMessage message, int di, void* dp)
 }
 
 UIElement* ConsoleWindowCreate(UIElement* parent) {
-   UIPanel* panel2             = UIPanelCreate(parent, UI_PANEL_EXPAND);
-   displayOutput               = UICodeCreate(&panel2->e, UI_CODE_NO_MARGIN | UIElement::V_FILL | UI_CODE_SELECTABLE);
-   UIPanel* panel3             = UIPanelCreate(&panel2->e, UI_PANEL_HORIZONTAL | UI_PANEL_EXPAND | UI_PANEL_COLOR_1);
+   UIPanel* panel2             = UIPanelCreate(parent, UIPanel::EXPAND);
+   displayOutput               = UICodeCreate(&panel2->e, UICode::NO_MARGIN | UIElement::V_FILL | UICode::SELECTABLE);
+   UIPanel* panel3             = UIPanelCreate(&panel2->e, UIPanel::HORIZONTAL | UIPanel::EXPAND | UIPanel::COLOR_1);
    panel3->border              = ui_rect_1(5);
    panel3->gap                 = 5;
    trafficLight                = UISpacerCreate(&panel3->e, 0, 30, 30);
@@ -3020,7 +3020,7 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
 
    WatchLogger* logger = (WatchLogger*)calloc(1, sizeof(WatchLogger));
 
-   UIButton* button = UIButtonCreate(&child->e, UI_BUTTON_SMALL | UIElement::NON_CLIENT, "Resize columns", -1);
+   UIButton* button = UIButtonCreate(&child->e, UIButton::SMALL | UIElement::NON_CLIENT, "Resize columns", -1);
    button->e.cp     = logger;
    button->invoke   = WatchLoggerResizeColumns;
 
@@ -3407,7 +3407,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
 
       if (index >= 0 && index < w->rows.Length()) {
          WatchWindowMessage(element, UIMessage::LEFT_DOWN, di, dp);
-         UIMenu* menu = UIMenuCreate(&element->window->e, UI_MENU_NO_SCROLL);
+         UIMenu* menu = UIMenuCreate(&element->window->e, UIMenu::NO_SCROLL);
 
          if (w->mode == WATCH_NORMAL && !w->rows[index]->parent) {
             UIMenuAddItem(
@@ -3577,7 +3577,7 @@ int WatchPanelMessage(UIElement* element, UIMessage message, int di, void* dp) {
 
 UIElement* WatchWindowCreate(UIElement* parent) {
    WatchWindow* w       = (WatchWindow*)calloc(1, sizeof(WatchWindow));
-   UIPanel*     panel   = UIPanelCreate(parent, UI_PANEL_SCROLL | UI_PANEL_COLOR_1);
+   UIPanel*     panel   = UIPanelCreate(parent, UIPanel::SCROLL | UIPanel::COLOR_1);
    panel->e.messageUser = WatchPanelMessage;
    panel->e.cp          = w;
    w->element           = UIElementCreate(sizeof(UIElement), &panel->e, UIElement::H_FILL | UIElement::TAB_STOP,
@@ -3592,7 +3592,7 @@ UIElement* WatchWindowCreate(UIElement* parent) {
 
 UIElement* LocalsWindowCreate(UIElement* parent) {
    WatchWindow* w       = (WatchWindow*)calloc(1, sizeof(WatchWindow));
-   UIPanel*     panel   = UIPanelCreate(parent, UI_PANEL_SCROLL | UI_PANEL_COLOR_1);
+   UIPanel*     panel   = UIPanelCreate(parent, UIPanel::SCROLL | UIPanel::COLOR_1);
    panel->e.messageUser = WatchPanelMessage;
    panel->e.cp          = w;
    w->element           = UIElementCreate(sizeof(UIElement), &panel->e, UIElement::H_FILL | UIElement::TAB_STOP,
@@ -3872,7 +3872,7 @@ int TableBreakpointsMessage(UIElement* element, UIMessage message, int di, void*
             data->selected.Add(entry->number);
          }
 
-         UIMenu* menu = UIMenuCreate(&element->window->e, UI_MENU_NO_SCROLL);
+         UIMenu* menu = UIMenuCreate(&element->window->e, UIMenu::NO_SCROLL);
 
          if (data->selected.Length() > 1) {
             bool atLeastOneBreakpointDisabled = false;
@@ -3995,7 +3995,7 @@ void CommandToggleFillDataTab(void*) {
    if (!dataTab)
       return;
    static UIElement *oldParent, *oldBefore;
-   buttonFillWindow->e.flags ^= UI_BUTTON_CHECKED;
+   buttonFillWindow->e.flags ^= UIButton::CHECKED;
 
    if (switcherMain->active == &dataTab->e) {
       UISwitcherSwitchTo(switcherMain, switcherMain->e.children[0]);
@@ -4009,13 +4009,13 @@ void CommandToggleFillDataTab(void*) {
 }
 
 UIElement* DataWindowCreate(UIElement* parent) {
-   dataTab          = UIPanelCreate(parent, UI_PANEL_EXPAND);
-   UIPanel* panel5  = UIPanelCreate(&dataTab->e, UI_PANEL_COLOR_1 | UI_PANEL_HORIZONTAL | UI_PANEL_SMALL_SPACING);
-   buttonFillWindow = UIButtonCreate(&panel5->e, UI_BUTTON_SMALL, "Fill window", -1);
+   dataTab          = UIPanelCreate(parent, UIPanel::EXPAND);
+   UIPanel* panel5  = UIPanelCreate(&dataTab->e, UIPanel::COLOR_1 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
+   buttonFillWindow = UIButtonCreate(&panel5->e, UIButton::SMALL, "Fill window", -1);
    buttonFillWindow->invoke = CommandToggleFillDataTab;
 
    for (int i = 0; i < interfaceDataViewers.Length(); i++) {
-      UIButtonCreate(&panel5->e, UI_BUTTON_SMALL, interfaceDataViewers[i].addButtonLabel, -1)->invoke =
+      UIButtonCreate(&panel5->e, UIButton::SMALL, interfaceDataViewers[i].addButtonLabel, -1)->invoke =
          interfaceDataViewers[i].addButtonCallback;
    }
 
@@ -4059,11 +4059,11 @@ int TextboxStructNameMessage(UIElement* element, UIMessage message, int di, void
 
 UIElement* StructWindowCreate(UIElement* parent) {
    StructWindow* window           = (StructWindow*)calloc(1, sizeof(StructWindow));
-   UIPanel*      panel            = UIPanelCreate(parent, UI_PANEL_COLOR_1 | UI_PANEL_EXPAND);
+   UIPanel*      panel            = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
    window->textbox                = UITextboxCreate(&panel->e, 0);
    window->textbox->e.messageUser = TextboxStructNameMessage;
    window->textbox->e.cp          = window;
-   window->display                = UICodeCreate(&panel->e, UIElement::V_FILL | UI_CODE_NO_MARGIN | UI_CODE_SELECTABLE);
+   window->display                = UICodeCreate(&panel->e, UIElement::V_FILL | UICode::NO_MARGIN | UICode::SELECTABLE);
    UICodeInsertContent(window->display, "Type the name of a struct to view its layout.", -1, false);
    return &panel->e;
 }
@@ -4116,7 +4116,7 @@ int FilesButtonMessage(UIElement* element, UIMessage message, int di, void* dp) 
       if (i)
          UIDrawBlock(painter, element->bounds, i == 2 ? ui.theme.buttonPressed : ui.theme.buttonHovered);
       UIDrawString(painter, element->bounds + ui_rect_4(ui_size::BUTTON_PADDING, 0, 0, 0), button->label,
-                   button->labelBytes, button->e.flags & UI_BUTTON_CHECKED ? ui.theme.codeNumber : ui.theme.codeDefault,
+                   button->labelBytes, button->e.flags & UIButton::CHECKED ? ui.theme.codeNumber : ui.theme.codeDefault,
                    UIAlign::left, NULL);
       return 1;
    }
@@ -4147,7 +4147,7 @@ bool FilesPanelPopulate(FilesWindow* window) {
          button->e.messageUser = FilesButtonMessage;
 
          if (S_ISDIR(FilesGetMode(window, button, &oldLength))) {
-            button->e.flags |= UI_BUTTON_CHECKED;
+            button->e.flags |= UIButton::CHECKED;
          }
 
          window->directory[oldLength] = 0;
@@ -4188,16 +4188,16 @@ void FilesNavigateToActiveFile(void* cp) {
 
 UIElement* FilesWindowCreate(UIElement* parent) {
    FilesWindow* window    = (FilesWindow*)calloc(1, sizeof(FilesWindow));
-   UIPanel*     container = UIPanelCreate(parent, UI_PANEL_EXPAND);
+   UIPanel*     container = UIPanelCreate(parent, UIPanel::EXPAND);
    window->panel =
-      UIPanelCreate(&container->e, UI_PANEL_COLOR_1 | UI_PANEL_EXPAND | UI_PANEL_SCROLL | UIElement::V_FILL);
+      UIPanelCreate(&container->e, UIPanel::COLOR_1 | UIPanel::EXPAND | UIPanel::SCROLL | UIElement::V_FILL);
    window->panel->gap = -1, window->panel->border = ui_rect_1(1);
    window->panel->e.cp = window;
-   UIPanel*  row       = UIPanelCreate(&container->e, UI_PANEL_COLOR_2 | UI_PANEL_HORIZONTAL | UI_PANEL_SMALL_SPACING);
+   UIPanel*  row       = UIPanelCreate(&container->e, UIPanel::COLOR_2 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
    UIButton* button;
-   button       = UIButtonCreate(&row->e, UI_BUTTON_SMALL, "-> cwd", -1);
+   button       = UIButtonCreate(&row->e, UIButton::SMALL, "-> cwd", -1);
    button->e.cp = window, button->invoke = FilesNavigateToCWD;
-   button       = UIButtonCreate(&row->e, UI_BUTTON_SMALL, "-> active file", -1);
+   button       = UIButtonCreate(&row->e, UIButton::SMALL, "-> active file", -1);
    button->e.cp = window, button->invoke = FilesNavigateToActiveFile;
    window->path = UILabelCreate(&row->e, UIElement::H_FILL, "", 0);
    FilesNavigateToCWD(window);
@@ -4214,7 +4214,7 @@ struct RegisterData {
 Array<RegisterData> registerData;
 
 UIElement* RegistersWindowCreate(UIElement* parent) {
-   return &UIPanelCreate(parent, UI_PANEL_SMALL_SPACING | UI_PANEL_COLOR_1 | UI_PANEL_SCROLL)->e;
+   return &UIPanelCreate(parent, UIPanel::SMALL_SPACING | UIPanel::COLOR_1 | UIPanel::SCROLL)->e;
 }
 
 void RegistersWindowUpdate(const char*, UIElement* panel) {
@@ -4267,7 +4267,7 @@ void RegistersWindowUpdate(const char*, UIElement* panel) {
 
       newRegisterData.Add(data);
 
-      UIPanel* row = UIPanelCreate(panel, UI_PANEL_HORIZONTAL | UIElement::H_FILL);
+      UIPanel* row = UIPanelCreate(panel, UIPanel::HORIZONTAL | UIElement::H_FILL);
       if (modified)
          row->e.messageUser = ModifiedRowMessage;
       UILabelCreate(&row->e, 0, stringStart, stringEnd - stringStart);
@@ -4307,7 +4307,7 @@ void RegistersWindowUpdate(const char*, UIElement* panel) {
 
 UIElement* CommandsWindowCreate(UIElement* parent) {
    UIPanel* panel =
-      UIPanelCreate(parent, UI_PANEL_COLOR_1 | UI_PANEL_SMALL_SPACING | UI_PANEL_EXPAND | UI_PANEL_SCROLL);
+      UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::SMALL_SPACING | UIPanel::EXPAND | UIPanel::SCROLL);
    if (!presetCommands.Length())
       UILabelCreate(&panel->e, 0, "No preset commands found in config file!", -1);
 
@@ -4369,7 +4369,7 @@ void LogReceived(char* buffer) {
 }
 
 UIElement* LogWindowCreate(UIElement* parent) {
-   UICode*   code = UICodeCreate(parent, UI_CODE_SELECTABLE);
+   UICode*   code = UICodeCreate(parent, UICode::SELECTABLE);
    pthread_t thread;
    pthread_create(&thread, nullptr, LogWindowThread, code);
    return &code->e;
@@ -4485,7 +4485,7 @@ void ExecutableWindowStartOrRun(ExecutableWindow* window, bool pause) {
    StringFormat(buffer, sizeof(buffer), "start %.*s", window->arguments->bytes, window->arguments->string);
    EvaluateCommand(buffer);
 
-   if (window->askDirectory->check == UI_CHECK_CHECKED) {
+   if (window->askDirectory->check == UICheckbox::CHECKED) {
       CommandParseInternal("gf-get-pwd", true);
    }
 
@@ -4520,7 +4520,7 @@ void ExecutableWindowSaveButton(void* _window) {
    f = fopen(localConfigPath, "wb");
    fprintf(f, "[executable]\npath=%.*s\narguments=%.*s\nask_directory=%c\n", (int)window->path->bytes,
            window->path->string, (int)window->arguments->bytes, window->arguments->string,
-           window->askDirectory->check == UI_CHECK_CHECKED ? '1' : '0');
+           window->askDirectory->check == UICheckbox::CHECKED ? '1' : '0');
    fclose(f);
    SettingsAddTrustedFolder();
    UIDialogShow(windowMain, 0, "Saved executable settings!\n%f%B", "OK");
@@ -4528,7 +4528,7 @@ void ExecutableWindowSaveButton(void* _window) {
 
 UIElement* ExecutableWindowCreate(UIElement* parent) {
    ExecutableWindow* window = (ExecutableWindow*)calloc(1, sizeof(ExecutableWindow));
-   UIPanel*          panel  = UIPanelCreate(parent, UI_PANEL_COLOR_1 | UI_PANEL_EXPAND);
+   UIPanel*          panel  = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
    UILabelCreate(&panel->e, 0, "Path to executable:", -1);
    window->path = UITextboxCreate(&panel->e, 0);
    UITextboxReplace(window->path, executablePath, -1, false);
@@ -4536,8 +4536,8 @@ UIElement* ExecutableWindowCreate(UIElement* parent) {
    window->arguments = UITextboxCreate(&panel->e, 0);
    UITextboxReplace(window->arguments, executableArguments, -1, false);
    window->askDirectory        = UICheckboxCreate(&panel->e, 0, "Ask GDB for working directory", -1);
-   window->askDirectory->check = executableAskDirectory ? UI_CHECK_CHECKED : UI_CHECK_UNCHECKED;
-   UIPanel*  row               = UIPanelCreate(&panel->e, UI_PANEL_HORIZONTAL);
+   window->askDirectory->check = executableAskDirectory ? UICheckbox::CHECKED : UICheckbox::UNCHECKED;
+   UIPanel*  row               = UIPanelCreate(&panel->e, UIPanel::HORIZONTAL);
    UIButton* button;
    button         = UIButtonCreate(&row->e, 0, "Run", -1);
    button->e.cp   = window;
@@ -4646,11 +4646,11 @@ int TextboxSearchCommandMessage(UIElement* element, UIMessage message, int di, v
 
 UIElement* CommandSearchWindowCreate(UIElement* parent) {
    CommandSearchWindow* window    = (CommandSearchWindow*)calloc(1, sizeof(CommandSearchWindow));
-   UIPanel*             panel     = UIPanelCreate(parent, UI_PANEL_COLOR_1 | UI_PANEL_EXPAND);
+   UIPanel*             panel     = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
    window->textbox                = UITextboxCreate(&panel->e, 0);
    window->textbox->e.messageUser = TextboxSearchCommandMessage;
    window->textbox->e.cp          = window;
-   window->display                = UICodeCreate(&panel->e, UIElement::V_FILL | UI_CODE_NO_MARGIN | UI_CODE_SELECTABLE);
+   window->display                = UICodeCreate(&panel->e, UIElement::V_FILL | UICode::NO_MARGIN | UICode::SELECTABLE);
    UICodeInsertContent(window->display, "Type here to search \nGDB command descriptions.", -1, true);
    return &panel->e;
 }
@@ -5217,7 +5217,7 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
          report->xStart = (r.l - report->client.l) / zoomX + report->xStart;
       } else if (!report->dragStarted && message == UIMessage::RIGHT_UP && report->hover) {
          report->menuItem = report->hover;
-         UIMenu* menu     = UIMenuCreate(&element->window->e, UI_MENU_NO_SCROLL);
+         UIMenu* menu     = UIMenuCreate(&element->window->e, UIMenu::NO_SCROLL);
          UIMenuAddItem(menu, 0, "Show source", -1, ProfShowSource, report);
          UIMenuAddItem(menu, 0, "Add breakpoint", -1, ProfAddBreakpoint, report->hover);
          UIMenuAddItem(menu, 0, "Fill view", -1, ProfFillView, report);
@@ -5565,7 +5565,7 @@ void ProfLoadProfileData(void* _window) {
 
    UIMDIChild* window =
       UIMDIChildCreate(&dataWindow->e, UI_MDI_CHILD_CLOSE_BUTTON, ui_rect_2s(800, 600), "Flame graph", -1);
-   UIButton* switchViewButton = UIButtonCreate(&window->e, UI_BUTTON_SMALL | UIElement::NON_CLIENT, "Table view", -1);
+   UIButton* switchViewButton = UIButtonCreate(&window->e, UIButton::SMALL | UIElement::NON_CLIENT, "Table view", -1);
    UITable*  table = UITableCreate(&window->e, 0, "Name\tTime spent (ms)\tCall count\tAverage per call (ms)");
    ProfFlameGraphReport* report = (ProfFlameGraphReport*)UIElementCreate(sizeof(ProfFlameGraphReport), &window->e, 0,
                                                                          ProfFlameGraphMessage, "flame graph");
@@ -5735,7 +5735,7 @@ UIElement* ProfWindowCreate(UIElement* parent) {
    const int   fontSizeFlameGraph = 8;
    ProfWindow* window             = (ProfWindow*)calloc(1, sizeof(ProfWindow));
    window->fontFlameGraph         = UIFontCreate(_UI_TO_STRING_2(UI_FONT_PATH), fontSizeFlameGraph);
-   UIPanel* panel                 = UIPanelCreate(parent, UI_PANEL_COLOR_1 | UI_PANEL_EXPAND);
+   UIPanel* panel                 = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
    panel->e.cp                    = window;
    UIButton* button               = UIButtonCreate(&panel->e, UIElement::V_FILL, "Step over profiled", -1);
    button->e.cp                   = window;
@@ -5918,7 +5918,7 @@ void MemoryWindowGotoButtonInvoke(void* cp) {
 UIElement* MemoryWindowCreate(UIElement* parent) {
    MemoryWindow* window =
       (MemoryWindow*)UIElementCreate(sizeof(MemoryWindow), parent, 0, MemoryWindowMessage, "memory window");
-   window->gotoButton         = UIButtonCreate(&window->e, UI_BUTTON_SMALL, "&", -1);
+   window->gotoButton         = UIButtonCreate(&window->e, UIButton::SMALL, "&", -1);
    window->gotoButton->invoke = MemoryWindowGotoButtonInvoke;
    window->gotoButton->e.cp   = window;
    return &window->e;
@@ -6320,7 +6320,7 @@ void ViewWindowView(void* cp) {
       ViewWindowMatrixGrid* grid = (ViewWindowMatrixGrid*)UIElementCreate(sizeof(ViewWindowMatrixGrid), panel,
                                                                           UIElement::H_FILL | UIElement::V_FILL,
                                                                           ViewWindowMatrixGridMessage, "Matrix grid");
-      grid->hScroll              = UIScrollBarCreate(&grid->e, UI_SCROLL_BAR_HORIZONTAL);
+      grid->hScroll              = UIScrollBarCreate(&grid->e, UIScrollBar::HORIZONTAL);
       grid->vScroll              = UIScrollBarCreate(&grid->e, 0);
       grid->hScroll->maximum     = w * UIMeasureStringWidth("A", 1) * itemCharacters;
       grid->vScroll->maximum     = h * UIMeasureStringHeight();
@@ -6374,7 +6374,7 @@ void ViewWindowView(void* cp) {
 void ViewWindowUpdate(const char* data, UIElement* element) {}
 
 UIElement* ViewWindowCreate(UIElement* parent) {
-   UIPanel*  panel  = UIPanelCreate(parent, UI_PANEL_EXPAND | UI_PANEL_COLOR_1);
+   UIPanel*  panel  = UIPanelCreate(parent, UIPanel::EXPAND | UIPanel::COLOR_1);
    UIButton* button = UIButtonCreate(&panel->e, 0, "View (Ctrl+Shift+V)", -1);
    button->e.cp     = panel;
    button->invoke   = ViewWindowView;
@@ -6519,7 +6519,7 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
       UIDrawBlock(painter, ui_rect_4(client.l, client.r, ym, ym + 1), 0x707070);
 
       float yScale =
-         (display->normalize->e.flags & UI_BUTTON_CHECKED) && display->peak > 0.00001f ? 1.0f / display->peak : 1.0f;
+         (display->normalize->e.flags & UIButton::CHECKED) && display->peak > 0.00001f ? 1.0f / display->peak : 1.0f;
 
       int    sampleOffset = (int)display->scrollBar->position;
       float* samples      = &display->samples[display->channels * sampleOffset];
@@ -6638,7 +6638,7 @@ int WaveformDisplayNormalizeButtonMessage(UIElement* element, UIMessage message,
    WaveformDisplay* display = (WaveformDisplay*)element->parent;
 
    if (message == UIMessage::CLICKED) {
-      element->flags ^= UI_BUTTON_CHECKED;
+      element->flags ^= UIButton::CHECKED;
       UIElementRefresh(&display->e);
    }
 
@@ -6648,10 +6648,10 @@ int WaveformDisplayNormalizeButtonMessage(UIElement* element, UIMessage message,
 WaveformDisplay* WaveformDisplayCreate(UIElement* parent, uint32_t flags) {
    WaveformDisplay* display        = (WaveformDisplay*)UIElementCreate(sizeof(WaveformDisplay), parent, flags,
                                                                        WaveformDisplayMessage, "WaveformDisplay");
-   display->scrollBar              = UIScrollBarCreate(&display->e, UIElement::NON_CLIENT | UI_SCROLL_BAR_HORIZONTAL);
-   display->zoomOut                = UIButtonCreate(&display->e, UI_BUTTON_SMALL, "-", -1);
-   display->zoomIn                 = UIButtonCreate(&display->e, UI_BUTTON_SMALL, "+", -1);
-   display->normalize              = UIButtonCreate(&display->e, UI_BUTTON_SMALL, "Norm", -1);
+   display->scrollBar              = UIScrollBarCreate(&display->e, UIElement::NON_CLIENT | UIScrollBar::HORIZONTAL);
+   display->zoomOut                = UIButtonCreate(&display->e, UIButton::SMALL, "-", -1);
+   display->zoomIn                 = UIButtonCreate(&display->e, UIButton::SMALL, "+", -1);
+   display->normalize              = UIButtonCreate(&display->e, UIButton::SMALL, "Norm", -1);
    display->zoomOut->e.messageUser = display->zoomIn->e.messageUser = WaveformDisplayZoomButtonMessage;
    display->normalize->e.messageUser                                = WaveformDisplayNormalizeButtonMessage;
    return display;
@@ -6826,7 +6826,7 @@ void WaveformViewerSaveToFile(void* cp) {
 
 int WaveformViewerDisplayMessage(UIElement* element, UIMessage message, int di, void* dp) {
    if (message == UIMessage::RIGHT_UP) {
-      UIMenu* menu = UIMenuCreate(&element->window->e, UI_MENU_NO_SCROLL);
+      UIMenu* menu = UIMenuCreate(&element->window->e, UIMenu::NO_SCROLL);
       UIMenuAddItem(
          menu, 0, "Save to .wav...", -1, [](void* cp) { WaveformViewerSaveToFile(cp); }, element);
       UIMenuShow(menu);
@@ -6854,15 +6854,15 @@ void WaveformViewerUpdate(const char* pointerString, const char* sampleCountStri
       UIMDIChild* window    = UIMDIChildCreate(&dataWindow->e, UI_MDI_CHILD_CLOSE_BUTTON, ui_rect_1(0), "Waveform", -1);
       window->e.messageUser = WaveformViewerWindowMessage;
       window->e.cp          = viewer;
-      viewer->autoToggle    = UIButtonCreate(&window->e, UI_BUTTON_SMALL | UIElement::NON_CLIENT, "Auto", -1);
+      viewer->autoToggle    = UIButtonCreate(&window->e, UIButton::SMALL | UIElement::NON_CLIENT, "Auto", -1);
       viewer->autoToggle->e.cp          = (void*)WaveformViewerAutoUpdateCallback;
       viewer->autoToggle->e.messageUser = DataViewerAutoUpdateButtonMessage;
-      UIButtonCreate(&window->e, UI_BUTTON_SMALL | UIElement::NON_CLIENT, "Refresh", -1)->e.messageUser =
+      UIButtonCreate(&window->e, UIButton::SMALL | UIElement::NON_CLIENT, "Refresh", -1)->e.messageUser =
          WaveformViewerRefreshMessage;
       owner = &window->e;
 
-      UIPanel* panel                 = UIPanelCreate(owner, UI_PANEL_EXPAND);
-      viewer->labelPanel             = UIPanelCreate(&panel->e, UI_PANEL_COLOR_1 | UIElement::V_FILL);
+      UIPanel* panel                 = UIPanelCreate(owner, UIPanel::EXPAND);
+      viewer->labelPanel             = UIPanelCreate(&panel->e, UIPanel::COLOR_1 | UIElement::V_FILL);
       viewer->label                  = UILabelCreate(&viewer->labelPanel->e, UIElement::H_FILL, nullptr, 0);
       viewer->display                = WaveformDisplayCreate(&panel->e, UIElement::V_FILL);
       viewer->display->e.messageUser = WaveformViewerDisplayMessage;
@@ -7151,7 +7151,7 @@ __attribute__((constructor)) void InterfaceAddBuiltinWindowsAndCommands() {
 }
 
 void InterfaceShowMenu(void* self) {
-   UIMenu* menu = UIMenuCreate((UIElement*)self, UI_MENU_PLACE_ABOVE | UI_MENU_NO_SCROLL);
+   UIMenu* menu = UIMenuCreate((UIElement*)self, UIMenu::PLACE_ABOVE | UIMenu::NO_SCROLL);
 
    for (int i = 0; i < interfaceCommands.Length(); i++) {
       if (!interfaceCommands[i].label)
@@ -7291,7 +7291,7 @@ void InterfaceLayoutCreate(UIElement* parent) {
    if (0 == strcmp("h", token) || 0 == strcmp("v", token)) {
       uint32_t flags = UIElement::V_FILL | UIElement::H_FILL;
       if (*token == 'v')
-         flags |= UI_SPLIT_PANE_VERTICAL;
+         flags |= UISplitPane::VERTICAL;
       InterfaceLayoutNextToken("(");
       UIElement* container = &UISplitPaneCreate(parent, flags, atoi(InterfaceLayoutNextToken("#")) * 0.01f)->e;
       InterfaceLayoutNextToken(",");
@@ -7403,7 +7403,7 @@ int GfMain(int argc, char** argv) {
    fontCode = UIFontCreate(fontPath, fontSizeCode);
    UIFontActivate(UIFontCreate(fontPath, fontSizeInterface));
 
-   windowMain                = UIWindowCreate(0, maximize ? UI_WINDOW_MAXIMIZE : 0, "gf2", 0, 0);
+   windowMain                = UIWindowCreate(0, maximize ? UIWindow::MAXIMIZE : 0, "gf2", 0, 0);
    windowMain->scale         = uiScale;
    windowMain->e.messageUser = WindowMessage;
 
@@ -7414,7 +7414,7 @@ int GfMain(int argc, char** argv) {
    }
 
    switcherMain = UISwitcherCreate(&windowMain->e, 0);
-   InterfaceLayoutCreate(&UIPanelCreate(&switcherMain->e, UI_PANEL_EXPAND)->e);
+   InterfaceLayoutCreate(&UIPanelCreate(&switcherMain->e, UIPanel::EXPAND)->e);
    UISwitcherSwitchTo(switcherMain, switcherMain->e.children[0]);
 
    if (*InterfaceLayoutNextToken()) {

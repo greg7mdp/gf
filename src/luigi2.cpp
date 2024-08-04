@@ -957,7 +957,7 @@ UIElement* UIParentPop() {
 // --------------------------------------------------
 
 int _UIPanelCalculatePerFill(UIPanel* panel, int* _count, int hSpace, int vSpace, float scale) {
-   bool horizontal = panel->e.flags & UI_PANEL_HORIZONTAL;
+   bool horizontal = panel->e.flags & UIPanel::HORIZONTAL;
    int  available  = horizontal ? hSpace : vSpace;
    int  count = 0, fill = 0, perFill = 0;
 
@@ -1001,7 +1001,7 @@ int _UIPanelCalculatePerFill(UIPanel* panel, int* _count, int hSpace, int vSpace
 }
 
 int _UIPanelMeasure(UIPanel* panel, int di) {
-   bool horizontal = panel->e.flags & UI_PANEL_HORIZONTAL;
+   bool horizontal = panel->e.flags & UIPanel::HORIZONTAL;
    int  perFill =
       _UIPanelCalculatePerFill(panel, NULL, horizontal ? di : 0, horizontal ? 0 : di, panel->e.window->scale);
    int size = 0;
@@ -1022,7 +1022,7 @@ int _UIPanelMeasure(UIPanel* panel, int di) {
 }
 
 int _UIPanelLayout(UIPanel* panel, UIRectangle bounds, bool measure) {
-   bool  horizontal = panel->e.flags & UI_PANEL_HORIZONTAL;
+   bool  horizontal = panel->e.flags & UIPanel::HORIZONTAL;
    float scale      = panel->e.window->scale;
    int   position   = (horizontal ? panel->border.l : panel->border.t) * scale;
    if (panel->scrollBar && !measure)
@@ -1032,7 +1032,7 @@ int _UIPanelLayout(UIPanel* panel, UIRectangle bounds, bool measure) {
    int  count         = 0;
    int  perFill       = _UIPanelCalculatePerFill(panel, &count, hSpace, vSpace, scale);
    int  scaledBorder2 = (horizontal ? panel->border.t : panel->border.l) * panel->e.window->scale;
-   bool expand        = panel->e.flags & UI_PANEL_EXPAND;
+   bool expand        = panel->e.flags & UIPanel::EXPAND;
 
    for (uint32_t i = 0; i < panel->e.childCount; i++) {
       UIElement* child = panel->e.children[i];
@@ -1073,7 +1073,7 @@ int _UIPanelLayout(UIPanel* panel, UIRectangle bounds, bool measure) {
 
 int _UIPanelMessage(UIElement* element, UIMessage message, int di, void* dp) {
    UIPanel* panel      = (UIPanel*)element;
-   bool     horizontal = element->flags & UI_PANEL_HORIZONTAL;
+   bool     horizontal = element->flags & UIPanel::HORIZONTAL;
 
    if (message == UIMessage::LAYOUT) {
       int         scrollBarWidth = panel->scrollBar ? (ui_size::SCROLL_BAR * element->window->scale) : 0;
@@ -1103,9 +1103,9 @@ int _UIPanelMessage(UIElement* element, UIMessage message, int di, void* dp) {
          return _UIPanelLayout(panel, ui_rect_4(0, width, 0, 0), true);
       }
    } else if (message == UIMessage::PAINT) {
-      if (element->flags & UI_PANEL_COLOR_1) {
+      if (element->flags & UIPanel::COLOR_1) {
          UIDrawBlock((UIPainter*)dp, element->bounds, ui.theme.panel1);
-      } else if (element->flags & UI_PANEL_COLOR_2) {
+      } else if (element->flags & UIPanel::COLOR_2) {
          UIDrawBlock((UIPainter*)dp, element->bounds, ui.theme.panel2);
       }
    } else if (message == UIMessage::MOUSE_WHEEL && panel->scrollBar) {
@@ -1114,7 +1114,7 @@ int _UIPanelMessage(UIElement* element, UIMessage message, int di, void* dp) {
       UIElementRefresh(element);
    } else if (message == UIMessage::GET_CHILD_STABILITY) {
       UIElement* child = (UIElement*)dp;
-      return ((element->flags & UI_PANEL_EXPAND) ? (horizontal ? 2 : 1) : 0) |
+      return ((element->flags & UIPanel::EXPAND) ? (horizontal ? 2 : 1) : 0) |
              ((child->flags & UIElement::H_FILL) ? 1 : 0) | ((child->flags & UIElement::V_FILL) ? 2 : 0);
    }
 
@@ -1124,18 +1124,18 @@ int _UIPanelMessage(UIElement* element, UIMessage message, int di, void* dp) {
 UIPanel* UIPanelCreate(UIElement* parent, uint32_t flags) {
    UIPanel* panel = (UIPanel*)UIElementCreate(sizeof(UIPanel), parent, flags, _UIPanelMessage, "Panel");
 
-   if (flags & UI_PANEL_LARGE_SPACING) {
+   if (flags & UIPanel::LARGE_SPACING) {
       panel->border = ui_rect_1(ui_size::PANE_LARGE_BORDER);
       panel->gap    = ui_size::PANE_LARGE_GAP;
-   } else if (flags & UI_PANEL_MEDIUM_SPACING) {
+   } else if (flags & UIPanel::MEDIUM_SPACING) {
       panel->border = ui_rect_1(ui_size::PANE_MEDIUM_BORDER);
       panel->gap    = ui_size::PANE_MEDIUM_GAP;
-   } else if (flags & UI_PANEL_SMALL_SPACING) {
+   } else if (flags & UIPanel::SMALL_SPACING) {
       panel->border = ui_rect_1(ui_size::PANE_SMALL_BORDER);
       panel->gap    = ui_size::PANE_SMALL_GAP;
    }
 
-   if (flags & UI_PANEL_SCROLL) {
+   if (flags & UIPanel::SCROLL) {
       panel->scrollBar = UIScrollBarCreate(&panel->e, UIElement::NON_CLIENT);
    }
 
@@ -1240,8 +1240,8 @@ UISwitcher* UISwitcherCreate(UIElement* parent, uint32_t flags) {
 
 int _UIButtonMessage(UIElement* element, UIMessage message, int di, void* dp) {
    UIButton* button     = (UIButton*)element;
-   bool      isMenuItem = element->flags & UI_BUTTON_MENU_ITEM;
-   bool      isDropDown = element->flags & UI_BUTTON_DROP_DOWN;
+   bool      isMenuItem = element->flags & UIButton::MENU_ITEM;
+   bool      isDropDown = element->flags & UIButton::DROP_DOWN;
 
    if (message == UIMessage::GET_HEIGHT) {
       if (isMenuItem) {
@@ -1254,7 +1254,7 @@ int _UIButtonMessage(UIElement* element, UIMessage message, int di, void* dp) {
       int paddedSize = labelSize + ui_size::BUTTON_PADDING * element->window->scale;
       if (isDropDown)
          paddedSize += ui.activeFont->glyphWidth * 2;
-      int minimumSize = ((element->flags & UI_BUTTON_SMALL) ? 0
+      int minimumSize = ((element->flags & UIButton::SMALL) ? 0
                          : isMenuItem                       ? ui_size::MENU_ITEM_MINIMUM_WIDTH
                                                             : ui_size::BUTTON_MINIMUM_WIDTH) *
                         element->window->scale;
@@ -1264,14 +1264,14 @@ int _UIButtonMessage(UIElement* element, UIMessage message, int di, void* dp) {
                     (isMenuItem   ? UI_DRAW_CONTROL_MENU_ITEM
                      : isDropDown ? UI_DRAW_CONTROL_DROP_DOWN
                                   : UI_DRAW_CONTROL_PUSH_BUTTON) |
-                       ((element->flags & UI_BUTTON_CHECKED) ? UI_DRAW_CONTROL_STATE_CHECKED : 0) | element->state(),
+                       ((element->flags & UIButton::CHECKED) ? UI_DRAW_CONTROL_STATE_CHECKED : 0) | element->state(),
                     button->label, button->labelBytes, 0, element->window->scale);
    } else if (message == UIMessage::UPDATE) {
       UIElementRepaint(element, NULL);
    } else if (message == UIMessage::DEALLOCATE) {
       UI_FREE(button->label);
    } else if (message == UIMessage::LEFT_DOWN) {
-      if (element->flags & UI_BUTTON_CAN_FOCUS) {
+      if (element->flags & UIButton::CAN_FOCUS) {
          UIElementFocus(element);
       }
    } else if (message == UIMessage::KEY_TYPED) {
@@ -1316,9 +1316,9 @@ int _UICheckboxMessage(UIElement* element, UIMessage message, int di, void* dp) 
    } else if (message == UIMessage::PAINT) {
       UIDrawControl((UIPainter*)dp, element->bounds,
                     UI_DRAW_CONTROL_CHECKBOX |
-                       (box->check == UI_CHECK_INDETERMINATE ? UI_DRAW_CONTROL_STATE_INDETERMINATE
-                        : box->check == UI_CHECK_CHECKED     ? UI_DRAW_CONTROL_STATE_CHECKED
-                                                             : 0) |
+                       (box->check == UICheckbox::INDETERMINATE ? UI_DRAW_CONTROL_STATE_INDETERMINATE
+                        : box->check == UICheckbox::CHECKED     ? UI_DRAW_CONTROL_STATE_CHECKED
+                                                                : 0) |
                        element->state(),
                     box->label, box->labelBytes, 0, element->window->scale);
    } else if (message == UIMessage::UPDATE) {
@@ -1333,7 +1333,7 @@ int _UICheckboxMessage(UIElement* element, UIMessage message, int di, void* dp) 
          UIElementRepaint(element, NULL);
       }
    } else if (message == UIMessage::CLICKED) {
-      box->check = (box->check + 1) % ((element->flags & UI_CHECKBOX_ALLOW_INDETERMINATE) ? 3 : 2);
+      box->check = (box->check + 1) % ((element->flags & UICheckbox::ALLOW_INDETERMINATE) ? 3 : 2);
       UIElementRepaint(element, NULL);
       if (box->invoke)
          box->invoke(element->cp);
@@ -1391,7 +1391,7 @@ int _UISplitPaneMessage(UIElement* element, UIMessage message, int di, void* dp)
 
 int _UISplitterMessage(UIElement* element, UIMessage message, int di, void* dp) {
    UISplitPane* splitPane = (UISplitPane*)element->parent;
-   bool         vertical  = splitPane->e.flags & UI_SPLIT_PANE_VERTICAL;
+   bool         vertical  = splitPane->e.flags & UISplitPane::VERTICAL;
 
    if (message == UIMessage::PAINT) {
       UIDrawControl((UIPainter*)dp, element->bounds,
@@ -1412,7 +1412,7 @@ int _UISplitterMessage(UIElement* element, UIMessage message, int di, void* dp) 
          splitPane->weight = 0.95f;
 
       if (splitPane->e.children[2]->messageClass == _UISplitPaneMessage &&
-          (splitPane->e.children[2]->flags & UI_SPLIT_PANE_VERTICAL) == (splitPane->e.flags & UI_SPLIT_PANE_VERTICAL)) {
+          (splitPane->e.children[2]->flags & UISplitPane::VERTICAL) == (splitPane->e.flags & UISplitPane::VERTICAL)) {
          UISplitPane* subSplitPane = (UISplitPane*)splitPane->e.children[2];
          subSplitPane->weight =
             (splitPane->weight - oldWeight - subSplitPane->weight + oldWeight * subSplitPane->weight) /
@@ -1431,7 +1431,7 @@ int _UISplitterMessage(UIElement* element, UIMessage message, int di, void* dp) 
 
 int _UISplitPaneMessage(UIElement* element, UIMessage message, int di, void* dp) {
    UISplitPane* splitPane = (UISplitPane*)element;
-   bool         vertical  = splitPane->e.flags & UI_SPLIT_PANE_VERTICAL;
+   bool         vertical  = splitPane->e.flags & UISplitPane::VERTICAL;
 
    if (message == UIMessage::LAYOUT) {
       UIElement* splitter = element->children[0];
@@ -1766,7 +1766,7 @@ int _UIScrollThumbMessage(UIElement* element, UIMessage message, int di, void* d
 UIScrollBar* UIScrollBarCreate(UIElement* parent, uint32_t flags) {
    UIScrollBar* scrollBar =
       (UIScrollBar*)UIElementCreate(sizeof(UIScrollBar), parent, flags, _UIScrollBarMessage, "Scroll Bar");
-   bool horizontal = scrollBar->horizontal = flags & UI_SCROLL_BAR_HORIZONTAL;
+   bool horizontal = scrollBar->horizontal = flags & UIScrollBar::HORIZONTAL;
    UIElementCreate(sizeof(UIElement), &scrollBar->e, flags, _UIScrollUpDownMessage,
                    !horizontal ? "Scroll Up" : "Scroll Left")
       ->cp = (void*)(uintptr_t)0;
@@ -1819,7 +1819,7 @@ void UICodePositionToByte(UICode* code, int x, int y, int* line, int* byte) {
       *line = code->lineCount - 1;
    int column =
       (x - code->e.bounds.l + code->hScroll->position + ui.activeFont->glyphWidth / 2) / ui.activeFont->glyphWidth;
-   if (~code->e.flags & UI_CODE_NO_MARGIN)
+   if (~code->e.flags & UICode::NO_MARGIN)
       column -= (ui.code_margin() + ui.code_margin_gap()) / ui.activeFont->glyphWidth;
    UIFontActivate(previousFont);
    *byte = _UICodeColumnToByte(code, *line, column);
@@ -1836,7 +1836,7 @@ int UICodeHitTest(UICode* code, int x, int y) {
 
    UIFont* previousFont = UIFontActivate(code->font);
    int     lineHeight   = UIMeasureStringHeight();
-   bool    inMargin     = x < ui.code_margin() + ui.code_margin_gap() / 2 && (~code->e.flags & UI_CODE_NO_MARGIN);
+   bool    inMargin     = x < ui.code_margin() + ui.code_margin_gap() / 2 && (~code->e.flags & UICode::NO_MARGIN);
    UIFontActivate(previousFont);
 
    if (y < 0 || y >= lineHeight * code->lineCount) {
@@ -2025,7 +2025,7 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
          code->vScroll->position = (code->focused + 0.5) * UIMeasureStringHeight() - code->e.bounds.height() / 2;
       }
 
-      if (!(code->e.flags & UI_CODE_NO_MARGIN))
+      if (!(code->e.flags & UICode::NO_MARGIN))
          hSpace -= ui.code_margin() + ui.code_margin_gap();
       _UI_LAYOUT_SCROLL_BAR_PAIR(code);
 
@@ -2038,7 +2038,7 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
 
       lineBounds.r = code->vScroll->e.bounds.l;
 
-      if (~code->e.flags & UI_CODE_NO_MARGIN) {
+      if (~code->e.flags & UICode::NO_MARGIN) {
          lineBounds.l += ui.code_margin() + ui.code_margin_gap();
       }
 
@@ -2058,7 +2058,7 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
 
          lineBounds.b = lineBounds.t + lineHeight;
 
-         if (~code->e.flags & UI_CODE_NO_MARGIN) {
+         if (~code->e.flags & UICode::NO_MARGIN) {
             char string[16];
             int  p          = 16;
             int  lineNumber = i + 1;
@@ -2126,7 +2126,7 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
          return (int)UICursor::flipped_arrow;
       }
 
-      if (element->flags & UI_CODE_SELECTABLE) {
+      if (element->flags & UICode::SELECTABLE) {
          return (int)UICursor::text;
       }
    } else if (message == UIMessage::LEFT_UP) {
@@ -2135,7 +2135,7 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
       int hitTest            = UICodeHitTest(code, element->window->cursor.x, element->window->cursor.y);
       code->leftDownInMargin = hitTest < 0;
 
-      if (hitTest > 0 && (element->flags & UI_CODE_SELECTABLE)) {
+      if (hitTest > 0 && (element->flags & UICode::SELECTABLE)) {
          UICodePositionToByte(code, element->window->cursor.x, element->window->cursor.y, &code->selection[2].line,
                               &code->selection[2].offset);
          _UICodeMessage(element, UIMessage::MOUSE_DRAG, di, dp);
@@ -2161,7 +2161,7 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
          UIFont* previousFont = UIFontActivate(code->font);
 
          if (element->window->cursor.x <
-             element->bounds.l + ((element->flags & UI_CODE_NO_MARGIN)
+             element->bounds.l + ((element->flags & UICode::NO_MARGIN)
                                      ? ui.code_margin_gap()
                                      : (ui.code_margin() + ui.code_margin_gap() * 2))) {
             code->hScroll->position -= delta;
@@ -2271,9 +2271,9 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
    } else if (message == UIMessage::RIGHT_DOWN) {
       int hitTest = UICodeHitTest(code, element->window->cursor.x, element->window->cursor.y);
 
-      if (hitTest > 0 && (element->flags & UI_CODE_SELECTABLE)) {
+      if (hitTest > 0 && (element->flags & UICode::SELECTABLE)) {
          UIElementFocus(element);
-         UIMenu* menu = UIMenuCreate(&element->window->e, UI_MENU_NO_SCROLL);
+         UIMenu* menu = UIMenuCreate(&element->window->e, UIMenu::NO_SCROLL);
          UIMenuAddItem(menu,
                        (code->selection[0].line == code->selection[1].line &&
                         code->selection[0].offset == code->selection[1].offset)
@@ -2407,7 +2407,7 @@ UICode* UICodeCreate(UIElement* parent, uint32_t flags) {
    UICode* code  = (UICode*)UIElementCreate(sizeof(UICode), parent, flags, _UICodeMessage, "Code");
    code->font    = ui.activeFont;
    code->vScroll = UIScrollBarCreate(&code->e, 0);
-   code->hScroll = UIScrollBarCreate(&code->e, UI_SCROLL_BAR_HORIZONTAL);
+   code->hScroll = UIScrollBarCreate(&code->e, UIScrollBar::HORIZONTAL);
    code->focused = -1;
    code->tabSize = 4;
    return code;
@@ -2741,7 +2741,7 @@ int _UITableMessage(UIElement* element, UIMessage message, int di, void* dp) {
 UITable* UITableCreate(UIElement* parent, uint32_t flags, const char* columns) {
    UITable* table         = (UITable*)UIElementCreate(sizeof(UITable), parent, flags, _UITableMessage, "Table");
    table->vScroll         = UIScrollBarCreate(&table->e, 0);
-   table->hScroll         = UIScrollBarCreate(&table->e, UI_SCROLL_BAR_HORIZONTAL);
+   table->hScroll         = UIScrollBarCreate(&table->e, UIScrollBar::HORIZONTAL);
    table->columns         = UIStringCopy(columns, -1);
    table->columnHighlight = -1;
    return table;
@@ -2966,7 +2966,7 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
          textbox->carets[1] = c1; // Only move caret if clicking outside the existing selection.
       }
 
-      UIMenu* menu = UIMenuCreate(&element->window->e, UI_MENU_NO_SCROLL);
+      UIMenu* menu = UIMenuCreate(&element->window->e, UIMenu::NO_SCROLL);
       UIMenuAddItem(menu, textbox->carets[0] == textbox->carets[1] ? UIElement::DISABLED : 0, "Copy", -1,
                     _UITextboxCopyText, textbox);
       size_t pasteBytes;
@@ -3180,7 +3180,7 @@ UIMDIChild* UIMDIChildCreate(UIElement* parent, uint32_t flags, UIRectangle init
    mdiClient->active = mdiChild;
 
    if (flags & UI_MDI_CHILD_CLOSE_BUTTON) {
-      UIButton* closeButton = UIButtonCreate(&mdiChild->e, UI_BUTTON_SMALL | UIElement::NON_CLIENT, "X", 1);
+      UIButton* closeButton = UIButtonCreate(&mdiChild->e, UIButton::SMALL | UIElement::NON_CLIENT, "X", 1);
       closeButton->invoke   = _UIMDIChildCloseButton;
       closeButton->e.cp     = mdiChild;
    }
@@ -3434,9 +3434,9 @@ void _UIDialogButtonInvoke(void* cp) {
 
 int _UIDialogDefaultButtonMessage(UIElement* element, UIMessage message, int di, void* dp) {
    if (message == UIMessage::PAINT && element->window->focused->messageClass != _UIButtonMessage) {
-      element->flags |= UI_BUTTON_CHECKED;
+      element->flags |= UIButton::CHECKED;
       element->messageClass(element, message, di, dp);
-      element->flags &= ~UI_BUTTON_CHECKED;
+      element->flags &= ~UIButton::CHECKED;
       return 1;
    }
 
@@ -3468,7 +3468,7 @@ const char* UIDialogShow(UIWindow* window, uint32_t flags, const char* format, .
 
    UI_ASSERT(!window->dialog);
    window->dialog = UIElementCreate(sizeof(UIElement), &window->e, 0, _UIDialogWrapperMessage, "DialogWrapper");
-   UIPanel* panel = UIPanelCreate(window->dialog, UI_PANEL_MEDIUM_SPACING | UI_PANEL_COLOR_1);
+   UIPanel* panel = UIPanelCreate(window->dialog, UIPanel::MEDIUM_SPACING | UIPanel::COLOR_1);
    panel->border  = ui_rect_1(ui_size::PANE_MEDIUM_BORDER * 2);
    window->e.children[0]->flags |= UIElement::DISABLED;
 
@@ -3484,7 +3484,7 @@ const char* UIDialogShow(UIWindow* window, uint32_t flags, const char* format, .
 
    for (int i = 0; format[i]; i++) {
       if (i == 0 || format[i - 1] == '\n') {
-         row      = UIPanelCreate(&panel->e, UI_PANEL_HORIZONTAL | UIElement::H_FILL);
+         row      = UIPanelCreate(&panel->e, UIPanel::HORIZONTAL | UIElement::H_FILL);
          row->gap = ui_size::PANE_SMALL_GAP;
       }
 
@@ -3589,7 +3589,7 @@ bool _UIMenusClose() {
    bool      anyClosed = false;
 
    while (window) {
-      if (window->e.flags & UI_WINDOW_MENU) {
+      if (window->e.flags & UIWindow::MENU) {
          UIElementDestroy(&window->e);
          anyClosed = true;
       }
@@ -3642,7 +3642,7 @@ int _UIMenuMessage(UIElement* element, UIMessage message, int di, void* dp) {
    } else if (message == UIMessage::LAYOUT) {
       int position      = element->bounds.t + 2 - menu->vScroll->position;
       int totalHeight   = 0;
-      int scrollBarSize = (menu->e.flags & UI_MENU_NO_SCROLL) ? 0 : ui_size::SCROLL_BAR;
+      int scrollBarSize = (menu->e.flags & UIMenu::NO_SCROLL) ? 0 : ui_size::SCROLL_BAR;
 
       for (uint32_t i = 0; i < element->childCount; i++) {
          UIElement* child = element->children[i];
@@ -3681,7 +3681,7 @@ int _UIMenuMessage(UIElement* element, UIMessage message, int di, void* dp) {
 
 void UIMenuAddItem(UIMenu* menu, uint32_t flags, const char* label, ptrdiff_t labelBytes, void (*invoke)(void* cp),
                    void* cp) {
-   UIButton* button      = UIButtonCreate(&menu->e, flags | UI_BUTTON_MENU_ITEM, label, labelBytes);
+   UIButton* button      = UIButtonCreate(&menu->e, flags | UIButton::MENU_ITEM, label, labelBytes);
    button->invoke        = invoke;
    button->e.messageUser = _UIMenuItemMessage;
    button->e.cp          = cp;
@@ -3691,13 +3691,13 @@ void _UIMenuPrepare(UIMenu* menu, int* width, int* height) {
    *width  = UIElementMessage(&menu->e, UIMessage::GET_WIDTH, 0, 0);
    *height = UIElementMessage(&menu->e, UIMessage::GET_HEIGHT, 0, 0);
 
-   if (menu->e.flags & UI_MENU_PLACE_ABOVE) {
+   if (menu->e.flags & UIMenu::PLACE_ABOVE) {
       menu->pointY -= *height;
    }
 }
 
 UIMenu* UIMenuCreate(UIElement* parent, uint32_t flags) {
-   UIWindow* window   = UIWindowCreate(parent->window, UI_WINDOW_MENU, 0, 0, 0);
+   UIWindow* window   = UIWindowCreate(parent->window, UIWindow::MENU, 0, 0, 0);
    UIMenu*   menu     = (UIMenu*)UIElementCreate(sizeof(UIMenu), &window->e, flags, _UIMenuMessage, "Menu");
    menu->vScroll      = UIScrollBarCreate(&menu->e, UIElement::NON_CLIENT);
    menu->parentWindow = parent->window;
@@ -3705,7 +3705,7 @@ UIMenu* UIMenuCreate(UIElement* parent, uint32_t flags) {
    if (parent->parent) {
       UIRectangle screenBounds = UIElementScreenBounds(parent);
       menu->pointX             = screenBounds.l;
-      menu->pointY             = (flags & UI_MENU_PLACE_ABOVE) ? (screenBounds.t + 1) : (screenBounds.b - 1);
+      menu->pointY             = (flags & UIMenu::PLACE_ABOVE) ? (screenBounds.t + 1) : (screenBounds.b - 1);
    } else {
       int x = 0, y = 0;
       _UIWindowGetScreenPosition(parent->window, &x, &y);
@@ -4015,7 +4015,7 @@ bool UIMenusOpen() {
    UIWindow* window = ui.windows;
 
    while (window) {
-      if (window->e.flags & UI_WINDOW_MENU) {
+      if (window->e.flags & UIWindow::MENU) {
          return true;
       }
 
@@ -4104,17 +4104,17 @@ bool _UIWindowInputEvent(UIWindow* window, UIMessage message, int di, void* dp) 
             _UIWindowSetCursor(window, cursor);
          }
       } else if (message == UIMessage::LEFT_DOWN) {
-         if ((window->e.flags & UI_WINDOW_MENU) || !_UIMenusClose()) {
+         if ((window->e.flags & UIWindow::MENU) || !_UIMenusClose()) {
             _UIWindowSetPressed(window, hovered, 1);
             UIElementMessage(hovered, UIMessage::LEFT_DOWN, di, dp);
          }
       } else if (message == UIMessage::MIDDLE_DOWN) {
-         if ((window->e.flags & UI_WINDOW_MENU) || !_UIMenusClose()) {
+         if ((window->e.flags & UIWindow::MENU) || !_UIMenusClose()) {
             _UIWindowSetPressed(window, hovered, 2);
             UIElementMessage(hovered, UIMessage::MIDDLE_DOWN, di, dp);
          }
       } else if (message == UIMessage::RIGHT_DOWN) {
-         if ((window->e.flags & UI_WINDOW_MENU) || !_UIMenusClose()) {
+         if ((window->e.flags & UIWindow::MENU) || !_UIMenusClose()) {
             _UIWindowSetPressed(window, hovered, 3);
             UIElementMessage(hovered, UIMessage::RIGHT_DOWN, di, dp);
          }
@@ -4516,7 +4516,7 @@ int _UIInspectorTableMessage(UIElement* element, UIMessage message, int di, void
 }
 
 void _UIInspectorCreate() {
-   ui.inspector                     = UIWindowCreate(0, UI_WINDOW_INSPECTOR, "Inspector", 0, 0);
+   ui.inspector                     = UIWindowCreate(0, UIWindow::INSPECTOR, "Inspector", 0, 0);
    UISplitPane* splitPane           = UISplitPaneCreate(&ui.inspector->e, 0, 0.5f);
    ui.inspectorTable                = UITableCreate(&splitPane->e, 0, "Class\tBounds\tID");
    ui.inspectorTable->e.messageUser = _UIInspectorTableMessage;
@@ -4549,7 +4549,7 @@ void _UIInspectorSetFocusedWindow(UIWindow* window) {
    if (!ui.inspector || !ui.inspectorTable)
       return;
 
-   if (window->e.flags & UI_WINDOW_INSPECTOR) {
+   if (window->e.flags & UIWindow::INSPECTOR) {
       return;
    }
 
@@ -4742,11 +4742,11 @@ UIWindow* UIWindowCreate(UIWindow* owner, uint32_t flags, const char* cTitle, in
    if (owner)
       window->scale = owner->scale;
 
-   int width  = (flags & UI_WINDOW_MENU) ? 1 : _width ? _width : 800;
-   int height = (flags & UI_WINDOW_MENU) ? 1 : _height ? _height : 600;
+   int width  = (flags & UIWindow::MENU) ? 1 : _width ? _width : 800;
+   int height = (flags & UIWindow::MENU) ? 1 : _height ? _height : 600;
 
    XSetWindowAttributes attributes = {};
-   attributes.override_redirect    = flags & UI_WINDOW_MENU;
+   attributes.override_redirect    = flags & UIWindow::MENU;
 
    window->window = XCreateWindow(ui.display, DefaultRootWindow(ui.display), 0, 0, width, height, 0, 0, InputOutput,
                                   CopyFromParent, CWOverrideRedirect, &attributes);
@@ -4757,18 +4757,18 @@ UIWindow* UIWindowCreate(UIWindow* owner, uint32_t flags, const char* cTitle, in
                    KeyPressMask | KeyReleaseMask | StructureNotifyMask | EnterWindowMask | LeaveWindowMask |
                    ButtonMotionMask | KeymapStateMask | FocusChangeMask | PropertyChangeMask);
 
-   if (flags & UI_WINDOW_MAXIMIZE) {
+   if (flags & UIWindow::MAXIMIZE) {
       Atom atoms[2] = {XInternAtom(ui.display, "_NET_WM_STATE_MAXIMIZED_HORZ", 0),
                        XInternAtom(ui.display, "_NET_WM_STATE_MAXIMIZED_VERT", 0)};
       XChangeProperty(ui.display, window->window, XInternAtom(ui.display, "_NET_WM_STATE", 0), XA_ATOM, 32,
                       PropModeReplace, (unsigned char*)atoms, 2);
    }
 
-   if (~flags & UI_WINDOW_MENU) {
+   if (~flags & UIWindow::MENU) {
       XMapRaised(ui.display, window->window);
    }
 
-   if (flags & UI_WINDOW_CENTER_IN_OWNER) {
+   if (flags & UIWindow::CENTER_IN_OWNER) {
       int x = 0, y = 0;
       _UIWindowGetScreenPosition(owner, &x, &y);
       XMoveResizeWindow(ui.display, window->window, x + owner->width / 2 - width / 2,
@@ -5592,7 +5592,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPAR
          _UIInspectorSetFocusedWindow(window);
          UIElementMessage(&window->e, UIMessage::WINDOW_ACTIVATE, 0, 0);
       }
-   } else if (message == WM_MOUSEACTIVATE && (window->e.flags & UI_WINDOW_MENU)) {
+   } else if (message == WM_MOUSEACTIVATE && (window->e.flags & UIWindow::MENU)) {
       return MA_NOACTIVATE;
    } else if (message == WM_DROPFILES) {
       HDROP  drop  = (HDROP)wParam;
@@ -5617,7 +5617,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPAR
       _UIUpdate();
    } else {
       if (message == WM_NCLBUTTONDOWN || message == WM_NCMBUTTONDOWN || message == WM_NCRBUTTONDOWN) {
-         if (~window->e.flags & UI_WINDOW_MENU) {
+         if (~window->e.flags & UIWindow::MENU) {
             _UIMenusClose();
             _UIUpdate();
          }
@@ -5703,7 +5703,7 @@ UIWindow* UIWindowCreate(UIWindow* owner, uint32_t flags, const char* cTitle, in
    if (owner)
       window->scale = owner->scale;
 
-   if (flags & UI_WINDOW_MENU) {
+   if (flags & UIWindow::MENU) {
       UI_ASSERT(owner);
 
       window->hwnd = CreateWindowEx(WS_EX_TOPMOST | WS_EX_NOACTIVATE, "shadow", 0, WS_POPUP, 0, 0, 0, 0, owner->hwnd,
@@ -5716,7 +5716,7 @@ UIWindow* UIWindowCreate(UIWindow* owner, uint32_t flags, const char* cTitle, in
 
    SetWindowLongPtr(window->hwnd, GWLP_USERDATA, (LONG_PTR)window);
 
-   if (~flags & UI_WINDOW_MENU) {
+   if (~flags & UIWindow::MENU) {
       ShowWindow(window->hwnd, SW_SHOW);
       PostMessage(window->hwnd, WM_SIZE, 0, 0);
    }
