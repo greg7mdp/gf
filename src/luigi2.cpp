@@ -3125,7 +3125,7 @@ int _UIMDIClientMessage(UIElement* element, UIMessage message, int di, void* dp)
    UIMDIClient* client = (UIMDIClient*)element;
 
    if (message == UIMessage::PAINT) {
-      if (~element->flags & UI_MDI_CLIENT_TRANSPARENT) {
+      if (~element->flags & UIMDIClient::TRANSPARENT) {
          UIDrawBlock((UIPainter*)dp, element->bounds, ui.theme.panel2);
       }
    } else if (message == UIMessage::LAYOUT) {
@@ -3179,7 +3179,7 @@ UIMDIChild* UIMDIChildCreate(UIElement* parent, uint32_t flags, UIRectangle init
    mdiChild->title   = UIStringCopy(title, (mdiChild->titleBytes = titleBytes));
    mdiClient->active = mdiChild;
 
-   if (flags & UI_MDI_CHILD_CLOSE_BUTTON) {
+   if (flags & UIMDIChild::CLOSE_BUTTON) {
       UIButton* closeButton = UIButtonCreate(&mdiChild->e, UIButton::SMALL | UIElement::NON_CLIENT, "X", 1);
       closeButton->invoke   = _UIMDIChildCloseButton;
       closeButton->e.cp     = mdiChild;
@@ -3207,9 +3207,9 @@ void _UIImageDisplayUpdateViewport(UIImageDisplay* display) {
       minimumZoomY = (float)bounds.b / display->height;
    float minimumZoom = minimumZoomX < minimumZoomY ? minimumZoomX : minimumZoomY;
 
-   if (display->zoom < minimumZoom || (display->e.flags & _UI_IMAGE_DISPLAY_ZOOM_FIT)) {
+   if (display->zoom < minimumZoom || (display->e.flags & UIImageDisplay::ZOOM_FIT)) {
       display->zoom = minimumZoom;
-      display->e.flags |= _UI_IMAGE_DISPLAY_ZOOM_FIT;
+      display->e.flags |= UIImageDisplay::ZOOM_FIT;
    }
 
    if (display->panX < 0)
@@ -3277,8 +3277,8 @@ int _UIImageDisplayMessage(UIElement* element, UIMessage message, int di, void* 
             }
          }
       }
-   } else if (message == UIMessage::MOUSE_WHEEL && (element->flags & UI_IMAGE_DISPLAY_INTERACTIVE)) {
-      display->e.flags &= ~_UI_IMAGE_DISPLAY_ZOOM_FIT;
+   } else if (message == UIMessage::MOUSE_WHEEL && (element->flags & UIImageDisplay::INTERACTIVE)) {
+      display->e.flags &= ~UIImageDisplay::ZOOM_FIT;
       int   divisions   = -di / 72;
       float factor      = 1;
       float perDivision = element->window->ctrl ? 2.0f : element->window->alt ? 1.01f : 1.2f;
@@ -3295,14 +3295,14 @@ int _UIImageDisplayMessage(UIElement* element, UIMessage message, int di, void* 
       display->panY -= my / display->zoom * (1 - factor);
       _UIImageDisplayUpdateViewport(display);
       UIElementRepaint(&display->e, NULL);
-   } else if (message == UIMessage::LAYOUT && (element->flags & UI_IMAGE_DISPLAY_INTERACTIVE)) {
+   } else if (message == UIMessage::LAYOUT && (element->flags & UIImageDisplay::INTERACTIVE)) {
       UIRectangle bounds = display->e.bounds;
       bounds.r -= bounds.l, bounds.b -= bounds.t;
       display->panX -= (bounds.r - display->previousWidth) / 2 / display->zoom;
       display->panY -= (bounds.b - display->previousHeight) / 2 / display->zoom;
       display->previousWidth = bounds.r, display->previousHeight = bounds.b;
       _UIImageDisplayUpdateViewport(display);
-   } else if (message == UIMessage::GET_CURSOR && (element->flags & UI_IMAGE_DISPLAY_INTERACTIVE) &&
+   } else if (message == UIMessage::GET_CURSOR && (element->flags & UIImageDisplay::INTERACTIVE) &&
               (element->bounds.width() < display->width * display->zoom ||
                element->bounds.height() < display->height * display->zoom)) {
       return (int)UICursor::hand;
@@ -3314,7 +3314,7 @@ int _UIImageDisplayMessage(UIElement* element, UIMessage message, int di, void* 
       display->previousPanPointY = element->window->cursor.y;
       UIElementRepaint(element, NULL);
    } else if (message == UIMessage::LEFT_DOWN) {
-      display->e.flags &= ~_UI_IMAGE_DISPLAY_ZOOM_FIT;
+      display->e.flags &= ~UIImageDisplay::ZOOM_FIT;
       display->previousPanPointX = element->window->cursor.x;
       display->previousPanPointY = element->window->cursor.y;
    }

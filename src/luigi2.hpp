@@ -718,14 +718,20 @@ struct UISlider {
 };
 
 struct UIMDIClient {
-#define UI_MDI_CLIENT_TRANSPARENT (1 << 0)
+   enum {
+      TRANSPARENT = 1 << 0
+   };
+
    UIElement          e;
    struct UIMDIChild* active;
    int                cascade;
 };
 
 struct UIMDIChild {
-#define UI_MDI_CHILD_CLOSE_BUTTON (1 << 0)
+   enum {
+      CLOSE_BUTTON = 1 << 0
+   };
+
    UIElement   e;
    UIRectangle bounds;
    char*       title;
@@ -742,8 +748,10 @@ struct UIExpandPane {
 };
 
 struct UIImageDisplay {
-#define UI_IMAGE_DISPLAY_INTERACTIVE (1 << 0)
-#define _UI_IMAGE_DISPLAY_ZOOM_FIT (1 << 1)
+   enum {
+      INTERACTIVE = (1 << 0),
+      ZOOM_FIT = (1 << 1)
+   };
 
    UIElement e;
    uint32_t* bits;

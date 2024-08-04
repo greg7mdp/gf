@@ -2309,7 +2309,7 @@ void BitmapViewerUpdate(const char* pointerString, const char* widthString, cons
       if (strideString)
          StringFormat(bitmap->stride, sizeof(bitmap->stride), "%s", strideString);
 
-      UIMDIChild* window    = UIMDIChildCreate(&dataWindow->e, UI_MDI_CHILD_CLOSE_BUTTON, ui_rect_1(0), "Bitmap", -1);
+      UIMDIChild* window    = UIMDIChildCreate(&dataWindow->e, UIMDIChild::CLOSE_BUTTON, ui_rect_1(0), "Bitmap", -1);
       window->e.messageUser = BitmapViewerWindowMessage;
       window->e.cp          = bitmap;
       bitmap->autoToggle    = UIButtonCreate(&window->e, UIButton::SMALL | UIElement::NON_CLIENT, "Auto", -1);
@@ -2321,7 +2321,7 @@ void BitmapViewerUpdate(const char* pointerString, const char* widthString, cons
 
       UIPanel* panel = UIPanelCreate(owner, UIPanel::EXPAND);
       bitmap->display =
-         UIImageDisplayCreate(&panel->e, UI_IMAGE_DISPLAY_INTERACTIVE | UIElement::V_FILL, bits, width, height, stride);
+         UIImageDisplayCreate(&panel->e, UIImageDisplay::INTERACTIVE | UIElement::V_FILL, bits, width, height, stride);
       bitmap->labelPanel             = UIPanelCreate(&panel->e, UIPanel::COLOR_1 | UIElement::V_FILL);
       bitmap->label                  = UILabelCreate(&bitmap->labelPanel->e, UIElement::H_FILL, nullptr, 0);
       bitmap->display->e.messageUser = BitmapViewerDisplayMessage;
@@ -3008,7 +3008,7 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
 
    char buffer[256];
    StringFormat(buffer, sizeof(buffer), "Log %s", evaluateResult);
-   UIMDIChild* child = UIMDIChildCreate(&dataWindow->e, UI_MDI_CHILD_CLOSE_BUTTON, ui_rect_1(0), buffer, -1);
+   UIMDIChild* child = UIMDIChildCreate(&dataWindow->e, UIMDIChild::CLOSE_BUTTON, ui_rect_1(0), buffer, -1);
    StringFormat(buffer, sizeof(buffer), "watch * %s", evaluateResult);
    EvaluateCommand(buffer);
    char* number = strstr(evaluateResult, "point ");
@@ -5564,7 +5564,7 @@ void ProfLoadProfileData(void* _window) {
    }
 
    UIMDIChild* window =
-      UIMDIChildCreate(&dataWindow->e, UI_MDI_CHILD_CLOSE_BUTTON, ui_rect_2s(800, 600), "Flame graph", -1);
+      UIMDIChildCreate(&dataWindow->e, UIMDIChild::CLOSE_BUTTON, ui_rect_2s(800, 600), "Flame graph", -1);
    UIButton* switchViewButton = UIButtonCreate(&window->e, UIButton::SMALL | UIElement::NON_CLIENT, "Table view", -1);
    UITable*  table = UITableCreate(&window->e, 0, "Name\tTime spent (ms)\tCall count\tAverage per call (ms)");
    ProfFlameGraphReport* report = (ProfFlameGraphReport*)UIElementCreate(sizeof(ProfFlameGraphReport), &window->e, 0,
@@ -6851,7 +6851,7 @@ void WaveformViewerUpdate(const char* pointerString, const char* sampleCountStri
       if (channelsString)
          StringFormat(viewer->channels, sizeof(viewer->channels), "%s", channelsString);
 
-      UIMDIChild* window    = UIMDIChildCreate(&dataWindow->e, UI_MDI_CHILD_CLOSE_BUTTON, ui_rect_1(0), "Waveform", -1);
+      UIMDIChild* window    = UIMDIChildCreate(&dataWindow->e, UIMDIChild::CLOSE_BUTTON, ui_rect_1(0), "Waveform", -1);
       window->e.messageUser = WaveformViewerWindowMessage;
       window->e.cp          = viewer;
       viewer->autoToggle    = UIButtonCreate(&window->e, UIButton::SMALL | UIElement::NON_CLIENT, "Auto", -1);
