@@ -222,8 +222,11 @@ struct UIRectangle {
 
    UIRectangle operator+(const UIRectangle& o) const { return { l + o.l, r + o.r, t + o.t, b + o.b }; }
 
-   // following two use `UIRectangle& o` as widths for left,right, top, bottom, instead of a proper rect.
+   // following APIs  use `UIRectangle& o` as widths for left,right, top, bottom, instead of a proper rect.
+   // -----------------------------------------------------------------------------------------------------
    UIRectangle shrink(const UIRectangle& o) const { return { l + o.l, r - o.r, t + o.t, b - o.b }; }
+   int total_width() const { return r + l; }
+   int total_height() const { return b + t; }
 
    // returns the 4 rectangles for drawing a border where the widths are from `o`
    std::array<UIRectangle, 4> border(const UIRectangle& o) const {
@@ -300,43 +303,38 @@ struct UICodeDecorateLine {
    UIPainter*  painter;
 };
 
-inline UIRectangle ui_rect_1(int x) { return UIRectangle{(x), (x), (x), (x)}; }
-inline UIRectangle ui_rect_1i(int x) { return UIRectangle{(x), -(x), (x), -(x)}; }
-inline UIRectangle ui_rect_2(int x, int y) { return UIRectangle{(x), (x), (y), (y)}; }
-inline UIRectangle ui_rect_2i(int x, int y) { return UIRectangle{(x), -(x), (y), -(y)}; }
-inline UIRectangle ui_rect_2s(int x, int y) { return UIRectangle{0, (x), 0, (y)}; }
-inline UIRectangle ui_rect_4(int x, int y, int z, int w) { return UIRectangle{(x), (y), (z), (w)}; }
-inline UIRectangle ui_rect_4pd(int x, int y, int w, int h) { return UIRectangle{(x), ((x) + (w)), (y), ((y) + (h))}; }
-#define UI_RECT_WIDTH(_r) ((_r).r - (_r).l)
-#define UI_RECT_HEIGHT(_r) ((_r).b - (_r).t)
-#define UI_RECT_TOTAL_H(_r) ((_r).r + (_r).l)
-#define UI_RECT_TOTAL_V(_r) ((_r).b + (_r).t)
-#define UI_RECT_SIZE(_r) UI_RECT_WIDTH(_r), UI_RECT_HEIGHT(_r)
+inline UIRectangle ui_rect_1(int x) { return UIRectangle{x, x, x, x}; }
+inline UIRectangle ui_rect_1i(int x) { return UIRectangle{x, -x, x, -x}; }
+inline UIRectangle ui_rect_2(int x, int y) { return UIRectangle{x, x, y, y}; }
+inline UIRectangle ui_rect_2i(int x, int y) { return UIRectangle{x, -x, y, -y}; }
+inline UIRectangle ui_rect_2s(int x, int y) { return UIRectangle{0, x, 0, y}; }
+inline UIRectangle ui_rect_4(int x, int y, int z, int w) { return UIRectangle{x, y, z, w}; }
+inline UIRectangle ui_rect_4pd(int x, int y, int w, int h) { return UIRectangle{x, (x + w), y, (y + h)}; }
+
+#define UI_RECT_SIZE(_r) (_r).width(), (_r).height()
 #define UI_RECT_TOP_LEFT(_r) (_r).l, (_r).t
 #define UI_RECT_BOTTOM_LEFT(_r) (_r).l, (_r).b
 #define UI_RECT_BOTTOM_RIGHT(_r) (_r).r, (_r).b
 #define UI_RECT_ALL(_r) (_r).l, (_r).r, (_r).t, (_r).b
 
-#define UI_COLOR_ALPHA_F(x) ((((x) >> 24) & 0xFF) / 255.0f)
-#define UI_COLOR_RED_F(x) ((((x) >> 16) & 0xFF) / 255.0f)
-#define UI_COLOR_GREEN_F(x) ((((x) >> 8) & 0xFF) / 255.0f)
-#define UI_COLOR_BLUE_F(x) ((((x) >> 0) & 0xFF) / 255.0f)
-#define UI_COLOR_ALPHA(x) ((((x) >> 24) & 0xFF))
-#define UI_COLOR_RED(x) ((((x) >> 16) & 0xFF))
-#define UI_COLOR_GREEN(x) ((((x) >> 8) & 0xFF))
-#define UI_COLOR_BLUE(x) ((((x) >> 0) & 0xFF))
-#define UI_COLOR_FROM_FLOAT(r, g, b) \
-   (((uint32_t)((r) * 255.0f) << 16) | ((uint32_t)((g) * 255.0f) << 8) | ((uint32_t)((b) * 255.0f) << 0))
-#define UI_COLOR_FROM_RGBA_F(r, g, b, a)                                                                   \
-   (((uint32_t)((r) * 255.0f) << 16) | ((uint32_t)((g) * 255.0f) << 8) | ((uint32_t)((b) * 255.0f) << 0) | \
-    ((uint32_t)((a) * 255.0f) << 24))
+inline float ui_color_alpha_f(uint32_t x) { return ((x >> 24) & 0xFF) / 255.0f; }
+inline float ui_color_red_f(uint32_t x)   { return ((x >> 16) & 0xFF) / 255.0f; }
+inline float ui_color_green_f(uint32_t x) { return ((x >> 8)  & 0xFF) / 255.0f; }
+inline float ui_color_blue_f(uint32_t x)  { return ((x >> 0)  & 0xFF) / 255.0f; }
+inline float ui_color_alpha(uint32_t x)   { return ((x >> 24) & 0xFF); }
+inline float ui_color_red(uint32_t x)     { return ((x >> 16) & 0xFF); }
+inline float ui_color_green(uint32_t x)   { return ((x >> 8)  & 0xFF); }
+inline float ui_color_blue(uint32_t x)    { return ((x >> 0)  & 0xFF); }
 
-#define UI_SWAP(s, a, b) \
-   do {                  \
-      s t = (a);         \
-      (a) = (b);         \
-      (b) = t;           \
-   } while (0)
+inline uint32_t ui_color_from_rgb(float r, float g, float b) {
+   return (((uint32_t)(r * 255.0f) << 16) | ((uint32_t)(g * 255.0f) << 8) | ((uint32_t)(b * 255.0f) << 0));
+}
+
+inline uint32_t ui_color_from_rgba(float r, float g, float b, float a) {
+   return (((uint32_t)((r) * 255.0f) << 16) | ((uint32_t)((g) * 255.0f) << 8) | ((uint32_t)((b) * 255.0f) << 0) |
+           ((uint32_t)((a) * 255.0f) << 24));
+}
+
 
 #ifndef UI_DRAW_CONTROL_CUSTOM
    #define UIDrawControl UIDrawControlDefault

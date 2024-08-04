@@ -154,9 +154,9 @@ float _UILinearMap(float value, float inFrom, float inTo, float outFrom, float o
 }
 
 bool UIColorToHSV(uint32_t rgb, float* hue, float* saturation, float* value) {
-   float r = UI_COLOR_RED_F(rgb);
-   float g = UI_COLOR_GREEN_F(rgb);
-   float b = UI_COLOR_BLUE_F(rgb);
+   float r = ui_color_red_f(rgb);
+   float g = ui_color_green_f(rgb);
+   float b = ui_color_blue_f(rgb);
 
    float maximum = (r > g && r > b) ? r : (g > b ? g : b), minimum = (r < g && r < b) ? r : (g < b ? g : b),
          difference = maximum - minimum;
@@ -211,7 +211,7 @@ void UIColorToRGB(float h, float s, float v, uint32_t* rgb) {
       }
    }
 
-   *rgb = UI_COLOR_FROM_FLOAT(r, g, b);
+   *rgb = ui_color_from_rgb(r, g, b);
 }
 
 ptrdiff_t _UIStringLength(const char* cString) {
@@ -561,7 +561,7 @@ void UIDrawString(UIPainter* painter, UIRectangle r, const char* string, ptrdiff
       selectTo   = selection->carets[1];
 
       if (selectFrom > selectTo) {
-         UI_SWAP(int, selectFrom, selectTo);
+         std::swap(selectFrom, selectTo);
       }
    }
 
@@ -1006,8 +1006,8 @@ int _UIPanelLayout(UIPanel* panel, UIRectangle bounds, bool measure) {
    int   position   = (horizontal ? panel->border.l : panel->border.t) * scale;
    if (panel->scrollBar && !measure)
       position -= panel->scrollBar->position;
-   int  hSpace        = bounds.width() - UI_RECT_TOTAL_H(panel->border) * scale;
-   int  vSpace        = bounds.height() - UI_RECT_TOTAL_V(panel->border) * scale;
+   int  hSpace        = bounds.width() - panel->border.total_width() * scale;
+   int  vSpace        = bounds.height() - panel->border.total_height() * scale;
    int  count         = 0;
    int  perFill       = _UIPanelCalculatePerFill(panel, &count, hSpace, vSpace, scale);
    int  scaledBorder2 = (horizontal ? panel->border.t : panel->border.l) * panel->e.window->scale;
@@ -2752,7 +2752,7 @@ void UITextboxReplace(UITextbox* textbox, const char* text, ptrdiff_t bytes, boo
       bytes = _UIStringLength(text);
    int deleteFrom = textbox->carets[0], deleteTo = textbox->carets[1];
    if (deleteFrom > deleteTo)
-      UI_SWAP(int, deleteFrom, deleteTo);
+      std::swap(deleteFrom, deleteTo);
 
    UI_MEMMOVE(&textbox->string[deleteFrom], &textbox->string[deleteTo], textbox->bytes - deleteTo);
    textbox->bytes -= deleteTo - deleteFrom;
@@ -3084,12 +3084,12 @@ int _UIMDIChildMessage(UIElement* element, UIMessage message, int di, void* dp) 
 #define _UI_MDI_CHILD_MOVE_EDGE(bit, edge, cursor, size, opposite, negate, minimum, offset)                         \
    if (mdiChild->dragHitTest & bit)                                                                                 \
       mdiChild->bounds.edge = mdiChild->dragOffset.edge + element->window->cursor - element->parent->bounds.offset; \
-   if ((mdiChild->dragHitTest & bit) && size(mdiChild->bounds) < minimum)                                           \
+   if ((mdiChild->dragHitTest & bit) && mdiChild->bounds.size() < minimum) \
       mdiChild->bounds.edge = mdiChild->bounds.opposite negate minimum;
-         _UI_MDI_CHILD_MOVE_EDGE(0b1000, l, cursor.x, UI_RECT_WIDTH, r, -, UI_SIZE_MDI_CHILD_MINIMUM_WIDTH, l);
-         _UI_MDI_CHILD_MOVE_EDGE(0b0100, r, cursor.x, UI_RECT_WIDTH, l, +, UI_SIZE_MDI_CHILD_MINIMUM_WIDTH, l);
-         _UI_MDI_CHILD_MOVE_EDGE(0b0010, t, cursor.y, UI_RECT_HEIGHT, b, -, UI_SIZE_MDI_CHILD_MINIMUM_HEIGHT, t);
-         _UI_MDI_CHILD_MOVE_EDGE(0b0001, b, cursor.y, UI_RECT_HEIGHT, t, +, UI_SIZE_MDI_CHILD_MINIMUM_HEIGHT, t);
+         _UI_MDI_CHILD_MOVE_EDGE(0b1000, l, cursor.x, width, r, -, UI_SIZE_MDI_CHILD_MINIMUM_WIDTH, l);
+         _UI_MDI_CHILD_MOVE_EDGE(0b0100, r, cursor.x, width, l, +, UI_SIZE_MDI_CHILD_MINIMUM_WIDTH, l);
+         _UI_MDI_CHILD_MOVE_EDGE(0b0010, t, cursor.y, height, b, -, UI_SIZE_MDI_CHILD_MINIMUM_HEIGHT, t);
+         _UI_MDI_CHILD_MOVE_EDGE(0b0001, b, cursor.y, height, t, +, UI_SIZE_MDI_CHILD_MINIMUM_HEIGHT, t);
          UIElementRefresh(element->parent);
       }
    } else if (message == UI_MSG_DESTROY) {
