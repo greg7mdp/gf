@@ -119,10 +119,10 @@ UIRectangle UIRectangleFit(UIRectangle parent, UIRectangle child, bool allowScal
    }
 }
 
-typedef union _UIConvertFloatInteger {
+union _UIConvertFloatInteger {
    float    f;
    uint32_t i;
-} _UIConvertFloatInteger;
+};
 
 float _UIFloorFloat(float x) {
    _UIConvertFloatInteger convert  = {x};
@@ -263,7 +263,7 @@ bool UIElementAnimate(UIElement* element, bool stop) {
       ui.animating = (UIElement**)UI_REALLOC(ui.animating, sizeof(UIElement*) * (ui.animatingCount + 1));
       ui.animating[ui.animatingCount] = element;
       ui.animatingCount++;
-      UI_ASSERT(~element->flags & UI_ELEMENT_DESTROY);
+      UI_ASSERT(~element->flags & UIElement::DESTROY);
       return true;
    }
 }
@@ -776,7 +776,7 @@ void _UIElementDestroyDescendents(UIElement* element, bool topLevel) {
    for (uint32_t i = 0; i < element->childCount; i++) {
       UIElement* child = element->children[i];
 
-      if (!topLevel || (~child->flags & UI_ELEMENT_NON_CLIENT)) {
+      if (!topLevel || (~child->flags & UIElement::NON_CLIENT)) {
          UIElementDestroy(child);
       }
    }
@@ -791,19 +791,19 @@ void UIElementDestroyDescendents(UIElement* element) {
 }
 
 void UIElementDestroy(UIElement* element) {
-   if (element->flags & UI_ELEMENT_DESTROY) {
+   if (element->flags & UIElement::DESTROY) {
       return;
    }
 
    UIElementMessage(element, UI_MSG_DESTROY, 0, 0);
-   element->flags |= UI_ELEMENT_DESTROY | UI_ELEMENT_HIDE;
+   element->flags |= UIElement::DESTROY | UIElement::HIDE;
 
    UIElement* ancestor = element->parent;
 
    while (ancestor) {
-      if (ancestor->flags & UI_ELEMENT_DESTROY_DESCENDENT)
+      if (ancestor->flags & UIElement::DESTROY_DESCENDENT)
          break;
-      ancestor->flags |= UI_ELEMENT_DESTROY_DESCENDENT;
+      ancestor->flags |= UIElement::DESTROY_DESCENDENT;
       ancestor = ancestor->parent;
    }
 
@@ -817,12 +817,12 @@ void UIElementDestroy(UIElement* element) {
 }
 
 int UIElementMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   if (message != UI_MSG_DEALLOCATE && (element->flags & UI_ELEMENT_DESTROY)) {
+   if (message != UI_MSG_DEALLOCATE && (element->flags & UIElement::DESTROY)) {
       return 0;
    }
 
    if (message >= UI_MSG_INPUT_EVENTS_START && message <= UI_MSG_INPUT_EVENTS_END &&
-       (element->flags & UI_ELEMENT_DISABLED)) {
+       (element->flags & UIElement::DISABLED)) {
       return 0;
    }
 
@@ -847,8 +847,8 @@ UIElement* UIElementChangeParent(UIElement* element, UIElement* newParent, UIEle
 
    for (uint32_t i = 0; i < element->parent->childCount; i++) {
       if (element->parent->children[i] == element) {
-         UI_MEMMOVE(&element->parent->children[i], &element->parent->children[i + 1],
-                    sizeof(UIElement*) * (element->parent->childCount - i - 1));
+         std::memmove(&element->parent->children[i], &element->parent->children[i + 1],
+                      sizeof(UIElement*) * (element->parent->childCount - i - 1));
          element->parent->childCount--;
          oldBefore = i == element->parent->childCount ? NULL : element->parent->children[i];
          found     = true;
@@ -856,14 +856,14 @@ UIElement* UIElementChangeParent(UIElement* element, UIElement* newParent, UIEle
       }
    }
 
-   UI_ASSERT(found && (~element->flags & UI_ELEMENT_DESTROY));
+   UI_ASSERT(found && (~element->flags & UIElement::DESTROY));
 
    for (uint32_t i = 0; i <= newParent->childCount; i++) {
       if (i == newParent->childCount || newParent->children[i] == insertBefore) {
          newParent->children =
             (UIElement**)UI_REALLOC(newParent->children, sizeof(UIElement*) * (newParent->childCount + 1));
-         UI_MEMMOVE(&newParent->children[i + 1], &newParent->children[i],
-                    sizeof(UIElement*) * (newParent->childCount - i));
+         std::memmove(&newParent->children[i + 1], &newParent->children[i],
+                      sizeof(UIElement*) * (newParent->childCount - i));
          newParent->childCount++;
          newParent->children[i] = element;
          found                  = true;
@@ -888,13 +888,13 @@ UIElement* UIElementCreate(size_t bytes, UIElement* parent, uint32_t flags,
    element->flags        = flags;
    element->messageClass = message;
 
-   if (!parent && (~flags & UI_ELEMENT_WINDOW)) {
+   if (!parent && (~flags & UIElement::WINDOW)) {
       UI_ASSERT(ui.parentStackCount);
       parent = ui.parentStack[ui.parentStackCount - 1];
    }
 
    if (parent) {
-      UI_ASSERT(~parent->flags & UI_ELEMENT_DESTROY);
+      UI_ASSERT(~parent->flags & UIElement::DESTROY);
       element->window  = parent->window;
       element->parent  = parent;
       parent->children = (UIElement**)UI_REALLOC(parent->children, sizeof(UIElement*) * (parent->childCount + 1));
@@ -912,7 +912,7 @@ UIElement* UIElementCreate(size_t bytes, UIElement* parent, uint32_t flags,
    _UIInspectorRefresh();
 #endif
 
-   if (flags & UI_ELEMENT_PARENT_PUSH) {
+   if (flags & UIElement::PARENT_PUSH) {
       UIParentPush(element);
    }
 
@@ -943,20 +943,20 @@ int _UIPanelCalculatePerFill(UIPanel* panel, int* _count, int hSpace, int vSpace
    for (uint32_t i = 0; i < panel->e.childCount; i++) {
       UIElement* child = panel->e.children[i];
 
-      if (child->flags & (UI_ELEMENT_HIDE | UI_ELEMENT_NON_CLIENT)) {
+      if (child->flags & (UIElement::HIDE | UIElement::NON_CLIENT)) {
          continue;
       }
 
       count++;
 
       if (horizontal) {
-         if (child->flags & UI_ELEMENT_H_FILL) {
+         if (child->flags & UIElement::H_FILL) {
             fill++;
          } else if (available > 0) {
             available -= UIElementMessage(child, UI_MSG_GET_WIDTH, vSpace, 0);
          }
       } else {
-         if (child->flags & UI_ELEMENT_V_FILL) {
+         if (child->flags & UIElement::V_FILL) {
             fill++;
          } else if (available > 0) {
             available -= UIElementMessage(child, UI_MSG_GET_HEIGHT, hSpace, 0);
@@ -987,11 +987,11 @@ int _UIPanelMeasure(UIPanel* panel, int di) {
 
    for (uint32_t i = 0; i < panel->e.childCount; i++) {
       UIElement* child = panel->e.children[i];
-      if (child->flags & (UI_ELEMENT_HIDE | UI_ELEMENT_NON_CLIENT))
+      if (child->flags & (UIElement::HIDE | UIElement::NON_CLIENT))
          continue;
       int childSize =
          UIElementMessage(child, horizontal ? UI_MSG_GET_HEIGHT : UI_MSG_GET_WIDTH,
-                          (child->flags & (horizontal ? UI_ELEMENT_H_FILL : UI_ELEMENT_V_FILL)) ? perFill : 0, 0);
+                          (child->flags & (horizontal ? UIElement::H_FILL : UIElement::V_FILL)) ? perFill : 0, 0);
       if (childSize > size)
          size = childSize;
    }
@@ -1016,17 +1016,17 @@ int _UIPanelLayout(UIPanel* panel, UIRectangle bounds, bool measure) {
    for (uint32_t i = 0; i < panel->e.childCount; i++) {
       UIElement* child = panel->e.children[i];
 
-      if (child->flags & (UI_ELEMENT_HIDE | UI_ELEMENT_NON_CLIENT)) {
+      if (child->flags & (UIElement::HIDE | UIElement::NON_CLIENT)) {
          continue;
       }
 
       if (horizontal) {
          int height =
-            ((child->flags & UI_ELEMENT_V_FILL) || expand)
+            ((child->flags & UIElement::V_FILL) || expand)
                ? vSpace
-               : UIElementMessage(child, UI_MSG_GET_HEIGHT, (child->flags & UI_ELEMENT_H_FILL) ? perFill : 0, 0);
+               : UIElementMessage(child, UI_MSG_GET_HEIGHT, (child->flags & UIElement::H_FILL) ? perFill : 0, 0);
          int width =
-            (child->flags & UI_ELEMENT_H_FILL) ? perFill : UIElementMessage(child, UI_MSG_GET_WIDTH, height, 0);
+            (child->flags & UIElement::H_FILL) ? perFill : UIElementMessage(child, UI_MSG_GET_WIDTH, height, 0);
          UIRectangle relative = ui_rect_4(position, position + width, scaledBorder2 + (vSpace - height) / 2,
                                           scaledBorder2 + (vSpace + height) / 2);
          if (!measure)
@@ -1034,11 +1034,11 @@ int _UIPanelLayout(UIPanel* panel, UIRectangle bounds, bool measure) {
          position += width + panel->gap * scale;
       } else {
          int width =
-            ((child->flags & UI_ELEMENT_H_FILL) || expand)
+            ((child->flags & UIElement::H_FILL) || expand)
                ? hSpace
-               : UIElementMessage(child, UI_MSG_GET_WIDTH, (child->flags & UI_ELEMENT_V_FILL) ? perFill : 0, 0);
+               : UIElementMessage(child, UI_MSG_GET_WIDTH, (child->flags & UIElement::V_FILL) ? perFill : 0, 0);
          int height =
-            (child->flags & UI_ELEMENT_V_FILL) ? perFill : UIElementMessage(child, UI_MSG_GET_HEIGHT, width, 0);
+            (child->flags & UIElement::V_FILL) ? perFill : UIElementMessage(child, UI_MSG_GET_HEIGHT, width, 0);
          UIRectangle relative = ui_rect_4(scaledBorder2 + (hSpace - width) / 2, scaledBorder2 + (hSpace + width) / 2,
                                           position, position + height);
          if (!measure)
@@ -1094,7 +1094,7 @@ int _UIPanelMessage(UIElement* element, UIMessage message, int di, void* dp) {
    } else if (message == UI_MSG_GET_CHILD_STABILITY) {
       UIElement* child = (UIElement*)dp;
       return ((element->flags & UI_PANEL_EXPAND) ? (horizontal ? 2 : 1) : 0) |
-             ((child->flags & UI_ELEMENT_H_FILL) ? 1 : 0) | ((child->flags & UI_ELEMENT_V_FILL) ? 2 : 0);
+             ((child->flags & UIElement::H_FILL) ? 1 : 0) | ((child->flags & UIElement::V_FILL) ? 2 : 0);
    }
 
    return 0;
@@ -1115,7 +1115,7 @@ UIPanel* UIPanelCreate(UIElement* parent, uint32_t flags) {
    }
 
    if (flags & UI_PANEL_SCROLL) {
-      panel->scrollBar = UIScrollBarCreate(&panel->e, UI_ELEMENT_NON_CLIENT);
+      panel->scrollBar = UIScrollBarCreate(&panel->e, UIElement::NON_CLIENT);
    }
 
    return panel;
@@ -1126,7 +1126,7 @@ void _UIWrapPanelLayoutRow(UIWrapPanel* panel, uint32_t rowStart, uint32_t rowEn
 
    for (uint32_t i = rowStart; i < rowEnd; i++) {
       UIElement* child = panel->e.children[i];
-      if (child->flags & UI_ELEMENT_HIDE)
+      if (child->flags & UIElement::HIDE)
          continue;
       int         height   = UIElementMessage(child, UI_MSG_GET_HEIGHT, 0, 0);
       int         width    = UIElementMessage(child, UI_MSG_GET_WIDTH, 0, 0);
@@ -1150,7 +1150,7 @@ int _UIWrapPanelMessage(UIElement* element, UIMessage message, int di, void* dp)
 
       for (uint32_t i = 0; i < panel->e.childCount; i++) {
          UIElement* child = panel->e.children[i];
-         if (child->flags & UI_ELEMENT_HIDE)
+         if (child->flags & UIElement::HIDE)
             continue;
 
          int height = UIElementMessage(child, UI_MSG_GET_HEIGHT, 0, 0);
@@ -1199,11 +1199,11 @@ int _UISwitcherMessage(UIElement* element, UIMessage message, int di, void* dp) 
 
 void UISwitcherSwitchTo(UISwitcher* switcher, UIElement* child) {
    for (uint32_t i = 0; i < switcher->e.childCount; i++) {
-      switcher->e.children[i]->flags |= UI_ELEMENT_HIDE;
+      switcher->e.children[i]->flags |= UIElement::HIDE;
    }
 
    UI_ASSERT(child->parent == &switcher->e);
-   child->flags &= ~UI_ELEMENT_HIDE;
+   child->flags &= ~UIElement::HIDE;
    switcher->active = child;
    UIElementMeasurementsChanged(&switcher->e, 3);
    UIElementRefresh(&switcher->e);
@@ -1280,7 +1280,7 @@ void UIButtonSetLabel(UIButton* button, const char* string, ptrdiff_t stringByte
 
 UIButton* UIButtonCreate(UIElement* parent, uint32_t flags, const char* label, ptrdiff_t labelBytes) {
    UIButton* button =
-      (UIButton*)UIElementCreate(sizeof(UIButton), parent, flags | UI_ELEMENT_TAB_STOP, _UIButtonMessage, "Button");
+      (UIButton*)UIElementCreate(sizeof(UIButton), parent, flags | UIElement::TAB_STOP, _UIButtonMessage, "Button");
    button->label = UIStringCopy(label, (button->labelBytes = labelBytes));
    return button;
 }
@@ -1323,7 +1323,7 @@ int _UICheckboxMessage(UIElement* element, UIMessage message, int di, void* dp) 
 }
 
 UICheckbox* UICheckboxCreate(UIElement* parent, uint32_t flags, const char* label, ptrdiff_t labelBytes) {
-   UICheckbox* box = (UICheckbox*)UIElementCreate(sizeof(UICheckbox), parent, flags | UI_ELEMENT_TAB_STOP,
+   UICheckbox* box = (UICheckbox*)UIElementCreate(sizeof(UICheckbox), parent, flags | UIElement::TAB_STOP,
                                                   _UICheckboxMessage, "Checkbox");
    box->label      = UIStringCopy(label, (box->labelBytes = labelBytes));
    return box;
@@ -1542,11 +1542,11 @@ int _UITabPaneMessage(UIElement* element, UIMessage message, int di, void* dp) {
          UIElement* child = element->children[index];
 
          if (tabPane->active == index) {
-            child->flags &= ~UI_ELEMENT_HIDE;
+            child->flags &= ~UIElement::HIDE;
             UIElementMove(child, content, false);
             UIElementMessage(child, UI_MSG_TAB_SELECTED, 0, 0);
          } else {
-            child->flags |= UI_ELEMENT_HIDE;
+            child->flags |= UIElement::HIDE;
          }
       }
    } else if (message == UI_MSG_GET_HEIGHT) {
@@ -1610,15 +1610,15 @@ int _UIScrollBarMessage(UIElement* element, UIMessage message, int di, void* dp)
       UIElement* down  = element->children[2];
 
       if (scrollBar->page >= scrollBar->maximum || scrollBar->maximum <= 0 || scrollBar->page <= 0) {
-         up->flags |= UI_ELEMENT_HIDE;
-         thumb->flags |= UI_ELEMENT_HIDE;
-         down->flags |= UI_ELEMENT_HIDE;
+         up->flags |= UIElement::HIDE;
+         thumb->flags |= UIElement::HIDE;
+         down->flags |= UIElement::HIDE;
 
          scrollBar->position = 0;
       } else {
-         up->flags &= ~UI_ELEMENT_HIDE;
-         thumb->flags &= ~UI_ELEMENT_HIDE;
-         down->flags &= ~UI_ELEMENT_HIDE;
+         up->flags &= ~UIElement::HIDE;
+         thumb->flags &= ~UIElement::HIDE;
+         down->flags &= ~UIElement::HIDE;
 
          int size      = scrollBar->horizontal ? element->bounds.width() : element->bounds.height();
          int thumbSize = size * scrollBar->page / scrollBar->maximum;
@@ -1837,14 +1837,14 @@ int UIDrawStringHighlighted(UIPainter* painter, UIRectangle lineBounds, const ch
    if (bytes > 10000)
       bytes = 10000;
 
-   typedef enum _UICodeTokenType {
+   enum _UICodeTokenType {
       UI_CODE_TOKEN_TYPE_DEFAULT,
       UI_CODE_TOKEN_TYPE_COMMENT,
       UI_CODE_TOKEN_TYPE_STRING,
       UI_CODE_TOKEN_TYPE_NUMBER,
       UI_CODE_TOKEN_TYPE_OPERATOR,
       UI_CODE_TOKEN_TYPE_PREPROCESSOR,
-   } _UICodeTokenType;
+   };
 
    uint32_t colors[] = {
       ui.theme.codeDefault, ui.theme.codeComment,  ui.theme.codeString,
@@ -2260,7 +2260,7 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
          UIMenuAddItem(menu,
                        (code->selection[0].line == code->selection[1].line &&
                         code->selection[0].offset == code->selection[1].offset)
-                          ? UI_ELEMENT_DISABLED
+                          ? UIElement::DISABLED
                           : 0,
                        "Copy", -1, _UICodeCopyText, code);
          UIMenuShow(menu);
@@ -2754,11 +2754,11 @@ void UITextboxReplace(UITextbox* textbox, const char* text, ptrdiff_t bytes, boo
    if (deleteFrom > deleteTo)
       std::swap(deleteFrom, deleteTo);
 
-   UI_MEMMOVE(&textbox->string[deleteFrom], &textbox->string[deleteTo], textbox->bytes - deleteTo);
+   std::memmove(&textbox->string[deleteFrom], &textbox->string[deleteTo], textbox->bytes - deleteTo);
    textbox->bytes -= deleteTo - deleteFrom;
    textbox->string = (char*)UI_REALLOC(textbox->string, textbox->bytes + bytes);
-   UI_MEMMOVE(&textbox->string[deleteFrom + bytes], &textbox->string[deleteFrom], textbox->bytes - deleteFrom);
-   UI_MEMMOVE(&textbox->string[deleteFrom], &text[0], bytes);
+   std::memmove(&textbox->string[deleteFrom + bytes], &textbox->string[deleteFrom], textbox->bytes - deleteFrom);
+   std::memmove(&textbox->string[deleteFrom], &text[0], bytes);
    textbox->bytes += bytes;
    textbox->carets[0] = deleteFrom + bytes;
    textbox->carets[1] = textbox->carets[0];
@@ -2871,7 +2871,7 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
       textBounds.l -= textbox->scroll;
 
       UIDrawString((UIPainter*)dp, textBounds, textbox->string, textbox->bytes,
-                   (element->flags & UI_ELEMENT_DISABLED) ? ui.theme.textDisabled : ui.theme.text, UI_ALIGN_LEFT,
+                   (element->flags & UIElement::DISABLED) ? ui.theme.textDisabled : ui.theme.text, UI_ALIGN_LEFT,
                    element->window->focused == element ? &selection : NULL);
    } else if (message == UI_MSG_GET_CURSOR) {
       return UI_CURSOR_TEXT;
@@ -2953,11 +2953,11 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
       }
 
       UIMenu* menu = UIMenuCreate(&element->window->e, UI_MENU_NO_SCROLL);
-      UIMenuAddItem(menu, textbox->carets[0] == textbox->carets[1] ? UI_ELEMENT_DISABLED : 0, "Copy", -1,
+      UIMenuAddItem(menu, textbox->carets[0] == textbox->carets[1] ? UIElement::DISABLED : 0, "Copy", -1,
                     _UITextboxCopyText, textbox);
       size_t pasteBytes;
       char*  paste = _UIClipboardReadTextStart(textbox->e.window, &pasteBytes);
-      UIMenuAddItem(menu, !paste || !pasteBytes ? UI_ELEMENT_DISABLED : 0, "Paste", -1, _UITextboxPasteText, textbox);
+      UIMenuAddItem(menu, !paste || !pasteBytes ? UIElement::DISABLED : 0, "Paste", -1, _UITextboxPasteText, textbox);
       _UIClipboardReadTextEnd(textbox->e.window, paste);
       UIMenuShow(menu);
    }
@@ -2966,7 +2966,7 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
 }
 
 UITextbox* UITextboxCreate(UIElement* parent, uint32_t flags) {
-   return (UITextbox*)UIElementCreate(sizeof(UITextbox), parent, flags | UI_ELEMENT_TAB_STOP, _UITextboxMessage,
+   return (UITextbox*)UIElementCreate(sizeof(UITextbox), parent, flags | UIElement::TAB_STOP, _UITextboxMessage,
                                       "Textbox");
 }
 
@@ -3137,8 +3137,8 @@ int _UIMDIClientMessage(UIElement* element, UIMessage message, int di, void* dp)
       if (child && child != client->active) {
          for (uint32_t i = 0; i < element->childCount; i++) {
             if (element->children[i] == &child->e) {
-               UI_MEMMOVE(&element->children[i], &element->children[i + 1],
-                          sizeof(UIElement*) * (element->childCount - i - 1));
+               std::memmove(&element->children[i], &element->children[i + 1],
+                            sizeof(UIElement*) * (element->childCount - i - 1));
                element->children[element->childCount - 1] = &child->e;
                break;
             }
@@ -3165,7 +3165,7 @@ UIMDIChild* UIMDIChildCreate(UIElement* parent, uint32_t flags, UIRectangle init
    mdiClient->active = mdiChild;
 
    if (flags & UI_MDI_CHILD_CLOSE_BUTTON) {
-      UIButton* closeButton = UIButtonCreate(&mdiChild->e, UI_BUTTON_SMALL | UI_ELEMENT_NON_CLIENT, "X", 1);
+      UIButton* closeButton = UIButtonCreate(&mdiChild->e, UI_BUTTON_SMALL | UIElement::NON_CLIENT, "X", 1);
       closeButton->invoke   = _UIMDIChildCloseButton;
       closeButton->e.cp     = mdiChild;
    }
@@ -3455,7 +3455,7 @@ const char* UIDialogShow(UIWindow* window, uint32_t flags, const char* format, .
    window->dialog = UIElementCreate(sizeof(UIElement), &window->e, 0, _UIDialogWrapperMessage, "DialogWrapper");
    UIPanel* panel = UIPanelCreate(window->dialog, UI_PANEL_MEDIUM_SPACING | UI_PANEL_COLOR_1);
    panel->border  = ui_rect_1(UI_SIZE_PANE_MEDIUM_BORDER * 2);
-   window->e.children[0]->flags |= UI_ELEMENT_DISABLED;
+   window->e.children[0]->flags |= UIElement::DISABLED;
 
    // Create the dialog contents.
 
@@ -3469,7 +3469,7 @@ const char* UIDialogShow(UIWindow* window, uint32_t flags, const char* format, .
 
    for (int i = 0; format[i]; i++) {
       if (i == 0 || format[i - 1] == '\n') {
-         row      = UIPanelCreate(&panel->e, UI_PANEL_HORIZONTAL | UI_ELEMENT_H_FILL);
+         row      = UIPanelCreate(&panel->e, UI_PANEL_HORIZONTAL | UIElement::H_FILL);
          row->gap = UI_SIZE_PANE_SMALL_GAP;
       }
 
@@ -3497,7 +3497,7 @@ const char* UIDialogShow(UIWindow* window, uint32_t flags, const char* format, .
             UILabelCreate(&row->e, 0, label, -1);
          } else if (format[i] == 't' /* textbox */) {
             char**     buffer  = va_arg(arguments, char**);
-            UITextbox* textbox = UITextboxCreate(&row->e, UI_ELEMENT_H_FILL);
+            UITextbox* textbox = UITextboxCreate(&row->e, UIElement::H_FILL);
             if (!focus)
                focus = &textbox->e;
             if (*buffer)
@@ -3505,9 +3505,9 @@ const char* UIDialogShow(UIWindow* window, uint32_t flags, const char* format, .
             textbox->e.cp          = buffer;
             textbox->e.messageUser = _UIDialogTextboxMessage;
          } else if (format[i] == 'f' /* horizontal fill */) {
-            UISpacerCreate(&row->e, UI_ELEMENT_H_FILL, 0, 0);
+            UISpacerCreate(&row->e, UIElement::H_FILL, 0, 0);
          } else if (format[i] == 'l' /* horizontal line */) {
-            UISpacerCreate(&row->e, UI_ELEMENT_BORDER | UI_ELEMENT_H_FILL, 0, 1);
+            UISpacerCreate(&row->e, UIElement::BORDER | UIElement::H_FILL, 0, 1);
          } else if (format[i] == 'u' /* user */) {
             UIDialogUserCallback callback = va_arg(arguments, UIDialogUserCallback);
             callback(&row->e);
@@ -3556,7 +3556,7 @@ const char* UIDialogShow(UIWindow* window, uint32_t flags, const char* format, .
 
    // Destroy the dialog.
 
-   window->e.children[0]->flags &= ~UI_ELEMENT_DISABLED;
+   window->e.children[0]->flags &= ~UIElement::DISABLED;
    UIElementDestroy(window->dialog);
    window->dialog = NULL;
    UIElementRefresh(&window->e);
@@ -3602,7 +3602,7 @@ int _UIMenuMessage(UIElement* element, UIMessage message, int di, void* dp) {
       for (uint32_t i = 0; i < element->childCount; i++) {
          UIElement* child = element->children[i];
 
-         if (~child->flags & UI_ELEMENT_NON_CLIENT) {
+         if (~child->flags & UIElement::NON_CLIENT) {
             int w = UIElementMessage(child, UI_MSG_GET_WIDTH, 0, 0);
             if (w > width)
                width = w;
@@ -3616,7 +3616,7 @@ int _UIMenuMessage(UIElement* element, UIMessage message, int di, void* dp) {
       for (uint32_t i = 0; i < element->childCount; i++) {
          UIElement* child = element->children[i];
 
-         if (~child->flags & UI_ELEMENT_NON_CLIENT) {
+         if (~child->flags & UIElement::NON_CLIENT) {
             height += UIElementMessage(child, UI_MSG_GET_HEIGHT, 0, 0);
          }
       }
@@ -3632,7 +3632,7 @@ int _UIMenuMessage(UIElement* element, UIMessage message, int di, void* dp) {
       for (uint32_t i = 0; i < element->childCount; i++) {
          UIElement* child = element->children[i];
 
-         if (~child->flags & UI_ELEMENT_NON_CLIENT) {
+         if (~child->flags & UIElement::NON_CLIENT) {
             int height = UIElementMessage(child, UI_MSG_GET_HEIGHT, 0, 0);
             UIElementMove(
                child,
@@ -3684,7 +3684,7 @@ void _UIMenuPrepare(UIMenu* menu, int* width, int* height) {
 UIMenu* UIMenuCreate(UIElement* parent, uint32_t flags) {
    UIWindow* window   = UIWindowCreate(parent->window, UI_WINDOW_MENU, 0, 0, 0);
    UIMenu*   menu     = (UIMenu*)UIElementCreate(sizeof(UIMenu), &window->e, flags, _UIMenuMessage, "Menu");
-   menu->vScroll      = UIScrollBarCreate(&menu->e, UI_ELEMENT_NON_CLIENT);
+   menu->vScroll      = UIScrollBarCreate(&menu->e, UIElement::NON_CLIENT);
    menu->parentWindow = parent->window;
 
    if (parent->parent) {
@@ -3726,15 +3726,15 @@ void UIElementSetDisabled(UIElement* element, bool disabled) {
       UIElementFocus(&element->window->e);
    }
 
-   if ((element->flags & UI_ELEMENT_DISABLED) && disabled)
+   if ((element->flags & UIElement::DISABLED) && disabled)
       return;
-   if ((~element->flags & UI_ELEMENT_DISABLED) && !disabled)
+   if ((~element->flags & UIElement::DISABLED) && !disabled)
       return;
 
    if (disabled)
-      element->flags |= UI_ELEMENT_DISABLED;
+      element->flags |= UIElement::DISABLED;
    else
-      element->flags &= ~UI_ELEMENT_DISABLED;
+      element->flags &= ~UIElement::DISABLED;
 
    UIElementMessage(element, UI_MSG_UPDATE, UI_UPDATE_DISABLED, 0);
 }
@@ -3764,15 +3764,15 @@ void UIElementRefresh(UIElement* element) {
 }
 
 void UIElementRelayout(UIElement* element) {
-   if (element->flags & UI_ELEMENT_RELAYOUT) {
+   if (element->flags & UIElement::RELAYOUT) {
       return;
    }
 
-   element->flags |= UI_ELEMENT_RELAYOUT;
+   element->flags |= UIElement::RELAYOUT;
    UIElement* ancestor = element->parent;
 
    while (ancestor) {
-      ancestor->flags |= UI_ELEMENT_RELAYOUT_DESCENDENT;
+      ancestor->flags |= UIElement::RELAYOUT_DESCENDENT;
       ancestor = ancestor->parent;
    }
 }
@@ -3783,12 +3783,12 @@ void UIElementMeasurementsChanged(UIElement* element, int which) {
    }
 
    while (true) {
-      if (element->parent->flags & UI_ELEMENT_DESTROY)
+      if (element->parent->flags & UIElement::DESTROY)
          return;
       which &= ~UIElementMessage(element->parent, UI_MSG_GET_CHILD_STABILITY, which, element);
       if (!which)
          break;
-      element->flags |= UI_ELEMENT_RELAYOUT;
+      element->flags |= UIElement::RELAYOUT;
       element = element->parent;
    }
 
@@ -3827,23 +3827,23 @@ void UIElementMove(UIElement* element, UIRectangle bounds, bool layout) {
       element->clip   = clip;
    }
 
-   if (element->flags & UI_ELEMENT_RELAYOUT) {
+   if (element->flags & UIElement::RELAYOUT) {
       layout = true;
    }
 
    if (layout) {
       UIElementMessage(element, UI_MSG_LAYOUT, 0, 0);
-   } else if (element->flags & UI_ELEMENT_RELAYOUT_DESCENDENT) {
+   } else if (element->flags & UIElement::RELAYOUT_DESCENDENT) {
       for (uint32_t i = 0; i < element->childCount; i++) {
          UIElementMove(element->children[i], element->children[i]->bounds, false);
       }
    }
 
-   element->flags &= ~(UI_ELEMENT_RELAYOUT_DESCENDENT | UI_ELEMENT_RELAYOUT);
+   element->flags &= ~(UIElement::RELAYOUT_DESCENDENT | UIElement::RELAYOUT);
 }
 
 void _UIElementPaint(UIElement* element, UIPainter* painter) {
-   if (element->flags & UI_ELEMENT_HIDE) {
+   if (element->flags & UIElement::HIDE) {
       return;
    }
 
@@ -3873,25 +3873,25 @@ void _UIElementPaint(UIElement* element, UIPainter* painter) {
    painter->clip = previousClip;
    UIElementMessage(element, UI_MSG_PAINT_FOREGROUND, 0, painter);
 
-   if (element->flags & UI_ELEMENT_BORDER) {
+   if (element->flags & UIElement::BORDER) {
       UIDrawBorder(painter, element->bounds, ui.theme.border, ui_rect_1((int)element->window->scale));
    }
 }
 
 bool _UIDestroy(UIElement* element) {
-   if (element->flags & UI_ELEMENT_DESTROY_DESCENDENT) {
-      element->flags &= ~UI_ELEMENT_DESTROY_DESCENDENT;
+   if (element->flags & UIElement::DESTROY_DESCENDENT) {
+      element->flags &= ~UIElement::DESTROY_DESCENDENT;
 
       for (uintptr_t i = 0; i < element->childCount; i++) {
          if (_UIDestroy(element->children[i])) {
-            UI_MEMMOVE(&element->children[i], &element->children[i + 1],
-                       sizeof(UIElement*) * (element->childCount - i - 1));
+            std::memmove(&element->children[i], &element->children[i + 1],
+                         sizeof(UIElement*) * (element->childCount - i - 1));
             element->childCount--, i--;
          }
       }
    }
 
-   if (element->flags & UI_ELEMENT_DESTROY) {
+   if (element->flags & UIElement::DESTROY) {
       UIElementMessage(element, UI_MSG_DEALLOCATE, 0, 0);
 
       if (element->window->pressed == element) {
@@ -3988,7 +3988,7 @@ UIElement* UIElementFindByPoint(UIElement* element, int x, int y) {
    for (uint32_t i = element->childCount; i > 0; i--) {
       UIElement* child = element->children[i - 1];
 
-      if ((~child->flags & UI_ELEMENT_HIDE) && child->clip.contains(x, y)) {
+      if ((~child->flags & UIElement::HIDE) && child->clip.contains(x, y)) {
          return UIElementFindByPoint(child, x, y);
       }
    }
@@ -4141,7 +4141,7 @@ bool _UIWindowInputEvent(UIWindow* window, UIMessage message, int di, void* dp) 
                UIElement* element = start;
 
                do {
-                  if (element->childCount && !(element->flags & (UI_ELEMENT_HIDE | UI_ELEMENT_DISABLED))) {
+                  if (element->childCount && !(element->flags & (UIElement::HIDE | UIElement::DISABLED))) {
                      element = window->shift ? element->children[element->childCount - 1] : element->children[0];
                      continue;
                   }
@@ -4158,10 +4158,10 @@ bool _UIWindowInputEvent(UIWindow* window, UIMessage message, int di, void* dp) 
                   if (!element) {
                      element = &window->e;
                   }
-               } while (element != start && ((~element->flags & UI_ELEMENT_TAB_STOP) ||
-                                             (element->flags & (UI_ELEMENT_HIDE | UI_ELEMENT_DISABLED))));
+               } while (element != start && ((~element->flags & UIElement::TAB_STOP) ||
+                                             (element->flags & (UIElement::HIDE | UIElement::DISABLED))));
 
-               if (~element->flags & UI_ELEMENT_WINDOW) {
+               if (~element->flags & UIElement::WINDOW) {
                   UIElementFocus(element);
                }
 
@@ -4432,7 +4432,7 @@ UIElement* _UIInspectorFindNthElement(UIElement* element, int* index, int* depth
    for (uint32_t i = 0; i < element->childCount; i++) {
       UIElement* child = element->children[i];
 
-      if (!(child->flags & (UI_ELEMENT_DESTROY | UI_ELEMENT_HIDE))) {
+      if (!(child->flags & (UIElement::DESTROY | UIElement::HIDE))) {
          UIElement* result = _UIInspectorFindNthElement(child, index, depth);
 
          if (result) {
@@ -4514,7 +4514,7 @@ int _UIInspectorCountElements(UIElement* element) {
    for (uint32_t i = 0; i < element->childCount; i++) {
       UIElement* child = element->children[i];
 
-      if (!(child->flags & (UI_ELEMENT_DESTROY | UI_ELEMENT_HIDE))) {
+      if (!(child->flags & (UIElement::DESTROY | UIElement::HIDE))) {
          count += _UIInspectorCountElements(child);
       }
    }
@@ -4742,7 +4742,7 @@ UIWindow* UIWindowCreate(UIWindow* owner, uint32_t flags, const char* cTitle, in
    _UIMenusClose();
 
    UIWindow* window =
-      (UIWindow*)UIElementCreate(sizeof(UIWindow), NULL, flags | UI_ELEMENT_WINDOW, _UIWindowMessage, "Window");
+      (UIWindow*)UIElementCreate(sizeof(UIWindow), NULL, flags | UIElement::WINDOW, _UIWindowMessage, "Window");
    _UIWindowAdd(window);
    if (owner)
       window->scale = owner->scale;
@@ -5323,7 +5323,7 @@ bool _UIProcessEvent(XEvent* event) {
                      s[j] = strtol(n, NULL, 16);
                      if (!s[j])
                         break;
-                     UI_MEMMOVE(s + j + 1, s + j + 3, strlen(s) - j - 2);
+                     std::memmove(s + j + 1, s + j + 3, strlen(s) - j - 2);
                   }
                }
 
@@ -5723,7 +5723,7 @@ UIWindow* UIWindowCreate(UIWindow* owner, uint32_t flags, const char* cTitle, in
    _UIMenusClose();
 
    UIWindow* window =
-      (UIWindow*)UIElementCreate(sizeof(UIWindow), NULL, flags | UI_ELEMENT_WINDOW, _UIWindowMessage, "Window");
+      (UIWindow*)UIElementCreate(sizeof(UIWindow), NULL, flags | UIElement::WINDOW, _UIWindowMessage, "Window");
    _UIWindowAdd(window);
    if (owner)
       window->scale = owner->scale;
@@ -5850,24 +5850,6 @@ char* _UIClipboardReadTextStart(UIWindow* window, size_t* bytes) {
 
 void _UIClipboardReadTextEnd(UIWindow* window, char* text) {
    UI_FREE(text);
-}
-
-void* _UIMemmove(void* dest, const void* src, size_t n) {
-   if ((uintptr_t)dest < (uintptr_t)src) {
-      uint8_t*       dest8 = (uint8_t*)dest;
-      const uint8_t* src8  = (const uint8_t*)src;
-      for (uintptr_t i = 0; i < n; i++) {
-         dest8[i] = src8[i];
-      }
-      return dest;
-   } else {
-      uint8_t*       dest8 = (uint8_t*)dest;
-      const uint8_t* src8  = (const uint8_t*)src;
-      for (uintptr_t i = n; i; i--) {
-         dest8[i - 1] = src8[i - 1];
-      }
-      return dest;
-   }
 }
 
 #endif // UI_WINDOWS

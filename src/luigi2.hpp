@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdarg>
+#include <cstring>
 #include <array>
 
 #ifdef UI_LINUX
@@ -43,7 +44,6 @@
    #define UI_CLOCK GetTickCount
    #define UI_CLOCKS_PER_SECOND (1000)
    #define UI_CLOCK_T DWORD
-   #define UI_MEMMOVE _UIMemmove
 #endif
 
 #if defined(UI_LINUX)
@@ -61,13 +61,6 @@
    #define UI_CLOCK _UIClock
    #define UI_CLOCKS_PER_SECOND 1000
    #define UI_CLOCK_T clock_t
-   #define UI_MEMMOVE(d, s, n) \
-      do {                     \
-         size_t _n = n;        \
-         if (_n) {             \
-            memmove(d, s, _n); \
-         }                     \
-      } while (0)
 #endif
 
 #ifdef UI_DEBUG
@@ -152,7 +145,7 @@
 #define UI_UPDATE_FOCUSED (3)
 #define UI_UPDATE_DISABLED (4)
 
-typedef enum UIMessage {
+enum UIMessage {
    // General messages.
    UI_MSG_PAINT,            // dp = pointer to UIPainter
    UI_MSG_PAINT_FOREGROUND, // after children have painted
@@ -203,7 +196,7 @@ typedef enum UIMessage {
 
    // User-defined messages.
    UI_MSG_USER,
-} UIMessage;
+};
 
 struct UIPoint {
    int x, y;
@@ -371,7 +364,7 @@ inline uint32_t ui_color_from_rgba(float r, float g, float b, float a) {
 #define UI_DRAW_CONTROL_STATE_PRESSED (1 << 30)
 #define UI_DRAW_CONTROL_STATE_DISABLED (1 << 31)
 #define UI_DRAW_CONTROL_STATE_FROM_ELEMENT(x)                                   \
-   ((((x)->flags & UI_ELEMENT_DISABLED) ? UI_DRAW_CONTROL_STATE_DISABLED : 0) | \
+   ((((x)->flags & UIElement::DISABLED) ? UI_DRAW_CONTROL_STATE_DISABLED : 0) | \
     (((x)->window->hovered == (x)) ? UI_DRAW_CONTROL_STATE_HOVERED : 0) |       \
     (((x)->window->focused == (x)) ? UI_DRAW_CONTROL_STATE_FOCUSED : 0) |       \
     (((x)->window->pressed == (x)) ? UI_DRAW_CONTROL_STATE_PRESSED : 0))
@@ -421,27 +414,28 @@ extern const int UI_KEYCODE_PAGE_DOWN;
 #define UI_KEYCODE_DIGIT(x) (UI_KEYCODE_0 + (x) - '0')
 #define UI_KEYCODE_FKEY(x) (UI_KEYCODE_F1 + (x)-1)
 
-#define UI_ELEMENT_FILL (UI_ELEMENT_V_FILL | UI_ELEMENT_H_FILL)
-
 struct UIWindow;
 struct UIRectangle;
 struct UIScrollBar;
 
 struct UIElement {
-#define UI_ELEMENT_V_FILL (1 << 16)
-#define UI_ELEMENT_H_FILL (1 << 17)
-#define UI_ELEMENT_WINDOW (1 << 18)
-#define UI_ELEMENT_PARENT_PUSH (1 << 19)
-#define UI_ELEMENT_TAB_STOP (1 << 20)
-#define UI_ELEMENT_NON_CLIENT (1 << 21) // Don't destroy in UIElementDestroyDescendents, like scroll bars.
-#define UI_ELEMENT_DISABLED (1 << 22)   // Don't receive input events.
-#define UI_ELEMENT_BORDER (1 << 23)
+   enum {
+      V_FILL      = 1 << 16,
+      H_FILL      = 1 << 17,
+      FILL        = V_FILL | H_FILL,
+      WINDOW      = 1 << 18,
+      PARENT_PUSH = 1 << 19,
+      TAB_STOP    = 1 << 20,
+      NON_CLIENT  = 1 << 21, // Don't destroy in UIElementDestroyDescendents, like scroll bars.
+      DISABLED    = 1 << 22, // Don't receive input events.
+      BORDER      = 1 << 23,
 
-#define UI_ELEMENT_HIDE (1 << 27)
-#define UI_ELEMENT_RELAYOUT (1 << 28)
-#define UI_ELEMENT_RELAYOUT_DESCENDENT (1 << 29)
-#define UI_ELEMENT_DESTROY (1 << 30)
-#define UI_ELEMENT_DESTROY_DESCENDENT (1 << 31)
+      HIDE                = 1 << 27,
+      RELAYOUT            = 1 << 28,
+      RELAYOUT_DESCENDENT = 1 << 29,
+      DESTROY             = 1 << 30,
+      DESTROY_DESCENDENT  = 1 << 31
+   };
 
    uint32_t flags; // First 16 bits are element specific.
    uint32_t id;
