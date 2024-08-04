@@ -1607,12 +1607,12 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
 
    char        buffer[256];
    int         lineHeight = UIMeasureStringHeight();
-   UIRectangle bounds     = UIRectangleAdd(
-      displayCurrentLineBounds, UI_RECT_4(xOffset, 0, lineHeight, 8 + lineHeight * (inspectResults.Length() / 2 + 1)));
+   UIRectangle bounds     =
+      displayCurrentLineBounds + UI_RECT_4(xOffset, 0, lineHeight, 8 + lineHeight * (inspectResults.Length() / 2 + 1));
    bounds.r = bounds.l + width;
-   UIDrawBlock(painter, UIRectangleAdd(bounds, UI_RECT_1(3)), ui.theme.border);
+   UIDrawBlock(painter, bounds + UI_RECT_1(3), ui.theme.border);
    UIDrawRectangle(painter, bounds, ui.theme.codeBackground, ui.theme.border, UI_RECT_1(2));
-   UIRectangle line = UIRectangleAdd(bounds, UI_RECT_4(4, -4, 4, 0));
+   UIRectangle line = bounds + UI_RECT_4(4, -4, 4, 0);
    line.b           = line.t + lineHeight;
 
    for (int index = 0; index < inspectResults.Length() / 2; index++) {
@@ -1627,7 +1627,7 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
 
       UIDrawString(painter, line, buffer, -1, noInspectResults ? ui.theme.codeOperator : ui.theme.codeString,
                    UI_ALIGN_LEFT, NULL);
-      line = UIRectangleAdd(line, UI_RECT_2(0, lineHeight));
+      line = line + UI_RECT_2(0, lineHeight);
    }
 
    UIDrawString(painter, line, instructions, -1, ui.theme.codeNumber, UI_ALIGN_RIGHT, NULL);
@@ -4115,7 +4115,7 @@ int FilesButtonMessage(UIElement* element, UIMessage message, int di, void* dp) 
       int        i       = (element == element->window->pressed) + (element == element->window->hovered);
       if (i)
          UIDrawBlock(painter, element->bounds, i == 2 ? ui.theme.buttonPressed : ui.theme.buttonHovered);
-      UIDrawString(painter, UIRectangleAdd(element->bounds, UI_RECT_4(UI_SIZE_BUTTON_PADDING, 0, 0, 0)), button->label,
+      UIDrawString(painter, element->bounds + UI_RECT_4(UI_SIZE_BUTTON_PADDING, 0, 0, 0), button->label,
                    button->labelBytes, button->e.flags & UI_BUTTON_CHECKED ? ui.theme.codeNumber : ui.theme.codeDefault,
                    UI_ALIGN_LEFT, NULL);
       return 1;
@@ -5126,7 +5126,7 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
             y = element->window->cursor.y - height - 10;
          UIRectangle rectangle = UI_RECT_4(x, x + width, y, y + height);
 
-         ProfDrawTransparentOverlay(painter, UIRectangleAdd(rectangle, UI_RECT_1I(-5)), 0xFF000000);
+         ProfDrawTransparentOverlay(painter, rectangle + UI_RECT_1I(-5), 0xFF000000);
          UIDrawString(painter, UI_RECT_4(x, x + width, y + lineHeight * 0, y + lineHeight * 1), line1, -1, 0xFFFFFFFF,
                       UI_ALIGN_LEFT, 0);
          UIDrawString(painter, UI_RECT_4(x, x + width, y + lineHeight * 1, y + lineHeight * 2), line2, -1, 0xFFFFFFFF,
@@ -5781,7 +5781,7 @@ int MemoryWindowMessage(UIElement* element, UIMessage message, int di, void* dp)
       char        buffer[64];
       uint64_t    address   = window->offset;
       int         rowHeight = UIMeasureStringHeight();
-      UIRectangle row       = UIRectangleAdd(element->bounds, UI_RECT_1I(10));
+      UIRectangle row       = element->bounds + UI_RECT_1I(10);
       int         rowCount  = (painter->clip.b - row.t) / rowHeight;
       row.b                 = row.t + rowHeight;
 
@@ -5832,7 +5832,7 @@ int MemoryWindowMessage(UIElement* element, UIMessage message, int di, void* dp)
 
          StringFormat(buffer, sizeof(buffer), "%.8X ", (uint32_t)(address & 0xFFFFFFFF));
          UIDrawString(painter, row, buffer, -1, ui.theme.codeComment, UI_ALIGN_LEFT, 0);
-         UIRectangle r          = UIRectangleAdd(row, UI_RECT_4(UIMeasureStringWidth(buffer, -1), 0, 0, 0));
+         UIRectangle r          = row + UI_RECT_4(UIMeasureStringWidth(buffer, -1), 0, 0, 0);
          int         glyphWidth = UIMeasureStringWidth("a", 1);
 
          for (int i = 0; i < 16; i++) {
@@ -5863,7 +5863,7 @@ int MemoryWindowMessage(UIElement* element, UIMessage message, int di, void* dp)
          address += 0x10;
       }
    } else if (message == UI_MSG_LAYOUT) {
-      UIRectangle bounds = UIRectangleAdd(element->bounds, UI_RECT_1I(10));
+      UIRectangle bounds = element->bounds + UI_RECT_1I(10);
       UIElementMove(&window->gotoButton->e,
                     UI_RECT_4(bounds.r - UIElementMessage(&window->gotoButton->e, UI_MSG_GET_WIDTH, 0, 0), bounds.r,
                               bounds.t, bounds.t + UIElementMessage(&window->gotoButton->e, UI_MSG_GET_HEIGHT, 0, 0)),
@@ -6026,8 +6026,7 @@ int ViewWindowMatrixGridMessage(UIElement* element, UIMessage message, int di, v
                   UI_RECT_4(j * glyphWidth * 14, (j + 1) * glyphWidth * 14, i * glyphHeight, (i + 1) * glyphHeight);
                UIRectangle offset = UI_RECT_2(element->bounds.l - (int)grid->hScroll->position,
                                               element->bounds.t - (int)grid->vScroll->position);
-               UIDrawString(painter, UIRectangleAdd(rectangle, offset), buffer, -1, ui.theme.text, UI_ALIGN_RIGHT,
-                            nullptr);
+               UIDrawString(painter, rectangle + offset, buffer, -1, ui.theme.text, UI_ALIGN_RIGHT, nullptr);
             }
          }
       }

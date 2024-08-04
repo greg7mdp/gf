@@ -637,12 +637,12 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
       UIRectangle boxBounds = UI_RECT_4(bounds.l, bounds.l + UI_SIZE_CHECKBOX_BOX, midY - UI_SIZE_CHECKBOX_BOX / 2,
                                         midY + UI_SIZE_CHECKBOX_BOX / 2);
       UIDrawRectangle(painter, boxBounds, color, ui.theme.border, UI_RECT_1(1));
-      UIDrawString(painter, UIRectangleAdd(boxBounds, UI_RECT_4(1, 0, 0, 0)),
+      UIDrawString(painter, boxBounds + UI_RECT_4(1, 0, 0, 0),
                    checked         ? "*"
                    : indeterminate ? "-"
                                    : " ",
                    -1, textColor, UI_ALIGN_CENTER, NULL);
-      UIDrawString(painter, UIRectangleAdd(bounds, UI_RECT_4(UI_SIZE_CHECKBOX_BOX + UI_SIZE_CHECKBOX_GAP, 0, 0, 0)),
+      UIDrawString(painter, bounds + UI_RECT_4(UI_SIZE_CHECKBOX_BOX + UI_SIZE_CHECKBOX_GAP, 0, 0, 0),
                    label, labelBytes, disabled ? ui.theme.textDisabled : ui.theme.text, UI_ALIGN_LEFT, NULL);
    } else if (which == UI_DRAW_CONTROL_MENU_ITEM || which == UI_DRAW_CONTROL_DROP_DOWN ||
               which == UI_DRAW_CONTROL_PUSH_BUTTON) {
@@ -651,11 +651,11 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
       UIDrawRectangle(painter, bounds, color, ui.theme.border, UI_RECT_1(borderSize));
 
       if (checked && !focused) {
-         UIDrawBlock(painter, UIRectangleAdd(bounds, UI_RECT_1I((int)(UI_SIZE_BUTTON_CHECKED_AREA * scale))),
+         UIDrawBlock(painter, bounds + UI_RECT_1I((int)(UI_SIZE_BUTTON_CHECKED_AREA * scale)),
                      ui.theme.buttonPressed);
       }
 
-      UIRectangle innerBounds = UIRectangleAdd(bounds, UI_RECT_2I((int)(UI_SIZE_MENU_ITEM_MARGIN * scale), 0));
+      UIRectangle innerBounds = bounds + UI_RECT_2I((int)(UI_SIZE_MENU_ITEM_MARGIN * scale), 0);
 
       if (which == UI_DRAW_CONTROL_MENU_ITEM) {
          if (labelBytes == -1) {
@@ -703,7 +703,7 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
       UIDrawRectangle(painter, bounds, color, ui.theme.border, UI_RECT_1(2));
    } else if (which == UI_DRAW_CONTROL_GAUGE) {
       UIDrawRectangle(painter, bounds, ui.theme.buttonNormal, ui.theme.border, UI_RECT_1(1));
-      UIRectangle filled = UIRectangleAdd(bounds, UI_RECT_1I(1));
+      UIRectangle filled = bounds + UI_RECT_1I(1);
       filled.r           = filled.l + filled.width() * position;
       UIDrawBlock(painter, filled, ui.theme.selected);
    } else if (which == UI_DRAW_CONTROL_SLIDER) {
@@ -728,9 +728,9 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
                                 : ui.theme.textboxNormal,
                       ui.theme.border, UI_RECT_1(1));
    } else if (which == UI_DRAW_CONTROL_MODAL_POPUP) {
-      UIRectangle bounds2 = UIRectangleAdd(bounds, UI_RECT_1I(-1));
+      UIRectangle bounds2 = bounds + UI_RECT_1I(-1);
       UIDrawBorder(painter, bounds2, ui.theme.border, UI_RECT_1(1));
-      UIDrawBorder(painter, UIRectangleAdd(bounds2, UI_RECT_1(1)), ui.theme.border, UI_RECT_1(1));
+      UIDrawBorder(painter, bounds2 + UI_RECT_1(1), ui.theme.border, UI_RECT_1(1));
    } else if (which == UI_DRAW_CONTROL_MENU) {
       UIDrawBlock(painter, bounds, ui.theme.border);
    } else if (which == UI_DRAW_CONTROL_TABLE_ROW) {
@@ -754,7 +754,7 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
       UIRectangle borders = UI_RECT_4(borderSize, borderSize, titleSize, borderSize);
       UIDrawBorder(painter, bounds, ui.theme.buttonNormal, borders);
       UIDrawBorder(painter, bounds, ui.theme.border, UI_RECT_1((int)scale));
-      UIDrawBorder(painter, UIRectangleAdd(content, UI_RECT_1I(-1)), ui.theme.border, UI_RECT_1((int)scale));
+      UIDrawBorder(painter, content + UI_RECT_1I(-1), ui.theme.border, UI_RECT_1((int)scale));
       UIDrawString(painter, title, label, labelBytes, ui.theme.text, UI_ALIGN_LEFT, NULL);
    } else if (which == UI_DRAW_CONTROL_TAB) {
       uint32_t    color = selected ? ui.theme.buttonPressed : ui.theme.buttonNormal;
@@ -2847,7 +2847,7 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
 
       int         scaledMargin = UI_SIZE_TEXTBOX_MARGIN * element->window->scale;
       int         totalWidth   = UIMeasureStringWidth(textbox->string, textbox->bytes) + scaledMargin * 2;
-      UIRectangle textBounds   = UIRectangleAdd(element->bounds, UI_RECT_1I(scaledMargin));
+      UIRectangle textBounds   = element->bounds + UI_RECT_1I(scaledMargin);
 
       if (textbox->scroll > totalWidth - textBounds.width()) {
          textbox->scroll = totalWidth - textBounds.width();
@@ -3074,7 +3074,7 @@ int _UIMDIChildMessage(UIElement* element, UIMessage message, int di, void* dp) 
    } else if (message == UI_MSG_LEFT_DOWN) {
       mdiChild->dragHitTest = _UIMDIChildHitTest(mdiChild, element->window->cursor.x, element->window->cursor.y);
       mdiChild->dragOffset =
-         UIRectangleAdd(element->bounds, UI_RECT_2(-element->window->cursor.x, -element->window->cursor.y));
+         element->bounds + UI_RECT_2(-element->window->cursor.x, -element->window->cursor.y);
    } else if (message == UI_MSG_LEFT_UP) {
       if (mdiChild->bounds.l < 0)
          mdiChild->bounds.r -= mdiChild->bounds.l, mdiChild->bounds.l = 0;
@@ -3130,7 +3130,7 @@ int _UIMDIClientMessage(UIElement* element, UIMessage message, int di, void* dp)
             client->cascade += UI_SIZE_MDI_CASCADE * element->window->scale;
          }
 
-         UIRectangle bounds = UIRectangleAdd(mdiChild->bounds, UI_RECT_2(element->bounds.l, element->bounds.t));
+         UIRectangle bounds = mdiChild->bounds + UI_RECT_2(element->bounds.l, element->bounds.t);
          UIElementMove(&mdiChild->e, bounds, false);
       }
    } else if (message == UI_MSG_PRESSED_DESCENDENT) {
@@ -3711,7 +3711,7 @@ UIMenu* UIMenuCreate(UIElement* parent, uint32_t flags) {
 UIRectangle UIElementScreenBounds(UIElement* element) {
    int x = 0, y = 0;
    _UIWindowGetScreenPosition(element->window, &x, &y);
-   return UIRectangleAdd(element->bounds, UI_RECT_2(x, y));
+   return element->bounds + UI_RECT_2(x, y);
 }
 
 void UIWindowRegisterShortcut(UIWindow* window, UIShortcut shortcut) {
@@ -4493,7 +4493,7 @@ int _UIInspectorTableMessage(UIElement* element, UIMessage message, int di, void
 
       if (element) {
          UIDrawInvert(&painter, element->bounds);
-         UIDrawInvert(&painter, UIRectangleAdd(element->bounds, UI_RECT_1I(4)));
+         UIDrawInvert(&painter, element->bounds + UI_RECT_1I(4));
       }
 
       _UIWindowEndPaint(window, &painter);

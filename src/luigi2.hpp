@@ -219,6 +219,8 @@ struct UIRectangle {
    bool    contains(const UIPoint& p) const { return p.x >= l && p.x < r && p.y >= t && p.y < b; }
    bool    contains(int x, int y) const { return x >= l && x < r && y >= t && y < b; }
 
+   UIRectangle operator+(const UIRectangle& o) const { return { l + o.l, r + o.r, t + o.t, b + o.b }; }
+
    auto operator<=>(const UIRectangle&) const = default;
 };
 
@@ -824,7 +826,6 @@ UIElement* UIParentPop();
 
 UIRectangle UIRectangleIntersection(const UIRectangle& a, const UIRectangle& b);
 UIRectangle UIRectangleBounding(const UIRectangle& a, const UIRectangle& b);
-UIRectangle UIRectangleAdd(const UIRectangle& a, const UIRectangle& b);
 UIRectangle UIRectangleTranslate(const UIRectangle& a, const UIRectangle& b);
 UIRectangle UIRectangleCenter(const UIRectangle& parent, UIRectangle child);
 UIRectangle UIRectangleFit(UIRectangle parent, UIRectangle child, bool allowScalingUp);
