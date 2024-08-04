@@ -598,17 +598,15 @@ void UIDrawString(UIPainter* painter, UIRectangle r, const char* string, ptrdiff
 }
 
 void UIDrawBorder(UIPainter* painter, UIRectangle r, uint32_t borderColor, UIRectangle borderSize) {
-   UIDrawBlock(painter, UI_RECT_4(r.l, r.r, r.t, r.t + borderSize.t), borderColor);
-   UIDrawBlock(painter, UI_RECT_4(r.l, r.l + borderSize.l, r.t + borderSize.t, r.b - borderSize.b), borderColor);
-   UIDrawBlock(painter, UI_RECT_4(r.r - borderSize.r, r.r, r.t + borderSize.t, r.b - borderSize.b), borderColor);
-   UIDrawBlock(painter, UI_RECT_4(r.l, r.r, r.b - borderSize.b, r.b), borderColor);
+   auto border_rects = r.border(borderSize);
+   for (const auto& r : border_rects)
+      UIDrawBlock(painter, r, borderColor);
 }
 
 void UIDrawRectangle(UIPainter* painter, UIRectangle r, uint32_t mainColor, uint32_t borderColor,
                      UIRectangle borderSize) {
    UIDrawBorder(painter, r, borderColor, borderSize);
-   UIDrawBlock(painter, UI_RECT_4(r.l + borderSize.l, r.r - borderSize.r, r.t + borderSize.t, r.b - borderSize.b),
-               mainColor);
+   UIDrawBlock(painter, r.shrink(borderSize), mainColor);
 }
 
 void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode, const char* label,

@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdarg>
+#include <array>
 
 #ifdef UI_LINUX
    #include <X11/Xlib.h>
@@ -221,6 +222,18 @@ struct UIRectangle {
 
    UIRectangle operator+(const UIRectangle& o) const { return { l + o.l, r + o.r, t + o.t, b + o.b }; }
 
+   // following two use `UIRectangle& o` as widths for left,right, top, bottom, instead of a proper rect.
+   UIRectangle shrink(const UIRectangle& o) const { return { l + o.l, r - o.r, t + o.t, b - o.b }; }
+
+   // returns the 4 rectangles for drawing a border where the widths are from `o`
+   std::array<UIRectangle, 4> border(const UIRectangle& o) const {
+      return {{ { l, r, t, t + o.t },
+                { l, l + o.l, t + o.t, b - o.b },
+                { r - o.r, r, t + o.t, b - o.b },
+                { l, r, b - o.b, b }
+         }};
+   }
+
    auto operator<=>(const UIRectangle&) const = default;
 };
 
@@ -287,13 +300,13 @@ struct UICodeDecorateLine {
    UIPainter*  painter;
 };
 
-#define UI_RECT_1(x) ((UIRectangle){(x), (x), (x), (x)})
-#define UI_RECT_1I(x) ((UIRectangle){(x), -(x), (x), -(x)})
-#define UI_RECT_2(x, y) ((UIRectangle){(x), (x), (y), (y)})
-#define UI_RECT_2I(x, y) ((UIRectangle){(x), -(x), (y), -(y)})
-#define UI_RECT_2S(x, y) ((UIRectangle){0, (x), 0, (y)})
-#define UI_RECT_4(x, y, z, w) ((UIRectangle){(x), (y), (z), (w)})
-#define UI_RECT_4PD(x, y, w, h) ((UIRectangle){(x), ((x) + (w)), (y), ((y) + (h))})
+#define UI_RECT_1(x) (UIRectangle{(x), (x), (x), (x)})
+#define UI_RECT_1I(x) (UIRectangle{(x), -(x), (x), -(x)})
+#define UI_RECT_2(x, y) (UIRectangle{(x), (x), (y), (y)})
+#define UI_RECT_2I(x, y) (UIRectangle{(x), -(x), (y), -(y)})
+#define UI_RECT_2S(x, y) (UIRectangle{0, (x), 0, (y)})
+#define UI_RECT_4(x, y, z, w) (UIRectangle{(x), (y), (z), (w)})
+#define UI_RECT_4PD(x, y, w, h) (UIRectangle{(x), ((x) + (w)), (y), ((y) + (h))})
 #define UI_RECT_WIDTH(_r) ((_r).r - (_r).l)
 #define UI_RECT_HEIGHT(_r) ((_r).b - (_r).t)
 #define UI_RECT_TOTAL_H(_r) ((_r).r + (_r).l)
