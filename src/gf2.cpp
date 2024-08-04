@@ -1193,13 +1193,13 @@ void SettingsLoad(bool earlyPass) {
 
             for (int i = 0; i < 26; i++) {
                if (codeStart[0] == 'a' + i && codeStart[1] == 0) {
-                  shortcut.code = UI_KEYCODE_A + i;
+                  shortcut.code = UIKeycode((int)UIKeycode::A + i);
                }
             }
 
             for (int i = 0; i < 10; i++) {
                if (codeStart[0] == '0' + i && codeStart[1] == 0) {
-                  shortcut.code = UI_KEYCODE_0 + i;
+                  shortcut.code = UIKeycode((int)UIKeycode::ZERO + i);
                }
             }
 
@@ -1209,7 +1209,7 @@ void SettingsLoad(bool earlyPass) {
                }
             }
 
-            if (!shortcut.code) {
+            if ((int)shortcut.code == 0) {
                fprintf(stderr, "Warning: Could not register shortcut for '%s'.\n", state.key);
             } else {
                UIWindowRegisterShortcut(windowMain, shortcut);
@@ -1626,11 +1626,11 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
       }
 
       UIDrawString(painter, line, buffer, -1, noInspectResults ? ui.theme.codeOperator : ui.theme.codeString,
-                   UI_ALIGN_LEFT, NULL);
+                   UIAlign::left, NULL);
       line = line + ui_rect_2(0, lineHeight);
    }
 
-   UIDrawString(painter, line, instructions, -1, ui.theme.codeNumber, UI_ALIGN_RIGHT, NULL);
+   UIDrawString(painter, line, instructions, -1, ui.theme.codeNumber, UIAlign::right, NULL);
 }
 
 #define DISPLAY_CODE_COMMAND_FOR_ALL_BREAKPOINTS_ON_LINE(function, command)                          \
@@ -1731,7 +1731,7 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
       if (m->index == autoPrintResultLine) {
          UIRectangle rectangle =
             ui_rect_4(m->x + ui.activeFont->glyphWidth, m->bounds.r, m->y, m->y + UIMeasureStringHeight());
-         UIDrawString(m->painter, rectangle, autoPrintResult, -1, ui.theme.codeComment, UI_ALIGN_LEFT, NULL);
+         UIDrawString(m->painter, rectangle, autoPrintResult, -1, ui.theme.codeComment, UIAlign::left, NULL);
       }
 
       if (UICodeHitTest(code, element->window->cursor.x, element->window->cursor.y) == m->index &&
@@ -1741,9 +1741,9 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
          UIDrawBorder(m->painter, m->bounds, element->window->ctrl ? ui.theme.selected : ui.theme.codeOperator,
                       ui_rect_1(2));
          UIDrawString(m->painter, m->bounds, element->window->ctrl ? "=> run until " : "=> skip to ", -1, ui.theme.text,
-                      UI_ALIGN_RIGHT, NULL);
+                      UIAlign::right, NULL);
       } else if (m->index == currentEndOfBlock) {
-         UIDrawString(m->painter, m->bounds, "[Shift+F10]", -1, ui.theme.codeComment, UI_ALIGN_RIGHT, NULL);
+         UIDrawString(m->painter, m->bounds, "[Shift+F10]", -1, ui.theme.codeComment, UIAlign::right, NULL);
       }
 
       if (m->index == ifConditionLine && ifConditionEvaluation) {
@@ -2065,18 +2065,18 @@ int InspectLineModeMessage(UIElement* element, UIMessage message, int di, void* 
    } else if (message == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
-      if ((m->textBytes == 1 && m->text[0] == '`') || m->code == UI_KEYCODE_ESCAPE) {
+      if ((m->textBytes == 1 && m->text[0] == '`') || m->code == UIKeycode::ESCAPE) {
          InspectLineModeExit(element);
       } else if (m->code >= UI_KEYCODE_DIGIT('1') && m->code <= UI_KEYCODE_DIGIT('9')) {
-         int index = (m->code - UI_KEYCODE_DIGIT('1')) * 2;
+         int index = ((int)m->code - (int)UI_KEYCODE_DIGIT('1')) * 2;
 
          if (index < inspectResults.Length()) {
             InspectLineModeExit(element);
             WatchAddExpression2(inspectResults[index]);
          }
-      } else if ((m->code == UI_KEYCODE_UP && currentLine != 1) ||
-                 (m->code == UI_KEYCODE_DOWN && currentLine != displayCode->lineCount)) {
-         currentLine += m->code == UI_KEYCODE_UP ? -1 : 1;
+      } else if ((m->code == UIKeycode::UP && currentLine != 1) ||
+                 (m->code == UIKeycode::DOWN && currentLine != displayCode->lineCount)) {
+         currentLine += m->code == UIKeycode::UP ? -1 : 1;
          UICodeFocusLine(displayCode, currentLine);
          InspectCurrentLine();
          UIElementRefresh(&displayCode->e);
@@ -2406,7 +2406,7 @@ int TextboxInputMessage(UIElement* element, UIMessage message, int di, void* dp)
 
       if (m->textBytes && !element->window->ctrl && !element->window->alt && m->text[0] == '`' && !textbox->bytes) {
          textbox->rejectNextKey = true;
-      } else if (m->code == UI_KEYCODE_ENTER && !element->window->shift) {
+      } else if (m->code == UIKeycode::ENTER && !element->window->shift) {
          if (!textbox->bytes) {
             if (commandHistory.Length()) {
                CommandSendToGDB(commandHistory[0]);
@@ -2436,10 +2436,10 @@ int TextboxInputMessage(UIElement* element, UIMessage message, int di, void* dp)
          UIElementRefresh(&textbox->e);
 
          return 1;
-      } else if (m->code == UI_KEYCODE_TAB && textbox->bytes && !element->window->shift) {
+      } else if (m->code == UIKeycode::TAB && textbox->bytes && !element->window->shift) {
          TabCompleterRun(&tabCompleter, textbox, lastKeyWasTab, false);
          return 1;
-      } else if (m->code == UI_KEYCODE_UP) {
+      } else if (m->code == UIKeycode::UP) {
          if (element->window->shift) {
             if (currentLine > 1) {
                DisplaySetPosition(NULL, currentLine - 1, false);
@@ -2447,7 +2447,7 @@ int TextboxInputMessage(UIElement* element, UIMessage message, int di, void* dp)
          } else {
             CommandPreviousCommand(NULL);
          }
-      } else if (m->code == UI_KEYCODE_DOWN) {
+      } else if (m->code == UIKeycode::DOWN) {
          if (element->window->shift) {
             if (currentLine < displayCode->lineCount) {
                DisplaySetPosition(NULL, currentLine + 1, false);
@@ -2552,7 +2552,7 @@ int WatchTextboxMessage(UIElement* element, UIMessage message, int di, void* dp)
       bool                lastKeyWasTab = tabCompleter._lastKeyWasTab;
       tabCompleter._lastKeyWasTab       = false;
 
-      if (m->code == UI_KEYCODE_TAB && textbox->bytes && !element->window->shift) {
+      if (m->code == UIKeycode::TAB && textbox->bytes && !element->window->shift) {
          TabCompleterRun(&tabCompleter, textbox, lastKeyWasTab, true);
          return 1;
       }
@@ -3378,7 +3378,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
             }
 
             if (focused) {
-               UIDrawString(painter, row, buffer, -1, ui.theme.textSelected, UI_ALIGN_LEFT, nullptr);
+               UIDrawString(painter, row, buffer, -1, ui.theme.textSelected, UIAlign::left, nullptr);
             } else {
                UIDrawStringHighlighted(painter, row, buffer, -1, 1, NULL);
             }
@@ -3395,7 +3395,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
 
          if (x >= watch->depth * 3 - 1 && x <= watch->depth * 3 + 1 && watch->hasFields) {
             UIKeyTyped m = {0};
-            m.code       = watch->open ? UI_KEYCODE_LEFT : UI_KEYCODE_RIGHT;
+            m.code       = watch->open ? UIKeycode::LEFT : UIKeycode::RIGHT;
             WatchWindowMessage(element, UIMessage::KEY_TYPED, 0, &m);
          }
       }
@@ -3471,18 +3471,18 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
 
          w->waitingForFormatCharacter = false;
       } else if (w->mode == WATCH_NORMAL && w->selectedRow != w->rows.Length() && !w->textbox &&
-                 (m->code == UI_KEYCODE_ENTER || m->code == UI_KEYCODE_BACKSPACE ||
-                  (m->code == UI_KEYCODE_LEFT && !w->rows[w->selectedRow]->open)) &&
+                 (m->code == UIKeycode::ENTER || m->code == UIKeycode::BACKSPACE ||
+                  (m->code == UIKeycode::LEFT && !w->rows[w->selectedRow]->open)) &&
                  !w->rows[w->selectedRow]->parent) {
          WatchCreateTextboxForRow(w, true);
-      } else if (m->code == UI_KEYCODE_DELETE && !w->textbox && w->selectedRow != w->rows.Length() &&
+      } else if (m->code == UIKeycode::DELETE && !w->textbox && w->selectedRow != w->rows.Length() &&
                  !w->rows[w->selectedRow]->parent) {
          WatchDeleteExpression(w);
       } else if (m->textBytes && m->text[0] == '/' && w->selectedRow != w->rows.Length()) {
          w->waitingForFormatCharacter = true;
       } else if (m->textBytes && m->text[0] == '`') {
          result = 0;
-      } else if (w->mode == WATCH_NORMAL && m->textBytes && m->code != UI_KEYCODE_TAB && !w->textbox &&
+      } else if (w->mode == WATCH_NORMAL && m->textBytes && m->code != UIKeycode::TAB && !w->textbox &&
                  !element->window->ctrl && !element->window->alt &&
                  (w->selectedRow == w->rows.Length() || !w->rows[w->selectedRow]->parent)) {
          WatchCreateTextboxForRow(w, false);
@@ -3492,11 +3492,11 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
                  (w->selectedRow == w->rows.Length() || !w->rows[w->selectedRow]->parent)) {
          WatchCreateTextboxForRow(w, false);
          UIElementMessage(&w->textbox->e, message, di, dp);
-      } else if (m->code == UI_KEYCODE_ENTER && w->textbox) {
+      } else if (m->code == UIKeycode::ENTER && w->textbox) {
          WatchAddExpression(w);
-      } else if (m->code == UI_KEYCODE_ESCAPE) {
+      } else if (m->code == UIKeycode::ESCAPE) {
          WatchDestroyTextbox(w);
-      } else if (m->code == UI_KEYCODE_UP) {
+      } else if (m->code == UIKeycode::UP) {
          if (element->window->shift) {
             if (currentLine > 1) {
                DisplaySetPosition(NULL, currentLine - 1, false);
@@ -3505,7 +3505,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
             WatchDestroyTextbox(w);
             w->selectedRow--;
          }
-      } else if (m->code == UI_KEYCODE_DOWN) {
+      } else if (m->code == UIKeycode::DOWN) {
          if (element->window->shift) {
             if (currentLine < displayCode->lineCount) {
                DisplaySetPosition(NULL, currentLine + 1, false);
@@ -3514,17 +3514,17 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
             WatchDestroyTextbox(w);
             w->selectedRow++;
          }
-      } else if (m->code == UI_KEYCODE_HOME) {
+      } else if (m->code == UIKeycode::HOME) {
          w->selectedRow = 0;
-      } else if (m->code == UI_KEYCODE_END) {
+      } else if (m->code == UIKeycode::END) {
          w->selectedRow = WatchLastRow(w);
-      } else if (m->code == UI_KEYCODE_RIGHT && !w->textbox && w->selectedRow != w->rows.Length() &&
+      } else if (m->code == UIKeycode::RIGHT && !w->textbox && w->selectedRow != w->rows.Length() &&
                  w->rows[w->selectedRow]->hasFields && !w->rows[w->selectedRow]->open) {
          Watch* watch = w->rows[w->selectedRow];
          watch->open  = true;
          WatchAddFields(w, watch);
          WatchInsertFieldRows(w, watch, w->selectedRow + 1, true);
-      } else if (m->code == UI_KEYCODE_LEFT && !w->textbox && w->selectedRow != w->rows.Length() &&
+      } else if (m->code == UIKeycode::LEFT && !w->textbox && w->selectedRow != w->rows.Length() &&
                  w->rows[w->selectedRow]->hasFields && w->rows[w->selectedRow]->open) {
          int end = w->selectedRow + 1;
 
@@ -3536,7 +3536,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
 
          w->rows.Delete(w->selectedRow + 1, end - w->selectedRow - 1);
          w->rows[w->selectedRow]->open = false;
-      } else if (m->code == UI_KEYCODE_LEFT && !w->textbox && w->selectedRow != w->rows.Length() &&
+      } else if (m->code == UIKeycode::LEFT && !w->textbox && w->selectedRow != w->rows.Length() &&
                  !w->rows[w->selectedRow]->open) {
          for (int i = 0; i < w->rows.Length(); i++) {
             if (w->rows[w->selectedRow]->parent == w->rows[i]) {
@@ -3785,8 +3785,8 @@ int TableStackMessage(UIElement* element, UIMessage message, int di, void* dp) {
    } else if (message == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
-      if (m->code == UI_KEYCODE_UP || m->code == UI_KEYCODE_DOWN) {
-         StackSetFrame(element, stackSelected + (m->code == UI_KEYCODE_UP ? -1 : 1));
+      if (m->code == UIKeycode::UP || m->code == UIKeycode::DOWN) {
+         StackSetFrame(element, stackSelected + (m->code == UIKeycode::UP ? -1 : 1));
          // TODO Scroll the row into view if necessary.
          return 1;
       }
@@ -3949,7 +3949,7 @@ int TableBreakpointsMessage(UIElement* element, UIMessage message, int di, void*
    } else if (message == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
-      if (m->code == UI_KEYCODE_DELETE && data->selected.Length() > 0) {
+      if (m->code == UIKeycode::DELETE && data->selected.Length() > 0) {
          CommandDeleteSelectedBreakpoints(element->cp);
       }
    }
@@ -4039,7 +4039,7 @@ int TextboxStructNameMessage(UIElement* element, UIMessage message, int di, void
    if (message == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
-      if (m->code == UI_KEYCODE_ENTER) {
+      if (m->code == UIKeycode::ENTER) {
          char buffer[4096];
          StringFormat(buffer, sizeof(buffer), "ptype /o %.*s", (int)window->textbox->bytes, window->textbox->string);
          EvaluateCommand(buffer);
@@ -4117,7 +4117,7 @@ int FilesButtonMessage(UIElement* element, UIMessage message, int di, void* dp) 
          UIDrawBlock(painter, element->bounds, i == 2 ? ui.theme.buttonPressed : ui.theme.buttonHovered);
       UIDrawString(painter, element->bounds + ui_rect_4(ui_size::BUTTON_PADDING, 0, 0, 0), button->label,
                    button->labelBytes, button->e.flags & UI_BUTTON_CHECKED ? ui.theme.codeNumber : ui.theme.codeDefault,
-                   UI_ALIGN_LEFT, NULL);
+                   UIAlign::left, NULL);
       return 1;
    }
 
@@ -4970,7 +4970,7 @@ void* ProfFlameGraphRenderThread(void* _unused) {
             if (r.width() > 40) {
                char string[128];
                StringFormat(string, sizeof(string), "%s %fms", entry->cName, entry->endTime - entry->startTime);
-               UIDrawString(painter, ui_rect_4(r.l + 2, r.r, r.t, r.b), string, -1, profTextColor, UI_ALIGN_LEFT, NULL);
+               UIDrawString(painter, ui_rect_4(r.l + 2, r.r, r.t, r.b), string, -1, profTextColor, UIAlign::left, NULL);
             }
          }
 
@@ -5058,7 +5058,7 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
             char string[128];
             StringFormat(string, sizeof(string), "%.4fms", i);
             UIDrawBlock(painter, ui_rect_4(r.l, r.l + 1, r.t, r.b), profBorderLightColor);
-            UIDrawString(painter, r, string, -1, profTextColor, UI_ALIGN_LEFT, NULL);
+            UIDrawString(painter, r, string, -1, profTextColor, UIAlign::left, NULL);
          }
       }
 
@@ -5128,11 +5128,11 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
 
          ProfDrawTransparentOverlay(painter, rectangle + ui_rect_1i(-5), 0xFF000000);
          UIDrawString(painter, ui_rect_4(x, x + width, y + lineHeight * 0, y + lineHeight * 1), line1, -1, 0xFFFFFFFF,
-                      UI_ALIGN_LEFT, 0);
+                      UIAlign::left, 0);
          UIDrawString(painter, ui_rect_4(x, x + width, y + lineHeight * 1, y + lineHeight * 2), line2, -1, 0xFFFFFFFF,
-                      UI_ALIGN_LEFT, 0);
+                      UIAlign::left, 0);
          UIDrawString(painter, ui_rect_4(x, x + width, y + lineHeight * 2, y + lineHeight * 3), line3, -1, 0xFFFFFFFF,
-                      UI_ALIGN_LEFT, 0);
+                      UIAlign::left, 0);
       }
 
       UIFontActivate(previousFont);
@@ -5179,7 +5179,7 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
          report->dragInitialPoint  = element->window->cursor.x;
          report->dragInitialValue2 = report->vScroll->position;
          report->dragInitialPoint2 = element->window->cursor.y;
-         _UIWindowSetCursor(element->window, UI_CURSOR_HAND);
+         _UIWindowSetCursor(element->window, (int)UICursor::hand);
       } else {
          report->dragMode         = FLAME_GRAPH_DRAG_X_SCROLL;
          report->dragInitialValue = report->xStart;
@@ -5199,7 +5199,7 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
          report->dragInitialValue  = report->xStart;
          report->dragInitialPoint  = element->window->cursor.x;
          report->dragInitialPoint2 = element->window->cursor.y;
-         _UIWindowSetCursor(element->window, UI_CURSOR_CROSS_HAIR);
+         _UIWindowSetCursor(element->window, (int)UICursor::cross_hair);
       }
    } else if (message == UIMessage::RIGHT_DOWN) {
       if (element->window->cursor.y < report->client.b - profZoomBarHeight) {
@@ -5230,7 +5230,7 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
       report->dragMode    = 0;
       report->dragStarted = false;
       UIElementRepaint(element, NULL);
-      _UIWindowSetCursor(element->window, UI_CURSOR_ARROW);
+      _UIWindowSetCursor(element->window, (int)UICursor::arrow);
    } else if (message == UIMessage::MOUSE_DRAG) {
       report->dragStarted = true;
 
@@ -5302,9 +5302,9 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
       UIElementRepaint(element, NULL);
       return 1;
    } else if (message == UIMessage::GET_CURSOR) {
-      return report->dragMode == FLAME_GRAPH_DRAG_PAN              ? UI_CURSOR_HAND
-             : report->dragMode == FLAME_GRAPH_DRAG_X_PAN_AND_ZOOM ? UI_CURSOR_CROSS_HAIR
-                                                                   : UI_CURSOR_ARROW;
+      return report->dragMode == FLAME_GRAPH_DRAG_PAN              ? (int)UICursor::hand
+             : report->dragMode == FLAME_GRAPH_DRAG_X_PAN_AND_ZOOM ? (int)UICursor::cross_hair
+                                                                   : (int)UICursor::arrow;
    } else if (message == UIMessage::LAYOUT) {
       UIRectangle scrollBarBounds = element->bounds;
       scrollBarBounds.l           = scrollBarBounds.r - ui_size::SCROLL_BAR * element->window->scale;
@@ -5412,8 +5412,9 @@ int ProfTableMessage(UIElement* element, UIMessage message, int di, void* dp) {
          table->columnHighlight = index;
       }
    } else if (message == UIMessage::GET_CURSOR) {
-      return UITableHeaderHitTest(table, element->window->cursor.x, element->window->cursor.y) == -1 ? UI_CURSOR_ARROW
-                                                                                                   : UI_CURSOR_HAND;
+      return UITableHeaderHitTest(table, element->window->cursor.x, element->window->cursor.y) == -1
+                ? (int)UICursor::arrow
+                : (int)UICursor::hand;
    }
 
    return 0;
@@ -5449,7 +5450,7 @@ void ProfLoadProfileData(void* _window) {
       char string[256];
       StringFormat(string, sizeof(string), "Loading data... (estimated time: %d seconds)", rawEntryCount / 5000000 + 1);
       UIDrawBlock(&painter, painter.clip, ui.theme.panel1);
-      UIDrawString(&painter, painter.clip, string, -1, ui.theme.text, UI_ALIGN_CENTER, 0);
+      UIDrawString(&painter, painter.clip, string, -1, ui.theme.text, UIAlign::center, 0);
       window->updateRegion = ui_rect_2s(window->width, window->height);
       _UIWindowEndPaint(window, nullptr);
       window->updateRegion = painter.clip;
@@ -5787,11 +5788,11 @@ int MemoryWindowMessage(UIElement* element, UIMessage message, int di, void* dp)
 
       {
          StringFormat(buffer, sizeof(buffer), "Inspecting memory @%p", (void*)window->offset);
-         UIDrawString(painter, row, buffer, -1, ui.theme.codeString, UI_ALIGN_LEFT, 0);
+         UIDrawString(painter, row, buffer, -1, ui.theme.codeString, UIAlign::left, 0);
          row.t += rowHeight;
          row.b += rowHeight;
          const char* header = "         0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F   0123456789ABCDEF";
-         UIDrawString(painter, row, header, -1, ui.theme.codeComment, UI_ALIGN_LEFT, 0);
+         UIDrawString(painter, row, header, -1, ui.theme.codeComment, UIAlign::left, 0);
          row.t += rowHeight;
          row.b += rowHeight;
       }
@@ -5831,7 +5832,7 @@ int MemoryWindowMessage(UIElement* element, UIMessage message, int di, void* dp)
          int position = 0;
 
          StringFormat(buffer, sizeof(buffer), "%.8X ", (uint32_t)(address & 0xFFFFFFFF));
-         UIDrawString(painter, row, buffer, -1, ui.theme.codeComment, UI_ALIGN_LEFT, 0);
+         UIDrawString(painter, row, buffer, -1, ui.theme.codeComment, UIAlign::left, 0);
          UIRectangle r          = row + ui_rect_4(UIMeasureStringWidth(buffer, -1), 0, 0, 0);
          int         glyphWidth = UIMeasureStringWidth("a", 1);
 
@@ -5957,7 +5958,7 @@ int ViewWindowColorSwatchMessage(UIElement* element, UIMessage message, int di, 
       uint32_t    color   = ((ViewWindowColorSwatch*)element)->color;
       UIPainter*  painter = (UIPainter*)dp;
       const char* message = "Col: ";
-      UIDrawString(painter, element->bounds, message, -1, ui.theme.text, UI_ALIGN_LEFT, nullptr);
+      UIDrawString(painter, element->bounds, message, -1, ui.theme.text, UIAlign::left, nullptr);
       UIRectangle swatch = ui_rect_4(element->bounds.l + UIMeasureStringWidth(message, -1), 0, element->bounds.t + 2,
                                      element->bounds.b - 2);
       swatch.r           = swatch.l + 50;
@@ -6026,7 +6027,7 @@ int ViewWindowMatrixGridMessage(UIElement* element, UIMessage message, int di, v
                   ui_rect_4(j * glyphWidth * 14, (j + 1) * glyphWidth * 14, i * glyphHeight, (i + 1) * glyphHeight);
                UIRectangle offset = ui_rect_2(element->bounds.l - (int)grid->hScroll->position,
                                               element->bounds.t - (int)grid->vScroll->position);
-               UIDrawString(painter, rectangle + offset, buffer, -1, ui.theme.text, UI_ALIGN_RIGHT, nullptr);
+               UIDrawString(painter, rectangle + offset, buffer, -1, ui.theme.text, UIAlign::right, nullptr);
             }
          }
       }
@@ -6596,7 +6597,7 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
                strcat(buffer, buffer2);
             }
 
-            UIDrawString(painter, stringRectangle, buffer, -1, ui.theme.text, UI_ALIGN_RIGHT, NULL);
+            UIDrawString(painter, stringRectangle, buffer, -1, ui.theme.text, UIAlign::right, NULL);
 
             int32_t x1 = (int)((float)(mouseXSample + 1) / sampleCount * client.width()) + client.l;
             WaveformDisplayDrawVerticalLineWithTranslucency(painter, ui_rect_4(x1, x1 + 1, client.t, client.b),
@@ -7118,7 +7119,7 @@ __attribute__((constructor)) void InterfaceAddBuiltinWindowsAndCommands() {
    });
    interfaceCommands.Add({.label = "Add watch", .shortcut{.invoke = CommandAddWatch}});
    interfaceCommands.Add({
-      .label = "Inspect line", .shortcut{.code = UI_KEYCODE_BACKTICK, .invoke = CommandInspectLine}
+      .label = "Inspect line", .shortcut{.code = UIKeycode::BACKTICK, .invoke = CommandInspectLine}
    });
    interfaceCommands.Add({
       .label = nullptr,
@@ -7407,7 +7408,7 @@ int GfMain(int argc, char** argv) {
    windowMain->e.messageUser = WindowMessage;
 
    for (int i = 0; i < interfaceCommands.Length(); i++) {
-      if (!interfaceCommands[i].shortcut.code)
+      if (!(int)interfaceCommands[i].shortcut.code)
          continue;
       UIWindowRegisterShortcut(windowMain, interfaceCommands[i].shortcut);
    }

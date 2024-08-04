@@ -545,7 +545,7 @@ int UIMeasureStringHeight() {
    return ui.activeFont->glyphHeight;
 }
 
-void UIDrawString(UIPainter* painter, UIRectangle r, const char* string, ptrdiff_t bytes, uint32_t color, int align,
+void UIDrawString(UIPainter* painter, UIRectangle r, const char* string, ptrdiff_t bytes, uint32_t color, UIAlign align,
                   UIStringSelection* selection) {
    UIRectangle oldClip = painter->clip;
    painter->clip       = UIRectangleIntersection(r, oldClip);
@@ -561,7 +561,7 @@ void UIDrawString(UIPainter* painter, UIRectangle r, const char* string, ptrdiff
 
    int width  = UIMeasureStringWidth(string, bytes);
    int height = UIMeasureStringHeight();
-   int x      = align == UI_ALIGN_CENTER ? ((r.l + r.r - width) / 2) : align == UI_ALIGN_RIGHT ? (r.r - width) : r.l;
+   int x      = align == UIAlign::center ? ((r.l + r.r - width) / 2) : align == UIAlign::right ? (r.r - width) : r.l;
    int y      = (r.t + r.b - height) / 2;
    int i = 0, j = 0;
 
@@ -660,9 +660,9 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
                    checked         ? "*"
                    : indeterminate ? "-"
                                    : " ",
-                   -1, textColor, UI_ALIGN_CENTER, NULL);
+                   -1, textColor, UIAlign::center, NULL);
       UIDrawString(painter, bounds + ui_rect_4(ui_size::CHECKBOX_BOX + ui_size::CHECKBOX_GAP, 0, 0, 0),
-                   label, labelBytes, disabled ? ui.theme.textDisabled : ui.theme.text, UI_ALIGN_LEFT, NULL);
+                   label, labelBytes, disabled ? ui.theme.textDisabled : ui.theme.text, UIAlign::left, NULL);
    } else if (which == UI_DRAW_CONTROL_MENU_ITEM || which == UI_DRAW_CONTROL_DROP_DOWN ||
               which == UI_DRAW_CONTROL_PUSH_BUTTON) {
       uint32_t color = buttonColor, textColor = buttonTextColor;
@@ -685,19 +685,19 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
          for (; tab < labelBytes && label[tab] != '\t'; tab++)
             ;
 
-         UIDrawString(painter, innerBounds, label, tab, textColor, UI_ALIGN_LEFT, NULL);
+         UIDrawString(painter, innerBounds, label, tab, textColor, UIAlign::left, NULL);
 
          if (labelBytes > tab) {
-            UIDrawString(painter, innerBounds, label + tab + 1, labelBytes - tab - 1, textColor, UI_ALIGN_RIGHT, NULL);
+            UIDrawString(painter, innerBounds, label + tab + 1, labelBytes - tab - 1, textColor, UIAlign::right, NULL);
          }
       } else if (which == UI_DRAW_CONTROL_DROP_DOWN) {
-         UIDrawString(painter, innerBounds, label, labelBytes, textColor, UI_ALIGN_LEFT, NULL);
-         UIDrawString(painter, innerBounds, "\x19", 1, textColor, UI_ALIGN_RIGHT, NULL);
+         UIDrawString(painter, innerBounds, label, labelBytes, textColor, UIAlign::left, NULL);
+         UIDrawString(painter, innerBounds, "\x19", 1, textColor, UIAlign::right, NULL);
       } else {
-         UIDrawString(painter, bounds, label, labelBytes, textColor, UI_ALIGN_CENTER, NULL);
+         UIDrawString(painter, bounds, label, labelBytes, textColor, UIAlign::center, NULL);
       }
    } else if (which == UI_DRAW_CONTROL_LABEL) {
-      UIDrawString(painter, bounds, label, labelBytes, ui.theme.text, UI_ALIGN_LEFT, NULL);
+      UIDrawString(painter, bounds, label, labelBytes, ui.theme.text, UIAlign::left, NULL);
    } else if (which == UI_DRAW_CONTROL_SPLITTER) {
       UIRectangle borders = (mode & UI_DRAW_CONTROL_STATE_VERTICAL) ? ui_rect_2(0, 1) : ui_rect_2(1, 0);
       UIDrawRectangle(painter, bounds, ui.theme.buttonNormal, ui.theme.border, borders);
@@ -759,13 +759,13 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
          UIDrawBlock(painter, bounds, ui.theme.buttonHovered);
    } else if (which == UI_DRAW_CONTROL_TABLE_CELL) {
       uint32_t textColor = selected ? ui.theme.textSelected : ui.theme.text;
-      UIDrawString(painter, bounds, label, labelBytes, textColor, UI_ALIGN_LEFT, NULL);
+      UIDrawString(painter, bounds, label, labelBytes, textColor, UIAlign::left, NULL);
    } else if (which == UI_DRAW_CONTROL_TABLE_BACKGROUND) {
       UIDrawBlock(painter, bounds, ui.theme.panel2);
       UIDrawRectangle(painter, ui_rect_4(bounds.l, bounds.r, bounds.t, bounds.t + (int)(ui_size::TABLE_HEADER * scale)),
                       ui.theme.panel1, ui.theme.border, ui_rect_4(0, 0, 0, 1));
    } else if (which == UI_DRAW_CONTROL_TABLE_HEADER) {
-      UIDrawString(painter, bounds, label, labelBytes, ui.theme.text, UI_ALIGN_LEFT, NULL);
+      UIDrawString(painter, bounds, label, labelBytes, ui.theme.text, UIAlign::left, NULL);
       if (selected)
          UIDrawInvert(painter, bounds);
    } else if (which == UI_DRAW_CONTROL_MDI_CHILD) {
@@ -774,7 +774,7 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
       UIDrawBorder(painter, bounds, ui.theme.buttonNormal, borders);
       UIDrawBorder(painter, bounds, ui.theme.border, ui_rect_1((int)scale));
       UIDrawBorder(painter, contentRect + ui_rect_1i(-1), ui.theme.border, ui_rect_1((int)scale));
-      UIDrawString(painter, titleRect, label, labelBytes, ui.theme.text, UI_ALIGN_LEFT, NULL);
+      UIDrawString(painter, titleRect, label, labelBytes, ui.theme.text, UIAlign::left, NULL);
    } else if (which == UI_DRAW_CONTROL_TAB) {
       uint32_t    color = selected ? ui.theme.buttonPressed : ui.theme.buttonNormal;
       UIRectangle t     = bounds;
@@ -783,7 +783,7 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
       else
          t.t++;
       UIDrawRectangle(painter, t, color, ui.theme.border, ui_rect_1(1));
-      UIDrawString(painter, bounds, label, labelBytes, ui.theme.text, UI_ALIGN_CENTER, NULL);
+      UIDrawString(painter, bounds, label, labelBytes, ui.theme.text, UIAlign::center, NULL);
    } else if (which == UI_DRAW_CONTROL_TAB_BAND) {
       UIDrawRectangle(painter, bounds, ui.theme.panel1, ui.theme.border, ui_rect_4(0, 0, 0, 1));
    }
@@ -1277,7 +1277,7 @@ int _UIButtonMessage(UIElement* element, UIMessage message, int di, void* dp) {
    } else if (message == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
-      if ((m->textBytes == 1 && m->text[0] == ' ') || m->code == UI_KEYCODE_ENTER) {
+      if ((m->textBytes == 1 && m->text[0] == ' ') || m->code == UIKeycode::ENTER) {
          UIElementMessage(element, UIMessage::CLICKED, 0, 0);
          UIElementRepaint(element, NULL);
          return 1;
@@ -1398,7 +1398,7 @@ int _UISplitterMessage(UIElement* element, UIMessage message, int di, void* dp) 
                     UI_DRAW_CONTROL_SPLITTER | (vertical ? UI_DRAW_CONTROL_STATE_VERTICAL : 0) | element->state(), NULL,
                     0, 0, element->window->scale);
    } else if (message == UIMessage::GET_CURSOR) {
-      return vertical ? UI_CURSOR_SPLIT_V : UI_CURSOR_SPLIT_H;
+      return vertical ? (uint32_t)UICursor::split_v : (uint32_t)UICursor::split_h;
    } else if (message == UIMessage::MOUSE_DRAG) {
       int cursor       = vertical ? element->window->cursor.y : element->window->cursor.x;
       int splitterSize = ui_size::SPLITTER * element->window->scale;
@@ -2079,7 +2079,7 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
             }
 
             UIDrawString(painter, marginBounds, string + p, 16 - p,
-                         marginColor ? ui.theme.codeDefault : ui.theme.codeComment, UI_ALIGN_RIGHT, NULL);
+                         marginColor ? ui.theme.codeDefault : ui.theme.codeComment, UIAlign::right, NULL);
          }
 
          if (code->focused == i) {
@@ -2123,11 +2123,11 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
       return UIElementMessage(&code->vScroll->e, message, di, dp);
    } else if (message == UIMessage::GET_CURSOR) {
       if (UICodeHitTest(code, element->window->cursor.x, element->window->cursor.y) < 0) {
-         return UI_CURSOR_FLIPPED_ARROW;
+         return (int)UICursor::flipped_arrow;
       }
 
       if (element->flags & UI_CODE_SELECTABLE) {
-         return UI_CURSOR_TEXT;
+         return (int)UICursor::text;
       }
    } else if (message == UIMessage::LEFT_UP) {
       UIElementAnimate(element, true);
@@ -2191,32 +2191,32 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
    } else if (message == UIMessage::KEY_TYPED && code->lineCount) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
-      if ((m->code == UI_KEYCODE_LETTER('C') || m->code == UI_KEYCODE_LETTER('X') || m->code == UI_KEYCODE_INSERT) &&
+      if ((m->code == UI_KEYCODE_LETTER('C') || m->code == UI_KEYCODE_LETTER('X') || m->code == UIKeycode::INSERT) &&
           element->window->ctrl && !element->window->alt && !element->window->shift) {
          _UICodeCopyText(code);
-      } else if ((m->code == UI_KEYCODE_UP || m->code == UI_KEYCODE_DOWN || m->code == UI_KEYCODE_PAGE_UP ||
-                  m->code == UI_KEYCODE_PAGE_DOWN) &&
+      } else if ((m->code == UIKeycode::UP || m->code == UIKeycode::DOWN || m->code == UIKeycode::PAGE_UP ||
+                  m->code == UIKeycode::PAGE_DOWN) &&
                  !element->window->ctrl && !element->window->alt) {
          UIFont* previousFont = UIFontActivate(code->font);
          int     lineHeight   = UIMeasureStringHeight();
 
          if (element->window->shift) {
-            if (m->code == UI_KEYCODE_UP) {
+            if (m->code == UIKeycode::UP) {
                if (code->selection[3].line - 1 >= 0) {
                   _UICodeSetVerticalMotionColumn(code, false);
                   code->selection[3].line--;
                   _UICodeSetVerticalMotionColumn(code, true);
                }
-            } else if (m->code == UI_KEYCODE_DOWN) {
+            } else if (m->code == UIKeycode::DOWN) {
                if (code->selection[3].line + 1 < code->lineCount) {
                   _UICodeSetVerticalMotionColumn(code, false);
                   code->selection[3].line++;
                   _UICodeSetVerticalMotionColumn(code, true);
                }
-            } else if (m->code == UI_KEYCODE_PAGE_UP || m->code == UI_KEYCODE_PAGE_DOWN) {
+            } else if (m->code == UIKeycode::PAGE_UP || m->code == UIKeycode::PAGE_DOWN) {
                _UICodeSetVerticalMotionColumn(code, false);
                int pageHeight = (element->bounds.t - code->hScroll->e.bounds.t) / lineHeight * 4 / 5;
-               code->selection[3].line += m->code == UI_KEYCODE_PAGE_UP ? pageHeight : -pageHeight;
+               code->selection[3].line += m->code == UIKeycode::PAGE_UP ? pageHeight : -pageHeight;
                if (code->selection[3].line < 0)
                   code->selection[3].line = 0;
                if (code->selection[3].line >= code->lineCount)
@@ -2233,9 +2233,9 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
          }
 
          UIFontActivate(previousFont);
-      } else if ((m->code == UI_KEYCODE_HOME || m->code == UI_KEYCODE_END) && !element->window->alt) {
+      } else if ((m->code == UIKeycode::HOME || m->code == UIKeycode::END) && !element->window->alt) {
          if (element->window->shift) {
-            if (m->code == UI_KEYCODE_HOME) {
+            if (m->code == UIKeycode::HOME) {
                if (element->window->ctrl)
                   code->selection[3].line = 0;
                code->selection[3].offset     = 0;
@@ -2249,16 +2249,16 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
 
             _UICodeUpdateSelection(code);
          } else {
-            code->vScroll->position           = m->code == UI_KEYCODE_HOME ? 0 : code->vScroll->maximum;
+            code->vScroll->position           = m->code == UIKeycode::HOME ? 0 : code->vScroll->maximum;
             code->moveScrollToFocusNextLayout = false;
             UIElementRefresh(&code->e);
          }
-      } else if ((m->code == UI_KEYCODE_LEFT || m->code == UI_KEYCODE_RIGHT) && !element->window->alt) {
+      } else if ((m->code == UIKeycode::LEFT || m->code == UIKeycode::RIGHT) && !element->window->alt) {
          if (element->window->shift) {
-            UICodeMoveCaret(code, m->code == UI_KEYCODE_LEFT, element->window->ctrl);
+            UICodeMoveCaret(code, m->code == UIKeycode::LEFT, element->window->ctrl);
          } else if (!element->window->ctrl) {
             code->hScroll->position +=
-               m->code == UI_KEYCODE_LEFT ? -ui.activeFont->glyphWidth : ui.activeFont->glyphWidth;
+               m->code == UIKeycode::LEFT ? -ui.activeFont->glyphWidth : ui.activeFont->glyphWidth;
             UIElementRefresh(&code->e);
          } else {
             return 0;
@@ -2717,16 +2717,16 @@ int _UITableMessage(UIElement* element, UIMessage message, int di, void* dp) {
    } else if (message == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
-      if ((m->code == UI_KEYCODE_UP || m->code == UI_KEYCODE_DOWN || m->code == UI_KEYCODE_PAGE_UP ||
-           m->code == UI_KEYCODE_PAGE_DOWN || m->code == UI_KEYCODE_HOME || m->code == UI_KEYCODE_END) &&
+      if ((m->code == UIKeycode::UP || m->code == UIKeycode::DOWN || m->code == UIKeycode::PAGE_UP ||
+           m->code == UIKeycode::PAGE_DOWN || m->code == UIKeycode::HOME || m->code == UIKeycode::END) &&
           !element->window->ctrl && !element->window->alt && !element->window->shift) {
          _UI_KEY_INPUT_VSCROLL(table, ui_size::TABLE_ROW * element->window->scale,
                                (element->bounds.t - table->hScroll->e.bounds.t + ui_size::TABLE_HEADER) * 4 / 5);
          return 1;
-      } else if ((m->code == UI_KEYCODE_LEFT || m->code == UI_KEYCODE_RIGHT) && !element->window->ctrl &&
+      } else if ((m->code == UIKeycode::LEFT || m->code == UIKeycode::RIGHT) && !element->window->ctrl &&
                  !element->window->alt && !element->window->shift) {
          table->hScroll->position +=
-            m->code == UI_KEYCODE_LEFT ? -ui.activeFont->glyphWidth : ui.activeFont->glyphWidth;
+            m->code == UIKeycode::LEFT ? -ui.activeFont->glyphWidth : ui.activeFont->glyphWidth;
          UIElementRefresh(&table->e);
          return 1;
       }
@@ -2885,10 +2885,10 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
       textBounds.l -= textbox->scroll;
 
       UIDrawString((UIPainter*)dp, textBounds, textbox->string, textbox->bytes,
-                   (element->flags & UIElement::DISABLED) ? ui.theme.textDisabled : ui.theme.text, UI_ALIGN_LEFT,
+                   (element->flags & UIElement::DISABLED) ? ui.theme.textDisabled : ui.theme.text, UIAlign::left,
                    element->window->focused == element ? &selection : NULL);
    } else if (message == UIMessage::GET_CURSOR) {
-      return UI_CURSOR_TEXT;
+      return (int)UICursor::text;
    } else if (message == UIMessage::LEFT_DOWN) {
       int column = (element->window->cursor.x - element->bounds.l + textbox->scroll -
                     ui_size::TEXTBOX_MARGIN * element->window->scale + ui.activeFont->glyphWidth / 2) /
@@ -2906,22 +2906,22 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
       if (textbox->rejectNextKey) {
          textbox->rejectNextKey = false;
          handled                = false;
-      } else if (m->code == UI_KEYCODE_BACKSPACE || m->code == UI_KEYCODE_DELETE) {
+      } else if (m->code == UIKeycode::BACKSPACE || m->code == UIKeycode::DELETE) {
          if (textbox->carets[0] == textbox->carets[1]) {
-            UITextboxMoveCaret(textbox, m->code == UI_KEYCODE_BACKSPACE, element->window->ctrl);
+            UITextboxMoveCaret(textbox, m->code == UIKeycode::BACKSPACE, element->window->ctrl);
          }
 
          UITextboxReplace(textbox, NULL, 0, true);
-      } else if (m->code == UI_KEYCODE_LEFT || m->code == UI_KEYCODE_RIGHT) {
+      } else if (m->code == UIKeycode::LEFT || m->code == UIKeycode::RIGHT) {
          if (textbox->carets[0] == textbox->carets[1] || element->window->shift) {
-            UITextboxMoveCaret(textbox, m->code == UI_KEYCODE_LEFT, element->window->ctrl);
+            UITextboxMoveCaret(textbox, m->code == UIKeycode::LEFT, element->window->ctrl);
             if (!element->window->shift)
                textbox->carets[1] = textbox->carets[0];
          } else {
             textbox->carets[1 - element->window->shift] = textbox->carets[element->window->shift];
          }
-      } else if (m->code == UI_KEYCODE_HOME || m->code == UI_KEYCODE_END) {
-         if (m->code == UI_KEYCODE_HOME) {
+      } else if (m->code == UIKeycode::HOME || m->code == UIKeycode::END) {
+         if (m->code == UIKeycode::HOME) {
             textbox->carets[0] = 0;
          } else {
             textbox->carets[0] = textbox->bytes;
@@ -2936,7 +2936,7 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
       } else if (m->textBytes && !element->window->alt && !element->window->ctrl && m->text[0] >= 0x20) {
          UITextboxReplace(textbox, m->text, m->textBytes, true);
       } else if ((m->code == UI_KEYCODE_LETTER('C') || m->code == UI_KEYCODE_LETTER('X') ||
-                  m->code == UI_KEYCODE_INSERT) &&
+                  m->code == UIKeycode::INSERT) &&
                  element->window->ctrl && !element->window->alt && !element->window->shift) {
          _UITextboxCopyText(textbox);
 
@@ -2945,7 +2945,7 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
          }
       } else if ((m->code == UI_KEYCODE_LETTER('V') && element->window->ctrl && !element->window->alt &&
                   !element->window->shift) ||
-                 (m->code == UI_KEYCODE_INSERT && !element->window->ctrl && !element->window->alt &&
+                 (m->code == UIKeycode::INSERT && !element->window->ctrl && !element->window->alt &&
                   element->window->shift)) {
          _UITextboxPasteText(textbox);
       } else {
@@ -3068,22 +3068,22 @@ int _UIMDIChildMessage(UIElement* element, UIMessage message, int di, void* dp) 
    } else if (message == UIMessage::GET_CURSOR) {
       int hitTest = _UIMDIChildHitTest(mdiChild, element->window->cursor.x, element->window->cursor.y);
       if (hitTest == 0b1000)
-         return UI_CURSOR_RESIZE_LEFT;
+         return (int)UICursor::resize_left;
       if (hitTest == 0b0010)
-         return UI_CURSOR_RESIZE_UP;
+         return (int)UICursor::resize_up;
       if (hitTest == 0b0110)
-         return UI_CURSOR_RESIZE_UP_RIGHT;
+         return (int)UICursor::resize_up_right;
       if (hitTest == 0b1010)
-         return UI_CURSOR_RESIZE_UP_LEFT;
+         return (int)UICursor::resize_up_left;
       if (hitTest == 0b0100)
-         return UI_CURSOR_RESIZE_RIGHT;
+         return (int)UICursor::resize_right;
       if (hitTest == 0b0001)
-         return UI_CURSOR_RESIZE_DOWN;
+         return (int)UICursor::resize_down;
       if (hitTest == 0b1001)
-         return UI_CURSOR_RESIZE_DOWN_LEFT;
+         return (int)UICursor::resize_down_left;
       if (hitTest == 0b0101)
-         return UI_CURSOR_RESIZE_DOWN_RIGHT;
-      return UI_CURSOR_ARROW;
+         return (int)UICursor::resize_down_right;
+      return (int)UICursor::arrow;
    } else if (message == UIMessage::LEFT_DOWN) {
       mdiChild->dragHitTest = _UIMDIChildHitTest(mdiChild, element->window->cursor.x, element->window->cursor.y);
       mdiChild->dragOffset =
@@ -3305,7 +3305,7 @@ int _UIImageDisplayMessage(UIElement* element, UIMessage message, int di, void* 
    } else if (message == UIMessage::GET_CURSOR && (element->flags & UI_IMAGE_DISPLAY_INTERACTIVE) &&
               (element->bounds.width() < display->width * display->zoom ||
                element->bounds.height() < display->height * display->zoom)) {
-      return UI_CURSOR_HAND;
+      return (int)UICursor::hand;
    } else if (message == UIMessage::MOUSE_DRAG) {
       display->panX -= (element->window->cursor.x - display->previousPanPointX) / display->zoom;
       display->panY -= (element->window->cursor.y - display->previousPanPointY) / display->zoom;
@@ -3376,10 +3376,10 @@ int _UIDialogWrapperMessage(UIElement* element, UIMessage message, int di, void*
          return 0;
 
       if (!ui.dialogCanExit) {
-      } else if (!element->window->alt && typed->code == UI_KEYCODE_ESCAPE) {
+      } else if (!element->window->alt && typed->code == UIKeycode::ESCAPE) {
          ui.dialogResult = "__C";
          return 1;
-      } else if (!element->window->alt && typed->code == UI_KEYCODE_ENTER) {
+      } else if (!element->window->alt && typed->code == UIKeycode::ENTER) {
          ui.dialogResult = "__D";
          return 1;
       }
@@ -3666,7 +3666,7 @@ int _UIMenuMessage(UIElement* element, UIMessage message, int di, void* dp) {
    } else if (message == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
-      if (m->code == UI_KEYCODE_ESCAPE) {
+      if (m->code == UIKeycode::ESCAPE) {
          _UIMenusClose();
          return 1;
       }
@@ -4151,7 +4151,7 @@ bool _UIWindowInputEvent(UIWindow* window, UIMessage message, int di, void* dp) 
          if (!handled && !UIMenusOpen() && message == UIMessage::KEY_TYPED) {
             UIKeyTyped* m = (UIKeyTyped*)dp;
 
-            if (m->code == UI_KEYCODE_TAB && !window->ctrl && !window->alt) {
+            if (m->code == UIKeycode::TAB && !window->ctrl && !window->alt) {
                UIElement* start   = window->focused ? window->focused : &window->e;
                UIElement* element = start;
 
@@ -4608,9 +4608,9 @@ void UIAutomationKeyboardType(const char* string) {
       window->shift = (c[0] >= 'A' && c[0] <= 'Z');
       c[0]          = string[i];
       m.code        = (c[0] >= 'A' && c[0] <= 'Z')   ? UI_KEYCODE_LETTER(c[0])
-                      : c[0] == '\n'                 ? UI_KEYCODE_ENTER
-                      : c[0] == '\t'                 ? UI_KEYCODE_TAB
-                      : c[0] == ' '                  ? UI_KEYCODE_SPACE
+                      : c[0] == '\n'                 ? UIKeycode::ENTER
+                      : c[0] == '\t'                 ? UIKeycode::TAB
+                      : c[0] == ' '                  ? UIKeycode::SPACE
                       : (c[0] >= '0' && c[0] <= '9') ? UI_KEYCODE_DIGIT(c[0])
                                                      : 0;
       _UIWindowInputEvent(window, UIMessage::KEY_TYPED, 0, &m);
@@ -4719,26 +4719,6 @@ int UIMessageLoop() {
 // --------------------------------------------------
 
 #ifdef UI_LINUX
-
-const int UI_KEYCODE_A         = XK_a;
-const int UI_KEYCODE_0         = XK_0;
-const int UI_KEYCODE_BACKSPACE = XK_BackSpace;
-const int UI_KEYCODE_DELETE    = XK_Delete;
-const int UI_KEYCODE_DOWN      = XK_Down;
-const int UI_KEYCODE_END       = XK_End;
-const int UI_KEYCODE_ENTER     = XK_Return;
-const int UI_KEYCODE_ESCAPE    = XK_Escape;
-const int UI_KEYCODE_F1        = XK_F1;
-const int UI_KEYCODE_HOME      = XK_Home;
-const int UI_KEYCODE_LEFT      = XK_Left;
-const int UI_KEYCODE_RIGHT     = XK_Right;
-const int UI_KEYCODE_SPACE     = XK_space;
-const int UI_KEYCODE_TAB       = XK_Tab;
-const int UI_KEYCODE_UP        = XK_Up;
-const int UI_KEYCODE_INSERT    = XK_Insert;
-const int UI_KEYCODE_BACKTICK  = XK_grave;
-const int UI_KEYCODE_PAGE_UP   = XK_Page_Up;
-const int UI_KEYCODE_PAGE_DOWN = XK_Page_Down;
 
 int _UIWindowMessage(UIElement* element, UIMessage message, int di, void* dp) {
    if (message == UIMessage::DEALLOCATE) {
@@ -4950,21 +4930,21 @@ void UIInitialise() {
    ui.targetID         = XInternAtom(ui.display, "TARGETS", 0);
    ui.incrID           = XInternAtom(ui.display, "INCR", 0);
 
-   ui.cursors[UI_CURSOR_ARROW]             = XCreateFontCursor(ui.display, XC_left_ptr);
-   ui.cursors[UI_CURSOR_TEXT]              = XCreateFontCursor(ui.display, XC_xterm);
-   ui.cursors[UI_CURSOR_SPLIT_V]           = XCreateFontCursor(ui.display, XC_sb_v_double_arrow);
-   ui.cursors[UI_CURSOR_SPLIT_H]           = XCreateFontCursor(ui.display, XC_sb_h_double_arrow);
-   ui.cursors[UI_CURSOR_FLIPPED_ARROW]     = XCreateFontCursor(ui.display, XC_right_ptr);
-   ui.cursors[UI_CURSOR_CROSS_HAIR]        = XCreateFontCursor(ui.display, XC_crosshair);
-   ui.cursors[UI_CURSOR_HAND]              = XCreateFontCursor(ui.display, XC_hand1);
-   ui.cursors[UI_CURSOR_RESIZE_UP]         = XCreateFontCursor(ui.display, XC_top_side);
-   ui.cursors[UI_CURSOR_RESIZE_LEFT]       = XCreateFontCursor(ui.display, XC_left_side);
-   ui.cursors[UI_CURSOR_RESIZE_UP_RIGHT]   = XCreateFontCursor(ui.display, XC_top_right_corner);
-   ui.cursors[UI_CURSOR_RESIZE_UP_LEFT]    = XCreateFontCursor(ui.display, XC_top_left_corner);
-   ui.cursors[UI_CURSOR_RESIZE_DOWN]       = XCreateFontCursor(ui.display, XC_bottom_side);
-   ui.cursors[UI_CURSOR_RESIZE_RIGHT]      = XCreateFontCursor(ui.display, XC_right_side);
-   ui.cursors[UI_CURSOR_RESIZE_DOWN_LEFT]  = XCreateFontCursor(ui.display, XC_bottom_left_corner);
-   ui.cursors[UI_CURSOR_RESIZE_DOWN_RIGHT] = XCreateFontCursor(ui.display, XC_bottom_right_corner);
+   ui.cursors[(uint32_t)UICursor::arrow]             = XCreateFontCursor(ui.display, XC_left_ptr);
+   ui.cursors[(uint32_t)UICursor::text]              = XCreateFontCursor(ui.display, XC_xterm);
+   ui.cursors[(uint32_t)UICursor::split_v]           = XCreateFontCursor(ui.display, XC_sb_v_double_arrow);
+   ui.cursors[(uint32_t)UICursor::split_h]           = XCreateFontCursor(ui.display, XC_sb_h_double_arrow);
+   ui.cursors[(uint32_t)UICursor::flipped_arrow]     = XCreateFontCursor(ui.display, XC_right_ptr);
+   ui.cursors[(uint32_t)UICursor::cross_hair]        = XCreateFontCursor(ui.display, XC_crosshair);
+   ui.cursors[(uint32_t)UICursor::hand]              = XCreateFontCursor(ui.display, XC_hand1);
+   ui.cursors[(uint32_t)UICursor::resize_up]         = XCreateFontCursor(ui.display, XC_top_side);
+   ui.cursors[(uint32_t)UICursor::resize_left]       = XCreateFontCursor(ui.display, XC_left_side);
+   ui.cursors[(uint32_t)UICursor::resize_up_right]   = XCreateFontCursor(ui.display, XC_top_right_corner);
+   ui.cursors[(uint32_t)UICursor::resize_up_left]    = XCreateFontCursor(ui.display, XC_top_left_corner);
+   ui.cursors[(uint32_t)UICursor::resize_down]       = XCreateFontCursor(ui.display, XC_bottom_side);
+   ui.cursors[(uint32_t)UICursor::resize_right]      = XCreateFontCursor(ui.display, XC_right_side);
+   ui.cursors[(uint32_t)UICursor::resize_down_left]  = XCreateFontCursor(ui.display, XC_bottom_left_corner);
+   ui.cursors[(uint32_t)UICursor::resize_down_right] = XCreateFontCursor(ui.display, XC_bottom_right_corner);
 
    XSetLocaleModifiers("");
 
@@ -4981,7 +4961,7 @@ void _UIWindowSetCursor(UIWindow* window, int cursor) {
 }
 
 void _UIX11ResetCursor(UIWindow* window) {
-   XDefineCursor(ui.display, window->window, ui.cursors[UI_CURSOR_ARROW]);
+   XDefineCursor(ui.display, window->window, ui.cursors[(uint32_t)UICursor::arrow]);
 }
 
 void _UIWindowEndPaint(UIWindow* window, UIPainter* painter) {
@@ -5183,7 +5163,7 @@ bool _UIProcessEvent(XEvent* event) {
          UIKeyTyped m = {0};
          m.textBytes  = Xutf8LookupString(window->xic, &event->xkey, text, sizeof(text) - 1, &symbol, &status);
          m.text       = text;
-         m.code       = XLookupKeysym(&event->xkey, 0);
+         m.code       = (UIKeycode)XLookupKeysym(&event->xkey, 0);
 
          if (symbol == XK_Control_L || symbol == XK_Control_R) {
             window->ctrl     = true;
@@ -5198,25 +5178,25 @@ bool _UIProcessEvent(XEvent* event) {
             window->altCode = event->xkey.keycode;
             _UIWindowInputEvent(window, UIMessage::MOUSE_MOVE, 0, 0);
          } else if (symbol == XK_KP_Left) {
-            m.code = UI_KEYCODE_LEFT;
+            m.code = UIKeycode::LEFT;
          } else if (symbol == XK_KP_Right) {
-            m.code = UI_KEYCODE_RIGHT;
+            m.code = UIKeycode::RIGHT;
          } else if (symbol == XK_KP_Up) {
-            m.code = UI_KEYCODE_UP;
+            m.code = UIKeycode::UP;
          } else if (symbol == XK_KP_Down) {
-            m.code = UI_KEYCODE_DOWN;
+            m.code = UIKeycode::DOWN;
          } else if (symbol == XK_KP_Home) {
-            m.code = UI_KEYCODE_HOME;
+            m.code = UIKeycode::HOME;
          } else if (symbol == XK_KP_End) {
-            m.code = UI_KEYCODE_END;
+            m.code = UIKeycode::END;
          } else if (symbol == XK_KP_Enter) {
-            m.code = UI_KEYCODE_ENTER;
+            m.code = UIKeycode::ENTER;
          } else if (symbol == XK_KP_Delete) {
-            m.code = UI_KEYCODE_DELETE;
+            m.code = UIKeycode::DELETE;
          } else if (symbol == XK_KP_Page_Up) {
-            m.code = UI_KEYCODE_UP;
+            m.code = UIKeycode::UP;
          } else if (symbol == XK_KP_Page_Down) {
-            m.code = UI_KEYCODE_DOWN;
+            m.code = UIKeycode::DOWN;
          }
 
          _UIWindowInputEvent(window, UIMessage::KEY_TYPED, 0, &m);
@@ -5242,7 +5222,7 @@ bool _UIProcessEvent(XEvent* event) {
          UIKeyTyped m = {0};
          m.textBytes  = Xutf8LookupString(window->xic, &event->xkey, text, sizeof(text) - 1, &symbol, &status);
          m.text       = text;
-         m.code       = XLookupKeysym(&event->xkey, 0);
+         m.code       = (UIKeycode)XLookupKeysym(&event->xkey, 0);
          _UIWindowInputEvent(window, UIMessage::KEY_RELEASED, 0, &m);
       }
    } else if (event->type == FocusIn) {
@@ -5494,26 +5474,6 @@ void UIWindowPostMessage(UIWindow* window, UIMessage message, void* _dp) {
 
 #ifdef UI_WINDOWS
 
-const int UI_KEYCODE_A         = 'A';
-const int UI_KEYCODE_0         = '0';
-const int UI_KEYCODE_BACKSPACE = VK_BACK;
-const int UI_KEYCODE_DELETE    = VK_DELETE;
-const int UI_KEYCODE_DOWN      = VK_DOWN;
-const int UI_KEYCODE_END       = VK_END;
-const int UI_KEYCODE_ENTER     = VK_RETURN;
-const int UI_KEYCODE_ESCAPE    = VK_ESCAPE;
-const int UI_KEYCODE_F1        = VK_F1;
-const int UI_KEYCODE_HOME      = VK_HOME;
-const int UI_KEYCODE_LEFT      = VK_LEFT;
-const int UI_KEYCODE_RIGHT     = VK_RIGHT;
-const int UI_KEYCODE_SPACE     = VK_SPACE;
-const int UI_KEYCODE_TAB       = VK_TAB;
-const int UI_KEYCODE_UP        = VK_UP;
-const int UI_KEYCODE_INSERT    = VK_INSERT;
-const int UI_KEYCODE_BACKTICK  = VK_OEM_3;
-const int UI_KEYCODE_PAGE_UP   = VK_PRIOR;
-const int UI_KEYCODE_PAGE_DOWN = VK_NEXT;
-
 int _UIWindowMessage(UIElement* element, UIMessage message, int di, void* dp) {
    if (message == UIMessage::DEALLOCATE) {
       UIWindow* window = (UIWindow*)element;
@@ -5604,7 +5564,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPAR
       window->alt   = GetKeyState(VK_MENU) & 0x8000;
 
       UIKeyTyped m = {0};
-      m.code       = wParam;
+      m.code       = (UIKeycode)wParam;
       _UIWindowInputEvent(window, UIMessage::KEY_TYPED, 0, &m);
    } else if (message == WM_CHAR) {
       UIKeyTyped m = {0};
@@ -5674,21 +5634,21 @@ void UIInitialise() {
 
    _UIInitialiseCommon();
 
-   ui.cursors[UI_CURSOR_ARROW]             = LoadCursor(NULL, IDC_ARROW);
-   ui.cursors[UI_CURSOR_TEXT]              = LoadCursor(NULL, IDC_IBEAM);
-   ui.cursors[UI_CURSOR_SPLIT_V]           = LoadCursor(NULL, IDC_SIZENS);
-   ui.cursors[UI_CURSOR_SPLIT_H]           = LoadCursor(NULL, IDC_SIZEWE);
-   ui.cursors[UI_CURSOR_FLIPPED_ARROW]     = LoadCursor(NULL, IDC_ARROW);
-   ui.cursors[UI_CURSOR_CROSS_HAIR]        = LoadCursor(NULL, IDC_CROSS);
-   ui.cursors[UI_CURSOR_HAND]              = LoadCursor(NULL, IDC_HAND);
-   ui.cursors[UI_CURSOR_RESIZE_UP]         = LoadCursor(NULL, IDC_SIZENS);
-   ui.cursors[UI_CURSOR_RESIZE_LEFT]       = LoadCursor(NULL, IDC_SIZEWE);
-   ui.cursors[UI_CURSOR_RESIZE_UP_RIGHT]   = LoadCursor(NULL, IDC_SIZENESW);
-   ui.cursors[UI_CURSOR_RESIZE_UP_LEFT]    = LoadCursor(NULL, IDC_SIZENWSE);
-   ui.cursors[UI_CURSOR_RESIZE_DOWN]       = LoadCursor(NULL, IDC_SIZENS);
-   ui.cursors[UI_CURSOR_RESIZE_RIGHT]      = LoadCursor(NULL, IDC_SIZEWE);
-   ui.cursors[UI_CURSOR_RESIZE_DOWN_LEFT]  = LoadCursor(NULL, IDC_SIZENESW);
-   ui.cursors[UI_CURSOR_RESIZE_DOWN_RIGHT] = LoadCursor(NULL, IDC_SIZENWSE);
+   ui.cursors[(uint32_t)UICursor::ARROW]             = LoadCursor(NULL, IDC_ARROW);
+   ui.cursors[(uint32_t)UICursor::TEXT]              = LoadCursor(NULL, IDC_IBEAM);
+   ui.cursors[(uint32_t)UICursor::SPLIT_V]           = LoadCursor(NULL, IDC_SIZENS);
+   ui.cursors[(uint32_t)UICursor::SPLIT_H]           = LoadCursor(NULL, IDC_SIZEWE);
+   ui.cursors[(uint32_t)UICursor::FLIPPED_ARROW]     = LoadCursor(NULL, IDC_ARROW);
+   ui.cursors[(uint32_t)UICursor::CROSS_HAIR]        = LoadCursor(NULL, IDC_CROSS);
+   ui.cursors[(uint32_t)UICursor::HAND]              = LoadCursor(NULL, IDC_HAND);
+   ui.cursors[(uint32_t)UICursor::RESIZE_UP]         = LoadCursor(NULL, IDC_SIZENS);
+   ui.cursors[(uint32_t)UICursor::RESIZE_LEFT]       = LoadCursor(NULL, IDC_SIZEWE);
+   ui.cursors[(uint32_t)UICursor::RESIZE_UP_RIGHT]   = LoadCursor(NULL, IDC_SIZENESW);
+   ui.cursors[(uint32_t)UICursor::RESIZE_UP_LEFT]    = LoadCursor(NULL, IDC_SIZENWSE);
+   ui.cursors[(uint32_t)UICursor::RESIZE_DOWN]       = LoadCursor(NULL, IDC_SIZENS);
+   ui.cursors[(uint32_t)UICursor::RESIZE_RIGHT]      = LoadCursor(NULL, IDC_SIZEWE);
+   ui.cursors[(uint32_t)UICursor::RESIZE_DOWN_LEFT]  = LoadCursor(NULL, IDC_SIZENESW);
+   ui.cursors[(uint32_t)UICursor::RESIZE_DOWN_RIGHT] = LoadCursor(NULL, IDC_SIZENWSE);
 
    WNDCLASS windowClass      = {0};
    windowClass.lpfnWndProc   = _UIWindowProcedure;

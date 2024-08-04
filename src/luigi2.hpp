@@ -73,6 +73,59 @@
    #include <freetype/ftbitmap.h>
 #endif
 
+#ifdef UI_LINUX
+
+enum class UIKeycode : int {
+    A         = XK_a,
+    ZERO      = XK_0,
+    BACKSPACE = XK_BackSpace,
+    DELETE    = XK_Delete,
+    DOWN      = XK_Down,
+    END       = XK_End,
+    ENTER     = XK_Return,
+    ESCAPE    = XK_Escape,
+    F1        = XK_F1,
+    HOME      = XK_Home,
+    LEFT      = XK_Left,
+    RIGHT     = XK_Right,
+    SPACE     = XK_space,
+    TAB       = XK_Tab,
+    UP        = XK_Up,
+    INSERT    = XK_Insert,
+    BACKTICK  = XK_grave,
+    PAGE_UP   = XK_Page_Up,
+    PAGE_DOWN = XK_Page_Down,
+};
+#endif
+
+#ifdef UI_WINDOWS
+enum class UIKeycode : int {
+    A         = 'A',
+    ZERO      = '0',
+    BACKSPACE = VK_BACK,
+    DELETE    = VK_DELETE,
+    DOWN      = VK_DOWN,
+    END       = VK_END,
+    ENTER     = VK_RETURN,
+    ESCAPE    = VK_ESCAPE,
+    F1        = VK_F1,
+    HOME      = VK_HOME,
+    LEFT      = VK_LEFT,
+    RIGHT     = VK_RIGHT,
+    SPACE     = VK_SPACE,
+    TAB       = VK_TAB,
+    UP        = VK_UP,
+    INSERT    = VK_INSERT,
+    BACKTICK  = VK_OEM_3,
+    PAGE_UP   = VK_PRIOR,
+    PAGE_DOWN = VK_NEXT,
+};
+#endif
+
+inline UIKeycode UI_KEYCODE_LETTER(char x) { return (UIKeycode)((int)UIKeycode::A + (x - 'A')); }
+inline UIKeycode UI_KEYCODE_DIGIT(char x) { return (UIKeycode)((int)UIKeycode::ZERO + (x - '0')); }
+inline UIKeycode UI_KEYCODE_FKEY(char x) { return (UIKeycode)((int)UIKeycode::F1 + (x - 1)); }
+
 // --------------------------------------------------
 // Definitions.
 // --------------------------------------------------
@@ -261,8 +314,8 @@ struct UIFont {
 };
 
 struct UIShortcut {
-   intptr_t code;
-   bool     ctrl, shift, alt;
+   UIKeycode code;
+   bool      ctrl, shift, alt;
    void (*invoke)(void* cp);
    void* cp;
 };
@@ -275,7 +328,7 @@ struct UIStringSelection {
 struct UIKeyTyped {
    char*    text;
    int      textBytes;
-   intptr_t code;
+   UIKeycode code;
 };
 
 struct UITableGetItem {
@@ -330,82 +383,65 @@ inline uint32_t ui_color_from_rgba(float r, float g, float b, float a) {
 #endif
 
 
-#define UI_DRAW_CONTROL_PUSH_BUTTON (1)
-#define UI_DRAW_CONTROL_DROP_DOWN (2)
-#define UI_DRAW_CONTROL_MENU_ITEM (3)
-#define UI_DRAW_CONTROL_CHECKBOX (4)
-#define UI_DRAW_CONTROL_LABEL (5)
-#define UI_DRAW_CONTROL_SPLITTER (6)
-#define UI_DRAW_CONTROL_SCROLL_TRACK (7)
-#define UI_DRAW_CONTROL_SCROLL_UP (8)
-#define UI_DRAW_CONTROL_SCROLL_DOWN (9)
-#define UI_DRAW_CONTROL_SCROLL_THUMB (10)
-#define UI_DRAW_CONTROL_GAUGE (11)
-#define UI_DRAW_CONTROL_SLIDER (12)
-#define UI_DRAW_CONTROL_TEXTBOX (13)
-#define UI_DRAW_CONTROL_MODAL_POPUP (14)
-#define UI_DRAW_CONTROL_MENU (15)
-#define UI_DRAW_CONTROL_TABLE_ROW (16)
-#define UI_DRAW_CONTROL_TABLE_CELL (17)
-#define UI_DRAW_CONTROL_TABLE_BACKGROUND (18)
-#define UI_DRAW_CONTROL_TABLE_HEADER (19)
-#define UI_DRAW_CONTROL_MDI_CHILD (20)
-#define UI_DRAW_CONTROL_TAB (21)
-#define UI_DRAW_CONTROL_TAB_BAND (22)
-#define UI_DRAW_CONTROL_TYPE_MASK (0xFF)
-#define UI_DRAW_CONTROL_STATE_SELECTED (1 << 24)
-#define UI_DRAW_CONTROL_STATE_VERTICAL (1 << 25)
-#define UI_DRAW_CONTROL_STATE_INDETERMINATE (1 << 26)
-#define UI_DRAW_CONTROL_STATE_CHECKED (1 << 27)
-#define UI_DRAW_CONTROL_STATE_HOVERED (1 << 28)
-#define UI_DRAW_CONTROL_STATE_FOCUSED (1 << 29)
-#define UI_DRAW_CONTROL_STATE_PRESSED (1 << 30)
-#define UI_DRAW_CONTROL_STATE_DISABLED (1 << 31)
+enum {
+   UI_DRAW_CONTROL_PUSH_BUTTON      = 1,
+   UI_DRAW_CONTROL_DROP_DOWN        = 2,
+   UI_DRAW_CONTROL_MENU_ITEM        = 3,
+   UI_DRAW_CONTROL_CHECKBOX         = 4,
+   UI_DRAW_CONTROL_LABEL            = 5,
+   UI_DRAW_CONTROL_SPLITTER         = 6,
+   UI_DRAW_CONTROL_SCROLL_TRACK     = 7,
+   UI_DRAW_CONTROL_SCROLL_UP        = 8,
+   UI_DRAW_CONTROL_SCROLL_DOWN      = 9,
+   UI_DRAW_CONTROL_SCROLL_THUMB     = 10,
+   UI_DRAW_CONTROL_GAUGE            = 11,
+   UI_DRAW_CONTROL_SLIDER           = 12,
+   UI_DRAW_CONTROL_TEXTBOX          = 13,
+   UI_DRAW_CONTROL_MODAL_POPUP      = 14,
+   UI_DRAW_CONTROL_MENU             = 15,
+   UI_DRAW_CONTROL_TABLE_ROW        = 16,
+   UI_DRAW_CONTROL_TABLE_CELL       = 17,
+   UI_DRAW_CONTROL_TABLE_BACKGROUND = 18,
+   UI_DRAW_CONTROL_TABLE_HEADER     = 19,
+   UI_DRAW_CONTROL_MDI_CHILD        = 20,
+   UI_DRAW_CONTROL_TAB              = 21,
+   UI_DRAW_CONTROL_TAB_BAND         = 22,
 
-#define UI_CURSOR_ARROW (0)
-#define UI_CURSOR_TEXT (1)
-#define UI_CURSOR_SPLIT_V (2)
-#define UI_CURSOR_SPLIT_H (3)
-#define UI_CURSOR_FLIPPED_ARROW (4)
-#define UI_CURSOR_CROSS_HAIR (5)
-#define UI_CURSOR_HAND (6)
-#define UI_CURSOR_RESIZE_UP (7)
-#define UI_CURSOR_RESIZE_LEFT (8)
-#define UI_CURSOR_RESIZE_UP_RIGHT (9)
-#define UI_CURSOR_RESIZE_UP_LEFT (10)
-#define UI_CURSOR_RESIZE_DOWN (11)
-#define UI_CURSOR_RESIZE_RIGHT (12)
-#define UI_CURSOR_RESIZE_DOWN_RIGHT (13)
-#define UI_CURSOR_RESIZE_DOWN_LEFT (14)
-#define UI_CURSOR_COUNT (15)
+   UI_DRAW_CONTROL_TYPE_MASK           = 0xFF,
+   UI_DRAW_CONTROL_STATE_SELECTED      = 1 << 24,
+   UI_DRAW_CONTROL_STATE_VERTICAL      = 1 << 25,
+   UI_DRAW_CONTROL_STATE_INDETERMINATE = 1 << 26,
+   UI_DRAW_CONTROL_STATE_CHECKED       = 1 << 27,
+   UI_DRAW_CONTROL_STATE_HOVERED       = 1 << 28,
+   UI_DRAW_CONTROL_STATE_FOCUSED       = 1 << 29,
+   UI_DRAW_CONTROL_STATE_PRESSED       = 1 << 30,
+   UI_DRAW_CONTROL_STATE_DISABLED      = 1 << 31,
+};
 
-#define UI_ALIGN_LEFT (1)
-#define UI_ALIGN_RIGHT (2)
-#define UI_ALIGN_CENTER (3)
+enum class UICursor : uint32_t {
+   arrow             = 0,
+   text              = 1,
+   split_v           = 2,
+   split_h           = 3,
+   flipped_arrow     = 4,
+   cross_hair        = 5,
+   hand              = 6,
+   resize_up         = 7,
+   resize_left       = 8,
+   resize_up_right   = 9,
+   resize_up_left    = 10,
+   resize_down       = 11,
+   resize_right      = 12,
+   resize_down_right = 13,
+   resize_down_left  = 14,
+   count             = 15,
+};
 
-extern const int UI_KEYCODE_A;
-extern const int UI_KEYCODE_BACKSPACE;
-extern const int UI_KEYCODE_DELETE;
-extern const int UI_KEYCODE_DOWN;
-extern const int UI_KEYCODE_END;
-extern const int UI_KEYCODE_ENTER;
-extern const int UI_KEYCODE_ESCAPE;
-extern const int UI_KEYCODE_F1;
-extern const int UI_KEYCODE_HOME;
-extern const int UI_KEYCODE_LEFT;
-extern const int UI_KEYCODE_RIGHT;
-extern const int UI_KEYCODE_SPACE;
-extern const int UI_KEYCODE_TAB;
-extern const int UI_KEYCODE_UP;
-extern const int UI_KEYCODE_INSERT;
-extern const int UI_KEYCODE_0;
-extern const int UI_KEYCODE_BACKTICK;
-extern const int UI_KEYCODE_PAGE_UP;
-extern const int UI_KEYCODE_PAGE_DOWN;
-
-#define UI_KEYCODE_LETTER(x) (UI_KEYCODE_A + (x) - 'A')
-#define UI_KEYCODE_DIGIT(x) (UI_KEYCODE_0 + (x) - '0')
-#define UI_KEYCODE_FKEY(x) (UI_KEYCODE_F1 + (x)-1)
+enum class UIAlign : uint32_t {
+   left   = 1,
+   right  = 2,
+   center = 3,
+};
 
 struct UIWindow;
 struct UIRectangle;
@@ -582,17 +618,17 @@ struct UIScrollBar {
    UIElementMove(&element->hScroll->e, hScrollBarBounds, true);
 
 #define _UI_KEY_INPUT_VSCROLL(element, rowHeight, pageHeight) \
-   if (m->code == UI_KEYCODE_UP)                              \
+   if (m->code == UIKeycode::UP)                              \
       element->vScroll->position -= (rowHeight);              \
-   else if (m->code == UI_KEYCODE_DOWN)                       \
+   else if (m->code == UIKeycode::DOWN)                       \
       element->vScroll->position += (rowHeight);              \
-   else if (m->code == UI_KEYCODE_PAGE_UP)                    \
+   else if (m->code == UIKeycode::PAGE_UP)                    \
       element->vScroll->position += (pageHeight);             \
-   else if (m->code == UI_KEYCODE_PAGE_DOWN)                  \
+   else if (m->code == UIKeycode::PAGE_DOWN)                  \
       element->vScroll->position -= (pageHeight);             \
-   else if (m->code == UI_KEYCODE_HOME)                       \
+   else if (m->code == UIKeycode::HOME)                       \
       element->vScroll->position = 0;                         \
-   else if (m->code == UI_KEYCODE_END)                        \
+   else if (m->code == UIKeycode::END)                        \
       element->vScroll->position = element->vScroll->maximum; \
    UIElementRefresh(&element->e);
 
@@ -794,7 +830,7 @@ void UIDrawGlyph(UIPainter* painter, int x, int y, int c, uint32_t color);
 void UIDrawRectangle(UIPainter* painter, UIRectangle r, uint32_t mainColor, uint32_t borderColor,
                      UIRectangle borderSize);
 void UIDrawBorder(UIPainter* painter, UIRectangle r, uint32_t borderColor, UIRectangle borderSize);
-void UIDrawString(UIPainter* painter, UIRectangle r, const char* string, ptrdiff_t bytes, uint32_t color, int align,
+void UIDrawString(UIPainter* painter, UIRectangle r, const char* string, ptrdiff_t bytes, uint32_t color, UIAlign align,
                   UIStringSelection* selection);
 int  UIDrawStringHighlighted(UIPainter* painter, UIRectangle r, const char* string, ptrdiff_t bytes, int tabSize,
                              UIStringSelection* selection); // Returns final x position.
@@ -873,13 +909,13 @@ struct UI {
    Atom     windowClosedID, primaryID, uriListID, plainTextID;
    Atom   dndEnterID, dndPositionID, dndStatusID, dndActionCopyID, dndDropID, dndSelectionID, dndFinishedID, dndAwareID;
    Atom   clipboardID, xSelectionDataID, textID, targetID, incrID;
-   Cursor cursors[UI_CURSOR_COUNT];
+   Cursor cursors[(uint32_t)UICursor::count];
    char*  pasteText;
    XEvent copyEvent;
 #endif
 
 #ifdef UI_WINDOWS
-   HCURSOR cursors[UI_CURSOR_COUNT];
+   HCURSOR cursors[(uint32_t)UICursor::COUNT];
    HANDLE  heap;
    bool    assertionFailure;
 #endif
