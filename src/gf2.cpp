@@ -304,7 +304,7 @@ bool INIParse(INIState* s) {
 
 int ModifiedRowMessage(UIElement* element, UIMessage message, int di, void* dp) {
    if (message == UI_MSG_PAINT) {
-      UIDrawBorder((UIPainter*)dp, element->bounds, ui.theme.selected, UI_RECT_1(2));
+      UIDrawBorder((UIPainter*)dp, element->bounds, ui.theme.selected, ui_rect_1(2));
    }
 
    return 0;
@@ -313,7 +313,7 @@ int ModifiedRowMessage(UIElement* element, UIMessage message, int di, void* dp) 
 int TrafficLightMessage(UIElement* element, UIMessage message, int di, void* dp) {
    if (message == UI_MSG_PAINT) {
       UIDrawRectangle((UIPainter*)dp, element->bounds, programRunning ? ui.theme.accent1 : ui.theme.accent2,
-                      ui.theme.border, UI_RECT_1(1));
+                      ui.theme.border, ui_rect_1(1));
    }
 
    return 0;
@@ -1608,11 +1608,11 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
    char        buffer[256];
    int         lineHeight = UIMeasureStringHeight();
    UIRectangle bounds     =
-      displayCurrentLineBounds + UI_RECT_4(xOffset, 0, lineHeight, 8 + lineHeight * (inspectResults.Length() / 2 + 1));
+      displayCurrentLineBounds + ui_rect_4(xOffset, 0, lineHeight, 8 + lineHeight * (inspectResults.Length() / 2 + 1));
    bounds.r = bounds.l + width;
-   UIDrawBlock(painter, bounds + UI_RECT_1(3), ui.theme.border);
-   UIDrawRectangle(painter, bounds, ui.theme.codeBackground, ui.theme.border, UI_RECT_1(2));
-   UIRectangle line = bounds + UI_RECT_4(4, -4, 4, 0);
+   UIDrawBlock(painter, bounds + ui_rect_1(3), ui.theme.border);
+   UIDrawRectangle(painter, bounds, ui.theme.codeBackground, ui.theme.border, ui_rect_1(2));
+   UIRectangle line = bounds + ui_rect_4(4, -4, 4, 0);
    line.b           = line.t + lineHeight;
 
    for (int index = 0; index < inspectResults.Length() / 2; index++) {
@@ -1627,7 +1627,7 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
 
       UIDrawString(painter, line, buffer, -1, noInspectResults ? ui.theme.codeOperator : ui.theme.codeString,
                    UI_ALIGN_LEFT, NULL);
-      line = line + UI_RECT_2(0, lineHeight);
+      line = line + ui_rect_2(0, lineHeight);
    }
 
    UIDrawString(painter, line, instructions, -1, ui.theme.codeNumber, UI_ALIGN_RIGHT, NULL);
@@ -1730,7 +1730,7 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
 
       if (m->index == autoPrintResultLine) {
          UIRectangle rectangle =
-            UI_RECT_4(m->x + ui.activeFont->glyphWidth, m->bounds.r, m->y, m->y + UIMeasureStringHeight());
+            ui_rect_4(m->x + ui.activeFont->glyphWidth, m->bounds.r, m->y, m->y + UIMeasureStringHeight());
          UIDrawString(m->painter, rectangle, autoPrintResult, -1, ui.theme.codeComment, UI_ALIGN_LEFT, NULL);
       }
 
@@ -1739,7 +1739,7 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
           (element->window->ctrl || element->window->alt || element->window->shift) &&
           !element->window->textboxModifiedFlag) {
          UIDrawBorder(m->painter, m->bounds, element->window->ctrl ? ui.theme.selected : ui.theme.codeOperator,
-                      UI_RECT_1(2));
+                      ui_rect_1(2));
          UIDrawString(m->painter, m->bounds, element->window->ctrl ? "=> run until " : "=> skip to ", -1, ui.theme.text,
                       UI_ALIGN_RIGHT, NULL);
       } else if (m->index == currentEndOfBlock) {
@@ -1750,7 +1750,7 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
          int columnFrom = _UICodeByteToColumn(code, ifConditionLine - 1, ifConditionFrom);
          int columnTo   = _UICodeByteToColumn(code, ifConditionLine - 1, ifConditionTo);
          UIDrawBlock(m->painter,
-                     UI_RECT_4(m->bounds.l + columnFrom * ui.activeFont->glyphWidth,
+                     ui_rect_4(m->bounds.l + columnFrom * ui.activeFont->glyphWidth,
                                m->bounds.l + columnTo * ui.activeFont->glyphWidth, m->bounds.b - 2, m->bounds.b),
                      ifConditionEvaluation == 2 ? ui.theme.accent2 : ui.theme.accent1);
       }
@@ -2309,7 +2309,7 @@ void BitmapViewerUpdate(const char* pointerString, const char* widthString, cons
       if (strideString)
          StringFormat(bitmap->stride, sizeof(bitmap->stride), "%s", strideString);
 
-      UIMDIChild* window    = UIMDIChildCreate(&dataWindow->e, UI_MDI_CHILD_CLOSE_BUTTON, UI_RECT_1(0), "Bitmap", -1);
+      UIMDIChild* window    = UIMDIChildCreate(&dataWindow->e, UI_MDI_CHILD_CLOSE_BUTTON, ui_rect_1(0), "Bitmap", -1);
       window->e.messageUser = BitmapViewerWindowMessage;
       window->e.cp          = bitmap;
       bitmap->autoToggle    = UIButtonCreate(&window->e, UI_BUTTON_SMALL | UI_ELEMENT_NON_CLIENT, "Auto", -1);
@@ -2465,7 +2465,7 @@ UIElement* ConsoleWindowCreate(UIElement* parent) {
    UIPanel* panel2             = UIPanelCreate(parent, UI_PANEL_EXPAND);
    displayOutput               = UICodeCreate(&panel2->e, UI_CODE_NO_MARGIN | UI_ELEMENT_V_FILL | UI_CODE_SELECTABLE);
    UIPanel* panel3             = UIPanelCreate(&panel2->e, UI_PANEL_HORIZONTAL | UI_PANEL_EXPAND | UI_PANEL_COLOR_1);
-   panel3->border              = UI_RECT_1(5);
+   panel3->border              = ui_rect_1(5);
    panel3->gap                 = 5;
    trafficLight                = UISpacerCreate(&panel3->e, 0, 30, 30);
    trafficLight->e.messageUser = TrafficLightMessage;
@@ -3008,7 +3008,7 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
 
    char buffer[256];
    StringFormat(buffer, sizeof(buffer), "Log %s", evaluateResult);
-   UIMDIChild* child = UIMDIChildCreate(&dataWindow->e, UI_MDI_CHILD_CLOSE_BUTTON, UI_RECT_1(0), buffer, -1);
+   UIMDIChild* child = UIMDIChildCreate(&dataWindow->e, UI_MDI_CHILD_CLOSE_BUTTON, ui_rect_1(0), buffer, -1);
    StringFormat(buffer, sizeof(buffer), "watch * %s", evaluateResult);
    EvaluateCommand(buffer);
    char* number = strstr(evaluateResult, "point ");
@@ -3336,7 +3336,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
 
          if (focused)
             UIDrawBlock(painter, row, ui.theme.selected);
-         UIDrawBorder(painter, row, ui.theme.border, UI_RECT_4(0, 1, 0, 1));
+         UIDrawBorder(painter, row, ui.theme.border, ui_rect_4(0, 1, 0, 1));
 
          row.l += UI_SIZE_TEXTBOX_MARGIN;
          row.r -= UI_SIZE_TEXTBOX_MARGIN;
@@ -4115,7 +4115,7 @@ int FilesButtonMessage(UIElement* element, UIMessage message, int di, void* dp) 
       int        i       = (element == element->window->pressed) + (element == element->window->hovered);
       if (i)
          UIDrawBlock(painter, element->bounds, i == 2 ? ui.theme.buttonPressed : ui.theme.buttonHovered);
-      UIDrawString(painter, element->bounds + UI_RECT_4(UI_SIZE_BUTTON_PADDING, 0, 0, 0), button->label,
+      UIDrawString(painter, element->bounds + ui_rect_4(UI_SIZE_BUTTON_PADDING, 0, 0, 0), button->label,
                    button->labelBytes, button->e.flags & UI_BUTTON_CHECKED ? ui.theme.codeNumber : ui.theme.codeDefault,
                    UI_ALIGN_LEFT, NULL);
       return 1;
@@ -4191,7 +4191,7 @@ UIElement* FilesWindowCreate(UIElement* parent) {
    UIPanel*     container = UIPanelCreate(parent, UI_PANEL_EXPAND);
    window->panel =
       UIPanelCreate(&container->e, UI_PANEL_COLOR_1 | UI_PANEL_EXPAND | UI_PANEL_SCROLL | UI_ELEMENT_V_FILL);
-   window->panel->gap = -1, window->panel->border = UI_RECT_1(1);
+   window->panel->gap = -1, window->panel->border = ui_rect_1(1);
    window->panel->e.cp = window;
    UIPanel*  row       = UIPanelCreate(&container->e, UI_PANEL_COLOR_2 | UI_PANEL_HORIZONTAL | UI_PANEL_SMALL_SPACING);
    UIButton* button;
@@ -4957,20 +4957,20 @@ void* ProfFlameGraphRenderThread(void* _unused) {
             r.t = rt < report->client.t ? report->client.t : rt;
             r.b = rb > report->client.b ? report->client.b : rb;
 
-            UIDrawBlock(painter, UI_RECT_4(r.r - 1, r.r, r.t, r.b - 1), profBorderDarkColor);
-            UIDrawBlock(painter, UI_RECT_4(r.l, r.r, r.b - 1, r.b), profBorderDarkColor);
-            UIDrawBlock(painter, UI_RECT_4(r.l, r.r - 1, r.t, r.t + 1), profBorderLightColor);
-            UIDrawBlock(painter, UI_RECT_4(r.l, r.l + 1, r.t + 1, r.b - 1), profBorderLightColor);
+            UIDrawBlock(painter, ui_rect_4(r.r - 1, r.r, r.t, r.b - 1), profBorderDarkColor);
+            UIDrawBlock(painter, ui_rect_4(r.l, r.r, r.b - 1, r.b), profBorderDarkColor);
+            UIDrawBlock(painter, ui_rect_4(r.l, r.r - 1, r.t, r.t + 1), profBorderLightColor);
+            UIDrawBlock(painter, ui_rect_4(r.l, r.l + 1, r.t + 1, r.b - 1), profBorderLightColor);
 
             bool     hovered = report->hover && report->hover->thisFunction == entry->thisFunction && !report->dragMode;
             uint32_t color   = hovered ? profHoverColor : profEntryColorPalette[entry->colorIndex];
             /// uint32_t color = hovered ? profHoverColor : profMainColor;
-            UIDrawBlock(painter, UI_RECT_4(r.l + 1, r.r - 1, r.t + 1, r.b - 1), color);
+            UIDrawBlock(painter, ui_rect_4(r.l + 1, r.r - 1, r.t + 1, r.b - 1), color);
 
             if (r.width() > 40) {
                char string[128];
                StringFormat(string, sizeof(string), "%s %fms", entry->cName, entry->endTime - entry->startTime);
-               UIDrawString(painter, UI_RECT_4(r.l + 2, r.r, r.t, r.b), string, -1, profTextColor, UI_ALIGN_LEFT, NULL);
+               UIDrawString(painter, ui_rect_4(r.l + 2, r.r, r.t, r.b), string, -1, profTextColor, UI_ALIGN_LEFT, NULL);
             }
          }
 
@@ -5037,8 +5037,8 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
 
       {
          UIRectangle r =
-            UI_RECT_4(report->client.l, report->client.r, report->client.t, report->client.t + profScaleHeight);
-         UIDrawRectangle(painter, r, profMainColor, profBorderDarkColor, UI_RECT_4(0, 0, 0, 1));
+            ui_rect_4(report->client.l, report->client.r, report->client.t, report->client.t + profScaleHeight);
+         UIDrawRectangle(painter, r, profMainColor, profBorderDarkColor, ui_rect_4(0, 0, 0, 1));
 
          double increment = 1000.0;
          while (increment > 1e-6 && increment * zoomX > 600.0)
@@ -5057,7 +5057,7 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
                break;
             char string[128];
             StringFormat(string, sizeof(string), "%.4fms", i);
-            UIDrawBlock(painter, UI_RECT_4(r.l, r.l + 1, r.t, r.b), profBorderLightColor);
+            UIDrawBlock(painter, ui_rect_4(r.l, r.l + 1, r.t, r.b), profBorderLightColor);
             UIDrawString(painter, r, string, -1, profTextColor, UI_ALIGN_LEFT, NULL);
          }
       }
@@ -5072,7 +5072,7 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
 
       if (report->thumbnail) {
          UIRectangle zoomBar =
-            UI_RECT_4(report->client.l, report->client.r, report->client.b - profZoomBarHeight, report->client.b);
+            ui_rect_4(report->client.l, report->client.r, report->client.b - profZoomBarHeight, report->client.b);
          UIRectangle zoomBarThumb = zoomBar;
          zoomBarThumb.l           = zoomBar.l + zoomBar.width() * (report->xStart / report->totalTime);
          zoomBarThumb.r           = zoomBar.l + zoomBar.width() * (report->xEnd / report->totalTime);
@@ -5089,8 +5089,8 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
             }
          }
 
-         UIDrawBorder(painter, zoomBar, profBorderDarkColor, UI_RECT_1(2));
-         UIDrawBorder(painter, zoomBarThumb, profBorderLightColor, UI_RECT_1(4));
+         UIDrawBorder(painter, zoomBar, profBorderDarkColor, ui_rect_1(2));
+         UIDrawBorder(painter, zoomBarThumb, profBorderLightColor, ui_rect_1(4));
       }
 
       if (report->hover && !report->dragMode) {
@@ -5124,14 +5124,14 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
          int y = element->window->cursor.y + 25;
          if (y + height > element->clip.b)
             y = element->window->cursor.y - height - 10;
-         UIRectangle rectangle = UI_RECT_4(x, x + width, y, y + height);
+         UIRectangle rectangle = ui_rect_4(x, x + width, y, y + height);
 
-         ProfDrawTransparentOverlay(painter, rectangle + UI_RECT_1I(-5), 0xFF000000);
-         UIDrawString(painter, UI_RECT_4(x, x + width, y + lineHeight * 0, y + lineHeight * 1), line1, -1, 0xFFFFFFFF,
+         ProfDrawTransparentOverlay(painter, rectangle + ui_rect_1i(-5), 0xFF000000);
+         UIDrawString(painter, ui_rect_4(x, x + width, y + lineHeight * 0, y + lineHeight * 1), line1, -1, 0xFFFFFFFF,
                       UI_ALIGN_LEFT, 0);
-         UIDrawString(painter, UI_RECT_4(x, x + width, y + lineHeight * 1, y + lineHeight * 2), line2, -1, 0xFFFFFFFF,
+         UIDrawString(painter, ui_rect_4(x, x + width, y + lineHeight * 1, y + lineHeight * 2), line2, -1, 0xFFFFFFFF,
                       UI_ALIGN_LEFT, 0);
-         UIDrawString(painter, UI_RECT_4(x, x + width, y + lineHeight * 2, y + lineHeight * 3), line3, -1, 0xFFFFFFFF,
+         UIDrawString(painter, ui_rect_4(x, x + width, y + lineHeight * 2, y + lineHeight * 3), line3, -1, 0xFFFFFFFF,
                       UI_ALIGN_LEFT, 0);
       }
 
@@ -5445,12 +5445,12 @@ void ProfLoadProfileData(void* _window) {
       painter.bits      = window->bits;
       painter.width     = window->width;
       painter.height    = window->height;
-      painter.clip      = UI_RECT_2S(window->width, window->height);
+      painter.clip      = ui_rect_2s(window->width, window->height);
       char string[256];
       StringFormat(string, sizeof(string), "Loading data... (estimated time: %d seconds)", rawEntryCount / 5000000 + 1);
       UIDrawBlock(&painter, painter.clip, ui.theme.panel1);
       UIDrawString(&painter, painter.clip, string, -1, ui.theme.text, UI_ALIGN_CENTER, 0);
-      window->updateRegion = UI_RECT_2S(window->width, window->height);
+      window->updateRegion = ui_rect_2s(window->width, window->height);
       _UIWindowEndPaint(window, nullptr);
       window->updateRegion = painter.clip;
    }
@@ -5563,7 +5563,7 @@ void ProfLoadProfileData(void* _window) {
    }
 
    UIMDIChild* window =
-      UIMDIChildCreate(&dataWindow->e, UI_MDI_CHILD_CLOSE_BUTTON, UI_RECT_2S(800, 600), "Flame graph", -1);
+      UIMDIChildCreate(&dataWindow->e, UI_MDI_CHILD_CLOSE_BUTTON, ui_rect_2s(800, 600), "Flame graph", -1);
    UIButton* switchViewButton = UIButtonCreate(&window->e, UI_BUTTON_SMALL | UI_ELEMENT_NON_CLIENT, "Table view", -1);
    UITable*  table = UITableCreate(&window->e, 0, "Name\tTime spent (ms)\tCall count\tAverage per call (ms)");
    ProfFlameGraphReport* report = (ProfFlameGraphReport*)UIElementCreate(sizeof(ProfFlameGraphReport), &window->e, 0,
@@ -5689,7 +5689,7 @@ void ProfLoadProfileData(void* _window) {
       UIPainter painter = {};
       painter.width     = 1200;
       painter.height    = maxDepth * 30 + 30;
-      painter.clip      = UI_RECT_4(0, painter.width, 0, painter.height);
+      painter.clip      = ui_rect_4(0, painter.width, 0, painter.height);
       painter.bits      = (uint32_t*)malloc(painter.width * painter.height * 4);
       report->client = report->e.bounds = report->e.clip = painter.clip;
       ProfFlameGraphMessage(&report->e, UI_MSG_PAINT, 0, &painter);
@@ -5781,7 +5781,7 @@ int MemoryWindowMessage(UIElement* element, UIMessage message, int di, void* dp)
       char        buffer[64];
       uint64_t    address   = window->offset;
       int         rowHeight = UIMeasureStringHeight();
-      UIRectangle row       = element->bounds + UI_RECT_1I(10);
+      UIRectangle row       = element->bounds + ui_rect_1i(10);
       int         rowCount  = (painter->clip.b - row.t) / rowHeight;
       row.b                 = row.t + rowHeight;
 
@@ -5832,7 +5832,7 @@ int MemoryWindowMessage(UIElement* element, UIMessage message, int di, void* dp)
 
          StringFormat(buffer, sizeof(buffer), "%.8X ", (uint32_t)(address & 0xFFFFFFFF));
          UIDrawString(painter, row, buffer, -1, ui.theme.codeComment, UI_ALIGN_LEFT, 0);
-         UIRectangle r          = row + UI_RECT_4(UIMeasureStringWidth(buffer, -1), 0, 0, 0);
+         UIRectangle r          = row + ui_rect_4(UIMeasureStringWidth(buffer, -1), 0, 0, 0);
          int         glyphWidth = UIMeasureStringWidth("a", 1);
 
          for (int i = 0; i < 16; i++) {
@@ -5863,9 +5863,9 @@ int MemoryWindowMessage(UIElement* element, UIMessage message, int di, void* dp)
          address += 0x10;
       }
    } else if (message == UI_MSG_LAYOUT) {
-      UIRectangle bounds = element->bounds + UI_RECT_1I(10);
+      UIRectangle bounds = element->bounds + ui_rect_1i(10);
       UIElementMove(&window->gotoButton->e,
-                    UI_RECT_4(bounds.r - UIElementMessage(&window->gotoButton->e, UI_MSG_GET_WIDTH, 0, 0), bounds.r,
+                    ui_rect_4(bounds.r - UIElementMessage(&window->gotoButton->e, UI_MSG_GET_WIDTH, 0, 0), bounds.r,
                               bounds.t, bounds.t + UIElementMessage(&window->gotoButton->e, UI_MSG_GET_HEIGHT, 0, 0)),
                     false);
    } else if (message == UI_MSG_MOUSE_WHEEL) {
@@ -5958,10 +5958,10 @@ int ViewWindowColorSwatchMessage(UIElement* element, UIMessage message, int di, 
       UIPainter*  painter = (UIPainter*)dp;
       const char* message = "Col: ";
       UIDrawString(painter, element->bounds, message, -1, ui.theme.text, UI_ALIGN_LEFT, nullptr);
-      UIRectangle swatch = UI_RECT_4(element->bounds.l + UIMeasureStringWidth(message, -1), 0, element->bounds.t + 2,
+      UIRectangle swatch = ui_rect_4(element->bounds.l + UIMeasureStringWidth(message, -1), 0, element->bounds.t + 2,
                                      element->bounds.b - 2);
       swatch.r           = swatch.l + 50;
-      UIDrawRectangle(painter, swatch, color, 0xFF000000, UI_RECT_1(1));
+      UIDrawRectangle(painter, swatch, color, 0xFF000000, ui_rect_1(1));
    }
 
    return 0;
@@ -6023,8 +6023,8 @@ int ViewWindowMatrixGridMessage(UIElement* element, UIMessage message, int di, v
                char   buffer[64];
                StringFormat(buffer, sizeof(buffer), "%f", f);
                UIRectangle rectangle =
-                  UI_RECT_4(j * glyphWidth * 14, (j + 1) * glyphWidth * 14, i * glyphHeight, (i + 1) * glyphHeight);
-               UIRectangle offset = UI_RECT_2(element->bounds.l - (int)grid->hScroll->position,
+                  ui_rect_4(j * glyphWidth * 14, (j + 1) * glyphWidth * 14, i * glyphHeight, (i + 1) * glyphHeight);
+               UIRectangle offset = ui_rect_2(element->bounds.l - (int)grid->hScroll->position,
                                               element->bounds.t - (int)grid->vScroll->position);
                UIDrawString(painter, rectangle + offset, buffer, -1, ui.theme.text, UI_ALIGN_RIGHT, nullptr);
             }
@@ -6033,7 +6033,7 @@ int ViewWindowMatrixGridMessage(UIElement* element, UIMessage message, int di, v
 
       int scrollBarSize = UI_SIZE_SCROLL_BAR * element->window->scale;
       UIDrawBlock(painter,
-                  UI_RECT_4(element->bounds.r - scrollBarSize, element->bounds.r, element->bounds.b - scrollBarSize,
+                  ui_rect_4(element->bounds.r - scrollBarSize, element->bounds.r, element->bounds.b - scrollBarSize,
                             element->bounds.b),
                   ui.theme.panel1);
    } else if (message == UI_MSG_LAYOUT) {
@@ -6439,19 +6439,19 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
       UIElementMove(&display->scrollBar->e, scrollBarBounds, true);
 
       UIElementMove(&display->zoomOut->e,
-                    UI_RECT_4(element->bounds.l + (int)(15 * element->window->scale),
+                    ui_rect_4(element->bounds.l + (int)(15 * element->window->scale),
                               element->bounds.l + (int)(45 * element->window->scale),
                               element->bounds.t + (int)(15 * element->window->scale),
                               element->bounds.t + (int)(45 * element->window->scale)),
                     true);
       UIElementMove(&display->zoomIn->e,
-                    UI_RECT_4(element->bounds.l + (int)(45 * element->window->scale),
+                    ui_rect_4(element->bounds.l + (int)(45 * element->window->scale),
                               element->bounds.l + (int)(75 * element->window->scale),
                               element->bounds.t + (int)(15 * element->window->scale),
                               element->bounds.t + (int)(45 * element->window->scale)),
                     true);
       UIElementMove(&display->normalize->e,
-                    UI_RECT_4(element->bounds.l + (int)(75 * element->window->scale),
+                    ui_rect_4(element->bounds.l + (int)(75 * element->window->scale),
                               element->bounds.l + (int)(135 * element->window->scale),
                               element->bounds.t + (int)(15 * element->window->scale),
                               element->bounds.t + (int)(45 * element->window->scale)),
@@ -6515,7 +6515,7 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
       int h2              = (client.b - client.t) / 2;
       int yp              = ym;
       UIDrawBlock(painter, painter->clip, ui.theme.panel1);
-      UIDrawBlock(painter, UI_RECT_4(client.l, client.r, ym, ym + 1), 0x707070);
+      UIDrawBlock(painter, ui_rect_4(client.l, client.r, ym, ym + 1), 0x707070);
 
       float yScale =
          (display->normalize->e.flags & UI_BUTTON_CHECKED) && display->peak > 0.00001f ? 1.0f / display->peak : 1.0f;
@@ -6546,7 +6546,7 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
                      yf = t;
                }
 
-               UIRectangle r = UI_RECT_4(x, x + 1, ym - (int)(yt * h2 * yScale), ym + (int)(yf * h2 * yScale));
+               UIRectangle r = ui_rect_4(x, x + 1, ym - (int)(yt * h2 * yScale), ym + (int)(yf * h2 * yScale));
                WaveformDisplayDrawVerticalLineWithTranslucency(painter, r, ui.theme.text, alpha);
             }
          }
@@ -6568,7 +6568,7 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
                for (int32_t i = 0; i < sampleCount; i++) {
                   int32_t x1 = (int)((float)(i + 1) / sampleCount * client.width()) + client.l;
                   int32_t y  = ym + h2 * yScale * samples[channel + display->channels * (int)i];
-                  UIDrawBlock(painter, UI_RECT_4(x1 - 2, x1 + 2, y - 2, y + 2), channel % 2 ? 0xFFFF00FF : 0xFF00FFFF);
+                  UIDrawBlock(painter, ui_rect_4(x1 - 2, x1 + 2, y - 2, y + 2), channel % 2 ? 0xFFFF00FF : 0xFF00FFFF);
                }
             }
          }
@@ -6582,7 +6582,7 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
              !display->scrollBar->e.clip.contains(element->window->cursor)) {
             int         stringOffset = 20 * element->window->scale;
             UIRectangle stringRectangle =
-               UI_RECT_4(client.l + stringOffset, client.r - stringOffset, client.t + stringOffset,
+               ui_rect_4(client.l + stringOffset, client.r - stringOffset, client.t + stringOffset,
                          client.t + stringOffset + UIMeasureStringHeight());
             char buffer[100];
             snprintf(buffer, sizeof(buffer), "%d: ", (int)(mouseXSample + display->scrollBar->position));
@@ -6599,14 +6599,14 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
             UIDrawString(painter, stringRectangle, buffer, -1, ui.theme.text, UI_ALIGN_RIGHT, NULL);
 
             int32_t x1 = (int)((float)(mouseXSample + 1) / sampleCount * client.width()) + client.l;
-            WaveformDisplayDrawVerticalLineWithTranslucency(painter, UI_RECT_4(x1, x1 + 1, client.t, client.b),
+            WaveformDisplayDrawVerticalLineWithTranslucency(painter, ui_rect_4(x1, x1 + 1, client.t, client.b),
                                                             0xFFFFFF, 100);
          }
       }
 
       if (element->window->pressedButton == 2 && element->window->pressed) {
          int l = element->window->cursor.x, r = display->dragLastX;
-         UIDrawInvert(painter, UI_RECT_4(l > r ? r : l, l > r ? l : r, element->bounds.t, element->bounds.r));
+         UIDrawInvert(painter, ui_rect_4(l > r ? r : l, l > r ? l : r, element->bounds.t, element->bounds.r));
       }
 
       painter->clip = oldClip;
@@ -6850,7 +6850,7 @@ void WaveformViewerUpdate(const char* pointerString, const char* sampleCountStri
       if (channelsString)
          StringFormat(viewer->channels, sizeof(viewer->channels), "%s", channelsString);
 
-      UIMDIChild* window    = UIMDIChildCreate(&dataWindow->e, UI_MDI_CHILD_CLOSE_BUTTON, UI_RECT_1(0), "Waveform", -1);
+      UIMDIChild* window    = UIMDIChildCreate(&dataWindow->e, UI_MDI_CHILD_CLOSE_BUTTON, ui_rect_1(0), "Waveform", -1);
       window->e.messageUser = WaveformViewerWindowMessage;
       window->e.cp          = viewer;
       viewer->autoToggle    = UIButtonCreate(&window->e, UI_BUTTON_SMALL | UI_ELEMENT_NON_CLIENT, "Auto", -1);

@@ -113,9 +113,9 @@ UIRectangle UIRectangleFit(UIRectangle parent, UIRectangle child, bool allowScal
    int   childMaximumHeight = parentWidth / childAspectRatio;
 
    if (childMaximumWidth > parentWidth) {
-      return UIRectangleCenter(parent, UI_RECT_2S(parentWidth, childMaximumHeight));
+      return UIRectangleCenter(parent, ui_rect_2s(parentWidth, childMaximumHeight));
    } else {
-      return UIRectangleCenter(parent, UI_RECT_2S(childMaximumWidth, parentHeight));
+      return UIRectangleCenter(parent, ui_rect_2s(childMaximumWidth, parentHeight));
    }
 }
 
@@ -570,7 +570,7 @@ void UIDrawString(UIPainter* painter, UIRectangle r, const char* string, ptrdiff
       uint32_t colorText = color;
 
       if (j >= selectFrom && j < selectTo) {
-         UIDrawBlock(painter, UI_RECT_4(x, x + ui.activeFont->glyphWidth, y, y + height), selection->colorBackground);
+         UIDrawBlock(painter, ui_rect_4(x, x + ui.activeFont->glyphWidth, y, y + height), selection->colorBackground);
          colorText = selection->colorText;
       }
 
@@ -579,7 +579,7 @@ void UIDrawString(UIPainter* painter, UIRectangle r, const char* string, ptrdiff
       }
 
       if (selection && selection->carets[0] == j) {
-         UIDrawInvert(painter, UI_RECT_4(x, x + 1, y, y + height));
+         UIDrawInvert(painter, ui_rect_4(x, x + 1, y, y + height));
       }
 
       x += ui.activeFont->glyphWidth, i++;
@@ -591,7 +591,7 @@ void UIDrawString(UIPainter* painter, UIRectangle r, const char* string, ptrdiff
    }
 
    if (selection && selection->carets[0] == j) {
-      UIDrawInvert(painter, UI_RECT_4(x, x + 1, y, y + height));
+      UIDrawInvert(painter, ui_rect_4(x, x + 1, y, y + height));
    }
 
    painter->clip = oldClip;
@@ -632,28 +632,28 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
    if (which == UI_DRAW_CONTROL_CHECKBOX) {
       uint32_t    color = buttonColor, textColor = buttonTextColor;
       int         midY      = (bounds.t + bounds.b) / 2;
-      UIRectangle boxBounds = UI_RECT_4(bounds.l, bounds.l + UI_SIZE_CHECKBOX_BOX, midY - UI_SIZE_CHECKBOX_BOX / 2,
+      UIRectangle boxBounds = ui_rect_4(bounds.l, bounds.l + UI_SIZE_CHECKBOX_BOX, midY - UI_SIZE_CHECKBOX_BOX / 2,
                                         midY + UI_SIZE_CHECKBOX_BOX / 2);
-      UIDrawRectangle(painter, boxBounds, color, ui.theme.border, UI_RECT_1(1));
-      UIDrawString(painter, boxBounds + UI_RECT_4(1, 0, 0, 0),
+      UIDrawRectangle(painter, boxBounds, color, ui.theme.border, ui_rect_1(1));
+      UIDrawString(painter, boxBounds + ui_rect_4(1, 0, 0, 0),
                    checked         ? "*"
                    : indeterminate ? "-"
                                    : " ",
                    -1, textColor, UI_ALIGN_CENTER, NULL);
-      UIDrawString(painter, bounds + UI_RECT_4(UI_SIZE_CHECKBOX_BOX + UI_SIZE_CHECKBOX_GAP, 0, 0, 0),
+      UIDrawString(painter, bounds + ui_rect_4(UI_SIZE_CHECKBOX_BOX + UI_SIZE_CHECKBOX_GAP, 0, 0, 0),
                    label, labelBytes, disabled ? ui.theme.textDisabled : ui.theme.text, UI_ALIGN_LEFT, NULL);
    } else if (which == UI_DRAW_CONTROL_MENU_ITEM || which == UI_DRAW_CONTROL_DROP_DOWN ||
               which == UI_DRAW_CONTROL_PUSH_BUTTON) {
       uint32_t color = buttonColor, textColor = buttonTextColor;
       int      borderSize = which == UI_DRAW_CONTROL_MENU_ITEM ? 0 : scale;
-      UIDrawRectangle(painter, bounds, color, ui.theme.border, UI_RECT_1(borderSize));
+      UIDrawRectangle(painter, bounds, color, ui.theme.border, ui_rect_1(borderSize));
 
       if (checked && !focused) {
-         UIDrawBlock(painter, bounds + UI_RECT_1I((int)(UI_SIZE_BUTTON_CHECKED_AREA * scale)),
+         UIDrawBlock(painter, bounds + ui_rect_1i((int)(UI_SIZE_BUTTON_CHECKED_AREA * scale)),
                      ui.theme.buttonPressed);
       }
 
-      UIRectangle innerBounds = bounds + UI_RECT_2I((int)(UI_SIZE_MENU_ITEM_MARGIN * scale), 0);
+      UIRectangle innerBounds = bounds + ui_rect_2i((int)(UI_SIZE_MENU_ITEM_MARGIN * scale), 0);
 
       if (which == UI_DRAW_CONTROL_MENU_ITEM) {
          if (labelBytes == -1) {
@@ -678,7 +678,7 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
    } else if (which == UI_DRAW_CONTROL_LABEL) {
       UIDrawString(painter, bounds, label, labelBytes, ui.theme.text, UI_ALIGN_LEFT, NULL);
    } else if (which == UI_DRAW_CONTROL_SPLITTER) {
-      UIRectangle borders = (mode & UI_DRAW_CONTROL_STATE_VERTICAL) ? UI_RECT_2(0, 1) : UI_RECT_2(1, 0);
+      UIRectangle borders = (mode & UI_DRAW_CONTROL_STATE_VERTICAL) ? ui_rect_2(0, 1) : ui_rect_2(1, 0);
       UIDrawRectangle(painter, bounds, ui.theme.buttonNormal, ui.theme.border, borders);
    } else if (which == UI_DRAW_CONTROL_SCROLL_TRACK) {
       if (disabled)
@@ -686,7 +686,7 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
    } else if (which == UI_DRAW_CONTROL_SCROLL_DOWN || which == UI_DRAW_CONTROL_SCROLL_UP) {
       bool     isDown = which == UI_DRAW_CONTROL_SCROLL_DOWN;
       uint32_t color  = pressed ? ui.theme.buttonPressed : hovered ? ui.theme.buttonHovered : ui.theme.panel2;
-      UIDrawRectangle(painter, bounds, color, ui.theme.border, UI_RECT_1(0));
+      UIDrawRectangle(painter, bounds, color, ui.theme.border, ui_rect_1(0));
 
       if (mode & UI_DRAW_CONTROL_STATE_VERTICAL) {
          UIDrawGlyph(painter, (bounds.l + bounds.r - ui.activeFont->glyphWidth) / 2 + 1,
@@ -698,10 +698,10 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
       }
    } else if (which == UI_DRAW_CONTROL_SCROLL_THUMB) {
       uint32_t color = pressed ? ui.theme.buttonPressed : hovered ? ui.theme.buttonHovered : ui.theme.buttonNormal;
-      UIDrawRectangle(painter, bounds, color, ui.theme.border, UI_RECT_1(2));
+      UIDrawRectangle(painter, bounds, color, ui.theme.border, ui_rect_1(2));
    } else if (which == UI_DRAW_CONTROL_GAUGE) {
-      UIDrawRectangle(painter, bounds, ui.theme.buttonNormal, ui.theme.border, UI_RECT_1(1));
-      UIRectangle filled = bounds + UI_RECT_1I(1);
+      UIDrawRectangle(painter, bounds, ui.theme.buttonNormal, ui.theme.border, ui_rect_1(1));
+      UIRectangle filled = bounds + ui_rect_1i(1);
       filled.r           = filled.l + filled.width() * position;
       UIDrawBlock(painter, filled, ui.theme.selected);
    } else if (which == UI_DRAW_CONTROL_SLIDER) {
@@ -709,26 +709,26 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
       int         trackSize     = UI_SIZE_SLIDER_TRACK * scale;
       int         thumbSize     = UI_SIZE_SLIDER_THUMB * scale;
       int         thumbPosition = (bounds.width() - thumbSize) * position;
-      UIRectangle track         = UI_RECT_4(bounds.l, bounds.r, centerY - (trackSize + 1) / 2, centerY + trackSize / 2);
+      UIRectangle track         = ui_rect_4(bounds.l, bounds.r, centerY - (trackSize + 1) / 2, centerY + trackSize / 2);
       UIDrawRectangle(painter, track, disabled ? ui.theme.buttonDisabled : ui.theme.buttonNormal, ui.theme.border,
-                      UI_RECT_1(1));
+                      ui_rect_1(1));
       uint32_t    color = disabled  ? ui.theme.buttonDisabled
                           : pressed ? ui.theme.buttonPressed
                           : hovered ? ui.theme.buttonHovered
                                     : ui.theme.buttonNormal;
-      UIRectangle thumb = UI_RECT_4(bounds.l + thumbPosition, bounds.l + thumbPosition + thumbSize,
+      UIRectangle thumb = ui_rect_4(bounds.l + thumbPosition, bounds.l + thumbPosition + thumbSize,
                                     centerY - (thumbSize + 1) / 2, centerY + thumbSize / 2);
-      UIDrawRectangle(painter, thumb, color, ui.theme.border, UI_RECT_1(1));
+      UIDrawRectangle(painter, thumb, color, ui.theme.border, ui_rect_1(1));
    } else if (which == UI_DRAW_CONTROL_TEXTBOX) {
       UIDrawRectangle(painter, bounds,
                       disabled  ? ui.theme.buttonDisabled
                       : focused ? ui.theme.textboxFocused
                                 : ui.theme.textboxNormal,
-                      ui.theme.border, UI_RECT_1(1));
+                      ui.theme.border, ui_rect_1(1));
    } else if (which == UI_DRAW_CONTROL_MODAL_POPUP) {
-      UIRectangle bounds2 = bounds + UI_RECT_1I(-1);
-      UIDrawBorder(painter, bounds2, ui.theme.border, UI_RECT_1(1));
-      UIDrawBorder(painter, bounds2 + UI_RECT_1(1), ui.theme.border, UI_RECT_1(1));
+      UIRectangle bounds2 = bounds + ui_rect_1i(-1);
+      UIDrawBorder(painter, bounds2, ui.theme.border, ui_rect_1(1));
+      UIDrawBorder(painter, bounds2 + ui_rect_1(1), ui.theme.border, ui_rect_1(1));
    } else if (which == UI_DRAW_CONTROL_MENU) {
       UIDrawBlock(painter, bounds, ui.theme.border);
    } else if (which == UI_DRAW_CONTROL_TABLE_ROW) {
@@ -741,18 +741,18 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
       UIDrawString(painter, bounds, label, labelBytes, textColor, UI_ALIGN_LEFT, NULL);
    } else if (which == UI_DRAW_CONTROL_TABLE_BACKGROUND) {
       UIDrawBlock(painter, bounds, ui.theme.panel2);
-      UIDrawRectangle(painter, UI_RECT_4(bounds.l, bounds.r, bounds.t, bounds.t + (int)(UI_SIZE_TABLE_HEADER * scale)),
-                      ui.theme.panel1, ui.theme.border, UI_RECT_4(0, 0, 0, 1));
+      UIDrawRectangle(painter, ui_rect_4(bounds.l, bounds.r, bounds.t, bounds.t + (int)(UI_SIZE_TABLE_HEADER * scale)),
+                      ui.theme.panel1, ui.theme.border, ui_rect_4(0, 0, 0, 1));
    } else if (which == UI_DRAW_CONTROL_TABLE_HEADER) {
       UIDrawString(painter, bounds, label, labelBytes, ui.theme.text, UI_ALIGN_LEFT, NULL);
       if (selected)
          UIDrawInvert(painter, bounds);
    } else if (which == UI_DRAW_CONTROL_MDI_CHILD) {
       UI_MDI_CHILD_CALCULATE_LAYOUT(bounds, scale);
-      UIRectangle borders = UI_RECT_4(borderSize, borderSize, titleSize, borderSize);
+      UIRectangle borders = ui_rect_4(borderSize, borderSize, titleSize, borderSize);
       UIDrawBorder(painter, bounds, ui.theme.buttonNormal, borders);
-      UIDrawBorder(painter, bounds, ui.theme.border, UI_RECT_1((int)scale));
-      UIDrawBorder(painter, content + UI_RECT_1I(-1), ui.theme.border, UI_RECT_1((int)scale));
+      UIDrawBorder(painter, bounds, ui.theme.border, ui_rect_1((int)scale));
+      UIDrawBorder(painter, content + ui_rect_1i(-1), ui.theme.border, ui_rect_1((int)scale));
       UIDrawString(painter, title, label, labelBytes, ui.theme.text, UI_ALIGN_LEFT, NULL);
    } else if (which == UI_DRAW_CONTROL_TAB) {
       uint32_t    color = selected ? ui.theme.buttonPressed : ui.theme.buttonNormal;
@@ -761,10 +761,10 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
          t.b++, t.t--;
       else
          t.t++;
-      UIDrawRectangle(painter, t, color, ui.theme.border, UI_RECT_1(1));
+      UIDrawRectangle(painter, t, color, ui.theme.border, ui_rect_1(1));
       UIDrawString(painter, bounds, label, labelBytes, ui.theme.text, UI_ALIGN_CENTER, NULL);
    } else if (which == UI_DRAW_CONTROL_TAB_BAND) {
-      UIDrawRectangle(painter, bounds, ui.theme.panel1, ui.theme.border, UI_RECT_4(0, 0, 0, 1));
+      UIDrawRectangle(painter, bounds, ui.theme.panel1, ui.theme.border, ui_rect_4(0, 0, 0, 1));
    }
 }
 
@@ -1027,7 +1027,7 @@ int _UIPanelLayout(UIPanel* panel, UIRectangle bounds, bool measure) {
                : UIElementMessage(child, UI_MSG_GET_HEIGHT, (child->flags & UI_ELEMENT_H_FILL) ? perFill : 0, 0);
          int width =
             (child->flags & UI_ELEMENT_H_FILL) ? perFill : UIElementMessage(child, UI_MSG_GET_WIDTH, height, 0);
-         UIRectangle relative = UI_RECT_4(position, position + width, scaledBorder2 + (vSpace - height) / 2,
+         UIRectangle relative = ui_rect_4(position, position + width, scaledBorder2 + (vSpace - height) / 2,
                                           scaledBorder2 + (vSpace + height) / 2);
          if (!measure)
             UIElementMove(child, UIRectangleTranslate(relative, bounds), false);
@@ -1039,7 +1039,7 @@ int _UIPanelLayout(UIPanel* panel, UIRectangle bounds, bool measure) {
                : UIElementMessage(child, UI_MSG_GET_WIDTH, (child->flags & UI_ELEMENT_V_FILL) ? perFill : 0, 0);
          int height =
             (child->flags & UI_ELEMENT_V_FILL) ? perFill : UIElementMessage(child, UI_MSG_GET_HEIGHT, width, 0);
-         UIRectangle relative = UI_RECT_4(scaledBorder2 + (hSpace - width) / 2, scaledBorder2 + (hSpace + width) / 2,
+         UIRectangle relative = ui_rect_4(scaledBorder2 + (hSpace - width) / 2, scaledBorder2 + (hSpace + width) / 2,
                                           position, position + height);
          if (!measure)
             UIElementMove(child, UIRectangleTranslate(relative, bounds), false);
@@ -1070,7 +1070,7 @@ int _UIPanelMessage(UIElement* element, UIMessage message, int di, void* dp) {
       _UIPanelLayout(panel, bounds, false);
    } else if (message == UI_MSG_GET_WIDTH) {
       if (horizontal) {
-         return _UIPanelLayout(panel, UI_RECT_4(0, 0, 0, di), true);
+         return _UIPanelLayout(panel, ui_rect_4(0, 0, 0, di), true);
       } else {
          return _UIPanelMeasure(panel, di);
       }
@@ -1079,7 +1079,7 @@ int _UIPanelMessage(UIElement* element, UIMessage message, int di, void* dp) {
          return _UIPanelMeasure(panel, di);
       } else {
          int width = di && panel->scrollBar ? (di - UI_SIZE_SCROLL_BAR * element->window->scale) : di;
-         return _UIPanelLayout(panel, UI_RECT_4(0, width, 0, 0), true);
+         return _UIPanelLayout(panel, ui_rect_4(0, width, 0, 0), true);
       }
    } else if (message == UI_MSG_PAINT) {
       if (element->flags & UI_PANEL_COLOR_1) {
@@ -1104,13 +1104,13 @@ UIPanel* UIPanelCreate(UIElement* parent, uint32_t flags) {
    UIPanel* panel = (UIPanel*)UIElementCreate(sizeof(UIPanel), parent, flags, _UIPanelMessage, "Panel");
 
    if (flags & UI_PANEL_LARGE_SPACING) {
-      panel->border = UI_RECT_1(UI_SIZE_PANE_LARGE_BORDER);
+      panel->border = ui_rect_1(UI_SIZE_PANE_LARGE_BORDER);
       panel->gap    = UI_SIZE_PANE_LARGE_GAP;
    } else if (flags & UI_PANEL_MEDIUM_SPACING) {
-      panel->border = UI_RECT_1(UI_SIZE_PANE_MEDIUM_BORDER);
+      panel->border = ui_rect_1(UI_SIZE_PANE_MEDIUM_BORDER);
       panel->gap    = UI_SIZE_PANE_MEDIUM_GAP;
    } else if (flags & UI_PANEL_SMALL_SPACING) {
-      panel->border = UI_RECT_1(UI_SIZE_PANE_SMALL_BORDER);
+      panel->border = ui_rect_1(UI_SIZE_PANE_SMALL_BORDER);
       panel->gap    = UI_SIZE_PANE_SMALL_GAP;
    }
 
@@ -1130,7 +1130,7 @@ void _UIWrapPanelLayoutRow(UIWrapPanel* panel, uint32_t rowStart, uint32_t rowEn
          continue;
       int         height   = UIElementMessage(child, UI_MSG_GET_HEIGHT, 0, 0);
       int         width    = UIElementMessage(child, UI_MSG_GET_WIDTH, 0, 0);
-      UIRectangle relative = UI_RECT_4(rowPosition, rowPosition + width, rowY + rowHeight / 2 - height / 2,
+      UIRectangle relative = ui_rect_4(rowPosition, rowPosition + width, rowY + rowHeight / 2 - height / 2,
                                        rowY + rowHeight / 2 + height / 2);
       UIElementMove(child, UIRectangleTranslate(relative, panel->e.bounds), false);
       rowPosition += width;
@@ -1427,25 +1427,25 @@ int _UISplitPaneMessage(UIElement* element, UIMessage message, int di, void* dp)
 
       if (vertical) {
          UIElementMove(left,
-                       UI_RECT_4(element->bounds.l, element->bounds.r, element->bounds.t, element->bounds.t + leftSize),
+                       ui_rect_4(element->bounds.l, element->bounds.r, element->bounds.t, element->bounds.t + leftSize),
                        false);
          UIElementMove(splitter,
-                       UI_RECT_4(element->bounds.l, element->bounds.r, element->bounds.t + leftSize,
+                       ui_rect_4(element->bounds.l, element->bounds.r, element->bounds.t + leftSize,
                                  element->bounds.t + leftSize + splitterSize),
                        false);
          UIElementMove(
-            right, UI_RECT_4(element->bounds.l, element->bounds.r, element->bounds.b - rightSize, element->bounds.b),
+            right, ui_rect_4(element->bounds.l, element->bounds.r, element->bounds.b - rightSize, element->bounds.b),
             false);
       } else {
          UIElementMove(left,
-                       UI_RECT_4(element->bounds.l, element->bounds.l + leftSize, element->bounds.t, element->bounds.b),
+                       ui_rect_4(element->bounds.l, element->bounds.l + leftSize, element->bounds.t, element->bounds.b),
                        false);
          UIElementMove(splitter,
-                       UI_RECT_4(element->bounds.l + leftSize, element->bounds.l + leftSize + splitterSize,
+                       ui_rect_4(element->bounds.l + leftSize, element->bounds.l + leftSize + splitterSize,
                                  element->bounds.t, element->bounds.b),
                        false);
          UIElementMove(
-            right, UI_RECT_4(element->bounds.r - rightSize, element->bounds.r, element->bounds.t, element->bounds.b),
+            right, ui_rect_4(element->bounds.r - rightSize, element->bounds.r, element->bounds.t, element->bounds.b),
             false);
       }
    }
@@ -1931,20 +1931,20 @@ int UIDrawStringHighlighted(UIPainter* painter, UIRectangle lineBounds, const ch
       }
 
       if (selection && j >= selection->carets[0] && j < selection->carets[1]) {
-         UIDrawBlock(painter, UI_RECT_4(oldX, x, y, y + lineHeight), selection->colorBackground);
+         UIDrawBlock(painter, ui_rect_4(oldX, x, y, y + lineHeight), selection->colorBackground);
          if (c != '\t')
             UIDrawGlyph(painter, oldX, y, c, selection->colorText);
       }
 
       if (selection && selection->carets[0] == j) {
-         UIDrawInvert(painter, UI_RECT_4(oldX, oldX + 1, y, y + lineHeight));
+         UIDrawInvert(painter, ui_rect_4(oldX, oldX + 1, y, y + lineHeight));
       }
 
       j++;
    }
 
    if (selection && selection->carets[0] == j) {
-      UIDrawInvert(painter, UI_RECT_4(x, x + 1, y, y + lineHeight));
+      UIDrawInvert(painter, ui_rect_4(x, x + 1, y, y + lineHeight));
    }
 
    return x;
@@ -2083,7 +2083,7 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
          int y = (lineBounds.t + lineBounds.b - UIMeasureStringHeight()) / 2;
 
          if (element->window->focused == element && i >= code->selection[0].line && i < code->selection[1].line) {
-            UIDrawBlock(painter, UI_RECT_4PD(x, y, code->font->glyphWidth, code->font->glyphHeight),
+            UIDrawBlock(painter, ui_rect_4pd(x, y, code->font->glyphWidth, code->font->glyphHeight),
                         selection.colorBackground);
          }
 
@@ -2607,7 +2607,7 @@ int _UITableMessage(UIElement* element, UIMessage message, int di, void* dp) {
       UIRectangle oldClip = painter->clip;
       painter->clip       = UIRectangleIntersection(
          oldClip,
-         UI_RECT_4(bounds.l, bounds.r, bounds.t + (int)(UI_SIZE_TABLE_HEADER * element->window->scale), bounds.b));
+         ui_rect_4(bounds.l, bounds.r, bounds.t + (int)(UI_SIZE_TABLE_HEADER * element->window->scale), bounds.b));
 
       for (int i = table->vScroll->position / rowHeight; i < table->itemCount; i++) {
          if (row.t > painter->clip.b) {
@@ -2845,7 +2845,7 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
 
       int         scaledMargin = UI_SIZE_TEXTBOX_MARGIN * element->window->scale;
       int         totalWidth   = UIMeasureStringWidth(textbox->string, textbox->bytes) + scaledMargin * 2;
-      UIRectangle textBounds   = element->bounds + UI_RECT_1I(scaledMargin);
+      UIRectangle textBounds   = element->bounds + ui_rect_1i(scaledMargin);
 
       if (textbox->scroll > totalWidth - textBounds.width()) {
          textbox->scroll = totalWidth - textBounds.width();
@@ -3041,7 +3041,7 @@ int _UIMDIChildMessage(UIElement* element, UIMessage message, int di, void* dp) 
       for (uint32_t i = 0; i < element->childCount - 1; i++) {
          UIElement* child = element->children[i];
          int        width = UIElementMessage(child, UI_MSG_GET_WIDTH, 0, 0);
-         UIElementMove(child, UI_RECT_4(position - width, position, title.t, title.b), false);
+         UIElementMove(child, ui_rect_4(position - width, position, title.t, title.b), false);
          position -= width;
       }
 
@@ -3072,7 +3072,7 @@ int _UIMDIChildMessage(UIElement* element, UIMessage message, int di, void* dp) 
    } else if (message == UI_MSG_LEFT_DOWN) {
       mdiChild->dragHitTest = _UIMDIChildHitTest(mdiChild, element->window->cursor.x, element->window->cursor.y);
       mdiChild->dragOffset =
-         element->bounds + UI_RECT_2(-element->window->cursor.x, -element->window->cursor.y);
+         element->bounds + ui_rect_2(-element->window->cursor.x, -element->window->cursor.y);
    } else if (message == UI_MSG_LEFT_UP) {
       if (mdiChild->bounds.l < 0)
          mdiChild->bounds.r -= mdiChild->bounds.l, mdiChild->bounds.l = 0;
@@ -3118,17 +3118,17 @@ int _UIMDIClientMessage(UIElement* element, UIMessage message, int di, void* dp)
          UIMDIChild* mdiChild = (UIMDIChild*)element->children[i];
          UI_ASSERT(mdiChild->e.messageClass == _UIMDIChildMessage);
 
-         if (mdiChild->bounds == UI_RECT_1(0)) {
+         if (mdiChild->bounds == ui_rect_1(0)) {
             int width  = UIElementMessage(&mdiChild->e, UI_MSG_GET_WIDTH, 0, 0);
             int height = UIElementMessage(&mdiChild->e, UI_MSG_GET_HEIGHT, width, 0);
             if (client->cascade + width > element->bounds.r || client->cascade + height > element->bounds.b)
                client->cascade = 0;
             mdiChild->bounds =
-               UI_RECT_4(client->cascade, client->cascade + width, client->cascade, client->cascade + height);
+               ui_rect_4(client->cascade, client->cascade + width, client->cascade, client->cascade + height);
             client->cascade += UI_SIZE_MDI_CASCADE * element->window->scale;
          }
 
-         UIRectangle bounds = mdiChild->bounds + UI_RECT_2(element->bounds.l, element->bounds.t);
+         UIRectangle bounds = mdiChild->bounds + ui_rect_2(element->bounds.l, element->bounds.t);
          UIElementMove(&mdiChild->e, bounds, false);
       }
    } else if (message == UI_MSG_PRESSED_DESCENDENT) {
@@ -3229,7 +3229,7 @@ int _UIImageDisplayMessage(UIElement* element, UIMessage message, int di, void* 
       int y = _UILinearMap(0, display->panY, display->panY + h / display->zoom, 0, h) + element->bounds.t;
 
       UIRectangle image =
-         UI_RECT_4(x, x + (int)(display->width * display->zoom), y, (int)(y + display->height * display->zoom));
+         ui_rect_4(x, x + (int)(display->width * display->zoom), y, (int)(y + display->height * display->zoom));
       UIRectangle bounds = UIRectangleIntersection(painter->clip, UIRectangleIntersection(display->e.bounds, image));
       if (!bounds.valid())
          return 0;
@@ -3346,7 +3346,7 @@ int _UIDialogWrapperMessage(UIElement* element, UIMessage message, int di, void*
       int         height = UIElementMessage(element->children[0], UI_MSG_GET_HEIGHT, width, 0);
       int         cx     = (element->bounds.l + element->bounds.r) / 2;
       int         cy     = (element->bounds.t + element->bounds.b) / 2;
-      UIRectangle bounds = UI_RECT_4(cx - (width + 1) / 2, cx + width / 2, cy - (height + 1) / 2, cy + height / 2);
+      UIRectangle bounds = ui_rect_4(cx - (width + 1) / 2, cx + width / 2, cy - (height + 1) / 2, cy + height / 2);
       UIElementMove(element->children[0], bounds, false);
       UIElementRepaint(element, NULL);
    } else if (message == UI_MSG_PAINT) {
@@ -3454,7 +3454,7 @@ const char* UIDialogShow(UIWindow* window, uint32_t flags, const char* format, .
    UI_ASSERT(!window->dialog);
    window->dialog = UIElementCreate(sizeof(UIElement), &window->e, 0, _UIDialogWrapperMessage, "DialogWrapper");
    UIPanel* panel = UIPanelCreate(window->dialog, UI_PANEL_MEDIUM_SPACING | UI_PANEL_COLOR_1);
-   panel->border  = UI_RECT_1(UI_SIZE_PANE_MEDIUM_BORDER * 2);
+   panel->border  = ui_rect_1(UI_SIZE_PANE_MEDIUM_BORDER * 2);
    window->e.children[0]->flags |= UI_ELEMENT_DISABLED;
 
    // Create the dialog contents.
@@ -3636,7 +3636,7 @@ int _UIMenuMessage(UIElement* element, UIMessage message, int di, void* dp) {
             int height = UIElementMessage(child, UI_MSG_GET_HEIGHT, 0, 0);
             UIElementMove(
                child,
-               UI_RECT_4(element->bounds.l + 2, element->bounds.r - scrollBarSize - 2, position, position + height),
+               ui_rect_4(element->bounds.l + 2, element->bounds.r - scrollBarSize - 2, position, position + height),
                false);
             position += height;
             totalHeight += height;
@@ -3709,7 +3709,7 @@ UIMenu* UIMenuCreate(UIElement* parent, uint32_t flags) {
 UIRectangle UIElementScreenBounds(UIElement* element) {
    int x = 0, y = 0;
    _UIWindowGetScreenPosition(element->window, &x, &y);
-   return element->bounds + UI_RECT_2(x, y);
+   return element->bounds + ui_rect_2(x, y);
 }
 
 void UIWindowRegisterShortcut(UIWindow* window, UIShortcut shortcut) {
@@ -3874,7 +3874,7 @@ void _UIElementPaint(UIElement* element, UIPainter* painter) {
    UIElementMessage(element, UI_MSG_PAINT_FOREGROUND, 0, painter);
 
    if (element->flags & UI_ELEMENT_BORDER) {
-      UIDrawBorder(painter, element->bounds, ui.theme.border, UI_RECT_1((int)element->window->scale));
+      UIDrawBorder(painter, element->bounds, ui.theme.border, ui_rect_1((int)element->window->scale));
    }
 }
 
@@ -3943,10 +3943,10 @@ void _UIUpdate() {
             painter.bits      = window->bits;
             painter.width     = window->width;
             painter.height    = window->height;
-            painter.clip = UIRectangleIntersection(UI_RECT_2S(window->width, window->height), window->updateRegion);
+            painter.clip = UIRectangleIntersection(ui_rect_2s(window->width, window->height), window->updateRegion);
             _UIElementPaint(&window->e, &painter);
             _UIWindowEndPaint(window, &painter);
-            window->updateRegion = UI_RECT_1(0);
+            window->updateRegion = ui_rect_1(0);
 
 #ifdef UI_DEBUG
             window->lastFullFillCount =
@@ -4345,7 +4345,7 @@ void UIDrawGlyph(UIPainter* painter, int x0, int y0, int c, uint32_t color) {
    if (c < 0 || c > 127)
       c = '?';
 
-   UIRectangle rectangle = UIRectangleIntersection(painter->clip, UI_RECT_4(x0, x0 + 8, y0, y0 + 16));
+   UIRectangle rectangle = UIRectangleIntersection(painter->clip, ui_rect_4(x0, x0 + 8, y0, y0 + 16));
 
    const uint8_t* data = (const uint8_t*)_uiFont + c * 16;
 
@@ -5100,8 +5100,8 @@ bool _UIProcessEvent(XEvent* event) {
          window->image->height         = window->height;
          window->image->bytes_per_line = window->width * 4;
          window->image->data           = (char*)window->bits;
-         window->e.bounds              = UI_RECT_2S(window->width, window->height);
-         window->e.clip                = UI_RECT_2S(window->width, window->height);
+         window->e.bounds              = ui_rect_2s(window->width, window->height);
+         window->e.clip                = ui_rect_2s(window->width, window->height);
    #ifdef UI_DEBUG
          for (int i = 0; i < window->width * window->height; i++)
             window->bits[i] = 0xFF00FF;

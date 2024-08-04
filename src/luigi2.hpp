@@ -143,9 +143,9 @@
 #define UI_MDI_CHILD_CALCULATE_LAYOUT(bounds, scale)                                          \
    int         titleSize  = UI_SIZE_MDI_CHILD_TITLE * scale;                                  \
    int         borderSize = UI_SIZE_MDI_CHILD_BORDER * scale;                                 \
-   UIRectangle title      = UIRectangleAdd(bounds, UI_RECT_4(borderSize, -borderSize, 0, 0)); \
+   UIRectangle title      = UIRectangleAdd(bounds, ui_rect_4(borderSize, -borderSize, 0, 0)); \
    title.b                = title.t + titleSize;                                              \
-   UIRectangle content    = UIRectangleAdd(bounds, UI_RECT_4(borderSize, -borderSize, titleSize, -borderSize));
+   UIRectangle content    = UIRectangleAdd(bounds, ui_rect_4(borderSize, -borderSize, titleSize, -borderSize));
 
 #define UI_UPDATE_HOVERED (1)
 #define UI_UPDATE_PRESSED (2)
@@ -300,13 +300,13 @@ struct UICodeDecorateLine {
    UIPainter*  painter;
 };
 
-#define UI_RECT_1(x) (UIRectangle{(x), (x), (x), (x)})
-#define UI_RECT_1I(x) (UIRectangle{(x), -(x), (x), -(x)})
-#define UI_RECT_2(x, y) (UIRectangle{(x), (x), (y), (y)})
-#define UI_RECT_2I(x, y) (UIRectangle{(x), -(x), (y), -(y)})
-#define UI_RECT_2S(x, y) (UIRectangle{0, (x), 0, (y)})
-#define UI_RECT_4(x, y, z, w) (UIRectangle{(x), (y), (z), (w)})
-#define UI_RECT_4PD(x, y, w, h) (UIRectangle{(x), ((x) + (w)), (y), ((y) + (h))})
+inline UIRectangle ui_rect_1(int x) { return UIRectangle{(x), (x), (x), (x)}; }
+inline UIRectangle ui_rect_1i(int x) { return UIRectangle{(x), -(x), (x), -(x)}; }
+inline UIRectangle ui_rect_2(int x, int y) { return UIRectangle{(x), (x), (y), (y)}; }
+inline UIRectangle ui_rect_2i(int x, int y) { return UIRectangle{(x), -(x), (y), -(y)}; }
+inline UIRectangle ui_rect_2s(int x, int y) { return UIRectangle{0, (x), 0, (y)}; }
+inline UIRectangle ui_rect_4(int x, int y, int z, int w) { return UIRectangle{(x), (y), (z), (w)}; }
+inline UIRectangle ui_rect_4pd(int x, int y, int w, int h) { return UIRectangle{(x), ((x) + (w)), (y), ((y) + (h))}; }
 #define UI_RECT_WIDTH(_r) ((_r).r - (_r).l)
 #define UI_RECT_HEIGHT(_r) ((_r).b - (_r).t)
 #define UI_RECT_TOTAL_H(_r) ((_r).r + (_r).l)
