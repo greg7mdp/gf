@@ -187,10 +187,14 @@ inline constexpr int MDI_CASCADE              = 30;
 } // namespace ui_size
 
 
-#define UI_UPDATE_HOVERED (1)
-#define UI_UPDATE_PRESSED (2)
-#define UI_UPDATE_FOCUSED (3)
-#define UI_UPDATE_DISABLED (4)
+namespace UIUpdate {
+   enum {
+      HOVERED = 1,
+      PRESSED = 2,
+      FOCUSED = 3,
+      DISABLED = 4
+   };
+}
 
 enum class UIMessage : uint32_t {
    // General messages.
@@ -618,32 +622,36 @@ struct UIScrollBar {
    bool       inDrag, horizontal;
 };
 
-#define _UI_LAYOUT_SCROLL_BAR_PAIR(element)                                                                          \
-   element->vScroll->page       = vSpace - (element->hScroll->page < element->hScroll->maximum ? scrollBarSize : 0); \
-   element->hScroll->page       = hSpace - (element->vScroll->page < element->vScroll->maximum ? scrollBarSize : 0); \
-   element->vScroll->page       = vSpace - (element->hScroll->page < element->hScroll->maximum ? scrollBarSize : 0); \
-   UIRectangle vScrollBarBounds = element->e.bounds, hScrollBarBounds = element->e.bounds;                           \
-   hScrollBarBounds.r = vScrollBarBounds.l =                                                                         \
-      vScrollBarBounds.r - (element->vScroll->page < element->vScroll->maximum ? scrollBarSize : 0);                 \
-   vScrollBarBounds.b = hScrollBarBounds.t =                                                                         \
-      hScrollBarBounds.b - (element->hScroll->page < element->hScroll->maximum ? scrollBarSize : 0);                 \
-   UIElementMove(&element->vScroll->e, vScrollBarBounds, true);                                                      \
-   UIElementMove(&element->hScroll->e, hScrollBarBounds, true);
+template <class EL>
+inline void UILayoutScrollbarPair(const EL* el, int hSpace, int vSpace, int scrollBarSize) {
+   el->vScroll->page            = vSpace - (el->hScroll->page < el->hScroll->maximum ? scrollBarSize : 0);
+   el->hScroll->page            = hSpace - (el->vScroll->page < el->vScroll->maximum ? scrollBarSize : 0);
+   el->vScroll->page            = vSpace - (el->hScroll->page < el->hScroll->maximum ? scrollBarSize : 0);
+   UIRectangle vScrollBarBounds = el->e.bounds, hScrollBarBounds = el->e.bounds;
+   hScrollBarBounds.r = vScrollBarBounds.l =
+      vScrollBarBounds.r - (el->vScroll->page < el->vScroll->maximum ? scrollBarSize : 0);
+   vScrollBarBounds.b = hScrollBarBounds.t =
+      hScrollBarBounds.b - (el->hScroll->page < el->hScroll->maximum ? scrollBarSize : 0);
+   UIElementMove(&el->vScroll->e, vScrollBarBounds, true);
+   UIElementMove(&el->hScroll->e, hScrollBarBounds, true);
+}
 
-#define _UI_KEY_INPUT_VSCROLL(element, rowHeight, pageHeight) \
-   if (m->code == UIKeycode::UP)                              \
-      element->vScroll->position -= (rowHeight);              \
-   else if (m->code == UIKeycode::DOWN)                       \
-      element->vScroll->position += (rowHeight);              \
-   else if (m->code == UIKeycode::PAGE_UP)                    \
-      element->vScroll->position += (pageHeight);             \
-   else if (m->code == UIKeycode::PAGE_DOWN)                  \
-      element->vScroll->position -= (pageHeight);             \
-   else if (m->code == UIKeycode::HOME)                       \
-      element->vScroll->position = 0;                         \
-   else if (m->code == UIKeycode::END)                        \
-      element->vScroll->position = element->vScroll->maximum; \
-   UIElementRefresh(&element->e);
+template <class EL>
+inline void  UIKeyInputVScroll(EL* el, UIKeyTyped* m, int rowHeight, int pageHeight) {
+   if (m->code == UIKeycode::UP)
+      el->vScroll->position -= (rowHeight);
+   else if (m->code == UIKeycode::DOWN)
+      el->vScroll->position += (rowHeight);
+   else if (m->code == UIKeycode::PAGE_UP)
+      el->vScroll->position += (pageHeight);
+   else if (m->code == UIKeycode::PAGE_DOWN)
+      el->vScroll->position -= (pageHeight);
+   else if (m->code == UIKeycode::HOME)
+      el->vScroll->position = 0;
+   else if (m->code == UIKeycode::END)
+      el->vScroll->position = el->vScroll->maximum;
+   UIElementRefresh(&el->e);
+}
 
 struct UICodeLine {
    int offset, bytes;

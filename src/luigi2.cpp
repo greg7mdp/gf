@@ -2027,7 +2027,7 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
 
       if (!(code->e.flags & UICode::NO_MARGIN))
          hSpace -= ui.code_margin() + ui.code_margin_gap();
-      _UI_LAYOUT_SCROLL_BAR_PAIR(code);
+      UILayoutScrollbarPair(code, hSpace, vSpace, scrollBarSize);
 
       UIFontActivate(previousFont);
    } else if (message == UIMessage::PAINT) {
@@ -2227,7 +2227,7 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
             _UICodeUpdateSelection(code);
          } else {
             code->moveScrollToFocusNextLayout = false;
-            _UI_KEY_INPUT_VSCROLL(code, lineHeight,
+            UIKeyInputVScroll(code, m, lineHeight,
                                   (element->bounds.t - code->hScroll->e.bounds.t) * 4 /
                                      5 /* leave a few lines for context */);
          }
@@ -2705,7 +2705,7 @@ int _UITableMessage(UIElement* element, UIMessage message, int di, void* dp) {
       int vSpace = table->vScroll->page =
          element->bounds.height() - ui_size::TABLE_HEADER * element->window->scale;
       int hSpace = table->hScroll->page = element->bounds.width();
-      _UI_LAYOUT_SCROLL_BAR_PAIR(table);
+      UILayoutScrollbarPair(table, hSpace, vSpace, scrollBarSize);
    } else if (message == UIMessage::MOUSE_MOVE || message == UIMessage::UPDATE) {
       UIElementRepaint(element, NULL);
    } else if (message == UIMessage::SCROLLED) {
@@ -2720,7 +2720,7 @@ int _UITableMessage(UIElement* element, UIMessage message, int di, void* dp) {
       if ((m->code == UIKeycode::UP || m->code == UIKeycode::DOWN || m->code == UIKeycode::PAGE_UP ||
            m->code == UIKeycode::PAGE_DOWN || m->code == UIKeycode::HOME || m->code == UIKeycode::END) &&
           !element->window->ctrl && !element->window->alt && !element->window->shift) {
-         _UI_KEY_INPUT_VSCROLL(table, ui_size::TABLE_ROW * element->window->scale,
+         UIKeyInputVScroll(table, m, ui_size::TABLE_ROW * element->window->scale,
                                (element->bounds.t - table->hScroll->e.bounds.t + ui_size::TABLE_HEADER) * 4 / 5);
          return 1;
       } else if ((m->code == UIKeycode::LEFT || m->code == UIKeycode::RIGHT) && !element->window->ctrl &&
@@ -3454,7 +3454,7 @@ int _UIDialogTextboxMessage(UIElement* element, UIMessage message, int di, void*
       for (ptrdiff_t i = 0; i < textbox->bytes; i++) {
          (*buffer)[i] = textbox->string[i];
       }
-   } else if (message == UIMessage::UPDATE && di == UI_UPDATE_FOCUSED && element->window->focused == element) {
+   } else if (message == UIMessage::UPDATE && di == UIUpdate::FOCUSED && element->window->focused == element) {
       textbox->carets[1] = 0;
       textbox->carets[0] = textbox->bytes;
       UIElementRepaint(element, NULL);
@@ -3751,7 +3751,7 @@ void UIElementSetDisabled(UIElement* element, bool disabled) {
    else
       element->flags &= ~UIElement::DISABLED;
 
-   UIElementMessage(element, UIMessage::UPDATE, UI_UPDATE_DISABLED, 0);
+   UIElementMessage(element, UIMessage::UPDATE, UIUpdate::DISABLED, 0);
 }
 
 void UIElementFocus(UIElement* element) {
@@ -3760,9 +3760,9 @@ void UIElementFocus(UIElement* element) {
       return;
    element->window->focused = element;
    if (previous)
-      UIElementMessage(previous, UIMessage::UPDATE, UI_UPDATE_FOCUSED, 0);
+      UIElementMessage(previous, UIMessage::UPDATE, UIUpdate::FOCUSED, 0);
    if (element)
-      UIElementMessage(element, UIMessage::UPDATE, UI_UPDATE_FOCUSED, 0);
+      UIElementMessage(element, UIMessage::UPDATE, UIUpdate::FOCUSED, 0);
 
 #ifdef UI_DEBUG
    _UIInspectorRefresh();
@@ -3985,9 +3985,9 @@ void _UIWindowSetPressed(UIWindow* window, UIElement* element, int button) {
    window->pressed       = element;
    window->pressedButton = button;
    if (previous)
-      UIElementMessage(previous, UIMessage::UPDATE, UI_UPDATE_PRESSED, 0);
+      UIElementMessage(previous, UIMessage::UPDATE, UIUpdate::PRESSED, 0);
    if (element)
-      UIElementMessage(element, UIMessage::UPDATE, UI_UPDATE_PRESSED, 0);
+      UIElementMessage(element, UIMessage::UPDATE, UIUpdate::PRESSED, 0);
 
    UIElement* ancestor = element;
    UIElement* child    = NULL;
@@ -4081,10 +4081,10 @@ bool _UIWindowInputEvent(UIWindow* window, UIMessage message, int di, void* dp) 
 
       if (inside && window->hovered == &window->e) {
          window->hovered = window->pressed;
-         UIElementMessage(window->pressed, UIMessage::UPDATE, UI_UPDATE_HOVERED, 0);
+         UIElementMessage(window->pressed, UIMessage::UPDATE, UIUpdate::HOVERED, 0);
       } else if (!inside && window->hovered == window->pressed) {
          window->hovered = &window->e;
-         UIElementMessage(window->pressed, UIMessage::UPDATE, UI_UPDATE_HOVERED, 0);
+         UIElementMessage(window->pressed, UIMessage::UPDATE, UIUpdate::HOVERED, 0);
       }
 
       if (ui.quit || ui.dialogResult)
@@ -4204,8 +4204,8 @@ bool _UIWindowInputEvent(UIWindow* window, UIMessage message, int di, void* dp) 
       if (hovered != window->hovered) {
          UIElement* previous = window->hovered;
          window->hovered     = hovered;
-         UIElementMessage(previous, UIMessage::UPDATE, UI_UPDATE_HOVERED, 0);
-         UIElementMessage(window->hovered, UIMessage::UPDATE, UI_UPDATE_HOVERED, 0);
+         UIElementMessage(previous, UIMessage::UPDATE, UIUpdate::HOVERED, 0);
+         UIElementMessage(window->hovered, UIMessage::UPDATE, UIUpdate::HOVERED, 0);
       }
    }
 
