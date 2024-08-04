@@ -80,62 +80,64 @@
 #define _UI_TO_STRING_1(x) #x
 #define _UI_TO_STRING_2(x) _UI_TO_STRING_1(x)
 
-#define UI_SIZE_BUTTON_MINIMUM_WIDTH (100)
-#define UI_SIZE_BUTTON_PADDING (16)
-#define UI_SIZE_BUTTON_HEIGHT (27)
-#define UI_SIZE_BUTTON_CHECKED_AREA (4)
+namespace ui_size {
 
-#define UI_SIZE_CHECKBOX_BOX (14)
-#define UI_SIZE_CHECKBOX_GAP (8)
+inline constexpr int BUTTON_MINIMUM_WIDTH = 100;
+inline constexpr int BUTTON_PADDING       = 16;
+inline constexpr int BUTTON_HEIGHT        = 27;
+inline constexpr int BUTTON_CHECKED_AREA  = 4;
 
-#define UI_SIZE_MENU_ITEM_HEIGHT (24)
-#define UI_SIZE_MENU_ITEM_MINIMUM_WIDTH (160)
-#define UI_SIZE_MENU_ITEM_MARGIN (9)
+inline constexpr int CHECKBOX_BOX = 14;
+inline constexpr int CHECKBOX_GAP = 8;
 
-#define UI_SIZE_GAUGE_WIDTH (200)
-#define UI_SIZE_GAUGE_HEIGHT (22)
+inline constexpr int MENU_ITEM_HEIGHT        = 24;
+inline constexpr int MENU_ITEM_MINIMUM_WIDTH = 160;
+inline constexpr int MENU_ITEM_MARGIN        = 9;
 
-#define UI_SIZE_SLIDER_WIDTH (200)
-#define UI_SIZE_SLIDER_HEIGHT (25)
-#define UI_SIZE_SLIDER_THUMB (15)
-#define UI_SIZE_SLIDER_TRACK (5)
+inline constexpr int GAUGE_WIDTH  = 200;
+inline constexpr int GAUGE_HEIGHT = 22;
 
-#define UI_SIZE_TEXTBOX_MARGIN (3)
-#define UI_SIZE_TEXTBOX_WIDTH (200)
-#define UI_SIZE_TEXTBOX_HEIGHT (27)
+inline constexpr int SLIDER_WIDTH  = 200;
+inline constexpr int SLIDER_HEIGHT = 25;
+inline constexpr int SLIDER_THUMB  = 15;
+inline constexpr int SLIDER_TRACK  = 5;
 
-#define UI_SIZE_TAB_PANE_SPACE_TOP (2)
-#define UI_SIZE_TAB_PANE_SPACE_LEFT (4)
+inline constexpr int TEXTBOX_MARGIN = 3;
+inline constexpr int TEXTBOX_WIDTH  = 200;
+inline constexpr int TEXTBOX_HEIGHT = 27;
 
-#define UI_SIZE_SPLITTER (8)
+inline constexpr int TAB_PANE_SPACE_TOP  = 2;
+inline constexpr int TAB_PANE_SPACE_LEFT = 4;
 
-#define UI_SIZE_SCROLL_BAR (16)
-#define UI_SIZE_SCROLL_MINIMUM_THUMB (20)
+inline constexpr int SPLITTER = 8;
 
-#define UI_SIZE_CODE_MARGIN (ui.activeFont->glyphWidth * 5)
-#define UI_SIZE_CODE_MARGIN_GAP (ui.activeFont->glyphWidth * 1)
+inline constexpr int SCROLL_BAR           = 16;
+inline constexpr int SCROLL_MINIMUM_THUMB = 20;
 
-#define UI_SIZE_TABLE_HEADER (26)
-#define UI_SIZE_TABLE_COLUMN_GAP (20)
-#define UI_SIZE_TABLE_ROW (20)
+inline constexpr int TABLE_HEADER     = 26;
+inline constexpr int TABLE_COLUMN_GAP = 20;
+inline constexpr int TABLE_ROW        = 20;
 
-#define UI_SIZE_PANE_LARGE_BORDER (20)
-#define UI_SIZE_PANE_LARGE_GAP (10)
-#define UI_SIZE_PANE_MEDIUM_BORDER (5)
-#define UI_SIZE_PANE_MEDIUM_GAP (5)
-#define UI_SIZE_PANE_SMALL_BORDER (3)
-#define UI_SIZE_PANE_SMALL_GAP (3)
+inline constexpr int PANE_LARGE_BORDER  = 20;
+inline constexpr int PANE_LARGE_GAP     = 10;
+inline constexpr int PANE_MEDIUM_BORDER = 5;
+inline constexpr int PANE_MEDIUM_GAP    = 5;
+inline constexpr int PANE_SMALL_BORDER  = 3;
+inline constexpr int PANE_SMALL_GAP     = 3;
 
-#define UI_SIZE_MDI_CHILD_BORDER (6)
-#define UI_SIZE_MDI_CHILD_TITLE (30)
-#define UI_SIZE_MDI_CHILD_CORNER (12)
-#define UI_SIZE_MDI_CHILD_MINIMUM_WIDTH (100)
-#define UI_SIZE_MDI_CHILD_MINIMUM_HEIGHT (50)
-#define UI_SIZE_MDI_CASCADE (30)
+inline constexpr int MDI_CHILD_BORDER         = 6;
+inline constexpr int MDI_CHILD_TITLE          = 30;
+inline constexpr int MDI_CHILD_CORNER         = 12;
+inline constexpr int MDI_CHILD_MINIMUM_WIDTH  = 100;
+inline constexpr int MDI_CHILD_MINIMUM_HEIGHT = 50;
+inline constexpr int MDI_CASCADE              = 30;
+
+} // namespace ui_size
+
 
 #define UI_MDI_CHILD_CALCULATE_LAYOUT(bounds, scale)                                          \
-   int         titleSize  = UI_SIZE_MDI_CHILD_TITLE * scale;                                  \
-   int         borderSize = UI_SIZE_MDI_CHILD_BORDER * scale;                                 \
+   int         titleSize  = ui_size::MDI_CHILD_TITLE * scale;                                 \
+   int         borderSize = ui_size::MDI_CHILD_BORDER * scale;                                \
    UIRectangle title      = UIRectangleAdd(bounds, ui_rect_4(borderSize, -borderSize, 0, 0)); \
    title.b                = title.t + titleSize;                                              \
    UIRectangle content    = UIRectangleAdd(bounds, ui_rect_4(borderSize, -borderSize, titleSize, -borderSize));
@@ -892,6 +894,9 @@ struct UI {
 #ifdef UI_FREETYPE
    FT_Library ft;
 #endif
+
+   int code_margin() { return activeFont->glyphWidth * 5; }
+   int code_margin_gap() { return activeFont->glyphWidth * 1; }
 };
 
 // ----------------------------------------
