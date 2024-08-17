@@ -626,14 +626,17 @@ struct UIScrollBar {
 
 template <class EL>
 inline void UILayoutScrollbarPair(const EL* el, int hSpace, int vSpace, int scrollBarSize) {
-   el->vScroll->page            = vSpace - (el->hScroll->page < el->hScroll->maximum ? scrollBarSize : 0);
-   el->hScroll->page            = hSpace - (el->vScroll->page < el->vScroll->maximum ? scrollBarSize : 0);
-   el->vScroll->page            = vSpace - (el->hScroll->page < el->hScroll->maximum ? scrollBarSize : 0);
+   el->vScroll->page = vSpace - (el->hScroll->page < el->hScroll->maximum ? scrollBarSize : 0);
+   el->hScroll->page = hSpace - (el->vScroll->page < el->vScroll->maximum ? scrollBarSize : 0);
+   el->vScroll->page = vSpace - (el->hScroll->page < el->hScroll->maximum ? scrollBarSize : 0);
+
    UIRectangle vScrollBarBounds = el->e.bounds, hScrollBarBounds = el->e.bounds;
+
    hScrollBarBounds.r = vScrollBarBounds.l =
       vScrollBarBounds.r - (el->vScroll->page < el->vScroll->maximum ? scrollBarSize : 0);
    vScrollBarBounds.b = hScrollBarBounds.t =
       hScrollBarBounds.b - (el->hScroll->page < el->hScroll->maximum ? scrollBarSize : 0);
+
    UIElementMove(&el->vScroll->e, vScrollBarBounds, true);
    UIElementMove(&el->hScroll->e, hScrollBarBounds, true);
 }
@@ -641,13 +644,13 @@ inline void UILayoutScrollbarPair(const EL* el, int hSpace, int vSpace, int scro
 template <class EL>
 inline void  UIKeyInputVScroll(EL* el, UIKeyTyped* m, int rowHeight, int pageHeight) {
    if (m->code == UIKeycode::UP)
-      el->vScroll->position -= (rowHeight);
+      el->vScroll->position -= rowHeight;
    else if (m->code == UIKeycode::DOWN)
-      el->vScroll->position += (rowHeight);
+      el->vScroll->position += rowHeight;
    else if (m->code == UIKeycode::PAGE_UP)
-      el->vScroll->position += (pageHeight);
+      el->vScroll->position += pageHeight;
    else if (m->code == UIKeycode::PAGE_DOWN)
-      el->vScroll->position -= (pageHeight);
+      el->vScroll->position -= pageHeight;
    else if (m->code == UIKeycode::HOME)
       el->vScroll->position = 0;
    else if (m->code == UIKeycode::END)
