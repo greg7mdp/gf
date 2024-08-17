@@ -1,8 +1,6 @@
 # gf – A GDB Frontend
 
-<!---
  [![Linux](https://github.com/greg7mdp/gf/actions/workflows/linux.yml/badge.svg)](https://github.com/greg7mdp/gf/actions/workflows/linux.yml)
- --> 
  
 ## Get the source and build
 
