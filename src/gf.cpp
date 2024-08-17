@@ -7403,7 +7403,7 @@ int GfMain(int argc, char** argv) {
    fontCode = UIFontCreate(fontPath, fontSizeCode);
    UIFontActivate(UIFontCreate(fontPath, fontSizeInterface));
 
-   windowMain                = UIWindowCreate(0, maximize ? UIWindow::MAXIMIZE : 0, "gf2", 0, 0);
+   windowMain                = UIWindowCreate(0, maximize ? UIWindow::MAXIMIZE : 0, "gf", 0, 0);
    windowMain->scale         = uiScale;
    windowMain->e.messageUser = WindowMessage;
 

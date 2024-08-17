@@ -39,13 +39,14 @@ cmake -Bbuild -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=clang++-18 -DCMAKE_E
 ./build/gf
 ```
 
-Please read the rest of this file to learn about using and configuring `gf`. If you're new to GDB, see [this article](https://handmade.network/forums/articles/t/2883-gdb).
+Please read the rest of this file to learn about using and configuring `gf`. 
 
-If you want to make a debug build of `gf`, use a command like `g++ gf2.cpp -g -lX11 -pthread`.
+If you're new to GDB, see [this article](https://handmade.network/forums/articles/t/2883-gdb).
+
 
 ## Tips
 
-- You can run the application with `./gf2`. Any additional command line arguments passed to `gf` will be forwarded to GDB.
+- You can run the application with `./gf`. Any additional command line arguments passed to `gf` will be forwarded to GDB.
 - Press Ctrl+Shift+P to synchronize your working directory with GDB after you start your target executable. This is necessary if you open `gf` in a different directory to the one you compile in.
 - To view RGBA bitmaps, select the `Data` tab and then select `Add bitmap...`.
 - Ctrl+Click a line in the source view to run "until" that line. Shift+Click a line in the source view to skip to it without executing the code in between.
@@ -53,7 +54,7 @@ If you want to make a debug build of `gf`, use a command like `g++ gf2.cpp -g -l
 - Press Tab while entering a watch expression to auto-complete it.
 - Press `/` with a watch expression highlighted to change the format specifier. For example, `/x` switches to hexadecimal view.
 - Press backtick to enter line inspect mode. This mode evaluates all expressions on the current line.
-- Use `gf2 --rr-replay` for replaying a trace recorded by [rr](https://rr-project.org/). Use Ctrl+Shift+(F5/F10/F11) for reverse continue and step.
+- Use `gf --rr-replay` for replaying a trace recorded by [rr](https://rr-project.org/). Use Ctrl+Shift+(F5/F10/F11) for reverse continue and step.
 
 You may want to add the following commands to your `~/.gdbinit` file:
 ```
@@ -381,15 +382,9 @@ Arseniy Khvorov khvorov45
 ![A screenshot showing the embedded profiler, which is displaying a multi-colored flame graph.](https://raw.githubusercontent.com/nakst/cdn/main/unknown2.png)
 ![A screenshot showing the memory window and extended watch expression view.](https://raw.githubusercontent.com/nakst/cdn/main/%20memory%20window%20and%20extended%20view%20window.png)
 
-~~All tiers on my Patreon, https://www.patreon.com/nakst, get access to the extension pack. ~~
-
-**This is now available to all; see the folder `extensions_v5`.**
-
 This currently includes:
 - Embedded tracing profiler
 - Memory window
 - Extended watch expression view (for strings, matrices and base conversion)
 - [Waveform viewer](https://raw.githubusercontent.com/nakst/cdn/main/waveform_viewer.mp4)
 - Full source code for the pack
-
-Make sure you use the latest version of the extension pack with the latest commit of `gf`, otherwise you'll likely run into compile or runtime errors!
