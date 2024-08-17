@@ -22,7 +22,9 @@
 
 #ifdef UI_SSE2
    #include <xmmintrin.h>
-   #include <intrin.h>
+   #ifdef UI_WINDOWS
+      #include <intrin.h>
+   #endif
 #endif
 
 #ifdef UI_WINDOWS
