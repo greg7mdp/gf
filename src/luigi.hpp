@@ -11,6 +11,8 @@
 #include <cstddef>
 #include <cstdarg>
 #include <cstring>
+#include <cstdlib>
+#include <cassert>
 #include <array>
 
 #ifdef UI_LINUX
@@ -50,9 +52,6 @@
 #endif
 
 #if defined(UI_LINUX)
-   #include <cstdlib>
-   #include <cstring>
-   #include <cassert>
    #include <ctime>
    #include <cmath>
 
