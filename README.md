@@ -3,33 +3,40 @@
 derived from https://github.com/nakst/gf.
 
 ![Build status](https://img.shields.io/github/actions/workflow/status/nakst/gf/ci.yml?branch=master)
- 
-![Screenshot of the debugger's interface, showing the source view, breakpoints list, call stack, bitmap viewer, and command prompt.](https://raw.githubusercontent.com/nakst/cdn/main/gf2.png)
-![Another screenshot, showing the watch window and different color scheme.](https://raw.githubusercontent.com/nakst/cdn/main/gf1.png)
-![Another screenshot, showing the disassembly and register windows.](https://raw.githubusercontent.com/nakst/cdn/main/gf3.png)
 
-## Building
+## Get the source and build
 
-Download this project's source.
+Get the source code:
 
 ```bash
-git clone https://github.com/nakst/gf.git
+git clone https://github.com/greg7mdp/gf.git
 ```
 
-And compile the application.
+build:
 
 ```bash
-# linux
-./build.sh
+cd gf
+cmake -Bbuild . 
+cmake --build build
+```
 
-# freebsd
-./build_freebsd.sh
+Some useful `cmake` options:
 
-# netbsd
-./build_netbsd.sh
+- `CMAKE_BUILD_TYPE`:  `Release`, `Debug`, `RelWithDebInfo`
+- `CMAKE_CXX_COMPILER`: specify a specific installed C++ compiler, for example `clang++-18` or `g++-12`
+- `CMAKE_EXPORT_COMPILE_COMMANDS`: useful for clangd
 
-# openbsd
-./build_openbsd.sh
+
+example:
+
+```bash
+cmake -Bbuild -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=clang++-18 -DCMAKE_EXPORT_COMPILE_COMMANDS=1  -GNinja .
+```
+
+## Run
+
+```bash
+./build/gf
 ```
 
 Please read the rest of this file to learn about using and configuring `gf`. If you're new to GDB, see [this article](https://handmade.network/forums/articles/t/2883-gdb).
