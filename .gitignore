@@ -1,0 +1,14 @@
+# Executables
+*.exe
+*.out
+*.app
+
+# Build directories
+build
+build_*
+
+# Misc
+.vagrant
+.cache
+.gdb_history
+compile_commands.json

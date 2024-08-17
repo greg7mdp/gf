@@ -1,0 +1,20 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    timeout-minutes: 5    
+    env:
+      DISPLAY: ':99'
+    steps:
+    - uses: actions/checkout@v2
+    - name: install-dependencies
+      run: sudo apt-get install --no-install-recommends -y gdb
+    - name: build
+      run: ./build.sh
