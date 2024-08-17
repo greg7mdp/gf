@@ -22,6 +22,7 @@
 
 #ifdef UI_SSE2
    #include <xmmintrin.h>
+   #include <intrin.h>
 #endif
 
 #ifdef UI_WINDOWS
@@ -951,7 +952,7 @@ struct UI {
 #endif
 
 #ifdef UI_WINDOWS
-   HCURSOR cursors[(uint32_t)UICursor::COUNT];
+   HCURSOR cursors[(uint32_t)UICursor::count];
    HANDLE  heap;
    bool    assertionFailure;
 #endif
@@ -990,6 +991,8 @@ inline UI_CLOCK_T _UIClock() {
 #ifdef UI_WINDOWS
 void* _UIHeapReAlloc(void* pointer, size_t size);
 void* _UIMemmove(void* dest, const void* src, size_t n);
+#undef max
+#undef min
 #endif
 
 

@@ -4495,14 +4495,14 @@ int _UIInspectorTableMessage(UIElement* element, UIMessage message, int di, void
       painter.bits         = window->bits;
       painter.width        = window->width;
       painter.height       = window->height;
-      painter.clip         = UI_RECT_2S(window->width, window->height);
+      painter.clip         = ui_rect_2s(window->width, window->height);
 
       for (int i = 0; i < window->width * window->height; i++) {
          window->bits[i] = 0xFF00FF;
       }
 
       _UIElementPaint(&window->e, &painter);
-      painter.clip = UI_RECT_2S(window->width, window->height);
+      painter.clip = ui_rect_2s(window->width, window->height);
 
       if (element) {
          UIDrawInvert(&painter, element->bounds);
@@ -5505,8 +5505,8 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPAR
       window->width    = client.right;
       window->height   = client.bottom;
       window->bits     = (uint32_t*)UI_REALLOC(window->bits, window->width * window->height * 4);
-      window->e.bounds = UI_RECT_2S(window->width, window->height);
-      window->e.clip   = UI_RECT_2S(window->width, window->height);
+      window->e.bounds = ui_rect_2s(window->width, window->height);
+      window->e.clip   = ui_rect_2s(window->width, window->height);
       UIElementRelayout(&window->e);
       _UIUpdate();
    } else if (message == WM_MOUSEMOVE) {
@@ -5634,21 +5634,21 @@ void UIInitialise() {
 
    _UIInitialiseCommon();
 
-   ui.cursors[(uint32_t)UICursor::ARROW]             = LoadCursor(NULL, IDC_ARROW);
-   ui.cursors[(uint32_t)UICursor::TEXT]              = LoadCursor(NULL, IDC_IBEAM);
-   ui.cursors[(uint32_t)UICursor::SPLIT_V]           = LoadCursor(NULL, IDC_SIZENS);
-   ui.cursors[(uint32_t)UICursor::SPLIT_H]           = LoadCursor(NULL, IDC_SIZEWE);
-   ui.cursors[(uint32_t)UICursor::FLIPPED_ARROW]     = LoadCursor(NULL, IDC_ARROW);
-   ui.cursors[(uint32_t)UICursor::CROSS_HAIR]        = LoadCursor(NULL, IDC_CROSS);
-   ui.cursors[(uint32_t)UICursor::HAND]              = LoadCursor(NULL, IDC_HAND);
-   ui.cursors[(uint32_t)UICursor::RESIZE_UP]         = LoadCursor(NULL, IDC_SIZENS);
-   ui.cursors[(uint32_t)UICursor::RESIZE_LEFT]       = LoadCursor(NULL, IDC_SIZEWE);
-   ui.cursors[(uint32_t)UICursor::RESIZE_UP_RIGHT]   = LoadCursor(NULL, IDC_SIZENESW);
-   ui.cursors[(uint32_t)UICursor::RESIZE_UP_LEFT]    = LoadCursor(NULL, IDC_SIZENWSE);
-   ui.cursors[(uint32_t)UICursor::RESIZE_DOWN]       = LoadCursor(NULL, IDC_SIZENS);
-   ui.cursors[(uint32_t)UICursor::RESIZE_RIGHT]      = LoadCursor(NULL, IDC_SIZEWE);
-   ui.cursors[(uint32_t)UICursor::RESIZE_DOWN_LEFT]  = LoadCursor(NULL, IDC_SIZENESW);
-   ui.cursors[(uint32_t)UICursor::RESIZE_DOWN_RIGHT] = LoadCursor(NULL, IDC_SIZENWSE);
+   ui.cursors[(uint32_t)UICursor::arrow]             = LoadCursor(NULL, IDC_ARROW);
+   ui.cursors[(uint32_t)UICursor::text]              = LoadCursor(NULL, IDC_IBEAM);
+   ui.cursors[(uint32_t)UICursor::split_v]           = LoadCursor(NULL, IDC_SIZENS);
+   ui.cursors[(uint32_t)UICursor::split_h]           = LoadCursor(NULL, IDC_SIZEWE);
+   ui.cursors[(uint32_t)UICursor::flipped_arrow]     = LoadCursor(NULL, IDC_ARROW);
+   ui.cursors[(uint32_t)UICursor::cross_hair]        = LoadCursor(NULL, IDC_CROSS);
+   ui.cursors[(uint32_t)UICursor::hand]              = LoadCursor(NULL, IDC_HAND);
+   ui.cursors[(uint32_t)UICursor::resize_up]         = LoadCursor(NULL, IDC_SIZENS);
+   ui.cursors[(uint32_t)UICursor::resize_left]       = LoadCursor(NULL, IDC_SIZEWE);
+   ui.cursors[(uint32_t)UICursor::resize_up_right]   = LoadCursor(NULL, IDC_SIZENESW);
+   ui.cursors[(uint32_t)UICursor::resize_up_left]    = LoadCursor(NULL, IDC_SIZENWSE);
+   ui.cursors[(uint32_t)UICursor::resize_down]       = LoadCursor(NULL, IDC_SIZENS);
+   ui.cursors[(uint32_t)UICursor::resize_right]      = LoadCursor(NULL, IDC_SIZEWE);
+   ui.cursors[(uint32_t)UICursor::resize_down_left]  = LoadCursor(NULL, IDC_SIZENESW);
+   ui.cursors[(uint32_t)UICursor::resize_down_right] = LoadCursor(NULL, IDC_SIZENWSE);
 
    WNDCLASS windowClass      = {0};
    windowClass.lpfnWndProc   = _UIWindowProcedure;
