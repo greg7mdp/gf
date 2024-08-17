@@ -1,0 +1,46 @@
+name: Linux
+
+on:
+  push:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-24.04]
+        compiler: [g++-12, clang++-18]
+        build_type: [Debug, Release]
+        standard: [20]
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Create Environment
+      run: |
+        sudo apt update
+        sudo apt install -y g++-12
+        wget https://apt.llvm.org/llvm.sh; chmod u+x llvm.sh; sudo ./llvm.sh 18
+        cmake -E make_directory ${{runner.workspace}}/build
+
+    - name: Configure
+      working-directory: ${{runner.workspace}}/build
+      env:
+        CXX: ${{ matrix.compiler }}
+      run: |
+        cmake -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON -DCMAKE_CXX_STANDARD=${{matrix.standard}} -DCMAKE_BUILD_TYPE=${{matrix.build_type}} $GITHUB_WORKSPACE
+
+    - name: Build
+      working-directory: ${{runner.workspace}}/build
+      run: |
+        cpus=`nproc`
+        cmake --build . --config ${{matrix.build_type}} --parallel $cpus
+
+    - name: Test
+      working-directory: ${{runner.workspace}}/build
+      env:
+        CTEST_OUTPUT_ON_FAILURE: True
+      run: |
+        ctest -C ${{matrix.build_type}}

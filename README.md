@@ -1,9 +1,9 @@
-# **gf** – A GDB Frontend
+# gf – A GDB Frontend
 
-derived from https://github.com/nakst/gf.
-
-![Build status](https://img.shields.io/github/actions/workflow/status/nakst/gf/ci.yml?branch=master)
-
+<!---
+ [![Linux](https://github.com/greg7mdp/gf/actions/workflows/linux.yml/badge.svg)](https://github.com/greg7mdp/gf/actions/workflows/linux.yml)
+ --> 
+ 
 ## Get the source and build
 
 Get the source code:
