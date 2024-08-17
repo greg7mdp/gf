@@ -11,8 +11,10 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-24.04]
-        compiler: [g++-12, clang++-18]
-        build_type: [Debug, Release]
+        compiler: [g++]
+        build_type: [Release]
+        ## compiler: [g++, clang++-18]
+        ## build_type: [Debug, Release]
         standard: [20]
     steps:
     - name: Checkout
@@ -21,8 +23,8 @@ jobs:
     - name: Create Environment
       run: |
         sudo apt update
-        sudo apt install -y g++-12 libfreetype-dev
-        wget https://apt.llvm.org/llvm.sh; chmod u+x llvm.sh; sudo ./llvm.sh 18
+        sudo apt install -y libfreetype-dev libx11-dev x11-common
+        ## wget https://apt.llvm.org/llvm.sh; chmod u+x llvm.sh; sudo ./llvm.sh 18
         cmake -E make_directory ${{runner.workspace}}/build
 
     - name: Configure
