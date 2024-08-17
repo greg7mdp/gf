@@ -34,7 +34,7 @@ if (UNIX)
     target_compile_options(${PROJECT_NAME} PRIVATE -DUI_LINUX -DUI_FONT_PATH -DUI_SSE2 -DUI_FREETYPE)
 
     target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wno-unused-parameter
-                           -Wno-missing-field-initializers  -Wno-deprecated-enum-enum-conversion)
+                           -Wno-missing-field-initializers  -Wno-deprecated-anon-enum-enum-conversion)
 endif (UNIX)
 
 if (MSVC)

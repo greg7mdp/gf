@@ -78,7 +78,7 @@ enum class UIKeycode : int {
     A         = XK_a,
     ZERO      = XK_0,
     BACKSPACE = XK_BackSpace,
-    DELETE    = XK_Delete,
+    DEL       = XK_Delete,
     DOWN      = XK_Down,
     END       = XK_End,
     ENTER     = XK_Return,
@@ -102,7 +102,7 @@ enum class UIKeycode : int {
     A         = 'A',
     ZERO      = '0',
     BACKSPACE = VK_BACK,
-    DELETE    = VK_DELETE,
+    DEL       = VK_DELETE,
     DOWN      = VK_DOWN,
     END       = VK_END,
     ENTER     = VK_RETURN,
@@ -727,7 +727,7 @@ struct UISlider {
 
 struct UIMDIClient {
    enum {
-      TRANSPARENT = 1 << 0
+      _TRANSPARENT = 1 << 0
    };
 
    UIElement          e;

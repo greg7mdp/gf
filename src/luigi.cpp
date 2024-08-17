@@ -2906,7 +2906,7 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
       if (textbox->rejectNextKey) {
          textbox->rejectNextKey = false;
          handled                = false;
-      } else if (m->code == UIKeycode::BACKSPACE || m->code == UIKeycode::DELETE) {
+      } else if (m->code == UIKeycode::BACKSPACE || m->code == UIKeycode::DEL) {
          if (textbox->carets[0] == textbox->carets[1]) {
             UITextboxMoveCaret(textbox, m->code == UIKeycode::BACKSPACE, element->window->ctrl);
          }
@@ -3125,7 +3125,7 @@ int _UIMDIClientMessage(UIElement* element, UIMessage message, int di, void* dp)
    UIMDIClient* client = (UIMDIClient*)element;
 
    if (message == UIMessage::PAINT) {
-      if (~element->flags & UIMDIClient::TRANSPARENT) {
+      if (~element->flags & UIMDIClient::_TRANSPARENT) {
          UIDrawBlock((UIPainter*)dp, element->bounds, ui.theme.panel2);
       }
    } else if (message == UIMessage::LAYOUT) {
@@ -5192,7 +5192,7 @@ bool _UIProcessEvent(XEvent* event) {
          } else if (symbol == XK_KP_Enter) {
             m.code = UIKeycode::ENTER;
          } else if (symbol == XK_KP_Delete) {
-            m.code = UIKeycode::DELETE;
+            m.code = UIKeycode::DEL;
          } else if (symbol == XK_KP_Page_Up) {
             m.code = UIKeycode::UP;
          } else if (symbol == XK_KP_Page_Down) {

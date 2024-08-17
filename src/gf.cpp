@@ -3475,7 +3475,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
                   (m->code == UIKeycode::LEFT && !w->rows[w->selectedRow]->open)) &&
                  !w->rows[w->selectedRow]->parent) {
          WatchCreateTextboxForRow(w, true);
-      } else if (m->code == UIKeycode::DELETE && !w->textbox && w->selectedRow != w->rows.Length() &&
+      } else if (m->code == UIKeycode::DEL && !w->textbox && w->selectedRow != w->rows.Length() &&
                  !w->rows[w->selectedRow]->parent) {
          WatchDeleteExpression(w);
       } else if (m->textBytes && m->text[0] == '/' && w->selectedRow != w->rows.Length()) {
@@ -3949,7 +3949,7 @@ int TableBreakpointsMessage(UIElement* element, UIMessage message, int di, void*
    } else if (message == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
-      if (m->code == UIKeycode::DELETE && data->selected.Length() > 0) {
+      if (m->code == UIKeycode::DEL && data->selected.Length() > 0) {
          CommandDeleteSelectedBreakpoints(element->cp);
       }
    }
@@ -4659,8 +4659,8 @@ UIElement* CommandSearchWindowCreate(UIElement* parent) {
 // Utilities:
 // ----------------------------------------------------------
 
-__attribute__((optimize("-O3"))) void ThumbnailResize(uint32_t* bits, uint32_t originalWidth, uint32_t originalHeight,
-                                                      uint32_t targetWidth, uint32_t targetHeight) {
+void ThumbnailResize(uint32_t* bits, uint32_t originalWidth, uint32_t originalHeight,
+                     uint32_t targetWidth, uint32_t targetHeight) {
    float cx = (float)originalWidth / targetWidth;
    float cy = (float)originalHeight / targetHeight;
 
