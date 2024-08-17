@@ -21,7 +21,7 @@ jobs:
     - name: Create Environment
       run: |
         sudo apt update
-        sudo apt install -y g++-12
+        sudo apt install -y g++-12 libfreetype-dev
         wget https://apt.llvm.org/llvm.sh; chmod u+x llvm.sh; sudo ./llvm.sh 18
         cmake -E make_directory ${{runner.workspace}}/build
 
