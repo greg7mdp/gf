@@ -15,9 +15,11 @@ set( CXX_STANDARD_REQUIRED ON)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 ## ----------------- Required packages
-find_package(Freetype REQUIRED)
-find_package(X11 REQUIRED)
-find_package(Threads REQUIRED)
+if (UNIX)
+    find_package(Freetype REQUIRED)
+    find_package(X11 REQUIRED)
+    find_package(Threads REQUIRED)
+endif (UNIX)
 
 ## ----------------- gf
 file(GLOB_RECURSE cpp_files "src/*.cpp")
@@ -26,9 +28,15 @@ file(GLOB_RECURSE header_files "src/*.hpp")
 add_executable(${PROJECT_NAME} ${cpp_files} ${header_files})
 set_property(TARGET ${PROJECT_NAME} PROPERTY PUBLIC_HEADER ${header_files})
 
-target_link_libraries(${PROJECT_NAME} ${FREETYPE_LIBRARIES} ${X11_LIBRARIES} Threads::Threads)
-target_include_directories(${PROJECT_NAME} PRIVATE ${FREETYPE_INCLUDE_DIRS} ${X11_INCLUDE_DIR} )
-target_compile_options(${PROJECT_NAME} PRIVATE -DUI_LINUX -DUI_FONT_PATH -DUI_SSE2 -DUI_FREETYPE)
+if (UNIX)
+    target_link_libraries(${PROJECT_NAME} ${FREETYPE_LIBRARIES} ${X11_LIBRARIES} Threads::Threads)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${FREETYPE_INCLUDE_DIRS} ${X11_INCLUDE_DIR} )
+    target_compile_options(${PROJECT_NAME} PRIVATE -DUI_LINUX -DUI_FONT_PATH -DUI_SSE2 -DUI_FREETYPE)
 
-target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wno-unused-parameter
-                       -Wno-missing-field-initializers  -Wno-deprecated-enum-enum-conversion)
+    target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wno-unused-parameter
+                           -Wno-missing-field-initializers  -Wno-deprecated-enum-enum-conversion)
+endif (UNIX)
+
+if (MSVC)
+    target_compile_options(${PROJECT_NAME} PRIVATE -DUI_WINDOWS -DUI_SSE2)
+endif (MSVC)
