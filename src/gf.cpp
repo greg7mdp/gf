@@ -47,6 +47,8 @@ char* layoutString = (char*)"v(75,h(80,Source,v(50,t(Exe,Breakpoints,Commands,St
 const char*         fontPath;
 int                 fontSizeCode      = 13;
 int                 fontSizeInterface = 11;
+int                 window_width      = 800;
+int                 window_height     = 600;
 float               uiScale           = 1;
 bool                selectableSource;
 bool                restoreWatchWindow;
@@ -1233,6 +1235,10 @@ void SettingsLoad(bool earlyPass) {
                restoreWatchWindow = atoi(state.value);
             } else if (0 == strcmp(state.key, "selectable_source")) {
                selectableSource = atoi(state.value);
+            } else if (0 == strcmp(state.key, "window_width")) {
+               window_width = atoi(state.value);
+            } else if (0 == strcmp(state.key, "window_height")) {
+               window_height = atoi(state.value);
             }
          } else if (0 == strcmp(state.section, "gdb") && !earlyPass) {
             if (0 == strcmp(state.key, "argument")) {
@@ -7397,6 +7403,7 @@ int GfMain(int argc, char** argv) {
          if (newline)
             *newline = 0;
          fontPath = buffer;
+         fprintf(stderr, "Using font %s\n", fontPath);
       }
    }
 #endif
@@ -7404,7 +7411,7 @@ int GfMain(int argc, char** argv) {
    fontCode = UIFontCreate(fontPath, fontSizeCode);
    UIFontActivate(UIFontCreate(fontPath, fontSizeInterface));
 
-   windowMain                = UIWindowCreate(0, maximize ? UIWindow::MAXIMIZE : 0, "gf", 0, 0);
+   windowMain                = UIWindowCreate(0, maximize ? UIWindow::MAXIMIZE : 0, "gf", window_width, window_height);
    windowMain->scale         = uiScale;
    windowMain->e.messageUser = WindowMessage;
 
