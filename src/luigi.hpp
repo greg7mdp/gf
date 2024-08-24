@@ -310,11 +310,17 @@ struct UIFont {
    int glyphWidth, glyphHeight;
 
 #ifdef UI_FREETYPE
-   bool      isFreeType;
-   FT_Face   font;
+   bool    isFreeType;
+   FT_Face font;
+   #ifdef UI_UNICODE
+   FT_Bitmap* glyphs;
+   bool*      glyphsRendered;
+   int *      glyphOffsetsX, *glyphOffsetsY;
+   #else
    FT_Bitmap glyphs[128];
    bool      glyphsRendered[128];
    int       glyphOffsetsX[128], glyphOffsetsY[128];
+   #endif
 #endif
 };
 
@@ -919,6 +925,71 @@ UIFont* UIFontActivate(UIFont* font); // Returns the previously active font.
 void UIInspectorLog(const char* cFormat, ...);
 #endif
 
+#ifdef UI_UNICODE
+
+   #ifndef UI_FREETYPE
+      #error "Unicode support requires Freetype"
+   #endif
+
+int Utf8GetCodePoint(const char* cString, ptrdiff_t bytesLength, ptrdiff_t* bytesConsumed);
+char* Utf8GetPreviousChar(char* string, char* offset);
+ptrdiff_t Utf8GetCharBytes(const char* cString, ptrdiff_t bytes);
+ptrdiff_t Utf8StringLength(const char* cString, ptrdiff_t bytes);
+
+   #define _UNICODE_MAX_CODEPOINT 0x10FFFF
+
+   #define _UI_ADVANCE_CHAR(index, text, count) index += Utf8GetCharBytes(text, count - index)
+
+   #define _UI_SKIP_TAB(ti, text, bytesLeft, tabSize)     \
+      do {                                                \
+         int c = Utf8GetCodePoint(text, bytesLeft, NULL); \
+         if (c == '\t')                                   \
+            while (ti % tabSize)                          \
+               ti++;                                      \
+      } while (0)
+
+   #define _UI_MOVE_CARET_BACKWARD(caret, text, offset, offset2) \
+      do {                                                       \
+         char* prev = Utf8GetPreviousChar(text, text + offset);  \
+         caret      = prev - text - offset2;                     \
+      } while (0)
+
+   #define _UI_MOVE_CARET_FORWARD(caret, text, bytes, offset)     \
+      do {                                                        \
+         caret += Utf8GetCharBytes(text + caret, bytes - offset); \
+      } while (0)
+
+   #define _UI_MOVE_CARET_BY_WORD(text, bytes, offset)                                       \
+      {                                                                                      \
+         char* prev = Utf8GetPreviousChar(text, text + offset);                              \
+         int   c1   = Utf8GetCodePoint(prev, bytes - (prev - text), NULL);                   \
+         int   c2   = Utf8GetCodePoint(text + offset, bytes - offset, NULL);                 \
+         if (_UICharIsAlphaOrDigitOrUnderscore(c1) != _UICharIsAlphaOrDigitOrUnderscore(c2)) \
+            break;                                                                           \
+      }
+
+#else
+
+   #define _UI_ADVANCE_CHAR(index, code, count) index++
+
+   #define _UI_SKIP_TAB(ti, text, bytesLeft, tabSize) \
+      if (*(text) == '\t')                            \
+         while (ti % tabSize)                         \
+      ti++
+
+   #define _UI_MOVE_CARET_BACKWARD(caret, text, offset, offset2) caret--
+   #define _UI_MOVE_CARET_FORWARD(caret, text, bytes, offset) caret++
+
+   #define _UI_MOVE_CARET_BY_WORD(text, bytes, offset)                                       \
+      {                                                                                      \
+         char c1 = (text)[offset - 1];                                                       \
+         char c2 = (text)[offset];                                                           \
+         if (_UICharIsAlphaOrDigitOrUnderscore(c1) != _UICharIsAlphaOrDigitOrUnderscore(c2)) \
+            break;                                                                           \
+      }
+
+#endif // UI_UNICODE
+
 struct UI {
    UIWindow* windows;
    UITheme   theme;
@@ -1000,15 +1071,15 @@ void* _UIMemmove(void* dest, const void* src, size_t n);
 #endif
 
 
-inline bool _UICharIsAlpha(char c) {
-   return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
-}
-
-inline bool _UICharIsDigit(char c) {
+inline bool _UICharIsDigit(int c) {
    return c >= '0' && c <= '9';
 }
 
-inline bool _UICharIsAlphaOrDigitOrUnderscore(char c) {
+inline bool _UICharIsAlpha(int c) {
+   return (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') || c > 127);
+}
+
+inline bool _UICharIsAlphaOrDigitOrUnderscore(int c) {
    return _UICharIsAlpha(c) || _UICharIsDigit(c) || c == '_';
 }
 

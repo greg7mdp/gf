@@ -249,6 +249,130 @@ char* UIStringCopy(const char* in, ptrdiff_t inBytes) {
    return buffer;
 }
 
+int _UIByteToColumn(const char* string, int byte, int bytes, int tabSize) {
+   int ti = 0, i = 0;
+
+   while (i < byte && i < bytes) {
+      ti++;
+      _UI_SKIP_TAB(ti, string + i, bytes - i, tabSize);
+      _UI_ADVANCE_CHAR(i, string + i, byte);
+   }
+
+   return ti;
+}
+
+int _UIColumnToByte(const char* string, int column, int bytes, int tabSize) {
+   int byte = 0, ti = 0;
+
+   while (byte < bytes) {
+      ti++;
+      _UI_SKIP_TAB(ti, string + byte, bytes - byte, tabSize);
+      if (column < ti)
+         break;
+
+      _UI_ADVANCE_CHAR(byte, string + byte, bytes);
+   }
+
+   return byte;
+}
+
+#ifdef UI_UNICODE
+
+int Utf8GetCodePoint(const char* cString, ptrdiff_t bytesLength, ptrdiff_t* bytesConsumed) {
+   UI_ASSERT(bytesLength > 0 && "Attempted to get UTF-8 code point from an empty string");
+
+   if (bytesConsumed == NULL) {
+      ptrdiff_t bytesConsumed;
+      return Utf8GetCodePoint(cString, bytesLength, &bytesConsumed);
+   }
+
+   ptrdiff_t numExtraBytes;
+   uint8_t   first = cString[0];
+
+   *bytesConsumed = 1;
+   if ((first & 0xF0) == 0xF0) {
+      numExtraBytes = 3;
+   } else if ((first & 0xE0) == 0xE0) {
+      numExtraBytes = 2;
+   } else if ((first & 0xC0) == 0xC0) {
+      numExtraBytes = 1;
+   } else if (first & 0x7F) {
+      return first & 0x80 ? -1 : first;
+   } else {
+      return -1;
+   }
+
+   if (bytesLength < numExtraBytes + 1) {
+      return -1;
+   }
+
+   int codePoint = ((int)first & (0x3F >> numExtraBytes)) << (6 * numExtraBytes);
+   for (ptrdiff_t idx = 1; idx < numExtraBytes + 1; idx++) {
+      char byte = cString[idx];
+      if ((byte & 0xC0) != 0x80) {
+         return -1;
+      }
+
+      codePoint |= (byte & 0x3F) << (6 * (numExtraBytes - idx));
+      (*bytesConsumed)++;
+   }
+
+   return codePoint > _UNICODE_MAX_CODEPOINT ? -1 : codePoint;
+}
+
+char* Utf8GetPreviousChar(char* string, char* offset) {
+   if (string == offset) {
+      return string;
+   }
+
+   char* prev = offset - 1;
+   while (prev > string) {
+      if ((*prev & 0xC0) == 0x80)
+         prev--;
+      else
+         break;
+   }
+
+   return prev;
+}
+
+ptrdiff_t Utf8GetCharBytes(const char* cString, ptrdiff_t bytes) {
+   if (!cString) {
+      return 0;
+   }
+   if (bytes == -1) {
+      bytes = _UIStringLength(cString);
+   }
+
+   ptrdiff_t bytesConsumed;
+   Utf8GetCodePoint(cString, bytes, &bytesConsumed);
+   return bytesConsumed;
+}
+
+ptrdiff_t Utf8StringLength(const char* cString, ptrdiff_t bytes) {
+   if (!cString) {
+      return 0;
+   }
+   if (bytes == -1) {
+      bytes = _UIStringLength(cString);
+   }
+
+   ptrdiff_t length    = 0;
+   ptrdiff_t byteIndex = 0;
+   while (byteIndex < bytes) {
+      ptrdiff_t bytesConsumed;
+      Utf8GetCodePoint(cString + byteIndex, bytes - byteIndex, &bytesConsumed);
+      byteIndex += bytesConsumed;
+      length++;
+
+      UI_ASSERT(byteIndex <= bytes && "Overran the end of the string while counting the number of UTF-8 code points");
+   }
+
+   return length;
+}
+
+#endif
+
 // --------------------------------------------------
 // Animations.
 // --------------------------------------------------
@@ -534,11 +658,15 @@ void UIDrawInvert(UIPainter* painter, UIRectangle rectangle) {
 }
 
 int UIMeasureStringWidth(const char* string, ptrdiff_t bytes) {
+#ifdef UI_UNICODE
+   return Utf8StringLength(string, bytes) * ui.activeFont->glyphWidth;
+#else
    if (bytes == -1) {
       bytes = _UIStringLength(string);
    }
 
    return bytes * ui.activeFont->glyphWidth;
+#endif
 }
 
 int UIMeasureStringHeight() {
@@ -576,12 +704,25 @@ void UIDrawString(UIPainter* painter, UIRectangle r, const char* string, ptrdiff
       }
    }
 
-   for (; j < bytes; j++) {
-      char     c         = *string++;
+   while (j < bytes) {
+      ptrdiff_t bytesConsumed = 1;
+#ifdef UI_UNICODE
+      int c = Utf8GetCodePoint(string, bytes - j, &bytesConsumed);
+      UI_ASSERT(bytesConsumed > 0);
+      string += bytesConsumed;
+#else
+      char c = *string++;
+#endif
       uint32_t colorText = color;
 
-      if (j >= selectFrom && j < selectTo) {
-         UIDrawBlock(painter, ui_rect_4(x, x + ui.activeFont->glyphWidth, y, y + height), selection->colorBackground);
+      if (i >= selectFrom && i < selectTo) {
+         int w = ui.activeFont->glyphWidth;
+         if (c == '\t') {
+            int ii = i;
+            while (++ii & 3)
+               w += ui.activeFont->glyphWidth;
+         }
+         UIDrawBlock(painter, ui_rect_4(x, x + w, y, y + height), selection->colorBackground);
          colorText = selection->colorText;
       }
 
@@ -589,7 +730,7 @@ void UIDrawString(UIPainter* painter, UIRectangle r, const char* string, ptrdiff
          UIDrawGlyph(painter, x, y, c, colorText);
       }
 
-      if (selection && selection->carets[0] == j) {
+      if (selection && selection->carets[0] == i) {
          UIDrawInvert(painter, ui_rect_4(x, x + 1, y, y + height));
       }
 
@@ -599,9 +740,11 @@ void UIDrawString(UIPainter* painter, UIRectangle r, const char* string, ptrdiff
          while (i & 3)
             x += ui.activeFont->glyphWidth, i++;
       }
+
+      j += bytesConsumed;
    }
 
-   if (selection && selection->carets[0] == j) {
+   if (selection && selection->carets[0] == i) {
       UIDrawInvert(painter, ui_rect_4(x, x + 1, y, y + height));
    }
 
@@ -1782,31 +1925,11 @@ UIScrollBar* UIScrollBarCreate(UIElement* parent, uint32_t flags) {
 // --------------------------------------------------
 
 int _UICodeColumnToByte(UICode* code, int line, int column) {
-   int byte = 0;
-
-   for (int ti = 0; byte < code->lines[line].bytes; byte++) {
-      ti++;
-      if (code->content[byte + code->lines[line].offset] == '\t')
-         while (ti % code->tabSize)
-            ti++;
-      if (column < ti)
-         break;
-   }
-
-   return byte;
+   return _UIColumnToByte(&code->content[code->lines[line].offset], column, code->lines[line].bytes, code->tabSize);
 }
 
 int _UICodeByteToColumn(UICode* code, int line, int byte) {
-   int ti = 0;
-
-   for (int i = 0; i < byte; i++) {
-      ti++;
-      if (code->content[i + code->lines[line].offset] == '\t')
-         while (ti % code->tabSize)
-            ti++;
-   }
-
-   return ti;
+   return _UIByteToColumn(&code->content[code->lines[line].offset], byte, code->lines[line].bytes, code->tabSize);
 }
 
 void UICodePositionToByte(UICode* code, int x, int y, int* line, int* byte) {
@@ -1877,11 +2000,20 @@ int UIDrawStringHighlighted(UIPainter* painter, UIRectangle lineBounds, const ch
    uint32_t last = 0;
    int      j    = 0;
 
-   while (bytes--) {
+   while (bytes) {
+#ifdef UI_UNICODE
+      ptrdiff_t bytesConsumed;
+      int c = Utf8GetCodePoint(string, bytes, &bytesConsumed);
+      UI_ASSERT(bytesConsumed > 0);
+      string += bytesConsumed;
+      bytes -= bytesConsumed;
+#else
       char c = *string++;
+      bytes--;
+#endif
 
       last <<= 8;
-      last |= c;
+      last |= c & 0xFF;
 
       if (tokenType == UI_CODE_TOKEN_TYPE_PREPROCESSOR) {
          if (bytes && c == '/' && (*string == '/' || *string == '*')) {
@@ -1941,7 +2073,7 @@ int UIDrawStringHighlighted(UIPainter* painter, UIRectangle lineBounds, const ch
       if (c == '\t') {
          x += ui.activeFont->glyphWidth, ti++;
          while (ti % tabSize)
-            x += ui.activeFont->glyphWidth, ti++;
+            x += ui.activeFont->glyphWidth, ti++, j++;
       } else {
          UIDrawGlyph(painter, x, y, c, colors[tokenType]);
          x += ui.activeFont->glyphWidth, ti++;
@@ -2090,8 +2222,10 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
          painter->clip       = UIRectangleIntersection(oldClip, lineBounds);
          if (code->hScroll)
             lineBounds.l -= (int64_t)code->hScroll->position;
-         selection.carets[0] = i == code->selection[0].line ? code->selection[0].offset : 0;
-         selection.carets[1] = i == code->selection[1].line ? code->selection[1].offset : code->lines[i].bytes;
+         selection.carets[0] =
+            i == code->selection[0].line ? _UICodeByteToColumn(code, i, code->selection[0].offset) : 0;
+         selection.carets[1] = i == code->selection[1].line ? _UICodeByteToColumn(code, i, code->selection[1].offset)
+                                                            : code->lines[i].bytes;
          int x               = UIDrawStringHighlighted(
             painter, lineBounds, code->content + code->lines[i].offset, code->lines[i].bytes, code->tabSize,
             element->window->focused == element && i >= code->selection[0].line && i <= code->selection[1].line
@@ -2302,7 +2436,7 @@ void UICodeMoveCaret(UICode* code, bool backward, bool word) {
             } else
                break;
          } else
-            code->selection[3].offset--;
+             _UI_MOVE_CARET_BACKWARD(code->selection[3].offset, code->content, code->lines[code->selection[3].line].offset + code->selection[3].offset, code->lines[code->selection[3].line].offset);
       } else {
          if (code->selection[3].offset + 1 > code->lines[code->selection[3].line].bytes) {
             if (code->selection[3].line + 1 < code->lineCount) {
@@ -2311,17 +2445,14 @@ void UICodeMoveCaret(UICode* code, bool backward, bool word) {
             } else
                break;
          } else
-            code->selection[3].offset++;
+            _UI_MOVE_CARET_FORWARD(code->selection[3].offset, code->content, code->contentBytes, code->lines[code->selection[3].line].offset + code->selection[3].offset);
       }
 
       if (!word)
          break;
 
       if (code->selection[3].offset != 0 && code->selection[3].offset != code->lines[code->selection[3].line].bytes) {
-         char c1 = code->content[code->lines[code->selection[3].line].offset + code->selection[3].offset - 1];
-         char c2 = code->content[code->lines[code->selection[3].line].offset + code->selection[3].offset];
-         if (_UICharIsAlphaOrDigitOrUnderscore(c1) != _UICharIsAlphaOrDigitOrUnderscore(c2))
-            break;
+         _UI_MOVE_CARET_BY_WORD(code->content, code->contentBytes, code->lines[code->selection[3].line].offset + code->selection[3].offset);
       }
    }
 
@@ -2751,6 +2882,14 @@ UITable* UITableCreate(UIElement* parent, uint32_t flags, const char* columns) {
 // Textboxes.
 // --------------------------------------------------
 
+int _UITextboxByteToColumn(const char* string, int byte, ptrdiff_t bytes) {
+   return _UIByteToColumn(string, byte, bytes, 4);
+}
+
+int _UITextboxColumnToByte(const char* string, int column, ptrdiff_t bytes) {
+   return _UIColumnToByte(string, column, bytes, 4);
+}
+
 char* UITextboxToCString(UITextbox* textbox) {
    char* buffer = (char*)UI_MALLOC(textbox->bytes + 1);
 
@@ -2793,9 +2932,9 @@ void UITextboxClear(UITextbox* textbox, bool sendChangedMessage) {
 void UITextboxMoveCaret(UITextbox* textbox, bool backward, bool word) {
    while (true) {
       if (textbox->carets[0] > 0 && backward) {
-         textbox->carets[0]--;
+         _UI_MOVE_CARET_BACKWARD(textbox->carets[0], textbox->string, textbox->carets[0], 0);
       } else if (textbox->carets[0] < textbox->bytes && !backward) {
-         textbox->carets[0]++;
+         _UI_MOVE_CARET_FORWARD(textbox->carets[0], textbox->string, textbox->bytes, textbox->carets[0]);
       } else {
          return;
       }
@@ -2803,12 +2942,7 @@ void UITextboxMoveCaret(UITextbox* textbox, bool backward, bool word) {
       if (!word) {
          return;
       } else if (textbox->carets[0] != textbox->bytes && textbox->carets[0] != 0) {
-         char c1 = textbox->string[textbox->carets[0] - 1];
-         char c2 = textbox->string[textbox->carets[0]];
-
-         if (_UICharIsAlphaOrDigitOrUnderscore(c1) != _UICharIsAlphaOrDigitOrUnderscore(c2)) {
-            return;
-         }
+         _UI_MOVE_CARET_BY_WORD(textbox->string, textbox->bytes, textbox->carets[0]);
       }
    }
 
@@ -2878,8 +3012,8 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
       }
 
       UIStringSelection selection = {};
-      selection.carets[0]         = textbox->carets[0];
-      selection.carets[1]         = textbox->carets[1];
+      selection.carets[0]         = _UITextboxByteToColumn(textbox->string, textbox->carets[0], textbox->bytes);
+      selection.carets[1]         = _UITextboxByteToColumn(textbox->string, textbox->carets[1], textbox->bytes);
       selection.colorBackground   = ui.theme.selected;
       selection.colorText         = ui.theme.textSelected;
       textBounds.l -= textbox->scroll;
@@ -2893,7 +3027,8 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
       int column = (element->window->cursor.x - element->bounds.l + textbox->scroll -
                     ui_size::TEXTBOX_MARGIN * element->window->scale + ui.activeFont->glyphWidth / 2) /
                    ui.activeFont->glyphWidth;
-      textbox->carets[0] = textbox->carets[1] = column >= textbox->bytes ? textbox->bytes : column <= 0 ? 0 : column;
+      textbox->carets[0] = textbox->carets[1] =
+         column <= 0 ? 0 : _UITextboxColumnToByte(textbox->string, column, textbox->bytes);
       UIElementFocus(element);
    } else if (message == UIMessage::UPDATE) {
       UIElementRepaint(element, NULL);
@@ -4281,8 +4416,13 @@ void UIDrawGlyph(UIPainter* painter, int x0, int y0, int c, uint32_t color) {
    UIFont* font = ui.activeFont;
 
    if (font->isFreeType) {
+   #ifdef UI_UNICODE
+      if (c < 0)
+         c = '?';
+   #else
       if (c < 0 || c > 127)
          c = '?';
+   #endif
       if (c == '\r')
          c = ' ';
 
@@ -4382,8 +4522,16 @@ UIFont* UIFontCreate(const char* cPath, uint32_t size) {
    UIFont* font = (UIFont*)UI_CALLOC(sizeof(UIFont));
 
 #ifdef UI_FREETYPE
+   #ifdef UI_UNICODE
+   font->glyphs         = (FT_Bitmap*)UI_CALLOC(sizeof(FT_Bitmap) * (_UNICODE_MAX_CODEPOINT + 1));
+   font->glyphsRendered = (bool*)UI_CALLOC(sizeof(bool) * (_UNICODE_MAX_CODEPOINT + 1));
+   font->glyphOffsetsX  = (int*)UI_CALLOC(sizeof(int) * (_UNICODE_MAX_CODEPOINT + 1));
+   font->glyphOffsetsY  = (int*)UI_CALLOC(sizeof(int) * (_UNICODE_MAX_CODEPOINT + 1));
+   #endif
    if (cPath) {
-      if (!FT_New_Face(ui.ft, cPath, 0, &font->font)) {
+      int ret = FT_New_Face(ui.ft, cPath, 0, &font->font);
+      if (ret == 0) {
+         FT_Select_Charmap(font->font, FT_ENCODING_UNICODE);
          if (FT_HAS_FIXED_SIZES(font->font) && font->font->num_fixed_sizes) {
             // Look for the smallest strike that's at least `size`.
             int j = 0;
@@ -4406,7 +4554,8 @@ UIFont* UIFontCreate(const char* cPath, uint32_t size) {
          font->glyphHeight = (font->font->size->metrics.ascender - font->font->size->metrics.descender) / 64;
          font->isFreeType  = true;
          return font;
-      }
+      } else
+         printf("Cannot load font %s : %d\n", cPath, ret);
    }
 #endif // UI_FREETYPE
 
