@@ -50,7 +50,7 @@ int                 fontSizeInterface = 11;
 int                 window_width      = 800;
 int                 window_height     = 600;
 float               uiScale           = 1;
-bool                selectableSource;
+bool                selectableSource  = true;
 bool                restoreWatchWindow;
 struct WatchWindow* firstWatchWindow;
 bool                maximize;
