@@ -501,6 +501,10 @@ struct UIElement {
 
 #define UI_SHORTCUT(code, ctrl, shift, alt, invoke, cp) ((UIShortcut){(code), (ctrl), (shift), (alt), (invoke), (cp)})
 
+struct UIConfig {
+   bool rfu;
+};
+
 struct UIWindow {
    enum {
       MENU            = (1 << 0),
@@ -791,7 +795,7 @@ struct UISwitcher {
    UIElement* active;
 };
 
-void UIInitialise();
+void UIInitialise(const UIConfig& cfg);
 int  UIMessageLoop();
 
 UIElement* UIElementCreate(size_t bytes, UIElement* parent, uint32_t flags,
@@ -1049,7 +1053,7 @@ void  _UIWindowSetCursor(UIWindow* window, int cursor);
 void  _UIWindowGetScreenPosition(UIWindow* window, int* x, int* y);
 void  _UIWindowSetPressed(UIWindow* window, UIElement* element, int button);
 void  _UIClipboardWriteText(UIWindow* window, char* text);
-char* _UIClipboardReadTextStart(UIWindow* window, size_t* bytes);
+char* _UIClipboardReadTextStart(UIWindow* window, size_t* bytes, bool use_clipboard);
 void  _UIClipboardReadTextEnd(UIWindow* window, char* text);
 bool  _UIMessageLoopSingle(int* result);
 void  _UIInspectorRefresh();

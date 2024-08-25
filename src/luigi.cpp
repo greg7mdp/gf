@@ -2963,10 +2963,10 @@ void _UITextboxCopyText(void* cp) {
    }
 }
 
-void _UITextboxPasteText(void* cp) {
+void _UITextboxPasteText(void* cp, bool use_clipboard) {
    UITextbox* textbox = (UITextbox*)cp;
    size_t     bytes;
-   char*      text = _UIClipboardReadTextStart(textbox->e.window, &bytes);
+   char*      text = _UIClipboardReadTextStart(textbox->e.window, &bytes, use_clipboard);
 
    if (text) {
       for (size_t i = 0; i < bytes; i++) {
@@ -2978,6 +2978,10 @@ void _UITextboxPasteText(void* cp) {
    }
 
    _UIClipboardReadTextEnd(textbox->e.window, text);
+}
+
+void _UITextboxPasteText(void* cp) {
+   _UITextboxPasteText(cp, true);
 }
 
 int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
@@ -3105,10 +3109,14 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
       UIMenuAddItem(menu, textbox->carets[0] == textbox->carets[1] ? UIElement::DISABLED : 0, "Copy", -1,
                     _UITextboxCopyText, textbox);
       size_t pasteBytes;
-      char*  paste = _UIClipboardReadTextStart(textbox->e.window, &pasteBytes);
+      char*  paste = _UIClipboardReadTextStart(textbox->e.window, &pasteBytes, true);
       UIMenuAddItem(menu, !paste || !pasteBytes ? UIElement::DISABLED : 0, "Paste", -1, _UITextboxPasteText, textbox);
       _UIClipboardReadTextEnd(textbox->e.window, paste);
       UIMenuShow(menu);
+   } else if (message == UIMessage::MIDDLE_DOWN) {
+      _UITextboxPasteText(textbox, false);
+      UIElementRepaint(element, NULL);
+      return 1;
    }
 
    return 0;
@@ -4961,8 +4969,10 @@ void _UIClipboardWriteText(UIWindow* window, char* text) {
    XSetSelectionOwner(ui.display, ui.clipboardID, window->window, 0);
 }
 
-char* _UIClipboardReadTextStart(UIWindow* window, size_t* bytes) {
-   Window clipboardOwner = XGetSelectionOwner(ui.display, ui.clipboardID);
+char* _UIClipboardReadTextStart(UIWindow* window, size_t* bytes, bool use_clipboard) {
+   Atom atom = use_clipboard ? ui.clipboardID :  ui.primaryID;
+
+   Window clipboardOwner = XGetSelectionOwner(ui.display, atom);
 
    if (clipboardOwner == None) {
       return NULL;
@@ -4975,7 +4985,7 @@ char* _UIClipboardReadTextStart(UIWindow* window, size_t* bytes) {
       return copy;
    }
 
-   XConvertSelection(ui.display, ui.clipboardID, XA_STRING, ui.xSelectionDataID, window->window, CurrentTime);
+   XConvertSelection(ui.display, atom, XA_STRING, ui.xSelectionDataID, window->window, CurrentTime);
    XSync(ui.display, 0);
    XNextEvent(ui.display, &ui.copyEvent);
 
@@ -4985,7 +4995,7 @@ char* _UIClipboardReadTextStart(UIWindow* window, size_t* bytes) {
       XNextEvent(ui.display, &ui.copyEvent);
    }
 
-   if (ui.copyEvent.type == SelectionNotify && ui.copyEvent.xselection.selection == ui.clipboardID &&
+   if (ui.copyEvent.type == SelectionNotify && ui.copyEvent.xselection.selection == atom &&
        ui.copyEvent.xselection.property) {
       Atom target;
       // This `itemAmount` is actually `bytes_after_return`
@@ -5053,7 +5063,7 @@ void _UIClipboardReadTextEnd(UIWindow* window, char* text) {
    }
 }
 
-void UIInitialise() {
+void UIInitialise(const UIConfig& cfg) {
    _UIInitialiseCommon();
 
    XInitThreads();
@@ -5932,7 +5942,7 @@ void _UIClipboardWriteText(UIWindow* window, char* text) {
    }
 }
 
-char* _UIClipboardReadTextStart(UIWindow* window, size_t* bytes) {
+char* _UIClipboardReadTextStart(UIWindow* window, size_t* bytes, bool ) {
    if (!OpenClipboard(window->hwnd)) {
       return NULL;
    }

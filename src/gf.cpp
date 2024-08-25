@@ -58,6 +58,10 @@ bool                confirmCommandConnect = true, confirmCommandKill = true;
 int                 backtraceCountLimit = 50;
 UIMessage           msgReceivedData, msgReceivedLog, msgReceivedControl, msgReceivedNext = (UIMessage)(UIMessage::USER_PLUS_1);
 
+UIConfig ui_config = {
+   .rfu = true
+};
+
 // Current file and line:
 
 char   currentFile[PATH_MAX];
@@ -7385,7 +7389,7 @@ int GfMain(int argc, char** argv) {
    StringFormat(localConfigPath, sizeof(localConfigPath), "%s/.project.gf", localConfigDirectory);
 
    SettingsLoad(true);
-   UIInitialise();
+   UIInitialise(ui_config);
    ui.theme = uiThemeDark;
 
 #ifdef UI_FREETYPE
