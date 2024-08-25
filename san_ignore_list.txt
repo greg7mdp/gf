@@ -1,0 +1,4 @@
+fun:_XlcAddCT
+fun:writev
+fun:XOpenDisplay
+fun:*UIInitialise*

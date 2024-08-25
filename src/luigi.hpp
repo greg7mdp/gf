@@ -7,13 +7,25 @@
 // Header includes.
 // --------------------------------------------------
 
+
 #include <cstdint>
 #include <cstddef>
 #include <cstdarg>
 #include <cstring>
 #include <cstdlib>
 #include <cassert>
+#include <functional>
+#include <string>
 #include <array>
+#include <unordered_map>
+#include <memory>
+#include <algorithm>
+
+using std::unique_ptr;
+using std::shared_ptr;
+using std::make_unique;
+using std::make_shared;
+
 
 #ifdef UI_LINUX
    #include <X11/Xlib.h>
@@ -33,18 +45,19 @@
    #undef _UNICODE
    #undef UNICODE
    #include <windows.h>
+   #include <shellapi.h>
 
    #define UI_ASSERT(x)                                                                  \
       do {                                                                               \
          if (!(x)) {                                                                     \
-            ui.assertionFailure = true;                                                  \
+            ui->assertionFailure = true;                                                  \
             MessageBox(0, "Assertion failure on line " _UI_TO_STRING_2(__LINE__), 0, 0); \
             ExitProcess(1);                                                              \
          }                                                                               \
       } while (0)
-   #define UI_CALLOC(x) HeapAlloc(ui.heap, HEAP_ZERO_MEMORY, (x))
-   #define UI_FREE(x) HeapFree(ui.heap, 0, (x))
-   #define UI_MALLOC(x) HeapAlloc(ui.heap, 0, (x))
+   #define UI_CALLOC(x) HeapAlloc(ui->heap, HEAP_ZERO_MEMORY, (x))
+   #define UI_FREE(x) HeapFree(ui->heap, 0, (x))
+   #define UI_MALLOC(x) HeapAlloc(ui->heap, 0, (x))
    #define UI_REALLOC _UIHeapReAlloc
    #define UI_CLOCK GetTickCount
    #define UI_CLOCKS_PER_SECOND (1000)
@@ -69,10 +82,21 @@
    #include <stdio.h>
 #endif
 
+#ifdef DMALLOC
+   #include "dmalloc.h"
+#endif
+
 #ifdef UI_FREETYPE
    #include <ft2build.h>
    #include FT_FREETYPE_H
    #include <freetype/ftbitmap.h>
+
+   #ifdef UI_FREETYPE_SUBPIXEL
+      inline constexpr auto ft_render_mode = FT_RENDER_MODE_LCD;
+   #else
+      inline constexpr auto ft_render_mode = FT_RENDER_MODE_NORMAL;
+   #endif
+
 #endif
 
 #ifdef UI_LINUX
@@ -188,6 +212,9 @@ inline constexpr int MDI_CASCADE              = 30;
 
 } // namespace ui_size
 
+// forward declarations
+// --------------------
+struct UI;
 
 namespace UIUpdate {
    enum {
@@ -253,11 +280,17 @@ enum class UIMessage : uint32_t {
 };
 
 struct UIPoint {
-   int x, y;
+   int x = 0;
+   int y = 0;
 };
 
 struct UIRectangle {
    int l, r, t, b;
+
+   UIRectangle() {}
+   UIRectangle(int v) : l(v), r(v), t(v), b(v) {}
+   UIRectangle(int lr, int tb) : l(lr), r(lr), t(tb), b(tb) {}
+   UIRectangle(int l, int r, int t, int b)  : l(l), r(r), t(t), b(b) {}
 
    int     width()  const { return r - l; }
    int     height() const { return b - t; }
@@ -287,88 +320,100 @@ struct UIRectangle {
    auto operator<=>(const UIRectangle&) const = default;
 };
 
+inline UIRectangle ui_rect_1i(int x)        { return UIRectangle{x, -x, x, -x}; }
+inline UIRectangle ui_rect_2i(int x, int y) { return UIRectangle{x, -x, y, -y}; }
+inline UIRectangle ui_rect_2s(int x, int y) { return UIRectangle{0, x, 0, y}; }
+inline UIRectangle ui_rect_4pd(int x, int y, int w, int h) { return UIRectangle{x, (x + w), y, (y + h)}; }
+
+#define UI_RECT_SIZE(_r) (_r).width(), (_r).height()
+
 struct UITheme {
-   uint32_t panel1, panel2, selected, border;
-   uint32_t text, textDisabled, textSelected;
-   uint32_t buttonNormal, buttonHovered, buttonPressed, buttonDisabled;
-   uint32_t textboxNormal, textboxFocused;
-   uint32_t codeFocused, codeBackground, codeDefault, codeComment, codeString, codeNumber, codeOperator,
-      codePreprocessor;
-   uint32_t accent1, accent2;
+   uint32_t panel1 = 0, panel2 = 0, selected = 0, border = 0;
+   uint32_t text = 0, textDisabled = 0, textSelected = 0;
+   uint32_t buttonNormal = 0, buttonHovered = 0, buttonPressed = 0, buttonDisabled = 0;
+   uint32_t textboxNormal = 0, textboxFocused = 0;
+   uint32_t codeFocused = 0, codeBackground = 0, codeDefault = 0, codeComment = 0, codeString = 0, codeNumber = 0,
+            codeOperator = 0, codePreprocessor = 0;
+   uint32_t accent1 = 0, accent2 = 0;
 };
 
 struct UIPainter {
-   UIRectangle clip;
-   uint32_t*   bits;
-   int         width, height;
+   UIRectangle clip = UIRectangle(0);
+   uint32_t*   bits = nullptr;
+   int         width = 0, height = 0;
 #ifdef UI_DEBUG
-   int fillCount;
+   int fillCount = 0;
 #endif
+};
+
+struct UIFontSpec {
+   std::string path;
+   uint32_t    size;
+
+   bool operator==(const UIFontSpec&) const = default;
+};
+
+template<>
+struct std::hash<UIFontSpec>
+{
+    std::size_t operator()(const UIFontSpec& spec) const noexcept
+    {
+        std::size_t h1 = std::hash<std::string>{}(spec.path);
+        return h1 ^ (spec.size << 1);
+    }
 };
 
 struct UIFont {
-   int glyphWidth, glyphHeight;
+   int glyphWidth = 0;
+   int glyphHeight = 0;
 
 #ifdef UI_FREETYPE
-   bool    isFreeType;
-   FT_Face font;
-   #ifdef UI_UNICODE
-   FT_Bitmap* glyphs;
-   bool*      glyphsRendered;
-   int *      glyphOffsetsX, *glyphOffsetsY;
-   #else
-   FT_Bitmap glyphs[128];
-   bool      glyphsRendered[128];
-   int       glyphOffsetsX[128], glyphOffsetsY[128];
-   #endif
+   bool    isFreeType = false;
+   FT_Face font       = nullptr;
+
+   unique_ptr<FT_Bitmap[]> glyphs;
+   unique_ptr<bool[]>      glyphsRendered;
+   unique_ptr<int[]>       glyphOffsetsX;
+   unique_ptr<int[]>       glyphOffsetsY;
 #endif
+
+   ~UIFont();
 };
 
 struct UIShortcut {
-   UIKeycode code;
-   bool      ctrl, shift, alt;
-   void (*invoke)(void* cp);
-   void* cp;
+   UIKeycode             code  = static_cast<UIKeycode>(0);
+   bool                  ctrl  = false;
+   bool                  shift = false;
+   bool                  alt   = false;
+   std::function<void()> invoke;
 };
 
 struct UIStringSelection {
    int      carets[2];
-   uint32_t colorText, colorBackground;
+   uint32_t colorText       = 0;
+   uint32_t colorBackground = 0;
 };
 
 struct UIKeyTyped {
-   char*    text;
-   int      textBytes;
-   UIKeycode code;
+   char*     text      = nullptr;
+   int       textBytes = 0;
+   UIKeycode code      = static_cast<UIKeycode>(0);
 };
 
 struct UITableGetItem {
-   char*  buffer;
-   size_t bufferBytes;
-   int    index, column;
-   bool   isSelected;
+   char*  buffer      = nullptr;
+   size_t bufferBytes = 0;
+   int    index       = 0;
+   int    column      = 0;
+   bool   isSelected  = false;
 };
 
 struct UICodeDecorateLine {
    UIRectangle bounds;
    int         index; // Starting at 1!
    int         x, y;  // Position where additional text can be drawn.
-   UIPainter*  painter;
+   UIPainter*  painter = nullptr;
 };
-
-inline UIRectangle ui_rect_1(int x) { return UIRectangle{x, x, x, x}; }
-inline UIRectangle ui_rect_1i(int x) { return UIRectangle{x, -x, x, -x}; }
-inline UIRectangle ui_rect_2(int x, int y) { return UIRectangle{x, x, y, y}; }
-inline UIRectangle ui_rect_2i(int x, int y) { return UIRectangle{x, -x, y, -y}; }
-inline UIRectangle ui_rect_2s(int x, int y) { return UIRectangle{0, x, 0, y}; }
-inline UIRectangle ui_rect_4(int x, int y, int z, int w) { return UIRectangle{x, y, z, w}; }
-inline UIRectangle ui_rect_4pd(int x, int y, int w, int h) { return UIRectangle{x, (x + w), y, (y + h)}; }
-
-#define UI_RECT_SIZE(_r) (_r).width(), (_r).height()
-#define UI_RECT_TOP_LEFT(_r) (_r).l, (_r).t
-#define UI_RECT_BOTTOM_LEFT(_r) (_r).l, (_r).b
-#define UI_RECT_BOTTOM_RIGHT(_r) (_r).r, (_r).b
-#define UI_RECT_ALL(_r) (_r).l, (_r).r, (_r).t, (_r).b
 
 inline float ui_color_alpha_f(uint32_t x) { return ((x >> 24) & 0xFF) / 255.0f; }
 inline float ui_color_red_f(uint32_t x)   { return ((x >> 16) & 0xFF) / 255.0f; }
@@ -457,6 +502,11 @@ enum class UIAlign : uint32_t {
 struct UIWindow;
 struct UIRectangle;
 struct UIScrollBar;
+struct UIMDIChild;
+struct UIMDIClient;
+struct UIElement;
+
+using  MsgFn = int(*)(UIElement*, UIMessage, int di, void* dp); // data integer, data pointer
 
 struct UIElement {
    enum {
@@ -469,6 +519,7 @@ struct UIElement {
       NON_CLIENT  = 1 << 21, // Don't destroy in UIElementDestroyDescendents, like scroll bars.
       DISABLED    = 1 << 22, // Don't receive input events.
       BORDER      = 1 << 23,
+      VERTICAL    = 1 << 24,
 
       HIDE                = 1 << 27,
       RELAYOUT            = 1 << 28,
@@ -477,35 +528,57 @@ struct UIElement {
       DESTROY_DESCENDENT  = 1 << 31
    };
 
-   uint32_t flags; // First 16 bits are element specific.
-   uint32_t id;
-   uint32_t childCount;
-   uint32_t _unused0;
+   uint32_t flags      = 0; // First 16 bits are element specific.
+   uint32_t id         = 0;
+   uint32_t childCount = 0;
+   uint32_t _unused0   = 0;
 
-   UIElement*  parent;
-   UIElement** children;
-   UIWindow*   window;
+   UIElement*  parent   = nullptr;
+   UIElement** children = nullptr;
+   UIWindow*   window   = nullptr;
 
-   UIRectangle bounds, clip;
+   UIRectangle bounds;
+   UIRectangle clip;
 
-   void* cp; // Context pointer (for user).
+   void* cp = nullptr; // Context pointer (for user).
 
-   int (*messageClass)(UIElement* element, UIMessage message, int di /* data integer */,
-                       void* dp /* data pointer */);
-   int (*messageUser)(UIElement* element, UIMessage message, int di, void* dp);
+   MsgFn messageClass = nullptr;
+   MsgFn messageUser = nullptr;
 
-   const char* cClassName;
+   const char* cClassName = nullptr;
+
+   UIElement(UIElement* parent, uint32_t flags, MsgFn message, const char* cClassName);
 
    uint32_t state() const;
- };
 
-#define UI_SHORTCUT(code, ctrl, shift, alt, invoke, cp) ((UIShortcut){(code), (ctrl), (shift), (alt), (invoke), (cp)})
+   bool        Animate(bool stop);
+   void        Destroy();
+   void        DestroyDescendents();
+   int         Message(UIMessage message, int di, void* dp);
+   UIElement*  ChangeParent(UIElement* newParent, UIElement* insertBefore);
+   UIElement*  NextOrPreviousSibling(bool previous);
+
+   void        Refresh();
+   void        Relayout();
+   void        Repaint(const UIRectangle* region);
+   void        Paint(UIPainter* painter);
+
+   void        Focus();                    // sets the input focus to this element
+   void        SetDisabled(bool disabled);
+
+   void        Move(UIRectangle bounds, bool layout);
+   UIElement*  FindByPoint(int x, int y);
+   UIRectangle ScreenBounds();            // Returns bounds of element in same coordinate system as used by UIWindowCreate.
+
+private:
+   void _DestroyDescendents(bool topLevel);
+};
 
 struct UIConfig {
    bool rfu;
 };
 
-struct UIWindow {
+struct UIWindow : public UIElement {
    enum {
       MENU            = (1 << 0),
       INSPECTOR       = (1 << 1),
@@ -513,44 +586,57 @@ struct UIWindow {
       MAXIMIZE        = (1 << 3),
    };
 
-   UIElement        e;
-   UIElement*       dialog;
-   UIShortcut*      shortcuts;
-   size_t           shortcutCount, shortcutAllocated;
-   float            scale;
-   uint32_t*        bits;
-   int              width, height;
-   struct UIWindow* next;
-   UIElement *      hovered, *pressed, *focused, *dialogOldFocus;
-   int              pressedButton;
-   UIPoint          cursor;
-   int              cursorStyle;
+   UIElement*              dialog;
+   std::vector<UIShortcut> shortcuts;
+   float                   scale;
+   std::vector<uint32_t>   bits;
+   int                     width;
+   int                     height;
+   struct UIWindow*        next;
+   UIElement*              hovered;
+   UIElement*              pressed;
+   UIElement*              focused;
+   UIElement*              dialogOldFocus;
+   int                     pressedButton;
+   UIPoint                 cursor;
+   int                     cursorStyle;
 
    // Set when a textbox is modified.
    // Useful for tracking whether changes to the loaded document have been saved.
    bool        textboxModifiedFlag;
-   bool        ctrl, shift, alt;
+   bool        ctrl;
+   bool        shift;
+   bool        alt;
    UIRectangle updateRegion;
 
 #ifdef UI_DEBUG
-   float lastFullFillCount;
+   float lastFullFillCount = 0;
 #endif
 
 #ifdef UI_LINUX
-   Window   window;
-   XImage*  image;
-   XIC      xic;
-   unsigned ctrlCode, shiftCode, altCode;
-   Window   dragSource;
+   Window   xwindow    = 0;
+   XImage*  image      = nullptr;
+   XIC      xic        = nullptr;
+   unsigned ctrlCode   = 0;
+   unsigned shiftCode  = 0;
+   unsigned altCode    = 0;
+   Window   dragSource = 0;
 #endif
 
 #ifdef UI_WINDOWS
-   HWND hwnd;
-   bool trackingLeave;
+   HWND hwnd          = 0;
+   bool trackingLeave = false;
 #endif
+
+   UIWindow(UIElement* parent, uint32_t flags, MsgFn message, const char* cClassName);
+   void EndPaint(UIPainter* painter);
+   void SetCursor(int cursor);
+   void GetScreenPosition(int* _x, int* _y);
+   void SetPressed(UIElement* element, int button);
+   bool InputEvent(UIMessage message, int di, void* dp);
 };
 
-struct UIPanel {
+struct UIPanel : public UIElement {
    enum {
       HORIZONTAL     = 1 << 0,
       COLOR_1        = 1 << 2,
@@ -562,13 +648,14 @@ struct UIPanel {
       EXPAND         = 1 << 9,
    };
 
-   UIElement    e;
    UIScrollBar* scrollBar;
    UIRectangle  border;
    int          gap;
+
+   UIPanel(UIElement* parent, uint32_t flags);
 };
 
-struct UIButton {
+struct UIButton : public UIElement {
    enum {
       SMALL     = 1 << 0,
       MENU_ITEM = 1 << 1,
@@ -577,13 +664,14 @@ struct UIButton {
       CHECKED   = 1 << 15,
    };
 
-   UIElement e;
-   char*     label;
-   ptrdiff_t labelBytes;
-   void (*invoke)(void* cp);
+   char*                 label;
+   ptrdiff_t             labelBytes;
+   std::function<void()> invoke;
+
+   UIButton(UIElement* parent, uint32_t flags, const char* label, ptrdiff_t labelBytes);
 };
 
-struct UICheckbox {
+struct UICheckbox : public UIElement {
    enum { ALLOW_INDETERMINATE = 1 << 0 };
 
    enum {
@@ -592,46 +680,52 @@ struct UICheckbox {
       INDETERMINATE = 2
    };
 
-   UIElement e;
    uint8_t   check;
    char*     label;
    ptrdiff_t labelBytes;
-   void (*invoke)(void* cp);
+   std::function<void ()> invoke;
+
+   UICheckbox(UIElement* parent, uint32_t flags, const char* label, ptrdiff_t labelBytes);
 };
 
-struct UILabel {
-   UIElement e;
+struct UILabel : public UIElement {
    char*     label;
    ptrdiff_t labelBytes;
+
+   UILabel(UIElement* parent, uint32_t flags, const char* label, ptrdiff_t labelBytes);
 };
 
-struct UISpacer {
-   UIElement e;
+struct UISpacer : public UIElement {
    int       width, height;
+
+   UISpacer(UIElement* parent, uint32_t flags, int width, int height);
 };
 
-struct UISplitPane {
-   enum { VERTICAL = 1 << 0 };
-
-   UIElement e;
+struct UISplitPane : public UIElement {
    float     weight;
+
+   UISplitPane(UIElement* parent, uint32_t flags, float weight);
 };
 
-struct UITabPane {
-   UIElement e;
+struct UITabPane : public UIElement {
    char*     tabs;
    uint32_t  active;
+
+   UITabPane(UIElement* parent, uint32_t flags,  const char* tabs);
 };
 
-struct UIScrollBar {
+struct UIScrollBar : public UIElement {
    enum { HORIZONTAL = 1 << 0 };
 
-   UIElement  e;
-   int64_t    maximum, page;
+   int64_t    maximum;
+   int64_t    page;
    int64_t    dragOffset;
    double     position;
    UI_CLOCK_T lastAnimateTime;
-   bool       inDrag, horizontal;
+   bool       inDrag;
+   bool       horizontal;
+
+   UIScrollBar(UIElement* parent, uint32_t flags);
 };
 
 template <class EL>
@@ -640,15 +734,15 @@ inline void UILayoutScrollbarPair(const EL* el, int hSpace, int vSpace, int scro
    el->hScroll->page = hSpace - (el->vScroll->page < el->vScroll->maximum ? scrollBarSize : 0);
    el->vScroll->page = vSpace - (el->hScroll->page < el->hScroll->maximum ? scrollBarSize : 0);
 
-   UIRectangle vScrollBarBounds = el->e.bounds, hScrollBarBounds = el->e.bounds;
+   UIRectangle vScrollBarBounds = el->bounds, hScrollBarBounds = el->bounds;
 
    hScrollBarBounds.r = vScrollBarBounds.l =
       vScrollBarBounds.r - (el->vScroll->page < el->vScroll->maximum ? scrollBarSize : 0);
    vScrollBarBounds.b = hScrollBarBounds.t =
       hScrollBarBounds.b - (el->hScroll->page < el->hScroll->maximum ? scrollBarSize : 0);
 
-   UIElementMove(&el->vScroll->e, vScrollBarBounds, true);
-   UIElementMove(&el->hScroll->e, hScrollBarBounds, true);
+   el->vScroll->Move(vScrollBarBounds, true);
+   el->hScroll->Move(hScrollBarBounds, true);
 }
 
 template <class EL>
@@ -665,24 +759,30 @@ inline void  UIKeyInputVScroll(EL* el, UIKeyTyped* m, int rowHeight, int pageHei
       el->vScroll->position = 0;
    else if (m->code == UIKeycode::END)
       el->vScroll->position = el->vScroll->maximum;
-   UIElementRefresh(&el->e);
+   el->Refresh();
 }
 
 struct UICodeLine {
    int offset, bytes;
 };
 
-struct UICode {
+struct UICode : public UIElement {
    enum {
       NO_MARGIN  = 1 << 0,
       SELECTABLE = 1 << 1
    };
 
-   UIElement    e;
-   UIScrollBar *vScroll, *hScroll;
+   struct code_pos {
+      int line   = 0;
+      int offset = 0;
+   };
+
+   UIScrollBar* vScroll;
+   UIScrollBar* hScroll;
    UICodeLine*  lines;
    UIFont*      font;
-   int          lineCount, focused;
+   int          lineCount;
+   int          focused;
    bool         moveScrollToFocusNextLayout;
    bool         leftDownInMargin;
    char*        content;
@@ -691,119 +791,126 @@ struct UICode {
    int          columns;
    UI_CLOCK_T   lastAnimateTime;
 
-   struct {
-      int line, offset;
-   } selection[4 /* start, end, anchor, caret */];
+   std::array<code_pos, 4> selection {}; // start, end, anchor, caret
 
    int  verticalMotionColumn;
    bool useVerticalMotionColumn;
    bool moveScrollToCaretNextLayout;
+
+   UICode(UIElement* parent, uint32_t flags);
 };
 
-struct UIGauge {
-   UIElement e;
-   double    position;
+struct UIGauge : public UIElement {
+   double position;
+   bool   vertical;
+
+   UIGauge(UIElement* parent, uint32_t flags);
+   void SetPosition(double position);
 };
 
-struct UITable {
-   UIElement    e;
+struct UISlider : public UIElement {
+   double position;
+   int    steps;
+   bool   vertical;
+
+   UISlider(UIElement* parent, uint32_t flags);
+   void SetPosition(double position);
+};
+
+struct UITable : public UIElement {
    UIScrollBar *vScroll, *hScroll;
    int          itemCount;
-   char*        columns;
-   int *        columnWidths, columnCount, columnHighlight;
+   char*        columns = nullptr;
+   int *        columnWidths = nullptr;
+   int          columnCount, columnHighlight;
+
+   UITable(UIElement* parent, uint32_t flags, const char* columns);
 };
 
-struct UITextbox {
-   UIElement e;
-   char*     string;
-   ptrdiff_t bytes;
-   int       carets[2];
-   int       scroll;
-   bool      rejectNextKey;
+struct UITextbox : public UIElement {
+   char*              string;
+   ptrdiff_t          bytes;
+   std::array<int, 2> carets{};
+   int                scroll;
+   bool               rejectNextKey;
+
+   UITextbox(UIElement* parent, uint32_t flags);
 };
 
-struct UIMenu {
+struct UIMenu : public UIElement {
    enum {
       PLACE_ABOVE = 1 << 0,
       NO_SCROLL   = 1 << 1
    };
 
-   UIElement    e;
-   int          pointX, pointY;
+   int          pointX;
+   int          pointY;
    UIScrollBar* vScroll;
    UIWindow*    parentWindow;
+
+   UIMenu(UIElement* parent, uint32_t flags);
 };
 
-struct UISlider {
-   UIElement e;
-   double    position;
-   int       steps;
+struct UIMDIClient : public UIElement {
+   enum { _TRANSPARENT = 1 << 0 };
+
+   UIMDIChild* active;
+   int         cascade;
+
+   UIMDIClient(UIElement* parent, uint32_t flags);
 };
 
-struct UIMDIClient {
-   enum {
-      _TRANSPARENT = 1 << 0
-   };
+struct UIMDIChild : public UIElement {
+   enum { CLOSE_BUTTON = 1 << 0 };
 
-   UIElement          e;
-   struct UIMDIChild* active;
-   int                cascade;
-};
-
-struct UIMDIChild {
-   enum {
-      CLOSE_BUTTON = 1 << 0
-   };
-
-   UIElement   e;
    UIRectangle bounds;
    char*       title;
    ptrdiff_t   titleBytes;
    int         dragHitTest;
    UIRectangle dragOffset;
+
+   UIMDIChild(UIElement* parent, uint32_t flags, const UIRectangle& initialBounds, const char* title,
+              ptrdiff_t titleBytes);
 };
 
-struct UIExpandPane {
-   UIElement e;
-   UIButton* button;
-   UIPanel*  panel;
-   bool      expanded;
-};
+struct UIImageDisplay : public UIElement {
+   enum { INTERACTIVE = (1 << 0), ZOOM_FIT = (1 << 1) };
 
-struct UIImageDisplay {
-   enum {
-      INTERACTIVE = (1 << 0),
-      ZOOM_FIT = (1 << 1)
-   };
-
-   UIElement e;
    uint32_t* bits;
-   int       width, height;
-   float     panX, panY, zoom;
+   int       width;
+   int       height;
+   float     panX;
+   float     panY;
+   float     zoom;
 
    // Internals:
-   int previousWidth, previousHeight;
-   int previousPanPointX, previousPanPointY;
+   int previousWidth;
+   int previousHeight;
+   int previousPanPointX;
+   int previousPanPointY;
+
+   UIImageDisplay(UIElement* parent, uint32_t flags, uint32_t* bits, size_t width, size_t height, size_t stride);
 };
 
-struct UIWrapPanel {
-   UIElement e;
+struct UIWrapPanel : public UIElement {
+
+   UIWrapPanel(UIElement* parent, uint32_t flags);
 };
 
-struct UISwitcher {
-   UIElement  e;
-   UIElement* active;
+struct UISwitcher : public UIElement {
+   UIElement* active = nullptr;
+
+   UISwitcher(UIElement* parent, uint32_t flags);
 };
 
-void UIInitialise(const UIConfig& cfg);
+unique_ptr<UI> UIInitialise(const UIConfig& cfg);
+
 int  UIMessageLoop();
 
 UIElement* UIElementCreate(size_t bytes, UIElement* parent, uint32_t flags,
                            int (*messageClass)(UIElement*, UIMessage, int, void*), const char* cClassName);
 
 UICheckbox*   UICheckboxCreate(UIElement* parent, uint32_t flags, const char* label, ptrdiff_t labelBytes);
-UIExpandPane* UIExpandPaneCreate(UIElement* parent, uint32_t flags, const char* label, ptrdiff_t labelBytes,
-                                 uint32_t panelFlags);
 UIMDIClient*  UIMDIClientCreate(UIElement* parent, uint32_t flags);
 UIMDIChild*   UIMDIChildCreate(UIElement* parent, uint32_t flags, UIRectangle initialBounds, const char* title,
                                ptrdiff_t titleBytes);
@@ -817,7 +924,6 @@ UITabPane*    UITabPaneCreate(UIElement* parent, uint32_t flags,
 UIWrapPanel*  UIWrapPanelCreate(UIElement* parent, uint32_t flags);
 
 UIGauge* UIGaugeCreate(UIElement* parent, uint32_t flags);
-void     UIGaugeSetPosition(UIGauge* gauge, float value);
 
 UIButton* UIButtonCreate(UIElement* parent, uint32_t flags, const char* label, ptrdiff_t labelBytes);
 void      UIButtonSetLabel(UIButton* button, const char* string, ptrdiff_t stringBytes);
@@ -840,8 +946,7 @@ typedef void (*UIDialogUserCallback)(UIElement*);
 const char* UIDialogShow(UIWindow* window, uint32_t flags, const char* format, ...);
 
 UIMenu* UIMenuCreate(UIElement* parent, uint32_t flags);
-void    UIMenuAddItem(UIMenu* menu, uint32_t flags, const char* label, ptrdiff_t labelBytes, void (*invoke)(void* cp),
-                      void* cp);
+void    UIMenuAddItem(UIMenu* menu, uint32_t flags, const char* label, ptrdiff_t labelBytes, std::function<void ()> invoke);
 void    UIMenuShow(UIMenu* menu);
 bool    UIMenusOpen();
 
@@ -891,22 +996,7 @@ int UIMeasureStringHeight();
 
 uint64_t UIAnimateClock(); // In ms.
 
-bool        UIElementAnimate(UIElement* element, bool stop);
-void        UIElementDestroy(UIElement* element);
-void        UIElementDestroyDescendents(UIElement* element);
-UIElement*  UIElementFindByPoint(UIElement* element, int x, int y);
-void        UIElementFocus(UIElement* element);
-UIRectangle UIElementScreenBounds(
-   UIElement* element); // Returns bounds of element in same coordinate system as used by UIWindowCreate.
-void       UIElementRefresh(UIElement* element);
-void       UIElementRelayout(UIElement* element);
-void       UIElementRepaint(UIElement* element, UIRectangle* region);
 void       UIElementMeasurementsChanged(UIElement* element, int which);
-void       UIElementMove(UIElement* element, UIRectangle bounds, bool alwaysLayout);
-int        UIElementMessage(UIElement* element, UIMessage message, int di, void* dp);
-UIElement* UIElementChangeParent(UIElement* element, UIElement* newParent,
-                                 UIElement* insertBefore); // Set insertBefore to null to insert at the end. Returns the
-                                                           // element it was before in its previous parent, or NULL.
 
 UIElement* UIParentPush(UIElement* element);
 UIElement* UIParentPop();
@@ -929,131 +1019,160 @@ UIFont* UIFontActivate(UIFont* font); // Returns the previously active font.
 void UIInspectorLog(const char* cFormat, ...);
 #endif
 
+inline bool _UICharIsDigit(int c) {
+   return c >= '0' && c <= '9';
+}
+
+inline bool _UICharIsAlpha(int c) {
+   return (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') || c > 127);
+}
+
+inline bool _UICharIsAlphaOrDigitOrUnderscore(int c) {
+   return _UICharIsAlpha(c) || _UICharIsDigit(c) || c == '_';
+}
+
 #ifdef UI_UNICODE
 
    #ifndef UI_FREETYPE
       #error "Unicode support requires Freetype"
    #endif
 
-int Utf8GetCodePoint(const char* cString, ptrdiff_t bytesLength, ptrdiff_t* bytesConsumed);
-char* Utf8GetPreviousChar(char* string, char* offset);
-ptrdiff_t Utf8GetCharBytes(const char* cString, ptrdiff_t bytes);
-ptrdiff_t Utf8StringLength(const char* cString, ptrdiff_t bytes);
+int         Utf8GetCodePoint(const char* cString, ptrdiff_t bytesLength, ptrdiff_t* bytesConsumed);
+const char* Utf8GetPreviousChar(const char* string, const char* offset);
+ptrdiff_t   Utf8GetCharBytes(const char* cString, ptrdiff_t bytes);
+ptrdiff_t   Utf8StringLength(const char* cString, ptrdiff_t bytes);
 
-   #define _UNICODE_MAX_CODEPOINT 0x10FFFF
+inline constexpr size_t _UNICODE_MAX_CODEPOINT = 0x10FFFF;
+inline constexpr int max_glyphs             = _UNICODE_MAX_CODEPOINT + 1;
 
-   #define _UI_ADVANCE_CHAR(index, text, count) index += Utf8GetCharBytes(text, count - index)
+inline void _ui_advance_char(int& index, const char* text, int count) {
+   index += Utf8GetCharBytes(text, count - index);
+}
 
-   #define _UI_SKIP_TAB(ti, text, bytesLeft, tabSize)     \
-      do {                                                \
-         int c = Utf8GetCodePoint(text, bytesLeft, NULL); \
-         if (c == '\t')                                   \
-            while (ti % tabSize)                          \
-               ti++;                                      \
-      } while (0)
+inline void _ui_skip_tab(int ti, const char* text, int bytesLeft, int tabSize) {
+   int c = Utf8GetCodePoint(text, bytesLeft, NULL);
+   if (c == 't')
+      while (ti % tabSize)
+         ++ti;
+}
 
-   #define _UI_MOVE_CARET_BACKWARD(caret, text, offset, offset2) \
-      do {                                                       \
-         char* prev = Utf8GetPreviousChar(text, text + offset);  \
-         caret      = prev - text - offset2;                     \
-      } while (0)
+inline void _ui_move_caret_backwards(int& caret, const char* text, int offset, int offset2) {
+   const char* prev = Utf8GetPreviousChar(text, text + offset);
+   caret            = prev - text - offset2;
+}
 
-   #define _UI_MOVE_CARET_FORWARD(caret, text, bytes, offset)     \
-      do {                                                        \
-         caret += Utf8GetCharBytes(text + caret, bytes - offset); \
-      } while (0)
+inline void _ui_move_caret_forward(int& caret, const char* text, ptrdiff_t bytes, int offset) {
+   caret += Utf8GetCharBytes(text + caret, bytes - offset);
+}
 
-   #define _UI_MOVE_CARET_BY_WORD(text, bytes, offset)                                       \
-      {                                                                                      \
-         char* prev = Utf8GetPreviousChar(text, text + offset);                              \
-         int   c1   = Utf8GetCodePoint(prev, bytes - (prev - text), NULL);                   \
-         int   c2   = Utf8GetCodePoint(text + offset, bytes - offset, NULL);                 \
-         if (_UICharIsAlphaOrDigitOrUnderscore(c1) != _UICharIsAlphaOrDigitOrUnderscore(c2)) \
-            break;                                                                           \
-      }
+inline bool _ui_move_caret_by_word(const char* text, ptrdiff_t bytes, int offset) {
+   const char* prev = Utf8GetPreviousChar(text, text + offset);
+   int         c1   = Utf8GetCodePoint(prev, bytes - (prev - text), NULL);
+   int         c2   = Utf8GetCodePoint(text + offset, bytes - offset, NULL);
+   return _UICharIsAlphaOrDigitOrUnderscore(c1) != _UICharIsAlphaOrDigitOrUnderscore(c2);
+}
 
 #else
 
-   #define _UI_ADVANCE_CHAR(index, code, count) index++
+inline constexpr int max_glyphs = 128;
 
-   #define _UI_SKIP_TAB(ti, text, bytesLeft, tabSize) \
-      if (*(text) == '\t')                            \
-         while (ti % tabSize)                         \
-      ti++
+inline void _ui_advance_char(int& index, const char* text, int count) {
+   ++index;
+}
 
-   #define _UI_MOVE_CARET_BACKWARD(caret, text, offset, offset2) caret--
-   #define _UI_MOVE_CARET_FORWARD(caret, text, bytes, offset) caret++
+inline void _ui_skip_tab(int ti, const char* text, int bytesLeft, int tabSize) {
+   if (*(text) == '\t')
+      while (ti % tabSize)
+         ++ti;
+}
 
-   #define _UI_MOVE_CARET_BY_WORD(text, bytes, offset)                                       \
-      {                                                                                      \
-         char c1 = (text)[offset - 1];                                                       \
-         char c2 = (text)[offset];                                                           \
-         if (_UICharIsAlphaOrDigitOrUnderscore(c1) != _UICharIsAlphaOrDigitOrUnderscore(c2)) \
-            break;                                                                           \
-      }
+inline void _ui_move_caret_backwards(int& caret, const char* text, int offset, int offset2) {
+   --caret;
+}
+
+inline void _ui_move_caret_forward(int& caret, const char* text, ptrdiff_t bytes, int offset) {
+   ++caret;
+}
+
+inline bool _ui_move_caret_by_word(const char* text, ptrdiff_t bytes, int offset) {
+   char c1 = (text)[offset - 1];
+   char c2 = (text)[offset];
+   return (_UICharIsAlphaOrDigitOrUnderscore(c1) != _UICharIsAlphaOrDigitOrUnderscore(c2));
+}
 
 #endif // UI_UNICODE
 
 struct UI {
-   UIWindow* windows;
+   UIWindow* windows = nullptr;
    UITheme   theme;
 
-   UIElement** animating;
-   uint32_t    animatingCount;
+   std::vector<UIElement*> animating;
 
-   UIElement* parentStack[16];
-   int        parentStackCount;
+   std::array<UIElement*, 16> parentStack{};
+   int                        parentStackCount = 0;
 
-   bool        quit;
-   const char* dialogResult;
-   UIElement*  dialogOldFocus;
-   bool        dialogCanExit;
+   bool        quit           = false;
+   const char* dialogResult   = nullptr;
+   UIElement*  dialogOldFocus = nullptr;
+   bool        dialogCanExit  = false;
 
-   UIFont* activeFont;
+   UIFont* activeFont = nullptr;
 
 #ifdef UI_DEBUG
-   UIWindow* inspector;
-   UITable*  inspectorTable;
-   UIWindow* inspectorTarget;
-   UICode*   inspectorLog;
+   UIWindow* inspector       = nullptr;
+   UITable*  inspectorTable  = nullptr;
+   UIWindow* inspectorTarget = nullptr;
+   UICode*   inspectorLog    = nullptr;
 #endif
 
 #ifdef UI_LINUX
-   Display* display;
-   Visual*  visual;
-   XIM      xim;
-   Atom     windowClosedID, primaryID, uriListID, plainTextID;
-   Atom   dndEnterID, dndPositionID, dndStatusID, dndActionCopyID, dndDropID, dndSelectionID, dndFinishedID, dndAwareID;
-   Atom   clipboardID, xSelectionDataID, textID, targetID, incrID;
-   Cursor cursors[(uint32_t)UICursor::count];
-   char*  pasteText;
-   XEvent copyEvent;
+   using cursors_t   = std::array<Cursor, (uint32_t)UICursor::count>;
+
+   Display*  display = nullptr;
+   Visual*   visual  = nullptr;
+   XIM       xim     = nullptr;;
+   Atom      windowClosedID = 0, primaryID = 0, uriListID = 0, plainTextID = 0;
+   Atom      dndEnterID = 0, dndPositionID = 0, dndStatusID = 0, dndActionCopyID = 0;
+   Atom      dndDropID = 0, dndSelectionID = 0, dndFinishedID = 0, dndAwareID = 0;
+   Atom      clipboardID = 0, xSelectionDataID = 0, textID = 0, targetID = 0, incrID = 0;
+   cursors_t cursors{};
+   char*     pasteText = nullptr;
+   XEvent    copyEvent;
 #endif
 
 #ifdef UI_WINDOWS
-   HCURSOR cursors[(uint32_t)UICursor::count];
-   HANDLE  heap;
-   bool    assertionFailure;
+   using cursors_t = std::array<HCURSOR, (uint32_t)UICursor::count>;
+
+   cursors_t cursors{};
+   HANDLE    heap             = 0;
+   bool      assertionFailure = false;
 #endif
 
 #ifdef UI_FREETYPE
-   FT_Library ft;
+   FT_Library ft = nullptr;
 #endif
+
+   std::unordered_map<UIFontSpec, unique_ptr<UIFont>> font_map;
+
+   ~UI() {
+      font_map.clear();
+#ifdef UI_FREETYPE
+      FT_Done_FreeType(ft);
+#endif
+   }
 
    int code_margin() { return activeFont->glyphWidth * 5; }
    int code_margin_gap() { return activeFont->glyphWidth * 1; }
 };
 
+enum class sel_target_t { primary, clipboard };
+
 // ----------------------------------------
 //      Forward declarations.
 // ----------------------------------------
 
-void  _UIWindowEndPaint(UIWindow* window, UIPainter* painter);
-void  _UIWindowSetCursor(UIWindow* window, int cursor);
-void  _UIWindowGetScreenPosition(UIWindow* window, int* x, int* y);
-void  _UIWindowSetPressed(UIWindow* window, UIElement* element, int button);
-void  _UIClipboardWriteText(UIWindow* window, char* text);
-char* _UIClipboardReadTextStart(UIWindow* window, size_t* bytes, bool use_clipboard);
+void  _UIClipboardWriteText(UIWindow* window, char* text, sel_target_t t);
+char* _UIClipboardReadTextStart(UIWindow* window, size_t* bytes, sel_target_t t);
 void  _UIClipboardReadTextEnd(UIWindow* window, char* text);
 bool  _UIMessageLoopSingle(int* result);
 void  _UIInspectorRefresh();
@@ -1075,18 +1194,6 @@ void* _UIMemmove(void* dest, const void* src, size_t n);
 #endif
 
 
-inline bool _UICharIsDigit(int c) {
-   return c >= '0' && c <= '9';
-}
-
-inline bool _UICharIsAlpha(int c) {
-   return (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') || c > 127);
-}
-
-inline bool _UICharIsAlphaOrDigitOrUnderscore(int c) {
-   return _UICharIsAlpha(c) || _UICharIsDigit(c) || c == '_';
-}
-
 int _UICodeColumnToByte(UICode* code, int line, int column);
 int _UICodeByteToColumn(UICode* code, int line, int byte);
 
@@ -1096,6 +1203,6 @@ int _UITabPaneMessage(UIElement* element, UIMessage message, int di, void* dp);
 //      Variables
 // ----------------------------------------
 
-extern UI      ui;
+extern UI*     ui;              // global pointer to the UIInitialise return value
 extern UITheme uiThemeClassic;
 extern UITheme uiThemeDark;
