@@ -155,12 +155,12 @@ int WinMain(HINSTANCE instance, HINSTANCE previousInstance, LPSTR commandLine, i
 
    {
       // Top-Right pane.
-      UICode* code   = UICodeCreate(uisplit_top_leftright, 0);
-      char*   buffer = (char*)malloc(262144);
-      FILE*   f      = fopen("../src/luigi.hpp", "rb");
-      size_t  size   = fread(buffer, 1, 262144, f);
+      UICode*               code = UICodeCreate(uisplit_top_leftright, 0);
+      std::unique_ptr<char[]> buffer(new char[262144]);
+      FILE*                 f    = fopen("../src/luigi.hpp", "rb");
+      size_t                size = fread(buffer.get(), 1, 262144, f);
       fclose(f);
-      UICodeInsertContent(code, buffer, size, true);
+      UICodeInsertContent(code, buffer.get(), size, true);
       UICodeFocusLine(code, 0);
    }
 

@@ -548,8 +548,9 @@ struct UIElement {
    const char* cClassName = nullptr;
 
    UIElement(UIElement* parent, uint32_t flags, MsgFn message, const char* cClassName);
+   virtual ~UIElement();
 
-   uint32_t state() const;
+   uint32_t    state() const;
 
    bool        Animate(bool stop);
    void        Destroy();
@@ -629,6 +630,8 @@ struct UIWindow : public UIElement {
 #endif
 
    UIWindow(UIElement* parent, uint32_t flags, MsgFn message, const char* cClassName);
+   virtual ~UIWindow();
+
    void EndPaint(UIPainter* painter);
    void SetCursor(int cursor);
    void GetScreenPosition(int* _x, int* _y);

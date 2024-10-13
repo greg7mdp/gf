@@ -1280,6 +1280,9 @@ UIElement::UIElement(UIElement* parent, uint32_t flags, MsgFn message, const cha
    }
 }
 
+UIElement::~UIElement() {
+}
+
 UIElement* UIElementCreate(size_t bytes, UIElement* parent, uint32_t flags, MsgFn message, const char* cClassName) {
    UIElement* element = new UIElement(parent, flags, message, cClassName);
    return element;
@@ -5008,6 +5011,9 @@ UIWindow::UIWindow(UIElement* parent, uint32_t flags, MsgFn message, const char*
    alt(false),
    updateRegion(0)
 {
+}
+
+UIWindow::~UIWindow() {
 }
 
 // --------------------------------------------------
