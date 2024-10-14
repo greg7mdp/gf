@@ -89,7 +89,7 @@ uint32_t UIElement::state() const {
 // Helper functions.
 // --------------------------------------------------
 UIRectangle fit(UIRectangle parent, UIRectangle child, bool allowScalingUp) {
-   int childWidth = child.width(), childHeight = child.height();
+   auto [childWidth, childHeight] = child.dims();
    int parentWidth = parent.width(), parentHeight = parent.height();
 
    if (childWidth < parentWidth && childHeight < parentHeight && !allowScalingUp) {
@@ -135,10 +135,13 @@ float _UIFloorFloat(float x) {
    return convert.f;
 }
 
+float inverse_lerp(float a, float b, float v) {
+   return (v - a) / (b - a);
+}
+
 float _UILinearMap(float value, float inFrom, float inTo, float outFrom, float outTo) {
-   float inRange = inTo - inFrom, outRange = outTo - outFrom;
-   float normalisedValue = (value - inFrom) / inRange;
-   return normalisedValue * outRange + outFrom;
+   float normalisedValue = inverse_lerp(inFrom, inTo, value);
+   return std::lerp(outFrom, outTo, normalisedValue);
 }
 
 bool UIColorToHSV(uint32_t rgb, float* hue, float* saturation, float* value) {
@@ -1173,7 +1176,7 @@ bool _UIDestroy(UIElement* element) {
    if (element->flags & UIElement::DESTROY_DESCENDENT) {
       element->flags &= ~UIElement::DESTROY_DESCENDENT;
 
-      auto filtered = element->children | views::filter([](UIElement* c) { return _UIDestroy(c); });
+      auto filtered = element->children | views::filter([](UIElement* c) { return !_UIDestroy(c); });
       element->children = { filtered.begin(), filtered.end() };
    }
 
