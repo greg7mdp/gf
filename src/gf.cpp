@@ -7294,7 +7294,7 @@ UIElement* InterfaceWindowSwitchToAndFocus(const char* name) {
       if ((window->element->flags & UIElement::HIDE) && window->element->parent->messageClass == _UITabPaneMessage) {
          UITabPane* tabPane = (UITabPane*)window->element->parent;
 
-         for (uint32_t i = 0; i < tabPane->childCount; i++) {
+         for (uint32_t i = 0; i < tabPane->children.size(); i++) {
             if (tabPane->children[i] == window->element) {
                tabPane->active = i;
                break;
