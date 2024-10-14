@@ -1660,6 +1660,13 @@ int _UICheckboxMessage(UIElement* element, UIMessage message, int di, void* dp) 
    return 0;
 }
 
+void UICheckbox::SetLabel(const char* string, ptrdiff_t stringBytes) {
+   UI_FREE(label);
+   label = UIStringCopy(string, (labelBytes = stringBytes));
+   UIElementMeasurementsChanged(this, 1);
+   Repaint(NULL);
+}
+
 UICheckbox::UICheckbox(UIElement* parent, uint32_t flags, const char* label, ptrdiff_t labelBytes)
    : UIElement(parent, flags | UIElement::TAB_STOP, _UICheckboxMessage, "Checkbox")
    , check(0)

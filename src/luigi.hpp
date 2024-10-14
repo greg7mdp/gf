@@ -715,6 +715,7 @@ struct UICheckbox : public UIElement {
    std::function<void ()> invoke;
 
    UICheckbox(UIElement* parent, uint32_t flags, const char* label, ptrdiff_t labelBytes);
+   void SetLabel(const char *string, ptrdiff_t stringBytes);
 };
 
 struct UILabel : public UIElement {
