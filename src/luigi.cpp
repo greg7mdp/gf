@@ -88,9 +88,9 @@ uint32_t UIElement::state() const {
 // --------------------------------------------------
 // Helper functions.
 // --------------------------------------------------
-UIRectangle fit(UIRectangle parent, UIRectangle child, bool allowScalingUp) {
+UIRectangle fit(const UIRectangle& parent, UIRectangle child, bool allowScalingUp) {
    auto [childWidth, childHeight] = child.dims();
-   int parentWidth = parent.width(), parentHeight = parent.height();
+   auto [parentWidth, parentHeight] = parent.dims();
 
    if (childWidth < parentWidth && childHeight < parentHeight && !allowScalingUp) {
       return center(parent, child);

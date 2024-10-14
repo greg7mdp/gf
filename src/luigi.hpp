@@ -325,7 +325,7 @@ struct UIRectangle {
       return child;
    }
 
-   friend UIRectangle fit(UIRectangle parent, UIRectangle child, bool allowScalingUp);
+   friend UIRectangle fit(const UIRectangle& parent, UIRectangle child, bool allowScalingUp);
 
    UIRectangle operator+(const UIRectangle& o) const { return { l + o.l, r + o.r, t + o.t, b + o.b }; }
 
