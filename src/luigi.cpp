@@ -940,12 +940,9 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
 // --------------------------------------------------
 
 void UIElement::_DestroyDescendents(bool topLevel) {
-   for (uint32_t i = 0; i < childCount; i++) {
-      UIElement* child = children[i];
-
-      if (!topLevel || (~child->flags & UIElement::NON_CLIENT)) {
+   for (auto child : children) {
+      if (!topLevel || (~child->flags & UIElement::NON_CLIENT))
          child->Destroy();
-      }
    }
 
    _UIInspectorRefresh();
@@ -1014,12 +1011,11 @@ UIElement* UIElement::ChangeParent(UIElement* newParent, UIElement* insertBefore
    [[maybe_unused]] bool found     = false;
    UIElement*            oldBefore = NULL;
 
-   for (uint32_t i = 0; i < parent->childCount; i++) {
+   auto num_children = parent->children.size();
+   for (uint32_t i = 0; i < num_children; i++) {
       if (parent->children[i] == this) {
-         std::memmove(&parent->children[i], &parent->children[i + 1],
-                      sizeof(UIElement*) * (parent->childCount - i - 1));
-         parent->childCount--;
-         oldBefore = i == parent->childCount ? NULL : parent->children[i];
+         parent->children.erase(parent->children.begin() + i);
+         oldBefore = i == parent->children.size() ? NULL : parent->children[i];
          found     = true;
          break;
       }
@@ -1027,15 +1023,10 @@ UIElement* UIElement::ChangeParent(UIElement* newParent, UIElement* insertBefore
 
    UI_ASSERT(found && (~flags & UIElement::DESTROY));
 
-   for (uint32_t i = 0; i <= newParent->childCount; i++) {
-      if (i == newParent->childCount || newParent->children[i] == insertBefore) {
-         newParent->children =
-            (UIElement**)UI_REALLOC(newParent->children, sizeof(UIElement*) * (newParent->childCount + 1));
-         std::memmove(&newParent->children[i + 1], &newParent->children[i],
-                      sizeof(UIElement*) * (newParent->childCount - i));
-         newParent->childCount++;
-         newParent->children[i] = this;
-         found                  = true;
+   for (uint32_t i = 0; i <= newParent->children.size(); i++) {
+      if (i == newParent->children.size() || newParent->children[i] == insertBefore) {
+         newParent->children.insert(parent->children.begin() + i, this);
+         found = true;
          break;
       }
    }
@@ -1160,9 +1151,8 @@ void UIElement::Move(UIRectangle new_bounds, bool layout) {
    if (layout) {
       Message(UIMessage::LAYOUT, 0, 0);
    } else if (flags & UIElement::RELAYOUT_DESCENDENT) {
-      for (uint32_t i = 0; i < childCount; i++) {
-         children[i]->Move(children[i]->bounds, false);
-      }
+      for (auto child : children)
+         child->Move(child->bounds, false);
    }
 
    flags &= ~(UIElement::RELAYOUT_DESCENDENT | UIElement::RELAYOUT);
@@ -1189,9 +1179,9 @@ void UIElement::Paint(UIPainter* painter) {
    // -------------------
    UIRectangle previousClip = painter->clip;
 
-   for (uintptr_t i = 0; i < childCount; i++) {
+   for (auto child : children) {
       painter->clip = previousClip;
-      children[i]->Paint(painter);
+      child->Paint(painter);
    }
 
    // Draw the foreground and border.
@@ -1208,13 +1198,8 @@ bool _UIDestroy(UIElement* element) {
    if (element->flags & UIElement::DESTROY_DESCENDENT) {
       element->flags &= ~UIElement::DESTROY_DESCENDENT;
 
-      for (uintptr_t i = 0; i < element->childCount; i++) {
-         if (_UIDestroy(element->children[i])) {
-            std::memmove(&element->children[i], &element->children[i + 1],
-                         sizeof(UIElement*) * (element->childCount - i - 1));
-            element->childCount--, i--;
-         }
-      }
+      auto filtered = element->children | views::filter([](UIElement* c) { return _UIDestroy(c); });
+      element->children = { filtered.begin(), filtered.end() };
    }
 
    if (element->flags & UIElement::DESTROY) {
@@ -1237,7 +1222,6 @@ bool _UIDestroy(UIElement* element) {
       }
 
       element->Animate(true);
-      UI_FREE(element->children);
       delete element;
       return true;
    } else {
@@ -1263,9 +1247,7 @@ UIElement::UIElement(UIElement* parent, uint32_t flags, MsgFn message, const cha
    if (parent) {
       UI_ASSERT(~parent->flags & UIElement::DESTROY);
       window           = parent->window;
-      parent->children = (UIElement**)UI_REALLOC(parent->children, sizeof(UIElement*) * (parent->childCount + 1));
-      parent->children[parent->childCount] = this;
-      parent->childCount++;
+      parent->children.push_back(this);
       parent->Relayout();
       UIElementMeasurementsChanged(parent, 3);
    }
@@ -1309,9 +1291,7 @@ int _UIPanelCalculatePerFill(UIPanel* panel, int* _count, int hSpace, int vSpace
    int  available  = horizontal ? hSpace : vSpace;
    int  count = 0, fill = 0, perFill = 0;
 
-   for (uint32_t i = 0; i < panel->childCount; i++) {
-      UIElement* child = panel->children[i];
-
+   for (auto child : panel->children) {
       if (child->flags & (UIElement::HIDE | UIElement::NON_CLIENT)) {
          continue;
       }
@@ -1354,8 +1334,7 @@ int _UIPanelMeasure(UIPanel* panel, int di) {
       _UIPanelCalculatePerFill(panel, NULL, horizontal ? di : 0, horizontal ? 0 : di, panel->window->scale);
    int size = 0;
 
-   for (uint32_t i = 0; i < panel->childCount; i++) {
-      UIElement* child = panel->children[i];
+   for (auto child : panel->children) {
       if (child->flags & (UIElement::HIDE | UIElement::NON_CLIENT))
          continue;
       int childSize =
@@ -1382,9 +1361,7 @@ int _UIPanelLayout(UIPanel* panel, UIRectangle bounds, bool measure) {
    int  scaledBorder2 = (horizontal ? panel->border.t : panel->border.l) * panel->window->scale;
    bool expand        = panel->flags & UIPanel::EXPAND;
 
-   for (uint32_t i = 0; i < panel->childCount; i++) {
-      UIElement* child = panel->children[i];
-
+   for (auto child : panel->children) {
       if (child->flags & (UIElement::HIDE | UIElement::NON_CLIENT)) {
          continue;
       }
@@ -1522,7 +1499,7 @@ int _UIWrapPanelMessage(UIElement* element, UIMessage message, int di, void* dp)
 
       uint32_t rowStart = 0;
 
-      for (uint32_t i = 0; i < panel->childCount; i++) {
+      for (uint32_t i = 0; i < panel->children.size(); i++) {
          UIElement* child = panel->children[i];
          if (child->flags & UIElement::HIDE)
             continue;
@@ -1547,7 +1524,7 @@ int _UIWrapPanelMessage(UIElement* element, UIMessage message, int di, void* dp)
       if (message == UIMessage::GET_HEIGHT) {
          return totalHeight + rowHeight;
       } else {
-         _UIWrapPanelLayoutRow(panel, rowStart, panel->childCount, totalHeight, rowHeight);
+         _UIWrapPanelLayoutRow(panel, rowStart, panel->children.size(), totalHeight, rowHeight);
       }
    }
 
@@ -1576,9 +1553,8 @@ int _UISwitcherMessage(UIElement* element, UIMessage message, int di, void* dp) 
 }
 
 void UISwitcherSwitchTo(UISwitcher* switcher, UIElement* child) {
-   for (uint32_t i = 0; i < switcher->childCount; i++) {
-      switcher->children[i]->flags |= UIElement::HIDE;
-   }
+   for (auto child : switcher->children)
+      child->flags |= UIElement::HIDE;
 
    UI_ASSERT(child->parent == switcher);
    child->flags &= ~UIElement::HIDE;
@@ -1923,7 +1899,7 @@ int _UITabPaneMessage(UIElement* element, UIMessage message, int di, void* dp) {
       UIRectangle content = element->bounds;
       content.t += ui_size::BUTTON_HEIGHT * element->window->scale;
 
-      for (uint32_t index = 0; index < element->childCount; index++) {
+      for (uint32_t index = 0; index < element->children.size(); index++) {
          UIElement* child = element->children[index];
 
          if (tabPane->active == index) {
@@ -1937,7 +1913,7 @@ int _UITabPaneMessage(UIElement* element, UIMessage message, int di, void* dp) {
    } else if (message == UIMessage::GET_HEIGHT) {
       int baseHeight = ui_size::BUTTON_HEIGHT * element->window->scale;
 
-      for (uint32_t index = 0; index < element->childCount; index++) {
+      for (uint32_t index = 0; index < element->children.size(); index++) {
          UIElement* child = element->children[index];
 
          if (tabPane->active == index) {
@@ -3468,7 +3444,7 @@ int _UIMDIChildMessage(UIElement* element, UIMessage message, int di, void* dp) 
       UIDrawControl((UIPainter*)dp, element->bounds, UI_DRAW_CONTROL_MDI_CHILD, mdiChild->title, mdiChild->titleBytes,
                     0, element->window->scale);
    } else if (message == UIMessage::GET_WIDTH) {
-      UIElement* child = element->childCount ? element->children[element->childCount - 1] : NULL;
+      UIElement* child = element->children.empty() ? nullptr : element->children.back();
       int        width = 2 * ui_size::MDI_CHILD_BORDER;
       width += (child ? child->Message(message,
                                          di ? (di - ui_size::MDI_CHILD_TITLE + ui_size::MDI_CHILD_BORDER) : 0, dp)
@@ -3477,7 +3453,7 @@ int _UIMDIChildMessage(UIElement* element, UIMessage message, int di, void* dp) 
          width = ui_size::MDI_CHILD_MINIMUM_WIDTH;
       return width;
    } else if (message == UIMessage::GET_HEIGHT) {
-      UIElement* child  = element->childCount ? element->children[element->childCount - 1] : NULL;
+      UIElement* child  = element->children.empty() ? nullptr : element->children.back();
       int        height = ui_size::MDI_CHILD_TITLE + ui_size::MDI_CHILD_BORDER;
       height += (child ? child->Message(message, di ? (di - 2 * ui_size::MDI_CHILD_BORDER) : 0, dp) : 0);
       if (height < ui_size::MDI_CHILD_MINIMUM_HEIGHT)
@@ -3489,14 +3465,13 @@ int _UIMDIChildMessage(UIElement* element, UIMessage message, int di, void* dp) 
 
       int position = titleRect.r;
 
-      for (uint32_t i = 0; i < element->childCount - 1; i++) {
-         UIElement* child = element->children[i];
+      for (auto child : element->children) {
          int        width = child->Message(UIMessage::GET_WIDTH, 0, 0);
          child->Move(UIRectangle(position - width, position, titleRect.t, titleRect.b), false);
          position -= width;
       }
 
-      UIElement* child = element->childCount ? element->children[element->childCount - 1] : NULL;
+      UIElement* child = element->children.empty() ? nullptr : element->children.back();
 
       if (child) {
          child->Move(contentRect, false);
@@ -3550,7 +3525,7 @@ int _UIMDIChildMessage(UIElement* element, UIMessage message, int di, void* dp) 
 
       if (client->active == mdiChild) {
          client->active =
-            (UIMDIChild*)(client->childCount == 1 ? NULL : client->children[client->childCount - 2]);
+            (UIMDIChild*)(client->children.size() == 1 ? NULL : client->children[client->children.size() - 2]);
       }
    } else if (message == UIMessage::DEALLOCATE) {
       UI_FREE(mdiChild->title);
@@ -3567,8 +3542,7 @@ int _UIMDIClientMessage(UIElement* element, UIMessage message, int di, void* dp)
          UIDrawBlock((UIPainter*)dp, element->bounds, ui->theme.panel2);
       }
    } else if (message == UIMessage::LAYOUT) {
-      for (uint32_t i = 0; i < element->childCount; i++) {
-         UIMDIChild* mdiChild = (UIMDIChild*)element->children[i];
+      for (auto mdiChild : element->children) {
          UI_ASSERT(mdiChild->messageClass == _UIMDIChildMessage);
 
          if (mdiChild->bounds == UIRectangle(0)) {
@@ -3588,11 +3562,10 @@ int _UIMDIClientMessage(UIElement* element, UIMessage message, int di, void* dp)
       UIMDIChild* child = (UIMDIChild*)dp;
 
       if (child && child != client->active) {
-         for (uint32_t i = 0; i < element->childCount; i++) {
+         for (uint32_t i = 0; i < element->children.size(); i++) {
             if (element->children[i] == child) {
-               std::memmove(&element->children[i], &element->children[i + 1],
-                            sizeof(UIElement*) * (element->childCount - i - 1));
-               element->children[element->childCount - 1] = child;
+               element->children.erase(element->children.begin() + i);
+               element->children.push_back(child);
                break;
             }
          }
@@ -3856,9 +3829,8 @@ int _UIDialogWrapperMessage(UIElement* element, UIMessage message, int di, void*
       UIElement* target       = NULL;
       bool       duplicate    = false;
 
-      for (uint32_t i = 0; i < rowContainer->childCount; i++) {
-         for (uint32_t j = 0; j < rowContainer->children[i]->childCount; j++) {
-            UIElement* item = rowContainer->children[i]->children[j];
+      for (auto row : rowContainer->children) {
+         for (auto item : row->children) {
 
             if (item->messageClass == _UIButtonMessage) {
                UIButton* button = (UIButton*)item;
@@ -4073,9 +4045,7 @@ int _UIMenuMessage(UIElement* element, UIMessage message, int di, void* dp) {
    if (message == UIMessage::GET_WIDTH) {
       int width = 0;
 
-      for (uint32_t i = 0; i < element->childCount; i++) {
-         UIElement* child = element->children[i];
-
+      for (auto child : element->children) {
          if (~child->flags & UIElement::NON_CLIENT) {
             int w = child->Message(UIMessage::GET_WIDTH, 0, 0);
             if (w > width)
@@ -4087,9 +4057,7 @@ int _UIMenuMessage(UIElement* element, UIMessage message, int di, void* dp) {
    } else if (message == UIMessage::GET_HEIGHT) {
       int height = 0;
 
-      for (uint32_t i = 0; i < element->childCount; i++) {
-         UIElement* child = element->children[i];
-
+      for (auto child : element->children) {
          if (~child->flags & UIElement::NON_CLIENT) {
             height += child->Message(UIMessage::GET_HEIGHT, 0, 0);
          }
@@ -4103,9 +4071,7 @@ int _UIMenuMessage(UIElement* element, UIMessage message, int di, void* dp) {
       int totalHeight   = 0;
       int scrollBarSize = (menu->flags & UIMenu::NO_SCROLL) ? 0 : ui_size::SCROLL_BAR;
 
-      for (uint32_t i = 0; i < element->childCount; i++) {
-         UIElement* child = element->children[i];
-
+      for (auto child : element->children) {
          if (~child->flags & UIElement::NON_CLIENT) {
             int height = child->Message(UIMessage::GET_HEIGHT, 0, 0);
             child->Move(
@@ -4253,7 +4219,7 @@ void UIWindow::SetPressed(UIElement* element, int button) {
 }
 
 UIElement* UIElement::FindByPoint(int x, int y) {
-   for (uint32_t i = childCount; i > 0; i--) {
+   for (uint32_t i = children.size(); i > 0; i--) {
       UIElement* child = children[i - 1];
 
       if ((~child->flags & UIElement::HIDE) && child->clip.contains(x, y)) {
@@ -4283,12 +4249,12 @@ UIElement* UIElement::NextOrPreviousSibling(bool previous) {
       return NULL;
    }
 
-   for (uint32_t i = 0; i < parent->childCount; i++) {
+   for (uint32_t i = 0; i < parent->children.size(); i++) {
       if (parent->children[i] == this) {
          if (previous) {
             return i > 0 ? parent->children[i - 1] : NULL;
          } else {
-            return i < parent->childCount - 1 ? parent->children[i + 1] : NULL;
+            return i < parent->children.size() - 1 ? parent->children[i + 1] : NULL;
          }
       }
    }
@@ -4409,8 +4375,8 @@ bool UIWindow::InputEvent(UIMessage message, int di, void* dp) {
                UIElement* element = start;
 
                do {
-                  if (element->childCount && !(element->flags & (UIElement::HIDE | UIElement::DISABLED))) {
-                     element = shift ? element->children[element->childCount - 1] : element->children[0];
+                  if (!element->children.empty() && !(element->flags & (UIElement::HIDE | UIElement::DISABLED))) {
+                     element = shift ? element->children.back() : element->children[0];
                      continue;
                   }
 
@@ -4721,9 +4687,7 @@ UIElement* _UIInspectorFindNthElement(UIElement* element, int* index, int* depth
 
    *index = *index - 1;
 
-   for (uint32_t i = 0; i < element->childCount; i++) {
-      UIElement* child = element->children[i];
-
+   for (auto child : element->children) {
       if (!(child->flags & (UIElement::DESTROY | UIElement::HIDE))) {
          UIElement* result = _UIInspectorFindNthElement(child, index, depth);
 
@@ -4804,9 +4768,7 @@ void _UIInspectorCreate() {
 int _UIInspectorCountElements(UIElement* element) {
    int count = 1;
 
-   for (uint32_t i = 0; i < element->childCount; i++) {
-      UIElement* child = element->children[i];
-
+   for (auto child : element->children) {
       if (!(child->flags & (UIElement::DESTROY | UIElement::HIDE))) {
          count += _UIInspectorCountElements(child);
       }
@@ -4967,7 +4929,7 @@ void _UIWindowAdd(UIWindow* window) {
 }
 
 int _UIWindowMessageCommon(UIElement* element, UIMessage message, int di, void* dp) {
-   if (message == UIMessage::LAYOUT && element->childCount) {
+   if (message == UIMessage::LAYOUT && !element->children.empty()) {
       element->children[0]->Move(element->bounds, false);
       if (element->window->dialog)
          element->window->dialog->Move(element->bounds, false);

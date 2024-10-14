@@ -530,12 +530,11 @@ struct UIElement {
 
    uint32_t flags      = 0; // First 16 bits are element specific.
    uint32_t id         = 0;
-   uint32_t childCount = 0;
    uint32_t _unused0   = 0;
 
    UIElement*  parent   = nullptr;
-   UIElement** children = nullptr;
    UIWindow*   window   = nullptr;
+   std::vector<UIElement*> children;
 
    UIRectangle bounds;
    UIRectangle clip;
@@ -593,7 +592,7 @@ struct UIWindow : public UIElement {
    std::vector<uint32_t>   bits;
    int                     width;
    int                     height;
-   struct UIWindow*        next;
+   UIWindow*               next;
    UIElement*              hovered;
    UIElement*              pressed;
    UIElement*              focused;
