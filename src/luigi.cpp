@@ -88,37 +88,12 @@ uint32_t UIElement::state() const {
 // --------------------------------------------------
 // Helper functions.
 // --------------------------------------------------
-
-UIRectangle UIRectangleIntersection(const UIRectangle& a, const UIRectangle& b) {
-   return {std::max(a.l, b.l), std::min(a.r, b.r), std::max(a.t, b.t), std::min(a.b, b.b)};
-}
-
-UIRectangle UIRectangleBounding(const UIRectangle& a, const UIRectangle& b) {
-   return {std::min(a.l, b.l), std::max(a.r, b.r), std::min(a.t, b.t), std::max(a.b, b.b)};
-}
-
-UIRectangle UIRectangleAdd(const UIRectangle& a, const UIRectangle& b) {
-   return { a.l + b.l, a.r + b.r, a.t + b.t, a.b + b.b };
-}
-
-UIRectangle UIRectangleTranslate(const UIRectangle& a, const UIRectangle& b) {
-   return { a.l + b.l, a.r + b.l, a.t + b.t, a.b + b.t };
-}
-
-UIRectangle UIRectangleCenter(const UIRectangle& parent, UIRectangle child) {
-   auto c = parent.center();
-   int childWidth = child.width(), childHeight = child.height();
-   child.l = c.x - childWidth  / 2, child.r = child.l + childWidth;
-   child.t = c.y - childHeight / 2, child.b = child.t + childHeight;
-   return child;
-}
-
-UIRectangle UIRectangleFit(UIRectangle parent, UIRectangle child, bool allowScalingUp) {
+UIRectangle fit(UIRectangle parent, UIRectangle child, bool allowScalingUp) {
    int childWidth = child.width(), childHeight = child.height();
    int parentWidth = parent.width(), parentHeight = parent.height();
 
    if (childWidth < parentWidth && childHeight < parentHeight && !allowScalingUp) {
-      return UIRectangleCenter(parent, child);
+      return center(parent, child);
    }
 
    float childAspectRatio   = (float)childWidth / childHeight;
@@ -126,9 +101,9 @@ UIRectangle UIRectangleFit(UIRectangle parent, UIRectangle child, bool allowScal
    int   childMaximumHeight = parentWidth / childAspectRatio;
 
    if (childMaximumWidth > parentWidth) {
-      return UIRectangleCenter(parent, ui_rect_2s(parentWidth, childMaximumHeight));
+      return center(parent, ui_rect_2s(parentWidth, childMaximumHeight));
    } else {
-      return UIRectangleCenter(parent, ui_rect_2s(childMaximumWidth, parentHeight));
+      return center(parent, ui_rect_2s(childMaximumWidth, parentHeight));
    }
 }
 
@@ -416,7 +391,7 @@ void _UIProcessAnimations() {
 // --------------------------------------------------
 
 void UIDrawBlock(UIPainter* painter, UIRectangle rectangle, uint32_t color) {
-   rectangle = UIRectangleIntersection(painter->clip, rectangle);
+   rectangle = intersection(painter->clip, rectangle);
 
    if (!rectangle.valid()) {
       return;
@@ -632,7 +607,7 @@ void UIDrawTriangleOutline(UIPainter* painter, int x0, int y0, int x1, int y1, i
 }
 
 void UIDrawInvert(UIPainter* painter, UIRectangle rectangle) {
-   rectangle = UIRectangleIntersection(painter->clip, rectangle);
+   rectangle = intersection(painter->clip, rectangle);
 
    if (!rectangle.valid()) {
       return;
@@ -669,7 +644,7 @@ int UIMeasureStringHeight() {
 void UIDrawString(UIPainter* painter, UIRectangle r, const char* string, ptrdiff_t bytes, uint32_t color, UIAlign align,
                   UIStringSelection* selection) {
    UIRectangle oldClip = painter->clip;
-   painter->clip       = UIRectangleIntersection(r, oldClip);
+   painter->clip       = intersection(r, oldClip);
 
    if (!painter->clip.valid()) {
       painter->clip = oldClip;
@@ -759,9 +734,9 @@ void UIDrawRectangle(UIPainter* painter, UIRectangle r, uint32_t mainColor, uint
 auto ui_mdi_child_calculate_layout(const UIRectangle& bounds, float scale) {
    int         titleSize   = ui_size::MDI_CHILD_TITLE * scale;
    int         borderSize  = ui_size::MDI_CHILD_BORDER * scale;
-   UIRectangle titleRect   = UIRectangleAdd(bounds, UIRectangle(borderSize, -borderSize, 0, 0));
+   UIRectangle titleRect   = add(bounds, UIRectangle(borderSize, -borderSize, 0, 0));
    titleRect.b             = titleRect.t + titleSize;
-   UIRectangle contentRect = UIRectangleAdd(bounds, UIRectangle(borderSize, -borderSize, titleSize, -borderSize));
+   UIRectangle contentRect = add(bounds, UIRectangle(borderSize, -borderSize, titleSize, -borderSize));
 
    return std::tuple{titleSize, borderSize, titleRect, contentRect};
 }
@@ -1117,21 +1092,21 @@ void UIElement::Repaint(const UIRectangle* region) {
       region = &bounds;
    }
 
-   UIRectangle r = UIRectangleIntersection(*region, clip);
+   UIRectangle r = intersection(*region, clip);
 
    if (!r.valid()) {
       return;
    }
 
    if (window->updateRegion.valid()) {
-      window->updateRegion = UIRectangleBounding(window->updateRegion, r);
+      window->updateRegion = bounding(window->updateRegion, r);
    } else {
       window->updateRegion = r;
    }
 }
 
 void UIElement::Move(UIRectangle new_bounds, bool layout) {
-   UIRectangle new_clip  = parent ? UIRectangleIntersection(parent->clip, new_bounds) : new_bounds;
+   UIRectangle new_clip  = parent ? intersection(parent->clip, new_bounds) : new_bounds;
    bool        moved     = bounds != new_bounds || clip != new_clip;
 
    if (moved) {
@@ -1165,7 +1140,7 @@ void UIElement::Paint(UIPainter* painter) {
 
    // Clip painting to the element's clip.
    // ------------------------------------
-   painter->clip = UIRectangleIntersection(clip, painter->clip);
+   painter->clip = intersection(clip, painter->clip);
 
    if (!painter->clip.valid()) {
       return;
@@ -1376,7 +1351,7 @@ int _UIPanelLayout(UIPanel* panel, UIRectangle bounds, bool measure) {
          UIRectangle relative = UIRectangle(position, position + width, scaledBorder2 + (vSpace - height) / 2,
                                             scaledBorder2 + (vSpace + height) / 2);
          if (!measure)
-            child->Move(UIRectangleTranslate(relative, bounds), false);
+            child->Move(translate(relative, bounds), false);
          position += width + panel->gap * scale;
       } else {
          int width =
@@ -1388,7 +1363,7 @@ int _UIPanelLayout(UIPanel* panel, UIRectangle bounds, bool measure) {
          UIRectangle relative = UIRectangle(scaledBorder2 + (hSpace - width) / 2, scaledBorder2 + (hSpace + width) / 2,
                                             position, position + height);
          if (!measure)
-            child->Move(UIRectangleTranslate(relative, bounds), false);
+            child->Move(translate(relative, bounds), false);
          position += height + panel->gap * scale;
       }
    }
@@ -1483,7 +1458,7 @@ void _UIWrapPanelLayoutRow(UIWrapPanel* panel, uint32_t rowStart, uint32_t rowEn
       int         width    = child->Message(UIMessage::GET_WIDTH, 0, 0);
       UIRectangle relative = UIRectangle(rowPosition, rowPosition + width, rowY + rowHeight / 2 - height / 2,
                                        rowY + rowHeight / 2 + height / 2);
-      child->Move(UIRectangleTranslate(relative, panel->bounds), false);
+      child->Move(translate(relative, panel->bounds), false);
       rowPosition += width;
    }
 }
@@ -2434,7 +2409,7 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
          }
 
          UIRectangle oldClip = painter->clip;
-         painter->clip       = UIRectangleIntersection(oldClip, lineBounds);
+         painter->clip       = intersection(oldClip, lineBounds);
          if (code->hScroll)
             lineBounds.l -= (int64_t)code->hScroll->position;
          selection.carets[0] =
@@ -3008,9 +2983,9 @@ int _UITableMessage(UIElement* element, UIMessage message, int di, void* dp) {
       row.t -= (int64_t)table->vScroll->position % rowHeight;
       int         hovered = UITableHitTest(table, element->window->cursor.x, element->window->cursor.y);
       UIRectangle oldClip = painter->clip;
-      painter->clip       = UIRectangleIntersection(
-         oldClip,
-         UIRectangle(bounds.l, bounds.r, bounds.t + (int)(ui_size::TABLE_HEADER * element->window->scale), bounds.b));
+      painter->clip =
+         intersection(oldClip, UIRectangle(bounds.l, bounds.r,
+                                           bounds.t + (int)(ui_size::TABLE_HEADER * element->window->scale), bounds.b));
 
       for (int i = table->vScroll->position / rowHeight; i < table->itemCount; i++) {
          if (row.t > painter->clip.b) {
@@ -3048,7 +3023,7 @@ int _UITableMessage(UIElement* element, UIMessage message, int di, void* dp) {
       }
 
       bounds        = element->bounds;
-      painter->clip = UIRectangleIntersection(oldClip, bounds);
+      painter->clip = intersection(oldClip, bounds);
       if (table->hScroll)
          bounds.l -= (int64_t)table->hScroll->position;
 
@@ -3665,7 +3640,7 @@ int _UIImageDisplayMessage(UIElement* element, UIMessage message, int di, void* 
 
       UIRectangle image =
          UIRectangle(x, x + (int)(display->width * display->zoom), y, (int)(y + display->height * display->zoom));
-      UIRectangle bounds = UIRectangleIntersection(painter->clip, UIRectangleIntersection(display->bounds, image));
+      UIRectangle bounds = intersection(painter->clip, intersection(display->bounds, image));
       if (!bounds.valid())
          return 0;
 
@@ -4174,7 +4149,7 @@ void _UIUpdate() {
 
          if (window->updateRegion.valid()) {
             UIPainter painter = {
-               .clip   = UIRectangleIntersection(ui_rect_2s(window->width, window->height), window->updateRegion),
+               .clip   = intersection(ui_rect_2s(window->width, window->height), window->updateRegion),
                .bits   = window->bits.data(),
                .width  = window->width,
                .height = window->height};
@@ -4575,7 +4550,7 @@ void UIDrawGlyph(UIPainter* painter, int x0, int y0, int c, uint32_t color) {
    if (c < 0 || c > 127)
       c = '?';
 
-   UIRectangle rectangle = UIRectangleIntersection(painter->clip, UIRectangle(x0, x0 + 8, y0, y0 + 16));
+   UIRectangle rectangle = intersection(painter->clip, UIRectangle(x0, x0 + 8, y0, y0 + 16));
 
    const uint8_t* data = (const uint8_t*)_uiFont + c * 16;
 

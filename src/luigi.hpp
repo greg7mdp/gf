@@ -294,19 +294,46 @@ struct UIRectangle {
 
    int     width()  const { return r - l; }
    int     height() const { return b - t; }
+   UIPoint dims() const { return {width(), height()}; }
    UIPoint center() const { return { l + width() / 2, t + height() / 2 }; }
 
    bool    valid()  const { return l < r && t < b; }
    bool    contains(const UIPoint& p) const { return p.x >= l && p.x < r && p.y >= t && p.y < b; }
    bool    contains(int x, int y) const { return x >= l && x < r && y >= t && y < b; }
 
+   friend UIRectangle intersection(const UIRectangle& a, const UIRectangle& b) {
+      return {std::max(a.l, b.l), std::min(a.r, b.r), std::max(a.t, b.t), std::min(a.b, b.b)};
+   }
+
+   friend UIRectangle bounding(const UIRectangle& a, const UIRectangle& b) {
+      return {std::min(a.l, b.l), std::max(a.r, b.r), std::min(a.t, b.t), std::max(a.b, b.b)};
+   }
+
+   friend UIRectangle add(const UIRectangle& a, const UIRectangle& b) {
+      return { a.l + b.l, a.r + b.r, a.t + b.t, a.b + b.b };
+   }
+
+   friend UIRectangle translate(const UIRectangle& a, const UIRectangle& b) {
+      return { a.l + b.l, a.r + b.l, a.t + b.t, a.b + b.t };
+   }
+
+   friend UIRectangle center(const UIRectangle& parent, UIRectangle child) {
+      auto c = parent.center();
+      auto [childWidth, childHeight] = child.dims();
+      child.l = c.x - childWidth  / 2, child.r = child.l + childWidth;
+      child.t = c.y - childHeight / 2, child.b = child.t + childHeight;
+      return child;
+   }
+
+   friend UIRectangle fit(UIRectangle parent, UIRectangle child, bool allowScalingUp);
+
    UIRectangle operator+(const UIRectangle& o) const { return { l + o.l, r + o.r, t + o.t, b + o.b }; }
 
    // following APIs  use `UIRectangle& o` as widths for left,right, top, bottom, instead of a proper rect.
    // -----------------------------------------------------------------------------------------------------
-   UIRectangle shrink(const UIRectangle& o) const { return { l + o.l, r - o.r, t + o.t, b - o.b }; }
-   int total_width() const { return r + l; }
-   int total_height() const { return b + t; }
+   UIRectangle shrink(const UIRectangle& o) const { return {l + o.l, r - o.r, t + o.t, b - o.b}; }
+   int         total_width() const { return r + l; }
+   int         total_height() const { return b + t; }
 
    // returns the 4 rectangles for drawing a border where the widths are from `o`
    std::array<UIRectangle, 4> border(const UIRectangle& o) const {
@@ -820,10 +847,11 @@ struct UISlider : public UIElement {
 };
 
 struct UITable : public UIElement {
-   UIScrollBar *vScroll, *hScroll;
+   UIScrollBar* vScroll;
+   UIScrollBar* hScroll;
    int          itemCount;
-   char*        columns = nullptr;
-   int *        columnWidths = nullptr;
+   char*        columns      = nullptr;
+   int*         columnWidths = nullptr;
    int          columnCount, columnHighlight;
 
    UITable(UIElement* parent, uint32_t flags, const char* columns);
@@ -1003,10 +1031,6 @@ void       UIElementMeasurementsChanged(UIElement* element, int which);
 UIElement* UIParentPush(UIElement* element);
 UIElement* UIParentPop();
 
-UIRectangle UIRectangleIntersection(const UIRectangle& a, const UIRectangle& b);
-UIRectangle UIRectangleBounding(const UIRectangle& a, const UIRectangle& b);
-UIRectangle UIRectangleTranslate(const UIRectangle& a, const UIRectangle& b);
-UIRectangle UIRectangleCenter(const UIRectangle& parent, UIRectangle child);
 UIRectangle UIRectangleFit(UIRectangle parent, UIRectangle child, bool allowScalingUp);
 
 bool UIColorToHSV(uint32_t rgb, float* hue, float* saturation, float* value);

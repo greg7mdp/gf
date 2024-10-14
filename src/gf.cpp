@@ -3387,8 +3387,8 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
          UIRectangle row = element->bounds;
          row.t += i * rowHeight, row.b = row.t + rowHeight;
 
-         UIRectangle intersection = UIRectangleIntersection(row, painter->clip);
-         if (!intersection.valid())
+         UIRectangle rect_intersection = intersection(row, painter->clip);
+         if (!rect_intersection.valid())
             break;
 
          bool focused = i == w->selectedRow && element->window->focused == element;
@@ -4955,7 +4955,7 @@ void ProfFillView(ProfFlameGraphReport* report) {
 }
 
 void ProfDrawTransparentOverlay(UIPainter* painter, UIRectangle rectangle, uint32_t color) {
-   rectangle = UIRectangleIntersection(painter->clip, rectangle);
+   rectangle = intersection(painter->clip, rectangle);
    if (!rectangle.valid())
       return;
 
@@ -5154,7 +5154,7 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
          UIRectangle zoomBarThumb = zoomBar;
          zoomBarThumb.l           = zoomBar.l + zoomBar.width() * (report->xStart / report->totalTime);
          zoomBarThumb.r           = zoomBar.l + zoomBar.width() * (report->xEnd / report->totalTime);
-         UIRectangle drawBounds   = UIRectangleIntersection(zoomBar, painter->clip);
+         UIRectangle drawBounds   = intersection(zoomBar, painter->clip);
 
          for (int i = drawBounds.t; i < drawBounds.b; i++) {
             for (int j = drawBounds.l; j < drawBounds.r; j++) {
@@ -6536,7 +6536,7 @@ struct WaveformDisplay : public UIElement {
 
 void WaveformDisplayDrawVerticalLineWithTranslucency(UIPainter* painter, UIRectangle rectangle, uint32_t color,
                                                      uint32_t alpha) {
-   rectangle = UIRectangleIntersection(painter->clip, rectangle);
+   rectangle = intersection(painter->clip, rectangle);
    if (!rectangle.valid())
       return;
    uint32_t* bits = painter->bits + rectangle.t * painter->width + rectangle.l;
@@ -6645,7 +6645,7 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
 
       UIPainter*  painter = (UIPainter*)dp;
       UIRectangle oldClip = painter->clip;
-      painter->clip       = UIRectangleIntersection(client, painter->clip);
+      painter->clip       = intersection(client, painter->clip);
       int ym              = (client.t + client.b) / 2;
       int h2              = (client.b - client.t) / 2;
       int yp              = ym;
