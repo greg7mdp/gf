@@ -43,6 +43,44 @@ using namespace std;
 #include "luigi.hpp"
 
 // ---------------------------------------------------------------------------------------------
+//                              Generic Data structures
+// ---------------------------------------------------------------------------------------------
+template <typename T>
+class SPSCQueue {
+public:
+   SPSCQueue(size_t capacity = 10000)
+      : capacity_(capacity) {}
+
+   void push(T&& item) {
+      std::unique_lock<std::mutex> lock(mutex_);
+      not_full_.wait(lock, [this] { return queue_.size() < capacity_; });
+      queue_.push(std::move(item));
+      not_empty_.notify_one();
+   }
+
+   T pop() {
+      std::unique_lock<std::mutex> lock(mutex_);
+      not_empty_.wait(lock, [this] { return !queue_.empty(); });
+      T item = std::move(queue_.front());
+      queue_.pop();
+      not_full_.notify_one();
+      return item;
+   }
+
+   void wait_empty() {
+      std::unique_lock<std::mutex> lock(mutex_);
+      not_empty_.wait(lock, [this] { return queue_.empty(); });
+   }
+
+private:
+   std::queue<T>           queue_;
+   size_t                  capacity_;
+   std::mutex              mutex_;
+   std::condition_variable not_full_;
+   std::condition_variable not_empty_;
+};
+
+// ---------------------------------------------------------------------------------------------
 //                              Data structures
 // ---------------------------------------------------------------------------------------------
 struct InterfaceCommand {
@@ -496,12 +534,12 @@ UIMessage ReceiveMessageRegister(void (*callback)(char* input)) {
 volatile int       pipeToGDB;
 volatile pid_t     gdbPID;
 volatile pthread_t gdbThread;
-pthread_cond_t     evaluateEvent;
-pthread_mutex_t    evaluateMutex;
-char*              evaluateResult;
 bool               evaluateMode;
 char**             gdbArgv;
 int                gdbArgc;
+std::string        evaluateResultString;
+char*              evaluateResult = nullptr;
+SPSCQueue<std::string> evaluateResultQueue;
 
 #if defined(__OpenBSD__)
 const char* gdbPath = "egdb";
@@ -586,17 +624,14 @@ void* DebuggerThread(void*) {
       if (!strstr(catBuffer, "(gdb) "))
          continue;
 
-      // printf("got (%d) {%s}\n", evaluateMode, copy);
+      //printf("================ got (%d) {%s}, er=%s\n", evaluateMode, catBuffer, evaluateResult ? evaluateResult : "");
 
       // Notify the main thread we have data.
 
       if (evaluateMode) {
-         free(evaluateResult);
-         evaluateResult = catBuffer;
+         evaluateResultQueue.push(std::string(catBuffer));
+         free(catBuffer);
          evaluateMode   = false;
-         pthread_mutex_lock(&evaluateMutex);
-         pthread_cond_signal(&evaluateEvent);
-         pthread_mutex_unlock(&evaluateMutex);
       } else {
          UIWindowPostMessage(windowMain, msgReceivedData, catBuffer);
       }
@@ -626,7 +661,6 @@ void DebuggerSend(const char* string, bool echo, bool synchronous) {
       }
 
       evaluateMode = true;
-      pthread_mutex_lock(&evaluateMutex);
    }
 
    if (programRunning) {
@@ -653,13 +687,13 @@ void DebuggerSend(const char* string, bool echo, bool synchronous) {
       struct timespec timeout;
       clock_gettime(CLOCK_REALTIME, &timeout);
       timeout.tv_sec++;
-      pthread_cond_timedwait(&evaluateEvent, &evaluateMutex, &timeout);
-      pthread_mutex_unlock(&evaluateMutex);
+      evaluateResultString = evaluateResultQueue.pop();
+      if (evaluateResultString.empty())
+         evaluateResultString = "\n(gdb) \n";
+      evaluateResult = (char *)evaluateResultString.c_str();
       programRunning = false;
       if (trafficLight)
          trafficLight->Repaint(nullptr);
-      if (!evaluateResult)
-         evaluateResult = strdup("\n(gdb) \n");
    }
 }
 
@@ -7545,8 +7579,6 @@ unique_ptr<UI> GfMain(int argc, char** argv) {
    }
 
    SettingsLoad(false);
-   pthread_cond_init(&evaluateEvent, nullptr);
-   pthread_mutex_init(&evaluateMutex, nullptr);
    DebuggerStartThread();
    CommandSyncWithGvim();
    return ui_ptr;
