@@ -2470,13 +2470,13 @@ void BitmapAddDialog() {
 // Console:
 // ---------------------------------------------------/
 
-vector<char*> commandHistory;
-size_t        commandHistoryIndex;
+vector<unique_ptr<char[]>> commandHistory;
+size_t                     commandHistoryIndex;
 
 void CommandPreviousCommand() {
    if (commandHistoryIndex < commandHistory.size()) {
       UITextboxClear(textboxInput, false);
-      UITextboxReplace(textboxInput, commandHistory[commandHistoryIndex], -1, false);
+      UITextboxReplace(textboxInput, commandHistory[commandHistoryIndex].get(), -1, false);
       if (commandHistoryIndex < commandHistory.size() - 1)
          commandHistoryIndex++;
       textboxInput->Refresh();
@@ -2488,7 +2488,7 @@ void CommandNextCommand() {
 
    if (commandHistoryIndex > 0) {
       commandHistoryIndex--;
-      UITextboxReplace(textboxInput, commandHistory[commandHistoryIndex], -1, false);
+      UITextboxReplace(textboxInput, commandHistory[commandHistoryIndex].get(), -1, false);
    }
 
    textboxInput->Refresh();
@@ -2519,7 +2519,7 @@ int TextboxInputMessage(UIElement* element, UIMessage message, int di, void* dp)
       } else if (m->code == UIKeycode::ENTER && !element->window->shift) {
          if (!textbox->bytes) {
             if (commandHistory.size()) {
-               CommandSendToGDB(commandHistory[0]);
+               CommandSendToGDB(commandHistory[0].get());
             }
 
             return 1;
@@ -2531,14 +2531,13 @@ int TextboxInputMessage(UIElement* element, UIMessage message, int di, void* dp)
             fprintf(commandLog, "%s\n", buffer);
          CommandSendToGDB(buffer);
 
-         char* string = (char*)malloc(textbox->bytes + 1);
-         memcpy(string, textbox->string, textbox->bytes);
+         unique_ptr<char[]> string = std::make_unique<char[]>(textbox->bytes + 1);
+         memcpy(string.get(), textbox->string, textbox->bytes);
          string[textbox->bytes] = 0;
-         commandHistory.insert(commandHistory.cbegin(), string);
+         commandHistory.insert(commandHistory.cbegin(), std::move(string));
          commandHistoryIndex = 0;
 
-         if (commandHistory.size() > 100) {
-            free(commandHistory.back());
+         if (commandHistory.size() > 500) {
             commandHistory.pop_back();
          }
 
