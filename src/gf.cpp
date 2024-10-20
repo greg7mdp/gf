@@ -10,28 +10,30 @@
 
 // TODO More data visualization tools in the data window.
 
-#include <cstdint>
-#include <cstddef>
-#include <cstdarg>
+#include <algorithm>
 #include <cassert>
-
-#include <pthread.h>
-#include <signal.h>
-#include <spawn.h>
+#include <condition_variable>
+#include <csignal>
+#include <cstdarg>
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
+#include <ctime>
 #include <ctype.h>
-#include <sys/stat.h>
 #include <dirent.h>
 #include <fcntl.h>
-#include <poll.h>
-#include <semaphore.h>
-#include <ctime>
-
-#include <vector>
-#include <unordered_map>
-#include <algorithm>
-#include <ranges>
 #include <memory>
+#include <mutex>
+#include <poll.h>
+#include <pthread.h>
+#include <queue>
+#include <ranges>
+#include <semaphore.h>
+#include <spawn.h>
+#include <sys/stat.h>
+#include <thread>
+#include <unordered_map>
+#include <vector>
 
 namespace views = std::views;
 namespace rng   = std::ranges;
