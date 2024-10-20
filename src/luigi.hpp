@@ -8,18 +8,18 @@
 // --------------------------------------------------
 
 
-#include <cstdint>
-#include <cstddef>
-#include <cstdarg>
-#include <cstring>
-#include <cstdlib>
-#include <cassert>
-#include <functional>
-#include <string>
-#include <array>
-#include <unordered_map>
-#include <memory>
 #include <algorithm>
+#include <array>
+#include <cassert>
+#include <cstdarg>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <functional>
+#include <memory>
+#include <string>
+#include <unordered_map>
 
 using std::unique_ptr;
 using std::shared_ptr;
