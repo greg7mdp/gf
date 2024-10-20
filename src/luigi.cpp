@@ -1175,9 +1175,20 @@ void UIElement::Paint(UIPainter* painter) {
 bool _UIDestroy(UIElement* element) {
    if (element->flags & UIElement::DESTROY_DESCENDENT) {
       element->flags &= ~UIElement::DESTROY_DESCENDENT;
-
+#if 1
+      intptr_t num_children = (intptr_t)element->children.size();
+      for (intptr_t i = 0; i < num_children; i++) {
+         if (_UIDestroy(element->children[i])) {
+            element->children.erase(element->children.begin() + i);
+            --num_children; --i;
+         }
+      }
+#else
+      // not sure why this does not work. crash when clicking on file in "Files" tab
       auto filtered = element->children | views::filter([](UIElement* c) { return !_UIDestroy(c); });
-      element->children = { filtered.begin(), filtered.end() };
+      std::vector<UIElement*> new_children = { filtered.begin(), filtered.end() };
+      element->children = std::move(new_children);
+#endif
    }
 
    if (element->flags & UIElement::DESTROY) {
@@ -4977,6 +4988,7 @@ int _UIWindowMessage(UIElement* element, UIMessage message, int di, void* dp) {
       XDestroyImage(window->image);
       XDestroyIC(window->xic);
       XDestroyWindow(ui->display, ((UIWindow*)element)->xwindow);
+      return 0;
    }
 
    return _UIWindowMessageCommon(element, message, di, dp);
@@ -5732,6 +5744,7 @@ int _UIWindowMessage(UIElement* element, UIMessage message, int di, void* dp) {
       _UIWindowDestroyCommon(window);
       SetWindowLongPtr(window->hwnd, GWLP_USERDATA, 0);
       DestroyWindow(window->hwnd);
+      return 0;
    }
 
    return _UIWindowMessageCommon(element, message, di, dp);

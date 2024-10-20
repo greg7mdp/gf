@@ -22,9 +22,9 @@ if (UNIX)
 endif (UNIX)
 
 ## ----------------- gf
-set(cpp_files "src/luigi.cpp" "examples/luigi_example.cpp")
+#set(cpp_files "src/luigi.cpp" "examples/luigi_example.cpp")
 file(GLOB_RECURSE cpp_files "src/*.cpp")
-#file(GLOB_RECURSE header_files "src/*.hpp")
+file(GLOB_RECURSE header_files "src/*.hpp")
 
 add_executable(${PROJECT_NAME} WIN32 ${cpp_files} ${header_files})
 set_property(TARGET ${PROJECT_NAME} PROPERTY PUBLIC_HEADER ${header_files})
