@@ -25,7 +25,6 @@
 #include <memory>
 #include <mutex>
 #include <poll.h>
-#include <pthread.h>
 #include <queue>
 #include <ranges>
 #include <semaphore.h>
@@ -48,36 +47,40 @@ using namespace std;
 template <typename T>
 class SPSCQueue {
 public:
-   SPSCQueue(size_t capacity = 10000)
-      : capacity_(capacity) {}
+   SPSCQueue() : quit_(false) {}
 
    void push(T&& item) {
       std::unique_lock<std::mutex> lock(mutex_);
-      not_full_.wait(lock, [this] { return queue_.size() < capacity_; });
       queue_.push(std::move(item));
-      not_empty_.notify_one();
+      cv_.notify_one();
    }
 
-   T pop() {
+   bool pop(T& value) {
       std::unique_lock<std::mutex> lock(mutex_);
-      not_empty_.wait(lock, [this] { return !queue_.empty(); });
-      T item = std::move(queue_.front());
+      cv_.wait(lock, [this] { return !queue_.empty() || quit_; });
+
+      if (quit_) {
+         value = {};
+         return false;
+      }
+
+      value = std::move(queue_.front());
       queue_.pop();
-      not_full_.notify_one();
-      return item;
+      return true;
    }
 
-   void wait_empty() {
-      std::unique_lock<std::mutex> lock(mutex_);
-      not_empty_.wait(lock, [this] { return queue_.empty(); });
+   void signal_quit() {
+      quit_ = true;
+      cv_.notify_one();
    }
+
+   bool is_quitting() { return quit_; }
 
 private:
    std::queue<T>           queue_;
-   size_t                  capacity_;
    std::mutex              mutex_;
-   std::condition_variable not_full_;
-   std::condition_variable not_empty_;
+   std::condition_variable cv_;
+   std::atomic<bool>       quit_;
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -538,7 +541,7 @@ bool               evaluateMode;
 char**             gdbArgv;
 int                gdbArgc;
 std::string        evaluateResultString;
-char*              evaluateResult = nullptr;
+char*              evaluateResult = nullptr; // = `evaluateResultString.c_str()`, easier than updating all the string code using evaluateResult
 SPSCQueue<std::string> evaluateResultQueue;
 
 #if defined(__OpenBSD__)
@@ -561,10 +564,10 @@ void* DebuggerThread(void*) {
 
    if (gdbPID == 0) {
       setsid();
-      dup2(inputPipe[0], 0);
-      dup2(outputPipe[1], 1);
-      dup2(outputPipe[1], 2);
-      execvp(gdbPath, gdbArgv);
+      dup2(inputPipe[0], 0);      // inputPipe[0]  == stdin
+      dup2(outputPipe[1], 1);     // outputPipe[1] == stdout
+      dup2(outputPipe[1], 2);     // outputPipe[1] == stderr
+      execvp(gdbPath, gdbArgv);   // execute gdb with arguments gdbArgv
       fprintf(stderr, "Error: Couldn't execute gdb.\n");
       exit(EXIT_FAILURE);
    } else if (gdbPID < 0) {
@@ -592,7 +595,7 @@ void* DebuggerThread(void*) {
 
    write(pipeToGDB, initialGDBCommand, strlen(initialGDBCommand));
 
-   char*  catBuffer          = NULL;
+   char*  catBuffer          = NULL; // todo: std::vector<char>
    size_t catBufferUsed      = 0;
    size_t catBufferAllocated = 0;
 
@@ -687,7 +690,7 @@ void DebuggerSend(const char* string, bool echo, bool synchronous) {
       struct timespec timeout;
       clock_gettime(CLOCK_REALTIME, &timeout);
       timeout.tv_sec++;
-      evaluateResultString = evaluateResultQueue.pop();
+      evaluateResultQueue.pop(evaluateResultString);
       if (evaluateResultString.empty())
          evaluateResultString = "\n(gdb) \n";
       evaluateResult = (char *)evaluateResultString.c_str();
@@ -7250,7 +7253,7 @@ __attribute__((constructor)) void InterfaceAddBuiltinWindowsAndCommands() {
       .shortcut{.code = UI_KEYCODE_FKEY(11), .ctrl = true, .shift = true, .invoke = gdb_invoker("reverse-step")}
    });
    interfaceCommands.push_back({
-      .label = "Pause\tF8", .shortcut{.code = UI_KEYCODE_FKEY(8), .invoke = CommandPause}
+      .label = "Break\tF8", .shortcut{.code = UI_KEYCODE_FKEY(8), .invoke = CommandPause}
    });
    interfaceCommands.push_back({
          .label = "Toggle breakpoint\tF9", .shortcut{.code = UI_KEYCODE_FKEY(9), .invoke = []() { CommandToggleBreakpoint(); }}
