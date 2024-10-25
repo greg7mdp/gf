@@ -121,10 +121,54 @@ struct ReceiveMessageType {
 
 struct WatchWindow;
 
+struct Context {
+// ========== Debugger config ======================
+#if defined(__OpenBSD__)
+   const char* gdbPath = "egdb";
+#else
+   const char* gdbPath = "gdb";
+#endif
+   std::string initialGDBCommand = "set prompt (gdb) ";
+   bool        firstUpdate       = true;
+   void*       sendAllGDBOutputToLogWindowContext;
+
+   // ========== Debugger interaction ======================
+   int                    pipeToGDB    = 0;
+   pid_t                  gdbPID       = 0;
+   pthread_t              gdbThread    = 0;
+   bool                   evaluateMode = false;
+   char**                 gdbArgv      = nullptr;
+   int                    gdbArgc      = 0;
+   std::string            evaluateResultString;
+   char*                  evaluateResult = nullptr; // = `evaluateResultString.c_str()`
+   SPSCQueue<std::string> evaluateResultQueue;
+   bool                   programRunning = true;    // true
+
+   void SendToGdb(std::string_view sv) const {
+      char newline = '\n';
+      write(pipeToGDB, sv.data(), sv.size());
+      write(pipeToGDB, &newline, 1);
+   }
+
+   void InterruptGdb(size_t wait_time_us = 1000 * 1000) {
+      if (programRunning) {
+         kill(gdbPID, SIGINT);
+         std::this_thread::sleep_for(std::chrono::microseconds{wait_time_us});
+         programRunning = false;
+      }
+   }
+
+   void KillGdb() {
+      fprintf(stderr, "killing gdb process %d.\n", gdbPID);
+      // pthread_cancel(gdbThread);
+   }
+};
+
+Context ctx;
+
 // --------------------------------------------------------------------------------------------
 FILE*                       commandLog = nullptr;
 char                        emptyString;
-bool                        programRunning  = true;
 const char*                 vimServerName   = "GVIM";
 const char*                 logPipePath     = nullptr;
 const char*                 controlPipePath = nullptr;
@@ -422,7 +466,7 @@ int ModifiedRowMessage(UIElement* element, UIMessage message, int di, void* dp) 
 
 int TrafficLightMessage(UIElement* element, UIMessage message, int di, void* dp) {
    if (message == UIMessage::PAINT) {
-      UIDrawRectangle((UIPainter*)dp, element->bounds, programRunning ? ui->theme.accent1 : ui->theme.accent2,
+      UIDrawRectangle((UIPainter*)dp, element->bounds, ctx.programRunning ? ui->theme.accent1 : ui->theme.accent2,
                       ui->theme.border, UIRectangle(1));
    }
 
@@ -530,70 +574,48 @@ UIMessage ReceiveMessageRegister(void (*callback)(char* input)) {
    return receiveMessageTypes.back().message;
 }
 
-// ------------------------------------------------------
-// Debugger interaction:
-// ------------------------------------------------------
-
-volatile int       pipeToGDB;
-volatile pid_t     gdbPID;
-volatile pthread_t gdbThread;
-bool               evaluateMode;
-char**             gdbArgv;
-int                gdbArgc;
-std::string        evaluateResultString;
-char*              evaluateResult = nullptr; // = `evaluateResultString.c_str()`, easier than updating all the string code using evaluateResult
-SPSCQueue<std::string> evaluateResultQueue;
-
-#if defined(__OpenBSD__)
-const char* gdbPath = "egdb";
-#else
-const char* gdbPath = "gdb";
-#endif
-
-char  initialGDBCommand[8192] = "set prompt (gdb) \n";
-bool  firstUpdate             = true;
-void* sendAllGDBOutputToLogWindowContext;
-
 void* DebuggerThread(void*) {
    int outputPipe[2], inputPipe[2];
    pipe(outputPipe);
    pipe(inputPipe);
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__APPLE__)
-   gdbPID = fork();
+   fprintf(stderr, "Using fork\n");
+   ctx.gdbPID = fork();
 
-   if (gdbPID == 0) {
+   if (ctx.gdbPID == 0) {
       setsid();
       dup2(inputPipe[0], 0);      // inputPipe[0]  == stdin
       dup2(outputPipe[1], 1);     // outputPipe[1] == stdout
       dup2(outputPipe[1], 2);     // outputPipe[1] == stderr
-      execvp(gdbPath, gdbArgv);   // execute gdb with arguments gdbArgv
+      execvp(ctx.gdbPath, ctx.gdbArgv);   // execute gdb with arguments ctx.gdbArgv
       fprintf(stderr, "Error: Couldn't execute gdb.\n");
       exit(EXIT_FAILURE);
-   } else if (gdbPID < 0) {
+   } else if (ctx.gdbPID < 0) {
       fprintf(stderr, "Error: Couldn't fork.\n");
       exit(EXIT_FAILURE);
    }
 #else
+   fprintf(stderr, "Using spawn\n");
    posix_spawn_file_actions_t actions = {};
    posix_spawn_file_actions_init(&actions);
-   posix_spawn_file_actions_adddup2(&actions, inputPipe[0], 0);
-   posix_spawn_file_actions_adddup2(&actions, outputPipe[1], 1);
-   posix_spawn_file_actions_adddup2(&actions, outputPipe[1], 2);
+   posix_spawn_file_actions_adddup2(&actions, inputPipe[0],  0); // inputPipe[0]  == stdin
+   posix_spawn_file_actions_adddup2(&actions, outputPipe[1], 1); // outputPipe[1] == stdout
+   posix_spawn_file_actions_adddup2(&actions, outputPipe[1], 2); // outputPipe[1] == stderr
 
    posix_spawnattr_t attrs = {};
    posix_spawnattr_init(&attrs);
    posix_spawnattr_setflags(&attrs, POSIX_SPAWN_SETSID);
 
-   posix_spawnp((pid_t*)&gdbPID, gdbPath, &actions, &attrs, gdbArgv, environ);
+   posix_spawnp((pid_t*)&ctx.gdbPID, ctx.gdbPath, &actions, &attrs, ctx.gdbArgv, environ);
 
    posix_spawn_file_actions_destroy(&actions);
    posix_spawnattr_destroy(&attrs);
 #endif
 
-   pipeToGDB = inputPipe[1];
+   ctx.pipeToGDB = inputPipe[1];
 
-   write(pipeToGDB, initialGDBCommand, strlen(initialGDBCommand));
+   ctx.SendToGdb(ctx.initialGDBCommand);
 
    char*  catBuffer          = NULL; // todo: std::vector<char>
    size_t catBufferUsed      = 0;
@@ -603,13 +625,15 @@ void* DebuggerThread(void*) {
       char buffer[512 + 1];
       int  count    = read(outputPipe[0], buffer, 512);
       buffer[count] = 0;
-      if (!count)
+      if (count <= 0) { // eof
+         fprintf(stderr, "exiting DebuggerThread.\n");
          break;
+      }
 
-      if (sendAllGDBOutputToLogWindowContext && !evaluateMode) {
-         void* message = malloc(count + sizeof(sendAllGDBOutputToLogWindowContext) + 1);
-         memcpy(message, &sendAllGDBOutputToLogWindowContext, sizeof(sendAllGDBOutputToLogWindowContext));
-         strcpy((char*)message + sizeof(sendAllGDBOutputToLogWindowContext), buffer);
+      if (ctx.sendAllGDBOutputToLogWindowContext && !ctx.evaluateMode) {
+         void* message = malloc(count + sizeof(ctx.sendAllGDBOutputToLogWindowContext) + 1);
+         memcpy(message, &ctx.sendAllGDBOutputToLogWindowContext, sizeof(ctx.sendAllGDBOutputToLogWindowContext));
+         strcpy((char*)message + sizeof(ctx.sendAllGDBOutputToLogWindowContext), buffer);
          UIWindowPostMessage(windowMain, msgReceivedLog, message);
       }
 
@@ -627,14 +651,14 @@ void* DebuggerThread(void*) {
       if (!strstr(catBuffer, "(gdb) "))
          continue;
 
-      //printf("================ got (%d) {%s}, er=%s\n", evaluateMode, catBuffer, evaluateResult ? evaluateResult : "");
+      //printf("================ got (%d) {%s}, er=%s\n", ctx.evaluateMode, catBuffer, ctx.evaluateResult ? ctx.evaluateResult : "");
 
       // Notify the main thread we have data.
 
-      if (evaluateMode) {
-         evaluateResultQueue.push(std::string(catBuffer));
+      if (ctx.evaluateMode) {
+         ctx.evaluateResultQueue.push(std::string(catBuffer));
          free(catBuffer);
-         evaluateMode   = false;
+         ctx.evaluateMode   = false;
       } else {
          UIWindowPostMessage(windowMain, msgReceivedData, catBuffer);
       }
@@ -652,49 +676,40 @@ void DebuggerStartThread() {
    pthread_attr_t attributes;
    pthread_attr_init(&attributes);
    pthread_create(&debuggerThread, &attributes, DebuggerThread, nullptr);
-   gdbThread = debuggerThread;
+   ctx.gdbThread = debuggerThread;
 }
 
 void DebuggerSend(const char* string, bool echo, bool synchronous) {
    if (synchronous) {
-      if (programRunning) {
-         kill(gdbPID, SIGINT);
-         usleep(1000 * 1000);
-         programRunning = false;
-      }
-
-      evaluateMode = true;
+      ctx.InterruptGdb();
+      ctx.evaluateMode = true;
+   } else if (ctx.programRunning) {
+      ctx.InterruptGdb(0);
    }
 
-   if (programRunning) {
-      kill(gdbPID, SIGINT);
-   }
+   ctx.programRunning = true; // ??
 
-   programRunning = true;
    if (trafficLight)
       trafficLight->Repaint(nullptr);
 
    // printf("sending: %s\n", string);
-
-   char newline = '\n';
 
    if (echo && displayOutput) {
       UICodeInsertContent(displayOutput, string, -1, false);
       displayOutput->Refresh();
    }
 
-   write(pipeToGDB, string, strlen(string));
-   write(pipeToGDB, &newline, 1);
+   ctx.SendToGdb(string);
 
    if (synchronous) {
       struct timespec timeout;
       clock_gettime(CLOCK_REALTIME, &timeout);
       timeout.tv_sec++;
-      evaluateResultQueue.pop(evaluateResultString);
-      if (evaluateResultString.empty())
-         evaluateResultString = "\n(gdb) \n";
-      evaluateResult = (char *)evaluateResultString.c_str();
-      programRunning = false;
+      ctx.evaluateResultQueue.pop(ctx.evaluateResultString);
+      if (ctx.evaluateResultString.empty())
+         ctx.evaluateResultString = "\n(gdb) \n";
+      ctx.evaluateResult = (char *)ctx.evaluateResultString.c_str();
+      ctx.programRunning = false;
       if (trafficLight)
          trafficLight->Repaint(nullptr);
    }
@@ -708,7 +723,7 @@ const char* EvaluateExpression(const char* expression, const char* format = null
    char buffer[1024];
    StringFormat(buffer, sizeof(buffer), "p%s %s", format ?: "", expression);
    EvaluateCommand(buffer);
-   char* result = strchr(evaluateResult, '=');
+   char* result = strchr(ctx.evaluateResult, '=');
 
    if (result) {
       char* end = strchr(result, '\n');
@@ -720,11 +735,6 @@ const char* EvaluateExpression(const char* expression, const char* format = null
    }
 
    return nullptr;
-}
-
-void DebuggerClose() {
-   kill(gdbPID, SIGKILL);
-   pthread_cancel(gdbThread);
 }
 
 void* ControlPipeThread(void*) {
@@ -745,7 +755,7 @@ void DebuggerGetStack() {
    EvaluateCommand(buffer);
    stack.clear();
 
-   const char* position = evaluateResult;
+   const char* position = ctx.evaluateResult;
 
    while (*position == '#') {
       const char* next = position;
@@ -802,7 +812,7 @@ void DebuggerGetBreakpoints() {
    EvaluateCommand("info break");
    breakpoints.clear();
 
-   const char* position = evaluateResult;
+   const char* position = ctx.evaluateResult;
 
    while (true) {
       while (true) {
@@ -926,8 +936,8 @@ void TabCompleterRun(TabCompleter* completer, UITextbox* textbox, bool lastKeyWa
          buffer[i] = ' ';
    EvaluateCommand(buffer);
 
-   const char* start = evaluateResult;
-   const char* end   = strchr(evaluateResult, '\n');
+   const char* start = ctx.evaluateResult;
+   const char* end   = strchr(ctx.evaluateResult, '\n');
 
    if (!lastKeyWasTab) {
       completer->consecutiveTabCount = 0;
@@ -946,8 +956,8 @@ void TabCompleterRun(TabCompleter* completer, UITextbox* textbox, bool lastKeyWa
 
    if (!end) {
       completer->consecutiveTabCount = 0;
-      start                          = evaluateResult;
-      end                            = strchr(evaluateResult, '\n');
+      start                          = ctx.evaluateResult;
+      end                            = strchr(ctx.evaluateResult, '\n');
    }
 
    completer->_lastKeyWasTab = true;
@@ -968,11 +978,11 @@ void TabCompleterRun(TabCompleter* completer, UITextbox* textbox, bool lastKeyWa
 
 bool CommandParseInternal(const char* command, bool synchronous) {
    if (0 == strcmp(command, "gf-step")) {
-      if (!programRunning)
+      if (!ctx.programRunning)
          DebuggerSend(showingDisassembly ? "stepi" : "s", true, synchronous);
       return true;
    } else if (0 == strcmp(command, "gf-next")) {
-      if (!programRunning)
+      if (!ctx.programRunning)
          DebuggerSend(showingDisassembly ? "nexti" : "n", true, synchronous);
       return true;
    } else if (0 == strcmp(command, "gf-step-out-of-block")) {
@@ -997,14 +1007,14 @@ bool CommandParseInternal(const char* command, bool synchronous) {
          return CommandParseInternal("gf-step", synchronous);
       }
    } else if (0 == strcmp(command, "gf-restart-gdb")) {
-      firstUpdate = true;
-      kill(gdbPID, SIGKILL);
-      pthread_cancel(gdbThread); // TODO Is there a nicer way to do this?
+      ctx.firstUpdate = true;
+      kill(ctx.gdbPID, SIGKILL);
+      pthread_cancel(ctx.gdbThread); // TODO Is there a nicer way to do this?
       DebuggerStartThread();
    } else if (0 == strcmp(command, "gf-get-pwd")) {
       EvaluateCommand("info source");
       const char* needle = "Compilation directory is ";
-      char*       pwd    = strstr(evaluateResult, needle);
+      char*       pwd    = strstr(ctx.evaluateResult, needle);
 
       if (pwd) {
          pwd += strlen(needle);
@@ -1046,7 +1056,7 @@ bool CommandParseInternal(const char* command, bool synchronous) {
                async = nullptr; // Trim the '&' character, but run synchronously anyway.
             bool hasOutput = CommandParseInternal(position, !async) && !async;
             if (displayOutput && hasOutput)
-               UICodeInsertContent(displayOutput, evaluateResult, -1, false);
+               UICodeInsertContent(displayOutput, ctx.evaluateResult, -1, false);
             if (end)
                position = end + 1;
             else
@@ -1088,10 +1098,6 @@ void CommandSendToGDB(const char* s) {
 BREAKPOINT_COMMAND(CommandDeleteBreakpoint, "delete");
 BREAKPOINT_COMMAND(CommandDisableBreakpoint, "disable");
 BREAKPOINT_COMMAND(CommandEnableBreakpoint, "enable");
-
-void CommandPause() {
-   kill(gdbPID, SIGINT);
-}
 
 void CommandSyncWithGvim() {
    char buffer[1024];
@@ -1350,10 +1356,10 @@ void SettingsLoad(bool earlyPass) {
             }
          } else if (0 == strcmp(state.section, "gdb") && !earlyPass) {
             if (0 == strcmp(state.key, "argument")) {
-               gdbArgc++;
-               gdbArgv              = (char**)realloc(gdbArgv, sizeof(char*) * (gdbArgc + 1));
-               gdbArgv[gdbArgc - 1] = state.value;
-               gdbArgv[gdbArgc]     = nullptr;
+               ctx.gdbArgc++;
+               ctx.gdbArgv              = (char**)realloc(ctx.gdbArgv, sizeof(char*) * (ctx.gdbArgc + 1));
+               ctx.gdbArgv[ctx.gdbArgc - 1] = state.value;
+               ctx.gdbArgv[ctx.gdbArgc]     = nullptr;
             } else if (0 == strcmp(state.key, "arguments")) {
                char buffer[2048];
 
@@ -1392,24 +1398,24 @@ void SettingsLoad(bool earlyPass) {
                   StringFormat(buffer, sizeof(buffer), "%.*s", argumentEnd - argumentStart,
                                &state.value[argumentStart]);
 
-                  gdbArgc++;
-                  gdbArgv              = (char**)realloc(gdbArgv, sizeof(char*) * (gdbArgc + 1));
-                  gdbArgv[gdbArgc - 1] = strdup(buffer);
-                  gdbArgv[gdbArgc]     = nullptr;
+                  ctx.gdbArgc++;
+                  ctx.gdbArgv              = (char**)realloc(ctx.gdbArgv, sizeof(char*) * (ctx.gdbArgc + 1));
+                  ctx.gdbArgv[ctx.gdbArgc - 1] = strdup(buffer);
+                  ctx.gdbArgv[ctx.gdbArgc]     = nullptr;
                }
             } else if (0 == strcmp(state.key, "path")) {
-               gdbPath = state.value;
-               gdbArgv[0] = state.value;
+               ctx.gdbPath = state.value;
+               ctx.gdbArgv[0] = state.value;
             } else if (0 == strcmp(state.key, "log_all_output") && atoi(state.value)) {
                for (const auto& iw : interfaceWindows) {
                   const InterfaceWindow* window = &iw;
 
                   if (0 == strcmp(window->name, "Log")) {
-                     sendAllGDBOutputToLogWindowContext = window->element;
+                     ctx.sendAllGDBOutputToLogWindowContext = window->element;
                   }
                }
 
-               if (!sendAllGDBOutputToLogWindowContext) {
+               if (!ctx.sendAllGDBOutputToLogWindowContext) {
                   fprintf(stderr, "Warning: gdb.log_all_output was enabled, "
                                   "but your layout does not have a 'Log' window.\n");
                }
@@ -1500,7 +1506,7 @@ bool DisplaySetPosition(const char* file, int line, bool useGDBToGetFullPath) {
       file = buffer;
    } else if (file && file[0] != '/' && useGDBToGetFullPath) {
       EvaluateCommand("info source");
-      const char* f = strstr(evaluateResult, "Located in ");
+      const char* f = strstr(ctx.evaluateResult, "Located in ");
 
       if (f) {
          f += 11;
@@ -1581,30 +1587,30 @@ void DisplaySetPositionFromStack() {
 void DisassemblyLoad() {
    EvaluateCommand(disassemblyCommand);
 
-   if (!strstr(evaluateResult, "Dump of assembler code for function")) {
+   if (!strstr(ctx.evaluateResult, "Dump of assembler code for function")) {
       char buffer[32];
       StringFormat(buffer, sizeof(buffer), "disas $pc,+1000");
       EvaluateCommand(buffer);
    }
 
-   char* end = strstr(evaluateResult, "End of assembler dump.");
+   char* end = strstr(ctx.evaluateResult, "End of assembler dump.");
 
    if (!end) {
-      printf("Disassembly failed. GDB output:\n%s\n", evaluateResult);
+      printf("Disassembly failed. GDB output:\n%s\n", ctx.evaluateResult);
       return;
    }
 
-   char* start = strstr(evaluateResult, ":\n");
+   char* start = strstr(ctx.evaluateResult, ":\n");
 
    if (!start) {
-      printf("Disassembly failed. GDB output:\n%s\n", evaluateResult);
+      printf("Disassembly failed. GDB output:\n%s\n", ctx.evaluateResult);
       return;
    }
 
    start += 2;
 
    if (start >= end) {
-      printf("Disassembly failed. GDB output:\n%s\n", evaluateResult);
+      printf("Disassembly failed. GDB output:\n%s\n", ctx.evaluateResult);
       return;
    }
 
@@ -1620,7 +1626,7 @@ void DisassemblyLoad() {
 
 void DisassemblyUpdateLine() {
    EvaluateCommand("p $pc");
-   char* address = strstr(evaluateResult, "0x");
+   char* address = strstr(ctx.evaluateResult, "0x");
 
    if (address) {
       char*    addressEnd;
@@ -1935,7 +1941,7 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
          char buffer[1024];
          StringFormat(buffer, sizeof(buffer), "p %s", autoPrintExpression);
          EvaluateCommand(buffer);
-         const char* result = strchr(evaluateResult, '=');
+         const char* result = strchr(ctx.evaluateResult, '=');
 
          if (result) {
             autoPrintResultLine = autoPrintExpressionLine;
@@ -2359,7 +2365,7 @@ const char* BitmapViewerGetBits(const char* pointerString, const char* widthStri
       unlink(bitmapPath);
    }
 
-   if (!f || strstr(evaluateResult, "access")) {
+   if (!f || strstr(ctx.evaluateResult, "access")) {
       return "Could not read the image bits!";
    }
 
@@ -2786,10 +2792,10 @@ void WatchEvaluate(const char* function, Watch* watch) {
 bool WatchHasFields(Watch* watch) {
    WatchEvaluate("gf_fields", watch);
 
-   if (strstr(evaluateResult, "(array)") || strstr(evaluateResult, "(d_arr)")) {
+   if (strstr(ctx.evaluateResult, "(array)") || strstr(ctx.evaluateResult, "(d_arr)")) {
       return true;
    } else {
-      char* position = evaluateResult;
+      char* position = ctx.evaluateResult;
       char* end      = strchr(position, '\n');
       if (!end)
          return false;
@@ -2809,8 +2815,8 @@ void WatchAddFields(WatchWindow* w, Watch* watch) {
 
    WatchEvaluate("gf_fields", watch);
 
-   if (strstr(evaluateResult, "(array)") || strstr(evaluateResult, "(d_arr)")) {
-      int count = atoi(evaluateResult + 7);
+   if (strstr(ctx.evaluateResult, "(array)") || strstr(ctx.evaluateResult, "(d_arr)")) {
+      int count = atoi(ctx.evaluateResult + 7);
 
 #define WATCH_ARRAY_MAX_FIELDS (10000000)
       if (count > WATCH_ARRAY_MAX_FIELDS)
@@ -2822,7 +2828,7 @@ void WatchAddFields(WatchWindow* w, Watch* watch) {
       watch->isArray    = true;
       bool hasSubFields = false;
 
-      if (strstr(evaluateResult, "(d_arr)")) {
+      if (strstr(ctx.evaluateResult, "(d_arr)")) {
          watch->isDynamicArray = true;
          w->dynamicArrays.push_back(watch);
       }
@@ -2838,7 +2844,7 @@ void WatchAddFields(WatchWindow* w, Watch* watch) {
          fields[i].depth     = watch->depth + 1;
       }
    } else {
-      char* start    = strdup(evaluateResult);
+      char* start    = strdup(ctx.evaluateResult);
       char* position = start;
 
       while (true) {
@@ -2919,8 +2925,8 @@ void WatchAddExpression(WatchWindow* w, char* string = nullptr) {
 
    WatchEvaluate("gf_typeof", watch);
 
-   if (!strstr(evaluateResult, "??")) {
-      watch->type = strdup(evaluateResult);
+   if (!strstr(ctx.evaluateResult, "??")) {
+      watch->type = strdup(ctx.evaluateResult);
       char* end   = strchr(watch->type, '\n');
       if (end)
          *end = 0;
@@ -3047,12 +3053,12 @@ int WatchLoggerTraceMessage(UIElement* element, UIMessage message, int di, void*
 bool WatchGetAddress(Watch* watch) {
    WatchEvaluate("gf_addressof", watch);
 
-   if (strstr(evaluateResult, "??")) {
+   if (strstr(ctx.evaluateResult, "??")) {
       UIDialogShow(windowMain, 0, "Couldn't get the address of the variable.\n%f%B", "OK");
       return false;
    }
 
-   char* end = strstr(evaluateResult, " ");
+   char* end = strstr(ctx.evaluateResult, " ");
 
    if (!end) {
       UIDialogShow(windowMain, 0, "Couldn't get the address of the variable.\n%f%B", "OK");
@@ -3061,7 +3067,7 @@ bool WatchGetAddress(Watch* watch) {
 
    *end = 0;
 
-   char* end2 = strchr(evaluateResult, '\n');
+   char* end2 = strchr(ctx.evaluateResult, '\n');
    if (end2)
       *end2 = 0;
 
@@ -3099,11 +3105,11 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
    }
 
    char buffer[256];
-   StringFormat(buffer, sizeof(buffer), "Log %s", evaluateResult);
+   StringFormat(buffer, sizeof(buffer), "Log %s", ctx.evaluateResult);
    UIMDIChild* child = UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, UIRectangle(0), buffer, -1);
-   StringFormat(buffer, sizeof(buffer), "watch * %s", evaluateResult);
+   StringFormat(buffer, sizeof(buffer), "watch * %s", ctx.evaluateResult);
    EvaluateCommand(buffer);
-   char* number = strstr(evaluateResult, "point ");
+   char* number = strstr(ctx.evaluateResult, "point ");
 
    if (!number) {
       UIDialogShow(windowMain, 0, "Couldn't set the watchpoint.\n%f%B", "OK");
@@ -3207,11 +3213,11 @@ bool WatchLoggerUpdate(char* data) {
             StringFormat(buffer, sizeof(buffer), "%.*s", i - start, expressionsToEvaluate + start);
             EvaluateExpression(buffer);
             start         = i + 1;
-            size_t length = strlen(evaluateResult);
+            size_t length = strlen(ctx.evaluateResult);
             if (length >= sizeof(evaluated.result))
                length = sizeof(evaluated.result) - 1;
-            char* start = strstr(evaluateResult, " = ");
-            memcpy(evaluated.result, start ? start + 3 : evaluateResult, length);
+            char* start = strstr(ctx.evaluateResult, " = ");
+            memcpy(evaluated.result, start ? start + 3 : ctx.evaluateResult, length);
             evaluated.result[length] = 0;
             entry.evaluated.push_back(evaluated);
          }
@@ -3276,16 +3282,16 @@ void CommandWatchAddEntryForAddress(WatchWindow* _w) {
    }
 
    char address[64];
-   StringFormat(address, sizeof(address), "%s", evaluateResult);
+   StringFormat(address, sizeof(address), "%s", ctx.evaluateResult);
    WatchEvaluate("gf_typeof", watch);
-   if (strstr(evaluateResult, "??"))
+   if (strstr(ctx.evaluateResult, "??"))
       return;
-   char* end = strchr(evaluateResult, '\n');
+   char* end = strchr(ctx.evaluateResult, '\n');
    if (end)
       *end = 0;
-   size_t size   = strlen(address) + strlen(evaluateResult) + 16;
+   size_t size   = strlen(address) + strlen(ctx.evaluateResult) + 16;
    char*  buffer = (char*)malloc(size);
-   StringFormat(buffer, size, "(%s*)%s", evaluateResult, address);
+   StringFormat(buffer, size, "(%s*)%s", ctx.evaluateResult, address);
    WatchAddExpression(w, buffer);
    WatchEnsureRowVisible(w, w->selectedRow);
    w->element->parent->Refresh();
@@ -3311,13 +3317,13 @@ void CommandWatchViewSourceAtAddress(WatchWindow* _w) {
    char     buffer[256];
    StringFormat(buffer, sizeof(buffer), "info line * 0x%lx", value);
    EvaluateCommand(buffer);
-   position = evaluateResult;
+   position = ctx.evaluateResult;
 
-   if (strstr(evaluateResult, "No line number")) {
-      char* end = strchr(evaluateResult, '\n');
+   if (strstr(ctx.evaluateResult, "No line number")) {
+      char* end = strchr(ctx.evaluateResult, '\n');
       if (end)
          *end = 0;
-      UIDialogShow(windowMain, 0, "%s\n%f%B", evaluateResult, "OK");
+      UIDialogShow(windowMain, 0, "%s\n%f%B", ctx.evaluateResult, "OK");
       return;
    }
 
@@ -3359,7 +3365,7 @@ void CommandWatchSaveAsRecurse(FILE* file, Watch* watch, int indent, int indexIn
       }
    } else {
       WatchEvaluate("gf_valueof", watch);
-      char* value = strdup(evaluateResult);
+      char* value = strdup(ctx.evaluateResult);
       char* end   = strchr(value, '\n');
       if (end)
          *end = 0;
@@ -3405,7 +3411,7 @@ void CommandWatchCopyValueToClipboard(WatchWindow* w) {
    Watch* watch = w->rows[w->selectedRow];
 
    WatchEvaluate("gf_valueof", watch);
-   char* value = strdup(evaluateResult);
+   char* value = strdup(ctx.evaluateResult);
    char* end   = strchr(value, '\n');
    if (end)
       *end = 0;
@@ -3443,11 +3449,11 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
             char   buffer[256];
 
             if ((!watch->value || watch->updateIndex != w->updateIndex) && !watch->open) {
-               if (!programRunning) {
+               if (!ctx.programRunning) {
                   free(watch->value);
                   watch->updateIndex = w->updateIndex;
                   WatchEvaluate("gf_valueof", watch);
-                  watch->value = strdup(evaluateResult);
+                  watch->value = strdup(ctx.evaluateResult);
                   char* end    = strchr(watch->value, '\n');
                   if (end)
                      *end = 0;
@@ -3531,7 +3537,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
                if (!WatchGetAddress(w->rows[w->selectedRow]))
                   return;
                char buffer[256];
-               StringFormat(buffer, sizeof(buffer), "watch * %s", evaluateResult);
+               StringFormat(buffer, sizeof(buffer), "watch * %s", ctx.evaluateResult);
                DebuggerSend(buffer, true, false);
             });
 
@@ -3701,14 +3707,14 @@ void WatchWindowUpdate(const char*, UIElement* element) {
    if (w->mode == WATCH_LOCALS) {
       EvaluateCommand("py gf_locals()");
 
-      bool newFrame = (!w->lastLocalList || 0 != strcmp(w->lastLocalList, evaluateResult));
+      bool newFrame = (!w->lastLocalList || 0 != strcmp(w->lastLocalList, ctx.evaluateResult));
 
       if (newFrame) {
          if (w->lastLocalList)
             free(w->lastLocalList);
-         w->lastLocalList = strdup(evaluateResult);
+         w->lastLocalList = strdup(ctx.evaluateResult);
 
-         char*        buffer = strdup(evaluateResult);
+         char*        buffer = strdup(ctx.evaluateResult);
          char*        s      = buffer;
          char*        end;
          vector<char*> expressions = {};
@@ -3765,7 +3771,7 @@ void WatchWindowUpdate(const char*, UIElement* element) {
    for (size_t i = 0; i < w->baseExpressions.size(); i++) {
       Watch* watch = w->baseExpressions[i];
       WatchEvaluate("gf_typeof", watch);
-      char* result = strdup(evaluateResult);
+      char* result = strdup(ctx.evaluateResult);
       char* end    = strchr(result, '\n');
       if (end)
          *end = 0;
@@ -3791,9 +3797,9 @@ void WatchWindowUpdate(const char*, UIElement* element) {
    for (size_t i = 0; i < w->dynamicArrays.size(); i++) {
       Watch* watch = w->dynamicArrays[i];
       WatchEvaluate("gf_fields", watch);
-      if (!strstr(evaluateResult, "(d_arr)"))
+      if (!strstr(ctx.evaluateResult, "(d_arr)"))
          continue;
-      int count = atoi(evaluateResult + 7);
+      int count = atoi(ctx.evaluateResult + 7);
       if (count > WATCH_ARRAY_MAX_FIELDS)
          count = WATCH_ARRAY_MAX_FIELDS;
       if (count < 0)
@@ -4133,10 +4139,10 @@ int TextboxStructNameMessage(UIElement* element, UIMessage message, int di, void
          char buffer[4096];
          StringFormat(buffer, sizeof(buffer), "ptype /o %.*s", (int)window->textbox->bytes, window->textbox->string);
          EvaluateCommand(buffer);
-         char* end = strstr(evaluateResult, "\n(gdb)");
+         char* end = strstr(ctx.evaluateResult, "\n(gdb)");
          if (end)
             *end = 0;
-         UICodeInsertContent(window->display, evaluateResult, -1, true);
+         UICodeInsertContent(window->display, ctx.evaluateResult, -1, true);
          UITextboxClear(window->textbox, false);
          window->display->Refresh();
          element->Refresh();
@@ -4310,13 +4316,13 @@ UIElement* RegistersWindowCreate(UIElement* parent) {
 void RegistersWindowUpdate(const char*, UIElement* panel) {
    EvaluateCommand("info registers");
 
-   if (strstr(evaluateResult, "The program has no registers now.") ||
-       strstr(evaluateResult, "The current thread has terminated")) {
+   if (strstr(ctx.evaluateResult, "The program has no registers now.") ||
+       strstr(ctx.evaluateResult, "The current thread has terminated")) {
       return;
    }
 
    panel->DestroyDescendents();
-   char*                position        = evaluateResult;
+   char*                position        = ctx.evaluateResult;
    vector<RegisterData> newRegisterData = {};
    bool                 anyChanges      = false;
 
@@ -4516,7 +4522,7 @@ void ThreadWindowUpdate(const char*, UIElement* _table) {
    window->threads.clear();
 
    EvaluateCommand("info threads");
-   char* position = evaluateResult;
+   char* position = ctx.evaluateResult;
 
    for (int i = 0; position[i]; i++) {
       if (position[i] == '\n' && position[i + 1] == ' ' && position[i + 2] == ' ' && position[i + 3] == ' ') {
@@ -4567,7 +4573,7 @@ void ExecutableWindowStartOrRun(ExecutableWindow* window, bool pause) {
    StringFormat(buffer, sizeof(buffer), "file \"%.*s\"", window->path->bytes, window->path->string);
    EvaluateCommand(buffer);
 
-   if (strstr(evaluateResult, "No such file or directory.")) {
+   if (strstr(ctx.evaluateResult, "No such file or directory.")) {
       UIDialogShow(windowMain, 0, "The executable path is invalid.\n%f%B", "OK");
       return;
    }
@@ -4665,13 +4671,13 @@ int TextboxSearchCommandMessage(UIElement* element, UIMessage message, int di, v
       if (!window->commands.size()) {
          EvaluateCommand("help all");
 
-         for (int i = 0; evaluateResult[i]; i++) {
-            if (evaluateResult[i] == ',' && evaluateResult[i + 1] == ' ' && evaluateResult[i + 2] == '\n') {
-               evaluateResult[i + 2] = ' ';
+         for (int i = 0; ctx.evaluateResult[i]; i++) {
+            if (ctx.evaluateResult[i] == ',' && ctx.evaluateResult[i + 1] == ' ' && ctx.evaluateResult[i + 2] == '\n') {
+               ctx.evaluateResult[i + 2] = ' ';
             }
          }
 
-         char* position = evaluateResult;
+         char* position = ctx.evaluateResult;
 
          while (position) {
             char* next = strchr(position, '\n');
@@ -5649,12 +5655,12 @@ void ProfLoadProfileData(void* _window) {
       StringFormat(buffer, sizeof(buffer), "py print(gdb.lookup_global_symbol('%s').symtab.filename)", function.cName);
       EvaluateCommand(buffer);
 
-      if (!strstr(evaluateResult, "Traceback (most recent call last):")) {
-         char* end = strchr(evaluateResult, '\n');
+      if (!strstr(ctx.evaluateResult, "Traceback (most recent call last):")) {
+         char* end = strchr(ctx.evaluateResult, '\n');
          if (end)
             *end = 0;
          ProfSourceFileEntry sourceFile  = {};
-         char*               cSourceFile = evaluateResult;
+         char*               cSourceFile = ctx.evaluateResult;
          length                          = strlen(cSourceFile);
          if (length > (int)sizeof(sourceFile.cPath) - 1)
             length = sizeof(sourceFile.cPath) - 1;
@@ -5662,7 +5668,7 @@ void ProfLoadProfileData(void* _window) {
          sourceFile.cPath[length] = 0;
          StringFormat(buffer, sizeof(buffer), "py print(gdb.lookup_global_symbol('%s').line)", function.cName);
          EvaluateCommand(buffer);
-         function.lineNumber = atoi(evaluateResult);
+         function.lineNumber = atoi(ctx.evaluateResult);
 
          for (size_t i = 0; i < sourceFiles.size(); i++) {
             if (0 == strcmp(sourceFiles[i].cPath, sourceFile.cPath)) {
@@ -5924,8 +5930,8 @@ int MemoryWindowMessage(UIElement* element, UIMessage message, int di, void* dp)
 
             bool error = true;
 
-            if (!strstr(evaluateResult, "Cannot access memory")) {
-               char* position = strchr(evaluateResult, ':');
+            if (!strstr(ctx.evaluateResult, "Cannot access memory")) {
+               char* position = strchr(ctx.evaluateResult, ':');
 
                if (position) {
                   position++;
@@ -6010,7 +6016,7 @@ void MemoryWindowGotoButtonInvoke(void* cp) {
       char buffer[4096];
       StringFormat(buffer, sizeof(buffer), "py gf_valueof(['%s'],' ')", expression);
       EvaluateCommand(buffer);
-      const char* result = evaluateResult;
+      const char* result = ctx.evaluateResult;
 
       if (result && ((*result == '(' && isdigit(result[1])) || isdigit(*result))) {
          if (*result == '(')
@@ -6339,18 +6345,18 @@ void ViewWindowView(void* cp) {
    char  oldFormat = watch->format;
    watch->format   = 0;
    WatchEvaluate("gf_typeof", watch);
-   end = strchr(evaluateResult, '\n');
+   end = strchr(ctx.evaluateResult, '\n');
    if (end)
       *end = 0;
-   StringFormat(type, sizeof(type), "%s", evaluateResult);
+   StringFormat(type, sizeof(type), "%s", ctx.evaluateResult);
    StringFormat(buffer, sizeof(buffer), "Type: %s", type);
    UILabelCreate(panel, 0, buffer, -1);
    WatchEvaluate("gf_valueof", watch);
-   end = strchr(evaluateResult, '\n');
+   end = strchr(ctx.evaluateResult, '\n');
    if (end)
       *end = 0;
    watch->format = oldFormat;
-   // printf("valueof: {%s}\n", evaluateResult);
+   // printf("valueof: {%s}\n", ctx.evaluateResult);
 
    // Create the specific display for the given type.
    if (0 == strcmp(type, "uint8_t") || 0 == strcmp(type, "uint16_t") || 0 == strcmp(type, "uint32_t") ||
@@ -6362,10 +6368,10 @@ void ViewWindowView(void* cp) {
        0 == strcmp(type, "long long")) {
       uint64_t value;
 
-      if (evaluateResult[0] == '-') {
-         value = -strtoul(evaluateResult + 1, nullptr, 10);
+      if (ctx.evaluateResult[0] == '-') {
+         value = -strtoul(ctx.evaluateResult + 1, nullptr, 10);
       } else {
-         value = strtoul(evaluateResult, nullptr, 10);
+         value = strtoul(ctx.evaluateResult, nullptr, 10);
       }
 
       StringFormat(buffer, sizeof(buffer), " 8b: %d %u 0x%x '%c'", (int8_t)value, (uint8_t)value, (uint8_t)value,
@@ -6403,25 +6409,25 @@ void ViewWindowView(void* cp) {
       }
    } else if ((0 == memcmp(type, "char [", 6) && !strstr(type, "][")) || 0 == strcmp(type, "const char *") ||
               0 == strcmp(type, "char *")) {
-      printf("string '%s'\n", evaluateResult);
+      printf("string '%s'\n", ctx.evaluateResult);
       char address[64];
 
-      if (evaluateResult[0] != '(') {
+      if (ctx.evaluateResult[0] != '(') {
          WatchEvaluate("gf_addressof", watch);
-         printf("addressof '%s'\n", evaluateResult);
-         char* end = strchr(evaluateResult, ' ');
+         printf("addressof '%s'\n", ctx.evaluateResult);
+         char* end = strchr(ctx.evaluateResult, ' ');
          if (end)
             *end = 0;
-         end = strchr(evaluateResult, '\n');
+         end = strchr(ctx.evaluateResult, '\n');
          if (end)
             *end = 0;
-         StringFormat(address, sizeof(address), "%s", evaluateResult);
+         StringFormat(address, sizeof(address), "%s", ctx.evaluateResult);
       } else {
-         char* end = strchr(evaluateResult + 1, ' ');
+         char* end = strchr(ctx.evaluateResult + 1, ' ');
          if (!end)
             goto unrecognised;
          *end = 0;
-         StringFormat(address, sizeof(address), "%s", evaluateResult + 1);
+         StringFormat(address, sizeof(address), "%s", ctx.evaluateResult + 1);
       }
 
       char tempPath[PATH_MAX];
@@ -6429,8 +6435,8 @@ void ViewWindowView(void* cp) {
       char buffer[PATH_MAX * 2];
       StringFormat(buffer, sizeof(buffer), "(size_t)strlen((const char *)(%s))", address);
       EvaluateExpression(buffer);
-      printf("'%s' -> '%s'\n", buffer, evaluateResult);
-      const char* lengthString = evaluateResult ? strstr(evaluateResult, "= ") : nullptr;
+      printf("'%s' -> '%s'\n", buffer, ctx.evaluateResult);
+      const char* lengthString = ctx.evaluateResult ? strstr(ctx.evaluateResult, "= ") : nullptr;
       size_t      length       = lengthString ? atoi(lengthString + 2) : 0;
       // TODO Preventing errors when calling strlen from crashing the target?
 
@@ -6446,7 +6452,7 @@ void ViewWindowView(void* cp) {
 
       StringFormat(buffer, sizeof(buffer), "dump binary memory %s (%s) (%s+%d)", tempPath, address, address, length);
       EvaluateCommand(buffer);
-      printf("'%s' -> '%s'\n", buffer, evaluateResult);
+      printf("'%s' -> '%s'\n", buffer, ctx.evaluateResult);
       FILE* f = fopen(tempPath, "rb");
 
       if (f) {
@@ -6481,8 +6487,8 @@ void ViewWindowView(void* cp) {
       char tempPath[PATH_MAX];
       realpath(".temp.gf", tempPath);
       char buffer[PATH_MAX * 2];
-      StringFormat(buffer, sizeof(buffer), "dump binary memory %s (%s) (%s+%d)", tempPath, evaluateResult,
-                   evaluateResult, w * h * itemSize);
+      StringFormat(buffer, sizeof(buffer), "dump binary memory %s (%s) (%s+%d)", tempPath, ctx.evaluateResult,
+                   ctx.evaluateResult, w * h * itemSize);
       EvaluateCommand(buffer);
       FILE* f = fopen(tempPath, "rb");
 
@@ -6908,7 +6914,7 @@ const char* WaveformViewerGetSamples(const char* pointerString, const char* samp
       unlink(transferPath);
    }
 
-   if (!f || strstr(evaluateResult, "access")) {
+   if (!f || strstr(ctx.evaluateResult, "access")) {
       return "Could not read the waveform samples!";
    }
 
@@ -7103,9 +7109,9 @@ bool ElementHidden(UIElement* element) {
 }
 
 void MsgReceivedData(char* input) {
-   programRunning = false;
+   ctx.programRunning = false;
 
-   if (firstUpdate) {
+   if (ctx.firstUpdate) {
       EvaluateCommand(pythonCode);
 
       char path[PATH_MAX];
@@ -7121,7 +7127,7 @@ void MsgReceivedData(char* input) {
          data = end + 1;
       }
 
-      firstUpdate = false;
+      ctx.firstUpdate = false;
    }
 
    if (WatchLoggerUpdate(input))
@@ -7253,7 +7259,7 @@ __attribute__((constructor)) void InterfaceAddBuiltinWindowsAndCommands() {
       .shortcut{.code = UI_KEYCODE_FKEY(11), .ctrl = true, .shift = true, .invoke = gdb_invoker("reverse-step")}
    });
    interfaceCommands.push_back({
-      .label = "Break\tF8", .shortcut{.code = UI_KEYCODE_FKEY(8), .invoke = CommandPause}
+         .label = "Break\tF8", .shortcut{.code = UI_KEYCODE_FKEY(8), .invoke = [&]() { ctx.InterruptGdb(0); } }
    });
    interfaceCommands.push_back({
          .label = "Toggle breakpoint\tF9", .shortcut{.code = UI_KEYCODE_FKEY(9), .invoke = []() { CommandToggleBreakpoint(); }}
@@ -7515,20 +7521,24 @@ unique_ptr<UI> GfMain(int argc, char** argv) {
 
    struct sigaction sigintHandler = {};
    sigintHandler.sa_handler       = [](int) {
-      DebuggerClose();
+      ctx.KillGdb();
       exit(0);
    };
-   sigaction(SIGINT, &sigintHandler, nullptr);
+   struct sigaction sigpipeHandler = {};
+   sigpipeHandler.sa_handler       = [](int) { fprintf(stderr, "SIGPIPE Received - ignored.\n"); };
 
-   gdbArgv    = (char**)malloc(sizeof(char*) * (argc + 1));
-   gdbArgv[0] = (char*)"gdb";
-   memcpy(gdbArgv + 1, argv + 1, sizeof(argv) * argc);
-   gdbArgc = argc;
+   sigaction(SIGINT,  &sigintHandler, nullptr);
+   sigaction(SIGPIPE, &sigpipeHandler, nullptr);
+
+   ctx.gdbArgv    = (char**)malloc(sizeof(char*) * (argc + 1));
+   ctx.gdbArgv[0] = (char*)"gdb";
+   memcpy(ctx.gdbArgv + 1, argv + 1, sizeof(argv) * argc);
+   ctx.gdbArgc = argc;
 
    if (argc >= 2 && 0 == strcmp(argv[1], "--rr-replay")) {
-      gdbArgv[0] = (char*)"rr";
-      gdbArgv[1] = (char*)"replay";
-      gdbPath    = "rr";
+      ctx.gdbArgv[0] = (char*)"rr";
+      ctx.gdbArgv[1] = (char*)"replay";
+      ctx.gdbPath    = "rr";
    }
 
    getcwd(localConfigDirectory, sizeof(localConfigDirectory));
@@ -7592,7 +7602,7 @@ int main(int argc, char** argv) {
       return 1;
 
    UIMessageLoop();
-   DebuggerClose();
+   ctx.KillGdb();
 
    if (restoreWatchWindow && firstWatchWindow) {
       StringFormat(globalConfigPath, sizeof(globalConfigPath), "%s/.config/gf2_watch.txt", getenv("HOME"));
