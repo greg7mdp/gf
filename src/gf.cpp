@@ -575,7 +575,9 @@ UIMessage ReceiveMessageRegister(void (*callback)(char* input)) {
 }
 
 void* DebuggerThread(void*) {
-   int outputPipe[2], inputPipe[2];
+   int outputPipe[2];
+   int inputPipe[2];
+
    pipe(outputPipe);
    pipe(inputPipe);
 
@@ -617,10 +619,7 @@ void* DebuggerThread(void*) {
 
    ctx.SendToGdb(ctx.initialGDBCommand);
 
-   char*  catBuffer          = NULL; // todo: std::vector<char>
-   size_t catBufferUsed      = 0;
-   size_t catBufferAllocated = 0;
-
+   std::string catBuffer;
    while (true) {
       char buffer[512 + 1];
       int  count    = read(outputPipe[0], buffer, 512);
@@ -637,18 +636,11 @@ void* DebuggerThread(void*) {
          UIWindowPostMessage(windowMain, msgReceivedLog, message);
       }
 
-      size_t neededSpace = catBufferUsed + count + 1;
+      if (catBuffer.size() + count + 1 > catBuffer.capacity())
+         catBuffer.reserve(catBuffer.capacity() * 2);
 
-      if (neededSpace > catBufferAllocated) {
-         catBufferAllocated *= 2;
-         if (catBufferAllocated < neededSpace)
-            catBufferAllocated = neededSpace;
-         catBuffer = (char*)realloc(catBuffer, catBufferAllocated);
-      }
-
-      strcpy(catBuffer + catBufferUsed, buffer);
-      catBufferUsed += count;
-      if (!strstr(catBuffer, "(gdb) "))
+      catBuffer.insert(catBuffer.end(), buffer, buffer + count);
+      if (!strstr(catBuffer.c_str(), "(gdb) "))
          continue;
 
       //printf("================ got (%d) {%s}, er=%s\n", ctx.evaluateMode, catBuffer, ctx.evaluateResult ? ctx.evaluateResult : "");
@@ -656,16 +648,14 @@ void* DebuggerThread(void*) {
       // Notify the main thread we have data.
 
       if (ctx.evaluateMode) {
-         ctx.evaluateResultQueue.push(std::string(catBuffer));
-         free(catBuffer);
+         ctx.evaluateResultQueue.push(std::move(catBuffer));
+         catBuffer.clear();
          ctx.evaluateMode   = false;
       } else {
-         UIWindowPostMessage(windowMain, msgReceivedData, catBuffer);
+         UIWindowPostMessage(windowMain, msgReceivedData, strdup(catBuffer.c_str()));
       }
 
-      catBuffer          = NULL;
-      catBufferUsed      = 0;
-      catBufferAllocated = 0;
+      catBuffer.clear();
    }
 
    return nullptr;
@@ -4462,6 +4452,7 @@ void* LogWindowThread(void* context) {
 void LogReceived(char* buffer) {
    UICodeInsertContent(*(UICode**)buffer, buffer + sizeof(void*), -1, false);
    (*(UIElement**)buffer)->Refresh();
+   free(buffer);
 }
 
 UIElement* LogWindowCreate(UIElement* parent) {
