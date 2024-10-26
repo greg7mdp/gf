@@ -114,9 +114,11 @@ struct INIState {
    size_t bytes = 0, sectionBytes = 0, keyBytes = 0, valueBytes = 0;
 };
 
+using str_unique_ptr = std::unique_ptr<char, decltype([](char* s) { free(s); })>;
+
 struct ReceiveMessageType {
-   UIMessage message;
-   void (*callback)(char* input);
+   UIMessage                  message;
+   std::function<void(str_unique_ptr)> callback;
 };
 
 struct WatchWindow;
@@ -130,7 +132,7 @@ struct Context {
 #endif
    std::string initialGDBCommand = "set prompt (gdb) ";
    bool        firstUpdate       = true;
-   void*       sendAllGDBOutputToLogWindowContext;
+   UICode*     logWindow         = nullptr; // if sent, log all debugger output there
 
    // ========== Debugger interaction ======================
    int                    pipeToGDB    = 0;
@@ -568,8 +570,8 @@ bool SourceFindOuterFunctionCall(char** start, char** end) {
    return found;
 }
 
-UIMessage ReceiveMessageRegister(void (*callback)(char* input)) {
-   receiveMessageTypes.push_back({.message = msgReceivedNext, .callback = callback});
+UIMessage ReceiveMessageRegister(std::function<void (str_unique_ptr)> callback) {
+   receiveMessageTypes.push_back({.message = msgReceivedNext, .callback = std::move(callback)});
    msgReceivedNext = (UIMessage)((uint32_t)msgReceivedNext + 1);
    return receiveMessageTypes.back().message;
 }
@@ -629,12 +631,8 @@ void* DebuggerThread(void*) {
          break;
       }
 
-      if (ctx.sendAllGDBOutputToLogWindowContext && !ctx.evaluateMode) {
-         void* message = malloc(count + sizeof(ctx.sendAllGDBOutputToLogWindowContext) + 1);
-         memcpy(message, &ctx.sendAllGDBOutputToLogWindowContext, sizeof(ctx.sendAllGDBOutputToLogWindowContext));
-         strcpy((char*)message + sizeof(ctx.sendAllGDBOutputToLogWindowContext), buffer);
-         UIWindowPostMessage(windowMain, msgReceivedLog, message);
-      }
+      if (ctx.logWindow && !ctx.evaluateMode)
+         UIWindowPostMessage(windowMain, msgReceivedLog, strdup(buffer));
 
       if (catBuffer.size() + count + 1 > catBuffer.capacity())
          catBuffer.reserve(catBuffer.capacity() * 2);
@@ -1401,11 +1399,11 @@ void SettingsLoad(bool earlyPass) {
                   const InterfaceWindow* window = &iw;
 
                   if (0 == strcmp(window->name, "Log")) {
-                     ctx.sendAllGDBOutputToLogWindowContext = window->element;
+                     ctx.logWindow = static_cast<UICode*>(window->element);
                   }
                }
 
-               if (!ctx.sendAllGDBOutputToLogWindowContext) {
+               if (!ctx.logWindow) {
                   fprintf(stderr, "Warning: gdb.log_all_output was enabled, "
                                   "but your layout does not have a 'Log' window.\n");
                }
@@ -4450,7 +4448,7 @@ void* LogWindowThread(void* context) {
 }
 
 void LogReceived(char* buffer) {
-   UICodeInsertContent(*(UICode**)buffer, buffer + sizeof(void*), -1, false);
+   UICodeInsertContent(ctx.logWindow, buffer, -1, false);
    (*(UIElement**)buffer)->Refresh();
    free(buffer);
 }
@@ -7099,7 +7097,7 @@ bool ElementHidden(UIElement* element) {
    return false;
 }
 
-void MsgReceivedData(char* input) {
+void MsgReceivedData(str_unique_ptr input) {
    ctx.programRunning = false;
 
    if (ctx.firstUpdate) {
@@ -7121,7 +7119,7 @@ void MsgReceivedData(char* input) {
       ctx.firstUpdate = false;
    }
 
-   if (WatchLoggerUpdate(input))
+   if (WatchLoggerUpdate(input.get()))
       return;
    if (showingDisassembly)
       DisassemblyUpdateLine();
@@ -7136,33 +7134,32 @@ void MsgReceivedData(char* input) {
       if (!window->alwaysUpdate && ElementHidden(window->element))
          window->queuedUpdate = true;
       else
-         window->update(input, window->element);
+         window->update(input.get(), window->element);
    }
 
    DataViewersUpdateAll();
 
    if (displayOutput) {
-      UICodeInsertContent(displayOutput, input, -1, false);
+      UICodeInsertContent(displayOutput, input.get(), -1, false);
       displayOutput->Refresh();
    }
 
    if (trafficLight)
       trafficLight->Repaint(nullptr);
-
-   free(input);
 }
 
-void MsgReceivedControl(char* input) {
-   char* end = strchr(input, '\n');
+void MsgReceivedControl(str_unique_ptr input) {
+   const char* start = input.get();
+   char* end   = strchr(input.get(), '\n');
    if (end)
       *end = 0;
 
-   if (input[0] == 'f' && input[1] == ' ') {
-      DisplaySetPosition(input + 2, 1, false);
-   } else if (input[0] == 'l' && input[1] == ' ') {
-      DisplaySetPosition(nullptr, atoi(input + 2), false);
-   } else if (input[0] == 'c' && input[1] == ' ') {
-      CommandParseInternal(input + 2, false);
+   if (start[0] == 'f' && start[1] == ' ') {
+      DisplaySetPosition(start + 2, 1, false);
+   } else if (start[0] == 'l' && start[1] == ' ') {
+      DisplaySetPosition(nullptr, atoi(start + 2), false);
+   } else if (start[0] == 'c' && start[1] == ' ') {
+      CommandParseInternal(start + 2, false);
    }
 }
 
@@ -7303,7 +7300,13 @@ __attribute__((constructor)) void InterfaceAddBuiltinWindowsAndCommands() {
 
    msgReceivedData    = ReceiveMessageRegister(MsgReceivedData);
    msgReceivedControl = ReceiveMessageRegister(MsgReceivedControl);
-   msgReceivedLog     = ReceiveMessageRegister(LogReceived);
+
+   // received buffer contains debugger output to add to log window
+   msgReceivedLog = ReceiveMessageRegister([](str_unique_ptr buffer) {
+      assert(ctx.logWindow);
+      UICodeInsertContent(ctx.logWindow, buffer.get(), -1, false);
+      ctx.logWindow->Refresh();
+   });
 }
 
 void InterfaceShowMenu(UIButton* self) {
@@ -7352,13 +7355,13 @@ UIElement* InterfaceWindowSwitchToAndFocus(const char* name) {
    return nullptr;
 }
 
-int WindowMessage(UIElement*, UIMessage message, int di, void* dp) {
+int MainWindowMessageProc(UIElement*, UIMessage message, int di, void* dp) {
    if (message == UIMessage::WINDOW_ACTIVATE) {
       DisplaySetPosition(currentFileFull, currentLine, false);
    } else {
       for (const auto& msgtype : receiveMessageTypes) {
          if (msgtype.message == message) {
-            msgtype.callback((char*)dp);
+            msgtype.callback(str_unique_ptr((char*)dp));
             break;
          }
       }
@@ -7565,7 +7568,7 @@ unique_ptr<UI> GfMain(int argc, char** argv) {
 
    windowMain                = UIWindowCreate(0, maximize ? UIWindow::MAXIMIZE : 0, "gf", window_width, window_height);
    windowMain->scale         = uiScale;
-   windowMain->messageUser   = WindowMessage;
+   windowMain->messageUser   = MainWindowMessageProc;
 
    for (const auto& ic : interfaceCommands) {
       if (!(int)ic.shortcut.code)
