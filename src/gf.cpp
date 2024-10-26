@@ -162,6 +162,7 @@ struct Context {
 
    void KillGdb() {
       fprintf(stderr, "killing gdb process %d.\n", gdbPID);
+      kill(gdbPID, SIGKILL);
       // pthread_cancel(gdbThread);
    }
 };
