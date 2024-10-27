@@ -28,11 +28,13 @@
 #include <queue>
 #include <ranges>
 #include <semaphore.h>
+#include <sys/wait.h>
 #include <spawn.h>
 #include <sys/stat.h>
 #include <thread>
 #include <unordered_map>
 #include <vector>
+#include <iostream>
 
 namespace views = std::views;
 namespace rng   = std::ranges;
@@ -137,7 +139,8 @@ struct Context {
    // ========== Debugger interaction ======================
    int                    pipeToGDB    = 0;
    pid_t                  gdbPID       = 0;
-   pthread_t              gdbThread    = 0;
+   std::atomic<bool>      killGdbThread= false;
+   std::thread            gdbThread;                // reads gdb output and pushes it to queue (we wait on queue in DebuggerSend
    bool                   evaluateMode = false;
    char**                 gdbArgv      = nullptr;
    int                    gdbArgc      = 0;
@@ -152,7 +155,7 @@ struct Context {
       write(pipeToGDB, &newline, 1);
    }
 
-   void InterruptGdb(size_t wait_time_us = 1000 * 1000) {
+   void InterruptGdb(size_t wait_time_us = 20 * 1000) {
       if (programRunning) {
          kill(gdbPID, SIGINT);
          std::this_thread::sleep_for(std::chrono::microseconds{wait_time_us});
@@ -160,11 +163,20 @@ struct Context {
       }
    }
 
+   void KillGdbThread() {
+      fprintf(stderr, "killing gdb thread.\n");
+      killGdbThread = true;
+      gdbThread.join();
+      killGdbThread = false;
+   }
+
    void KillGdb() {
+      KillGdbThread();
       fprintf(stderr, "killing gdb process %d.\n", gdbPID);
       kill(gdbPID, SIGKILL);
-      // pthread_cancel(gdbThread);
    }
+
+   void DebuggerThread();
 };
 
 Context ctx;
@@ -577,7 +589,7 @@ UIMessage ReceiveMessageRegister(std::function<void (str_unique_ptr)> callback) 
    return receiveMessageTypes.back().message;
 }
 
-void* DebuggerThread(void*) {
+void Context::DebuggerThread() {
    int outputPipe[2];
    int inputPipe[2];
 
@@ -586,17 +598,17 @@ void* DebuggerThread(void*) {
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__APPLE__)
    fprintf(stderr, "Using fork\n");
-   ctx.gdbPID = fork();
+   gdbPID = fork();
 
-   if (ctx.gdbPID == 0) {
+   if (gdbPID == 0) {
       setsid();
       dup2(inputPipe[0], 0);      // inputPipe[0]  == stdin
       dup2(outputPipe[1], 1);     // outputPipe[1] == stdout
       dup2(outputPipe[1], 2);     // outputPipe[1] == stderr
-      execvp(ctx.gdbPath, ctx.gdbArgv);   // execute gdb with arguments ctx.gdbArgv
+      execvp(gdbPath, gdbArgv);   // execute gdb with arguments gdbArgv
       fprintf(stderr, "Error: Couldn't execute gdb.\n");
       exit(EXIT_FAILURE);
-   } else if (ctx.gdbPID < 0) {
+   } else if (gdbPID < 0) {
       fprintf(stderr, "Error: Couldn't fork.\n");
       exit(EXIT_FAILURE);
    }
@@ -612,60 +624,80 @@ void* DebuggerThread(void*) {
    posix_spawnattr_init(&attrs);
    posix_spawnattr_setflags(&attrs, POSIX_SPAWN_SETSID);
 
-   posix_spawnp((pid_t*)&ctx.gdbPID, ctx.gdbPath, &actions, &attrs, ctx.gdbArgv, environ);
+   posix_spawnp(&gdbPID, gdbPath, &actions, &attrs, gdbArgv, environ);
 
    posix_spawn_file_actions_destroy(&actions);
    posix_spawnattr_destroy(&attrs);
 #endif
 
-   ctx.pipeToGDB = inputPipe[1];
+   pipeToGDB = inputPipe[1];
 
-   ctx.SendToGdb(ctx.initialGDBCommand);
+   SendToGdb(initialGDBCommand);
+
+   int pipeFromGdb = outputPipe[0];
+
+   fd_set readfds;
+   timeval timeout { 0, 10000 }; // Wait for 10 ms
 
    std::string catBuffer;
    while (true) {
-      char buffer[512 + 1];
-      int  count    = read(outputPipe[0], buffer, 512);
-      buffer[count] = 0;
-      if (count <= 0) { // eof
-         fprintf(stderr, "exiting DebuggerThread.\n");
+
+      // wait for some data to be available on pipeFromGdb, so we can
+      // check for killGdbThread being set
+      // ------------------------------------------------------------
+      FD_ZERO(&readfds);
+      FD_SET(pipeFromGdb, &readfds);
+      int result = select(pipeFromGdb + 1, &readfds, NULL, NULL, &timeout);
+
+      if (result == -1) {                             // "Error in select"
+         std::cout << "error: " << errno << '\n';
          break;
-      }
+      } else if (result == 0) {                       // timeout
+         if (killGdbThread)
+            break;
+      } else if (FD_ISSET(pipeFromGdb, &readfds)) {   // Data is available for reading
+         char buffer[512 + 1];
+         int  count = read(pipeFromGdb, buffer, 512);
+         if (killGdbThread)
+            break;
+         if (count <= 0) {
+            std::this_thread::sleep_for(std::chrono::microseconds{10000});
+            continue;
+         }
+         buffer[count] = 0;
 
-      if (ctx.logWindow && !ctx.evaluateMode)
-         UIWindowPostMessage(windowMain, msgReceivedLog, strdup(buffer));
+         if (logWindow && !evaluateMode)
+            UIWindowPostMessage(windowMain, msgReceivedLog, strdup(buffer));
 
-      if (catBuffer.size() + count + 1 > catBuffer.capacity())
-         catBuffer.reserve(catBuffer.capacity() * 2);
+         if (catBuffer.size() + count + 1 > catBuffer.capacity())
+            catBuffer.reserve(catBuffer.capacity() * 2);
 
-      catBuffer.insert(catBuffer.end(), buffer, buffer + count);
-      if (!strstr(catBuffer.c_str(), "(gdb) "))
-         continue;
+         catBuffer.insert(catBuffer.end(), buffer, buffer + count);
+         if (!strstr(catBuffer.c_str(), "(gdb) "))
+            continue;
 
-      //printf("================ got (%d) {%s}, er=%s\n", ctx.evaluateMode, catBuffer, ctx.evaluateResult ? ctx.evaluateResult : "");
+         // printf("================ got (%d) {%s}, er=%s\n", evaluateMode, catBuffer, evaluateResult ?
+         // evaluateResult : "");
 
-      // Notify the main thread we have data.
+         // Notify the main thread we have data.
+         // ------------------------------------
+         if (evaluateMode) {
+            evaluateResultQueue.push(std::move(catBuffer));
+            catBuffer.clear();
+            evaluateMode = false;
+         } else {
+            UIWindowPostMessage(windowMain, msgReceivedData, strdup(catBuffer.c_str()));
+         }
 
-      if (ctx.evaluateMode) {
-         ctx.evaluateResultQueue.push(std::move(catBuffer));
          catBuffer.clear();
-         ctx.evaluateMode   = false;
-      } else {
-         UIWindowPostMessage(windowMain, msgReceivedData, strdup(catBuffer.c_str()));
       }
-
-      catBuffer.clear();
    }
 
-   return nullptr;
+   return;
 }
 
 void DebuggerStartThread() {
-   pthread_t      debuggerThread;
-   pthread_attr_t attributes;
-   pthread_attr_init(&attributes);
-   pthread_create(&debuggerThread, &attributes, DebuggerThread, nullptr);
-   ctx.gdbThread = debuggerThread;
+   ctx.gdbThread = std::thread([]() { ctx.DebuggerThread(); });
 }
 
 void DebuggerSend(const char* string, bool echo, bool synchronous) {
@@ -997,8 +1029,7 @@ bool CommandParseInternal(const char* command, bool synchronous) {
       }
    } else if (0 == strcmp(command, "gf-restart-gdb")) {
       ctx.firstUpdate = true;
-      kill(ctx.gdbPID, SIGKILL);
-      pthread_cancel(ctx.gdbThread); // TODO Is there a nicer way to do this?
+      ctx.KillGdb();
       DebuggerStartThread();
    } else if (0 == strcmp(command, "gf-get-pwd")) {
       EvaluateCommand("info source");
