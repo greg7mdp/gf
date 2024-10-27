@@ -13,7 +13,7 @@
 #include <algorithm>
 #include <cassert>
 #include <condition_variable>
-#include <csignal>
+#include <signal>
 #include <cstdarg>
 #include <cstddef>
 #include <cstdint>
@@ -7545,16 +7545,10 @@ unique_ptr<UI> GfMain(int argc, char** argv) {
       return {};
    }
 
-   struct sigaction sigintHandler = {};
-   sigintHandler.sa_handler       = [](int) {
-      ctx.KillGdb();
-      exit(0);
-   };
-   struct sigaction sigpipeHandler = {};
-   sigpipeHandler.sa_handler       = [](int) { fprintf(stderr, "SIGPIPE Received - ignored.\n"); };
-
-   sigaction(SIGINT,  &sigintHandler, nullptr);
-   sigaction(SIGPIPE, &sigpipeHandler, nullptr);
+   // catch some signals
+   // ------------------
+   std::signal(SIGINT,  [](int) { ctx.KillGdb(); exit(0); });
+   std::signal(SIGPIPE, [](int) { fprintf(stderr, "SIGPIPE Received - ignored.\n"); });
 
    ctx.gdbArgv    = (char**)malloc(sizeof(char*) * (argc + 1));
    ctx.gdbArgv[0] = (char*)"gdb";
