@@ -71,6 +71,11 @@ public:
       return true;
    }
 
+   size_t size() const {
+      std::unique_lock<std::mutex> lock(mutex_);
+      return queue_.size();
+   }
+
    void signal_quit() {
       quit_ = true;
       cv_.notify_one();
@@ -708,7 +713,7 @@ void DebuggerSend(const char* string, bool echo, bool synchronous) {
       ctx.InterruptGdb(0);
    }
 
-   ctx.programRunning = true; // ??
+   ctx.programRunning = true;
 
    if (trafficLight)
       trafficLight->Repaint(nullptr);
@@ -726,7 +731,10 @@ void DebuggerSend(const char* string, bool echo, bool synchronous) {
       struct timespec timeout;
       clock_gettime(CLOCK_REALTIME, &timeout);
       timeout.tv_sec++;
-      ctx.evaluateResultQueue.pop(ctx.evaluateResultString);
+      if (!ctx.evaluateResultQueue.pop(ctx.evaluateResultString)) {
+         // quit signaled
+         return;
+      }
       if (ctx.evaluateResultString.empty())
          ctx.evaluateResultString = "\n(gdb) \n";
       ctx.evaluateResult = (char *)ctx.evaluateResultString.c_str();
