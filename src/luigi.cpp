@@ -958,6 +958,8 @@ void UIElement::Destroy() {
    }
 }
 
+// returns 0 if message not processed
+// ----------------------------------
 int UIElement::Message(UIMessage message, int di, void* dp) {
    if (message != UIMessage::DEALLOCATE && (flags & UIElement::DESTROY)) {
       return 0;
@@ -5332,6 +5334,8 @@ void UIWindowPack(UIWindow* window, int _width) {
    XResizeWindow(ui->display, window->xwindow, width, height);
 }
 
+// return true if we should exit, normally return false
+// ----------------------------------------------------
 bool _UIProcessEvent(XEvent* event) {
    if (event->type == ClientMessage && (Atom)event->xclient.data.l[0] == ui->windowClosedID) {
       UIWindow* window = _UIFindWindow(event->xclient.window);
@@ -5663,6 +5667,8 @@ bool _UIProcessEvent(XEvent* event) {
    return false;
 }
 
+// return true if events processed without problem, false otherwise
+// ----------------------------------------------------------------
 bool _UIMessageLoopSingle(int* result) {
    XEvent events[64];
 

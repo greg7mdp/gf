@@ -7550,6 +7550,8 @@ unique_ptr<UI> GfMain(int argc, char** argv) {
    std::signal(SIGINT,  [](int) { ctx.KillGdb(); exit(0); });
    std::signal(SIGPIPE, [](int) { fprintf(stderr, "SIGPIPE Received - ignored.\n"); });
 
+   // process command arguments and create updated version to pass to gdb
+   // -------------------------------------------------------------------
    ctx.gdbArgv    = (char**)malloc(sizeof(char*) * (argc + 1));
    ctx.gdbArgv[0] = (char*)"gdb";
    memcpy(ctx.gdbArgv + 1, argv + 1, sizeof(argv) * argc);
@@ -7561,6 +7563,8 @@ unique_ptr<UI> GfMain(int argc, char** argv) {
       ctx.gdbPath    = "rr";
    }
 
+   // load settings and initialize ui
+   // -------------------------------
    getcwd(localConfigDirectory, sizeof(localConfigDirectory));
    StringFormat(globalConfigPath, sizeof(globalConfigPath), "%s/.config/gf2_config.ini", getenv("HOME"));
    StringFormat(localConfigPath, sizeof(localConfigPath), "%s/.project.gf", localConfigDirectory);
@@ -7569,6 +7573,8 @@ unique_ptr<UI> GfMain(int argc, char** argv) {
    auto ui_ptr = UIInitialise(ui_config);
    ui->theme = uiThemeDark;
 
+   // create fonts for interface and code
+   // -----------------------------------
 #ifdef UI_FREETYPE
    if (!fontPath) {
       // Ask fontconfig for a monospaced font. If this fails, the fallback font will be used.
@@ -7592,9 +7598,9 @@ unique_ptr<UI> GfMain(int argc, char** argv) {
    fontCode = UIFontCreate(fontPath, fontSizeCode);
    UIFontActivate(UIFontCreate(fontPath, fontSizeInterface));
 
-   windowMain                = UIWindowCreate(0, maximize ? UIWindow::MAXIMIZE : 0, "gf", window_width, window_height);
-   windowMain->scale         = uiScale;
-   windowMain->messageUser   = MainWindowMessageProc;
+   windowMain              = UIWindowCreate(0, maximize ? UIWindow::MAXIMIZE : 0, "gf", window_width, window_height);
+   windowMain->scale       = uiScale;
+   windowMain->messageUser = MainWindowMessageProc;
 
    for (const auto& ic : interfaceCommands) {
       if (!(int)ic.shortcut.code)
