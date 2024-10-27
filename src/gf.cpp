@@ -13,7 +13,7 @@
 #include <algorithm>
 #include <cassert>
 #include <condition_variable>
-#include <signal>
+#include <csignal>
 #include <cstdarg>
 #include <cstddef>
 #include <cstdint>
