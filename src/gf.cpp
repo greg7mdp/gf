@@ -85,7 +85,7 @@ public:
 
 private:
    std::queue<T>           queue_;
-   std::mutex              mutex_;
+   mutable std::mutex      mutex_;
    std::condition_variable cv_;
    std::atomic<bool>       quit_;
 };
@@ -146,7 +146,7 @@ struct Context {
    pid_t                  gdbPID       = 0;
    std::atomic<bool>      killGdbThread= false;
    std::thread            gdbThread;                // reads gdb output and pushes it to queue (we wait on queue in DebuggerSend
-   bool                   evaluateMode = false;
+   bool                   evaluateMode = false;     // when true, means we sent a command to gdb and are waiting for the response
    char**                 gdbArgv      = nullptr;
    int                    gdbArgc      = 0;
    std::string            evaluateResultString;
@@ -613,6 +613,7 @@ void Context::DebuggerThread() {
       execvp(gdbPath, gdbArgv);   // execute gdb with arguments gdbArgv
       fprintf(stderr, "Error: Couldn't execute gdb.\n");
       exit(EXIT_FAILURE);
+
    } else if (gdbPID < 0) {
       fprintf(stderr, "Error: Couldn't fork.\n");
       exit(EXIT_FAILURE);
@@ -671,13 +672,18 @@ void Context::DebuggerThread() {
          }
          buffer[count] = 0;
 
+         // if `logWindow` is set, copy all received output from gdb there as soon
+         // as we receive it, even it it is not complete.
+         // ----------------------------------------------------------------------
          if (logWindow && !evaluateMode)
             UIWindowPostMessage(windowMain, msgReceivedLog, strdup(buffer));
 
          if (catBuffer.size() + count + 1 > catBuffer.capacity())
             catBuffer.reserve(catBuffer.capacity() * 2);
-
          catBuffer.insert(catBuffer.end(), buffer, buffer + count);
+
+         // wait till we get the prompt again so we know we received the complete output
+         // ----------------------------------------------------------------------------
          if (!strstr(catBuffer.c_str(), "(gdb) "))
             continue;
 
@@ -705,6 +711,7 @@ void DebuggerStartThread() {
    ctx.gdbThread = std::thread([]() { ctx.DebuggerThread(); });
 }
 
+// synchronous means we will wait for the debugger output
 void DebuggerSend(const char* string, bool echo, bool synchronous) {
    if (synchronous) {
       ctx.InterruptGdb();
@@ -728,9 +735,6 @@ void DebuggerSend(const char* string, bool echo, bool synchronous) {
    ctx.SendToGdb(string);
 
    if (synchronous) {
-      struct timespec timeout;
-      clock_gettime(CLOCK_REALTIME, &timeout);
-      timeout.tv_sec++;
       if (!ctx.evaluateResultQueue.pop(ctx.evaluateResultString)) {
          // quit signaled
          return;
