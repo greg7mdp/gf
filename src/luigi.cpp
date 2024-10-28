@@ -1245,8 +1245,9 @@ UIElement::UIElement(UIElement* parent, uint32_t flags, MsgFn message, const cha
       UIElementMeasurementsChanged(parent, 3);
    }
 
-   static uint32_t id = 0;
-   id                 = ++id;
+   static uint32_t s_id = 0;
+
+   id = ++s_id;
 
    _UIInspectorRefresh();
 
