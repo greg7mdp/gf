@@ -5684,28 +5684,29 @@ bool _UIMessageLoopSingle(int* result) {
       XNextEvent(ui->display, events + 0);
    }
 
-   int p = 1;
+   int cur_idx = 1;
+
+   auto merge_events = [&](int a, int last_seen_idx) {
+      if (events[cur_idx].type == a) {
+         if (last_seen_idx != -1)
+            events[last_seen_idx].type = 0;
+         last_seen_idx = cur_idx;
+      }
+   };
 
    int configureIndex = -1, motionIndex = -1, exposeIndex = -1;
 
-   while (p < 64 && XPending(ui->display)) {
-      XNextEvent(ui->display, events + p);
+   while (cur_idx < 64 && XPending(ui->display)) {
+      XNextEvent(ui->display, events + cur_idx);
 
-   #define _UI_MERGE_EVENTS(a, b) \
-      if (events[p].type == a) {  \
-         if (b != -1)             \
-            events[b].type = 0;   \
-         b = p;                   \
-      }
+      merge_events(ConfigureNotify, configureIndex);
+      merge_events(MotionNotify, motionIndex);
+      merge_events(Expose, exposeIndex);
 
-      _UI_MERGE_EVENTS(ConfigureNotify, configureIndex);
-      _UI_MERGE_EVENTS(MotionNotify, motionIndex);
-      _UI_MERGE_EVENTS(Expose, exposeIndex);
-
-      p++;
+      ++cur_idx;
    }
 
-   for (int i = 0; i < p; i++) {
+   for (int i = 0; i < cur_idx; i++) {
       if (!events[i].type) {
          continue;
       }
