@@ -38,9 +38,10 @@ if (UNIX)
 
     target_compile_options(${PROJECT_NAME} PRIVATE 
                            -Wall -Wextra -Wno-unused-parameter
-                           -Wno-missing-field-initializers  -Wno-deprecated-anon-enum-enum-conversion)
+                           -Wno-missing-field-initializers
+                           -Wno-deprecated-anon-enum-enum-conversion -Wno-deprecated-enum-enum-conversion)
 
-    set(clang_san_options -g -fsanitize=address)
+    #set(clang_san_options -g -fsanitize=address -fno-omit-frame-pointer)
     #set(clang_san_options -g -fsanitize=memory -fsanitize-memory-track-origins -fsanitize-recover=memory -fPIE -pie -fno-omit-frame-pointer -fsanitize-ignorelist=${CMAKE_SOURCE_DIR}/san_ignore_list.txt)
 
     target_compile_options(${PROJECT_NAME} PUBLIC ${clang_san_options} )
