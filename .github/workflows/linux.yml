@@ -15,7 +15,7 @@ jobs:
         build_type: [Release]
         ## compiler: [g++, clang++-18]
         ## build_type: [Debug, Release]
-        standard: [20]
+        standard: [23]
     steps:
     - name: Checkout
       uses: actions/checkout@v4
