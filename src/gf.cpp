@@ -768,8 +768,8 @@ std::optional<std::string> EvaluateCommand(const char* command, bool echo = fals
 std::optional<std::string> EvaluateExpression(const char* expression, const char* format = nullptr) {
    char buffer[1024];
    StringFormat(buffer, sizeof(buffer), "p%s %s", format ?: "", expression);
-   auto eval_res = EvaluateCommand(buffer);
-   const char* result = strchr(eval_res->c_str(), '=');
+   auto res = EvaluateCommand(buffer);
+   const char* result = strchr(res->c_str(), '=');
 
    if (result) {
       const char* end = strchr(result, '\n');
@@ -5600,7 +5600,7 @@ void ProfLoadProfileData(void* _window) {
    char buffer[PATH_MAX * 2];
    StringFormat(buffer, sizeof(buffer),
                 "dump binary memory %s (gfProfilingBuffer) (gfProfilingBuffer+gfProfilingBufferPosition)", path);
-   EvaluateCommand(buffer);
+   (void)EvaluateCommand(buffer);
    FILE* f = fopen(path, "rb");
 
    if (!f) {
@@ -5845,7 +5845,7 @@ void ProfLoadProfileData(void* _window) {
 }
 
 void ProfStepOverProfiled(ProfWindow* window) {
-   EvaluateCommand("call GfProfilingStart()");
+   (void)EvaluateCommand("call GfProfilingStart()");
    CommandSendToGDB("gf-next");
    window->inStepOverProfiled = true;
 }
@@ -5854,7 +5854,7 @@ void ProfWindowUpdate(const char* data, UIElement* element) {
    ProfWindow* window = (ProfWindow*)element->cp;
 
    if (window->inStepOverProfiled) {
-      EvaluateCommand("call GfProfilingStop()");
+      (void)EvaluateCommand("call GfProfilingStop()");
       ProfLoadProfileData(window);
       InterfaceWindowSwitchToAndFocus("Data");
       dataWindow->Refresh();
@@ -6425,7 +6425,7 @@ void ViewWindowView(void* cp) {
       char address[64];
 
       if ((*res)[0] != '(') {
-         WatchEvaluate("gf_addressof", watch);
+         res = WatchEvaluate("gf_addressof", watch);
          printf("addressof '%s'\n", res->c_str());
          resize_to_lf(*res, ' ');
          resize_to_lf(*res);
@@ -7120,7 +7120,7 @@ void MsgReceivedData(str_unique_ptr input) {
    ctx.programRunning = false;
 
    if (ctx.firstUpdate) {
-      EvaluateCommand(pythonCode);
+      (void)EvaluateCommand(pythonCode);
 
       char path[PATH_MAX];
       StringFormat(path, sizeof(path), "%s/.config/gf2_watch.txt", getenv("HOME"));
