@@ -769,15 +769,14 @@ std::optional<std::string> EvaluateExpression(const char* expression, const char
    char buffer[1024];
    StringFormat(buffer, sizeof(buffer), "p%s %s", format ?: "", expression);
    auto res = EvaluateCommand(buffer);
-   const char* result = strchr(res->c_str(), '=');
-
-   if (result) {
-      const char* end = strchr(result, '\n');
-      if (end)
-         return std::string{result, end};
+   if (res) {
+      auto eq = res->find_first_of('=');
+      if (eq != npos) {
+         res->erase(0, eq);   // remove characters up to '='
+         resize_to_lf(*res);  // terminate string at '\n'
+      }
    }
-
-   return {};
+   return res;
 }
 
 void* ControlPipeThread(void*) {
@@ -796,6 +795,8 @@ void DebuggerGetStack() {
    char buffer[16];
    StringFormat(buffer, sizeof(buffer), "bt %d", backtraceCountLimit);
    auto res = EvaluateCommand(buffer);
+   if (!res)
+      return;
    stack.clear();
 
    const char* position = res->c_str();
@@ -978,6 +979,8 @@ void TabCompleterRun(TabCompleter* completer, UITextbox* textbox, bool lastKeyWa
       if (buffer[i] == '\\')
          buffer[i] = ' ';
    auto res = EvaluateCommand(buffer);
+   if (!res)
+      return;
 
    const char* start = res->c_str();
    const char* end   = strchr(start, '\n');
@@ -1033,7 +1036,7 @@ std::optional<std::string> CommandParseInternal(const char* command, bool synchr
       if (line != -1) {
          char buffer[256];
          StringFormat(buffer, sizeof(buffer), "until %d", line);
-         (void)DebuggerSend(buffer, true, synchronous);
+         (void)DebuggerSend(buffer, true, synchronous); //
       }
    } else if (0 == strcmp(command, "gf-step-into-outer")) {
       char *start, *end;
@@ -1094,7 +1097,7 @@ std::optional<std::string> CommandParseInternal(const char* command, bool synchr
             if (synchronous)
                async = nullptr; // Trim the '&' character, but run synchronously anyway.
             res = CommandParseInternal(position, !async);
-            if (displayOutput && async && res)
+            if (displayOutput && !async && res)
                UICodeInsertContent(displayOutput, res->c_str(), -1, false);
             if (end)
                position = end + 1;
@@ -2113,9 +2116,9 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
             } else if (text[i] == ')' && depth) {
                depth--;
             } else if (text[i] == ')' && !depth) {
-               text[i]            = 0;
+               text[i]  = 0;
                auto res = EvaluateExpression(&text[expressionStart]);
-               text[i]            = ')';
+               text[i]  = ')';
 
                if (res) {
                   if (*res == "= true") {
