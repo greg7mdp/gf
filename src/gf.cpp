@@ -159,12 +159,13 @@ struct Context {
    pid_t                  gdbPID       = 0;
    std::atomic<bool>      killGdbThread= false;
    std::thread            gdbThread;                // reads gdb output and pushes it to queue (we wait on queue in DebuggerSend
-   bool                   evaluateMode = false;     // when true, means we sent a command to gdb and are waiting for the response
+   std::atomic<bool>      evaluateMode = false;     // when true, means we sent a command to gdb and are waiting for the response
    char**                 gdbArgv      = nullptr;
    int                    gdbArgc      = 0;
    SPSCQueue<std::string> evaluateResultQueue;
    bool                   programRunning = true;    // true
 
+   // make private
    void SendToGdb(std::string_view sv) const {
       char newline = '\n';
       write(pipeToGDB, sv.data(), sv.size());
@@ -1096,8 +1097,8 @@ std::optional<std::string> CommandParseInternal(const char* command, bool synchr
                async = nullptr;
             if (synchronous)
                async = nullptr; // Trim the '&' character, but run synchronously anyway.
-            res = CommandParseInternal(position, !async);
-            if (displayOutput && !async && res)
+            (void)CommandParseInternal(position, !async);
+            if (displayOutput && res)
                UICodeInsertContent(displayOutput, res->c_str(), -1, false);
             if (end)
                position = end + 1;
@@ -1124,8 +1125,8 @@ std::optional<std::string> CommandParseInternal(const char* command, bool synchr
    return res;
 }
 
-std::optional<std::string> CommandSendToGDB(const char* s) {
-   return CommandParseInternal(s, false);
+void CommandSendToGDB(const char* s) {
+   (void)CommandParseInternal(s, false);
 }
 
 #define BREAKPOINT_COMMAND(function, action)                        \
@@ -1212,7 +1213,7 @@ void CommandToggleBreakpoint() {
    CommandToggleBreakpoint(currentLine);
 }
 
-std::optional<std::string> CommandCustom(const char* command) {
+void CommandCustom(const char* command) {
 
    if (0 == memcmp(command, "shell ", 6)) {
       // TODO Move this into CommandParseInternal?
@@ -1249,9 +1250,8 @@ std::optional<std::string> CommandCustom(const char* command) {
          UICodeInsertContent(displayOutput, buffer, -1, false);
       if (displayOutput)
          displayOutput->Refresh();
-      return {};
    } else {
-      return CommandParseInternal(command, false);
+      (void)CommandParseInternal(command, false);
    }
 }
 
@@ -3477,7 +3477,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
                   watch->updateIndex = w->updateIndex;
                   auto res = WatchEvaluate("gf_valueof", watch);
                   resize_to_lf(*res);
-                  watch->value = *res; // ?? why `*std::move(res);` crashes??
+                  watch->value = *res; // ?? why `*std::move(res);` crashes?? - probably Watch objects not constructed!
                } else {
                   watch->value = "..";
                }
@@ -4601,7 +4601,7 @@ void ExecutableWindowStartOrRun(ExecutableWindow* window, bool pause) {
    }
 
    if (!pause) {
-      CommandParseInternal("run", false);
+      (void)CommandParseInternal("run", false);
    } else {
       DebuggerGetStack();
       DisplaySetPositionFromStack();
@@ -7181,7 +7181,7 @@ void MsgReceivedControl(str_unique_ptr input) {
    } else if (start[0] == 'l' && start[1] == ' ') {
       DisplaySetPosition(nullptr, atoi(start + 2), false);
    } else if (start[0] == 'c' && start[1] == ' ') {
-      CommandParseInternal(start + 2, false);
+      (void)CommandParseInternal(start + 2, false);
    }
 }
 
