@@ -936,7 +936,7 @@ void DebuggerGetBreakpoints() {
                // Prevent having identical breakpoints on the same line.
                char buffer[1024];
                StringFormat(buffer, 1024, "delete %d", breakpoint.number);
-               DebuggerSend(buffer, true, true);
+               (void)DebuggerSend(buffer, true, true);
                goto doNext;
             }
          }
@@ -1134,7 +1134,7 @@ void CommandSendToGDB(const char* s) {
       Breakpoint* breakpoint = &breakpoints[index];                 \
       char        buffer[1024];                                     \
       StringFormat(buffer, 1024, action " %d", breakpoint->number); \
-      DebuggerSend(buffer, true, false);                            \
+      (void)DebuggerSend(buffer, true, false);                      \
    }
 
 BREAKPOINT_COMMAND(CommandDeleteBreakpoint, "delete");
@@ -1199,14 +1199,14 @@ void CommandToggleBreakpoint(int line) {
       if (bp.line == line && 0 == strcmp(bp.fileFull, currentFileFull)) {
          char buffer[1024];
          StringFormat(buffer, 1024, "clear %s:%d", currentFile, line);
-         DebuggerSend(buffer, true, false);
+         (void)DebuggerSend(buffer, true, false);
          return;
       }
    }
 
    char buffer[1024];
    StringFormat(buffer, 1024, "b %s:%d", currentFile, line);
-   DebuggerSend(buffer, true, false);
+   (void)DebuggerSend(buffer, true, false);
 }
 
 void CommandToggleBreakpoint() {
@@ -1826,13 +1826,13 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
          if (element->window->ctrl) {
             char buffer[1024];
             StringFormat(buffer, 1024, "until %d", line);
-            DebuggerSend(buffer, true, false);
+            (void)DebuggerSend(buffer, true, false);
          } else if (element->window->alt || element->window->shift) {
             char buffer[1024];
             StringFormat(buffer, 1024, "tbreak %d", line);
             EvaluateCommand(buffer);
             StringFormat(buffer, 1024, "jump %d", line);
-            DebuggerSend(buffer, true, false);
+            (void)DebuggerSend(buffer, true, false);
          }
       }
    } else if (message == UIMessage::RIGHT_DOWN && !showingDisassembly) {
@@ -3273,7 +3273,7 @@ bool WatchLoggerUpdate(char* data) {
    logger->entries.push_back(entry);
    logger->table->itemCount++;
    logger->table->Refresh();
-   DebuggerSend("c", false, false);
+   (void)DebuggerSend("c", false, false);
    return true;
 }
 
@@ -3559,7 +3559,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
                   return;
                char buffer[256];
                StringFormat(buffer, sizeof(buffer), "watch * %s", res->c_str());
-               DebuggerSend(buffer, true, false);
+               (void)DebuggerSend(buffer, true, false);
             });
 
             if (firstWatchWindow) {
@@ -3868,7 +3868,7 @@ void StackSetFrame(UIElement* element, int index) {
    if (index >= 0 && index < ((UITable*)element)->itemCount && stackSelected != (size_t)index) {
       char buffer[64];
       StringFormat(buffer, 64, "frame %d", index);
-      DebuggerSend(buffer, false, false);
+      (void)DebuggerSend(buffer, false, false);
       stackSelected = index;
       stackChanged  = true;
       element->Repaint(nullptr);
@@ -3934,7 +3934,7 @@ struct BreakpointTableData {
             if (breakpoint.number == selected) {                            \
                char buffer[1024];                                           \
                StringFormat(buffer, 1024, action " %d", selected);          \
-               DebuggerSend(buffer, true, false);                           \
+               (void)DebuggerSend(buffer, true, false);                     \
                break;                                                       \
             }                                                               \
          }                                                                  \
@@ -4518,7 +4518,7 @@ int ThreadTableMessage(UIElement* element, UIMessage message, int di, void* dp) 
       if (index != -1) {
          char buffer[1024];
          StringFormat(buffer, 1024, "thread %d", window->threads[index].id);
-         DebuggerSend(buffer, true, false);
+         (void)DebuggerSend(buffer, true, false);
       }
    }
 
