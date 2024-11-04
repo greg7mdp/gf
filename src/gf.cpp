@@ -3477,7 +3477,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
                   watch->updateIndex = w->updateIndex;
                   auto res = WatchEvaluate("gf_valueof", watch);
                   resize_to_lf(*res);
-                  watch->value = std::move(*res);
+                  watch->value = *res; // ?? why `*std::move(res);` crashes??
                } else {
                   watch->value = "..";
                }
