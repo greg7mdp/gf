@@ -38,6 +38,7 @@
 
 namespace views = std::views;
 namespace rng   = std::ranges;
+static const auto npos = std::string::npos;
 
 using namespace std;
 
@@ -57,12 +58,12 @@ public:
       cv_.notify_one();
    }
 
-   bool pop(T& value) {
+   bool pop(std::optional<T>& value) {
       std::unique_lock<std::mutex> lock(mutex_);
       cv_.wait(lock, [this] { return !queue_.empty() || quit_; });
 
       if (quit_) {
-         value = {};
+         value = std::optional<T>{};
          return false;
       }
 
@@ -89,6 +90,18 @@ private:
    std::condition_variable cv_;
    std::atomic<bool>       quit_;
 };
+
+// ---------------------------------------------------------------------------------------------
+//                              Utilities
+// ---------------------------------------------------------------------------------------------
+static inline bool resize_to_lf(std::string& s, char c = '\n') {
+   auto end = s.find_first_of(c);
+   if (end != npos) {
+      s.resize(end);
+      return true;
+   }
+   return false;
+}
 
 // ---------------------------------------------------------------------------------------------
 //                              Data structures
@@ -146,14 +159,13 @@ struct Context {
    pid_t                  gdbPID       = 0;
    std::atomic<bool>      killGdbThread= false;
    std::thread            gdbThread;                // reads gdb output and pushes it to queue (we wait on queue in DebuggerSend
-   bool                   evaluateMode = false;     // when true, means we sent a command to gdb and are waiting for the response
+   std::atomic<bool>      evaluateMode = false;     // when true, means we sent a command to gdb and are waiting for the response
    char**                 gdbArgv      = nullptr;
    int                    gdbArgc      = 0;
-   std::string            evaluateResultString;
-   char*                  evaluateResult = nullptr; // = `evaluateResultString.c_str()`
    SPSCQueue<std::string> evaluateResultQueue;
    bool                   programRunning = true;    // true
 
+   // make private
    void SendToGdb(std::string_view sv) const {
       char newline = '\n';
       write(pipeToGDB, sv.data(), sv.size());
@@ -712,7 +724,8 @@ void DebuggerStartThread() {
 }
 
 // synchronous means we will wait for the debugger output
-void DebuggerSend(const char* string, bool echo, bool synchronous) {
+std::optional<std::string> DebuggerSend(const char* string, bool echo, bool synchronous) {
+   std::optional<std::string> res;
    if (synchronous) {
       ctx.InterruptGdb();
       ctx.evaluateMode = true;
@@ -735,39 +748,36 @@ void DebuggerSend(const char* string, bool echo, bool synchronous) {
    ctx.SendToGdb(string);
 
    if (synchronous) {
-      if (!ctx.evaluateResultQueue.pop(ctx.evaluateResultString)) {
+      if (!ctx.evaluateResultQueue.pop(res)) {
          // quit signaled
-         return;
+         return res;
       }
-      if (ctx.evaluateResultString.empty())
-         ctx.evaluateResultString = "\n(gdb) \n";
-      ctx.evaluateResult = (char *)ctx.evaluateResultString.c_str();
+      assert(res);
+      if (res->empty())
+         *res = "\n(gdb) \n";
       ctx.programRunning = false;
       if (trafficLight)
          trafficLight->Repaint(nullptr);
    }
+   return res;
 }
 
-void EvaluateCommand(const char* command, bool echo = false) {
-   DebuggerSend(command, echo, true);
+std::optional<std::string> EvaluateCommand(const char* command, bool echo = false) {
+   return DebuggerSend(command, echo, true);
 }
 
-const char* EvaluateExpression(const char* expression, const char* format = nullptr) {
+std::optional<std::string> EvaluateExpression(const char* expression, const char* format = nullptr) {
    char buffer[1024];
    StringFormat(buffer, sizeof(buffer), "p%s %s", format ?: "", expression);
-   EvaluateCommand(buffer);
-   char* result = strchr(ctx.evaluateResult, '=');
-
-   if (result) {
-      char* end = strchr(result, '\n');
-
-      if (end) {
-         *end = 0;
-         return result;
+   auto res = EvaluateCommand(buffer);
+   if (res) {
+      auto eq = res->find_first_of('=');
+      if (eq != npos) {
+         res->erase(0, eq);   // remove characters up to '='
+         resize_to_lf(*res);  // terminate string at '\n'
       }
    }
-
-   return nullptr;
+   return res;
 }
 
 void* ControlPipeThread(void*) {
@@ -785,10 +795,12 @@ void* ControlPipeThread(void*) {
 void DebuggerGetStack() {
    char buffer[16];
    StringFormat(buffer, sizeof(buffer), "bt %d", backtraceCountLimit);
-   EvaluateCommand(buffer);
+   auto res = EvaluateCommand(buffer);
+   if (!res)
+      return;
    stack.clear();
 
-   const char* position = ctx.evaluateResult;
+   const char* position = res->c_str();
 
    while (*position == '#') {
       const char* next = position;
@@ -842,10 +854,10 @@ void DebuggerGetStack() {
 }
 
 void DebuggerGetBreakpoints() {
-   EvaluateCommand("info break");
+   auto eval_res = EvaluateCommand("info break");
    breakpoints.clear();
 
-   const char* position = ctx.evaluateResult;
+   const char* position = eval_res->c_str();
 
    while (true) {
       while (true) {
@@ -924,7 +936,7 @@ void DebuggerGetBreakpoints() {
                // Prevent having identical breakpoints on the same line.
                char buffer[1024];
                StringFormat(buffer, 1024, "delete %d", breakpoint.number);
-               DebuggerSend(buffer, true, true);
+               (void)DebuggerSend(buffer, true, true);
                goto doNext;
             }
          }
@@ -967,10 +979,12 @@ void TabCompleterRun(TabCompleter* completer, UITextbox* textbox, bool lastKeyWa
    for (int i = 0; buffer[i]; i++)
       if (buffer[i] == '\\')
          buffer[i] = ' ';
-   EvaluateCommand(buffer);
+   auto res = EvaluateCommand(buffer);
+   if (!res)
+      return;
 
-   const char* start = ctx.evaluateResult;
-   const char* end   = strchr(ctx.evaluateResult, '\n');
+   const char* start = res->c_str();
+   const char* end   = strchr(start, '\n');
 
    if (!lastKeyWasTab) {
       completer->consecutiveTabCount = 0;
@@ -989,8 +1003,8 @@ void TabCompleterRun(TabCompleter* completer, UITextbox* textbox, bool lastKeyWa
 
    if (!end) {
       completer->consecutiveTabCount = 0;
-      start                          = ctx.evaluateResult;
-      end                            = strchr(ctx.evaluateResult, '\n');
+      start                          = res->c_str();
+      end                            = strchr(start, '\n');
    }
 
    completer->_lastKeyWasTab = true;
@@ -1009,23 +1023,21 @@ void TabCompleterRun(TabCompleter* completer, UITextbox* textbox, bool lastKeyWa
 // Commands:
 // ------------------------------------------------------
 
-bool CommandParseInternal(const char* command, bool synchronous) {
+std::optional<std::string> CommandParseInternal(const char* command, bool synchronous) {
+   std::optional<std::string> res;
    if (0 == strcmp(command, "gf-step")) {
       if (!ctx.programRunning)
-         DebuggerSend(showingDisassembly ? "stepi" : "s", true, synchronous);
-      return true;
+         res = DebuggerSend(showingDisassembly ? "stepi" : "s", true, synchronous);
    } else if (0 == strcmp(command, "gf-next")) {
       if (!ctx.programRunning)
-         DebuggerSend(showingDisassembly ? "nexti" : "n", true, synchronous);
-      return true;
+         res = DebuggerSend(showingDisassembly ? "nexti" : "n", true, synchronous);
    } else if (0 == strcmp(command, "gf-step-out-of-block")) {
       int line = SourceFindEndOfBlock();
 
       if (line != -1) {
          char buffer[256];
          StringFormat(buffer, sizeof(buffer), "until %d", line);
-         DebuggerSend(buffer, true, synchronous);
-         return false;
+         (void)DebuggerSend(buffer, true, synchronous); //
       }
    } else if (0 == strcmp(command, "gf-step-into-outer")) {
       char *start, *end;
@@ -1034,8 +1046,7 @@ bool CommandParseInternal(const char* command, bool synchronous) {
       if (found) {
          char buffer[256];
          StringFormat(buffer, sizeof(buffer), "advance %.*s", (int)(end - start), start);
-         DebuggerSend(buffer, true, synchronous);
-         return true;
+         res = DebuggerSend(buffer, true, synchronous);
       } else {
          return CommandParseInternal("gf-step", synchronous);
       }
@@ -1044,25 +1055,25 @@ bool CommandParseInternal(const char* command, bool synchronous) {
       ctx.KillGdb();
       DebuggerStartThread();
    } else if (0 == strcmp(command, "gf-get-pwd")) {
-      EvaluateCommand("info source");
+      auto res = EvaluateCommand("info source");
       const char* needle = "Compilation directory is ";
-      char*       pwd    = strstr(ctx.evaluateResult, needle);
+      const char* pwd    = strstr(res->c_str(), needle);
 
       if (pwd) {
          pwd += strlen(needle);
-         char* end = strchr(pwd, '\n');
+         char* end = (char *)strchr(pwd, '\n');
          if (end)
             *end = 0;
 
          if (!chdir(pwd)) {
-            if (!displayOutput)
-               return false;
-            char buffer[4096];
-            StringFormat(buffer, sizeof(buffer), "New working directory: %s", pwd);
-            UICodeInsertContent(displayOutput, buffer, -1, false);
-            displayOutput->Refresh();
-            return false;
+            if (displayOutput) {
+               char buffer[4096];
+               StringFormat(buffer, sizeof(buffer), "New working directory: %s", pwd);
+               UICodeInsertContent(displayOutput, buffer, -1, false);
+               displayOutput->Refresh();
+            }
          }
+         return {};
       }
 
       UIDialogShow(windowMain, 0, "Couldn't get the working directory.\n%f%B", "OK");
@@ -1086,9 +1097,9 @@ bool CommandParseInternal(const char* command, bool synchronous) {
                async = nullptr;
             if (synchronous)
                async = nullptr; // Trim the '&' character, but run synchronously anyway.
-            bool hasOutput = CommandParseInternal(position, !async) && !async;
-            if (displayOutput && hasOutput)
-               UICodeInsertContent(displayOutput, ctx.evaluateResult, -1, false);
+            res = CommandParseInternal(position, !async);
+            if (displayOutput && res)
+               UICodeInsertContent(displayOutput, res->c_str(), -1, false);
             if (end)
                position = end + 1;
             else
@@ -1108,15 +1119,14 @@ bool CommandParseInternal(const char* command, bool synchronous) {
    } else if (0 == strcmp(command, "kill") && confirmCommandKill &&
               0 == strcmp("Cancel", UIDialogShow(windowMain, 0, "Kill debugging target?\n%f%B%C", "Kill", "Cancel"))) {
    } else {
-      DebuggerSend(command, true, synchronous);
-      return true;
+      res = DebuggerSend(command, true, synchronous);
    }
 
-   return false;
+   return res;
 }
 
 void CommandSendToGDB(const char* s) {
-   CommandParseInternal(s, false);
+   (void)CommandParseInternal(s, false);
 }
 
 #define BREAKPOINT_COMMAND(function, action)                        \
@@ -1124,7 +1134,7 @@ void CommandSendToGDB(const char* s) {
       Breakpoint* breakpoint = &breakpoints[index];                 \
       char        buffer[1024];                                     \
       StringFormat(buffer, 1024, action " %d", breakpoint->number); \
-      DebuggerSend(buffer, true, false);                            \
+      (void)DebuggerSend(buffer, true, false);                      \
    }
 
 BREAKPOINT_COMMAND(CommandDeleteBreakpoint, "delete");
@@ -1189,14 +1199,14 @@ void CommandToggleBreakpoint(int line) {
       if (bp.line == line && 0 == strcmp(bp.fileFull, currentFileFull)) {
          char buffer[1024];
          StringFormat(buffer, 1024, "clear %s:%d", currentFile, line);
-         DebuggerSend(buffer, true, false);
+         (void)DebuggerSend(buffer, true, false);
          return;
       }
    }
 
    char buffer[1024];
    StringFormat(buffer, 1024, "b %s:%d", currentFile, line);
-   DebuggerSend(buffer, true, false);
+   (void)DebuggerSend(buffer, true, false);
 }
 
 void CommandToggleBreakpoint() {
@@ -1241,7 +1251,7 @@ void CommandCustom(const char* command) {
       if (displayOutput)
          displayOutput->Refresh();
    } else {
-      CommandParseInternal(command, false);
+      (void)CommandParseInternal(command, false);
    }
 }
 
@@ -1537,8 +1547,8 @@ bool DisplaySetPosition(const char* file, int line, bool useGDBToGetFullPath) {
       StringFormat(buffer, sizeof(buffer), "%s/%s", getenv("HOME"), 1 + file);
       file = buffer;
    } else if (file && file[0] != '/' && useGDBToGetFullPath) {
-      EvaluateCommand("info source");
-      const char* f = strstr(ctx.evaluateResult, "Located in ");
+      auto res = EvaluateCommand("info source");
+      const char* f = strstr(res->c_str(), "Located in ");
 
       if (f) {
          f += 11;
@@ -1617,36 +1627,36 @@ void DisplaySetPositionFromStack() {
 }
 
 void DisassemblyLoad() {
-   EvaluateCommand(disassemblyCommand);
+   auto res = EvaluateCommand(disassemblyCommand);
 
-   if (!strstr(ctx.evaluateResult, "Dump of assembler code for function")) {
+   if (!strstr(res->c_str(), "Dump of assembler code for function")) {
       char buffer[32];
       StringFormat(buffer, sizeof(buffer), "disas $pc,+1000");
-      EvaluateCommand(buffer);
+      res = EvaluateCommand(buffer);
    }
 
-   char* end = strstr(ctx.evaluateResult, "End of assembler dump.");
+   const char* end = strstr(res->c_str(), "End of assembler dump.");
 
    if (!end) {
-      printf("Disassembly failed. GDB output:\n%s\n", ctx.evaluateResult);
+      printf("Disassembly failed. GDB output:\n%s\n", res->c_str());
       return;
    }
 
-   char* start = strstr(ctx.evaluateResult, ":\n");
+   const char* start = strstr(res->c_str(), ":\n");
 
    if (!start) {
-      printf("Disassembly failed. GDB output:\n%s\n", ctx.evaluateResult);
+      printf("Disassembly failed. GDB output:\n%s\n", res->c_str());
       return;
    }
 
    start += 2;
 
    if (start >= end) {
-      printf("Disassembly failed. GDB output:\n%s\n", ctx.evaluateResult);
+      printf("Disassembly failed. GDB output:\n%s\n", res->c_str());
       return;
    }
 
-   char* pointer = strstr(start, "=> ");
+   char* pointer = (char *)strstr(start, "=> ");
 
    if (pointer) {
       pointer[0] = ' ';
@@ -1657,8 +1667,8 @@ void DisassemblyLoad() {
 }
 
 void DisassemblyUpdateLine() {
-   EvaluateCommand("p $pc");
-   char* address = strstr(ctx.evaluateResult, "0x");
+   auto res = EvaluateCommand("p $pc");
+   const char* address = strstr(res->c_str(), "0x");
 
    if (address) {
       char*    addressEnd;
@@ -1816,13 +1826,13 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
          if (element->window->ctrl) {
             char buffer[1024];
             StringFormat(buffer, 1024, "until %d", line);
-            DebuggerSend(buffer, true, false);
+            (void)DebuggerSend(buffer, true, false);
          } else if (element->window->alt || element->window->shift) {
             char buffer[1024];
             StringFormat(buffer, 1024, "tbreak %d", line);
             EvaluateCommand(buffer);
             StringFormat(buffer, 1024, "jump %d", line);
-            DebuggerSend(buffer, true, false);
+            (void)DebuggerSend(buffer, true, false);
          }
       }
    } else if (message == UIMessage::RIGHT_DOWN && !showingDisassembly) {
@@ -1972,8 +1982,8 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
       if (autoPrintExpression[0]) {
          char buffer[1024];
          StringFormat(buffer, sizeof(buffer), "p %s", autoPrintExpression);
-         EvaluateCommand(buffer);
-         const char* result = strchr(ctx.evaluateResult, '=');
+         auto res = EvaluateCommand(buffer);
+         const char* result = strchr(res->c_str(), '=');
 
          if (result) {
             autoPrintResultLine = autoPrintExpressionLine;
@@ -2106,21 +2116,21 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
             } else if (text[i] == ')' && depth) {
                depth--;
             } else if (text[i] == ')' && !depth) {
-               text[i]            = 0;
-               const char* result = EvaluateExpression(&text[expressionStart]);
-               text[i]            = ')';
+               text[i]  = 0;
+               auto res = EvaluateExpression(&text[expressionStart]);
+               text[i]  = ')';
 
-               if (!result) {
-               } else if (0 == strcmp(result, "= true")) {
-                  ifConditionEvaluation = 2;
-                  ifConditionFrom = expressionStart, ifConditionTo = i;
-                  ifConditionLine = currentLine;
-               } else if (0 == strcmp(result, "= false")) {
-                  ifConditionEvaluation = 1;
-                  ifConditionFrom = expressionStart, ifConditionTo = i;
-                  ifConditionLine = currentLine;
+               if (res) {
+                  if (*res == "= true") {
+                     ifConditionEvaluation = 2;
+                     ifConditionFrom = expressionStart, ifConditionTo = i;
+                     ifConditionLine = currentLine;
+                  } else if (*res == "= false") {
+                     ifConditionEvaluation = 1;
+                     ifConditionFrom = expressionStart, ifConditionTo = i;
+                     ifConditionLine = currentLine;
+                  }
                }
-
                break;
             }
          }
@@ -2184,13 +2194,13 @@ void InspectCurrentLine() {
          if (match)
             continue;
 
-         const char* result = EvaluateExpression(buffer);
-         if (!result)
+         auto res = EvaluateExpression(buffer);
+         if (!res)
             continue;
-         if (0 == memcmp(result, "= {", 3) && !strchr(result + 3, '='))
+         if (0 == memcmp(res->c_str(), "= {", 3) && !strchr(res->c_str() + 3, '='))
             continue;
          inspectResults.push_back(strdup(buffer));
-         inspectResults.push_back(strdup(result));
+         inspectResults.push_back(strdup(res->c_str()));
       }
    }
 
@@ -2348,35 +2358,34 @@ int BitmapViewerRefreshMessage(UIElement* element, UIMessage message, int di, vo
 
 const char* BitmapViewerGetBits(const char* pointerString, const char* widthString, const char* heightString,
                                 const char* strideString, uint32_t** _bits, int* _width, int* _height, int* _stride) {
-   const char* widthResult = EvaluateExpression(widthString);
+   auto widthResult = EvaluateExpression(widthString);
    if (!widthResult) {
       return "Could not evaluate width.";
    }
-   int         width        = atoi(widthResult + 1);
-   const char* heightResult = EvaluateExpression(heightString);
+   int  width        = atoi(widthResult->c_str() + 1);
+   auto heightResult = EvaluateExpression(heightString);
    if (!heightResult) {
       return "Could not evaluate height.";
    }
-   int         height        = atoi(heightResult + 1);
+   int         height        = atoi(heightResult->c_str() + 1);
    int         stride        = width * 4;
-   const char* pointerResult = EvaluateExpression(pointerString, "/x");
+   auto        pointerResult = EvaluateExpression(pointerString, "/x");
    if (!pointerResult) {
       return "Could not evaluate pointer.";
    }
    char _pointerResult[1024];
-   StringFormat(_pointerResult, sizeof(_pointerResult), "%s", pointerResult);
+   StringFormat(_pointerResult, sizeof(_pointerResult), "%s", pointerResult->c_str());
    pointerResult = strstr(_pointerResult, " 0x");
    if (!pointerResult) {
       return "Pointer to image bits does not look like an address!";
    }
-   pointerResult++;
 
    if (strideString && *strideString) {
-      const char* strideResult = EvaluateExpression(strideString);
+      auto strideResult = EvaluateExpression(strideString);
       if (!strideResult) {
          return "Could not evaluate stride.";
       }
-      stride = atoi(strideResult + 1);
+      stride = atoi(strideResult->c_str() + 1);
    }
 
    uint32_t* bits = (uint32_t*)malloc(stride * height * 4); // TODO Is this multiply by 4 necessary?! And the one below.
@@ -2385,9 +2394,9 @@ const char* BitmapViewerGetBits(const char* pointerString, const char* widthStri
    realpath(".bitmap.gf", bitmapPath);
 
    char buffer[PATH_MAX * 2];
-   StringFormat(buffer, sizeof(buffer), "dump binary memory %s (%s) (%s+%d)", bitmapPath, pointerResult, pointerResult,
-                stride * height);
-   EvaluateCommand(buffer);
+   StringFormat(buffer, sizeof(buffer), "dump binary memory %s (%s) (%s+%d)", bitmapPath, pointerResult->c_str() + 1,
+                pointerResult->c_str() + 1, stride * height);
+   auto res = EvaluateCommand(buffer);
 
    FILE* f = fopen(bitmapPath, "rb");
 
@@ -2397,7 +2406,7 @@ const char* BitmapViewerGetBits(const char* pointerString, const char* widthStri
       unlink(bitmapPath);
    }
 
-   if (!f || strstr(ctx.evaluateResult, "access")) {
+   if (!f || !res || strstr(res->c_str(), "access")) {
       return "Could not read the image bits!";
    }
 
@@ -2636,7 +2645,9 @@ struct Watch {
    uint8_t        depth;
    char           format;
    uintptr_t      arrayIndex;
-   char *         key, *value, *type;
+   char*          key;
+   std::string    value;
+   std::string    type;
    vector<Watch*> fields;
    Watch*         parent;
    uint64_t       updateIndex;
@@ -2740,8 +2751,6 @@ void WatchFree(WatchWindow* w, Watch* watch, bool fieldsOnly = false) {
 
    if (!fieldsOnly) {
       free(watch->key);
-      free(watch->value);
-      free(watch->type);
    }
 }
 
@@ -2772,7 +2781,7 @@ void WatchDeleteExpression(WatchWindow* w, bool fieldsOnly = false) {
       free(watch);
 }
 
-void WatchEvaluate(const char* function, Watch* watch) {
+std::optional<std::string> WatchEvaluate(const char* function, Watch* watch) {
    char      buffer[4096];
    uintptr_t position = 0;
 
@@ -2818,24 +2827,18 @@ void WatchEvaluate(const char* function, Watch* watch) {
 
    position += StringFormat(buffer + position, sizeof(buffer) - position, ")");
 
-   EvaluateCommand(buffer);
+   return EvaluateCommand(buffer);
 }
 
 bool WatchHasFields(Watch* watch) {
-   WatchEvaluate("gf_fields", watch);
+   auto res = WatchEvaluate("gf_fields", watch);
+   if (!res)
+      return false;
 
-   if (strstr(ctx.evaluateResult, "(array)") || strstr(ctx.evaluateResult, "(d_arr)")) {
-      return true;
-   } else {
-      char* position = ctx.evaluateResult;
-      char* end      = strchr(position, '\n');
-      if (!end)
-         return false;
-      *end = 0;
-      if (strstr(position, "(gdb)"))
-         return false;
+   if (res->contains("(array)") || res->contains("(d_arr)")) {
       return true;
    }
+   return res->contains('\n') && !res->starts_with("(gdb)\n");
 }
 
 void WatchAddFields(WatchWindow* w, Watch* watch) {
@@ -2845,10 +2848,12 @@ void WatchAddFields(WatchWindow* w, Watch* watch) {
 
    watch->loadedFields = true;
 
-   WatchEvaluate("gf_fields", watch);
+   auto res = WatchEvaluate("gf_fields", watch);
+   if (!res)
+      return;
 
-   if (strstr(ctx.evaluateResult, "(array)") || strstr(ctx.evaluateResult, "(d_arr)")) {
-      int count = atoi(ctx.evaluateResult + 7);
+   if (res->contains("(array)") || res->contains("(d_arr)")) {
+      int count = atoi(res->c_str() + 7);
 
 #define WATCH_ARRAY_MAX_FIELDS (10000000)
       if (count > WATCH_ARRAY_MAX_FIELDS)
@@ -2860,7 +2865,7 @@ void WatchAddFields(WatchWindow* w, Watch* watch) {
       watch->isArray    = true;
       bool hasSubFields = false;
 
-      if (strstr(ctx.evaluateResult, "(d_arr)")) {
+      if (res->contains("(d_arr)")) {
          watch->isDynamicArray = true;
          w->dynamicArrays.push_back(watch);
       }
@@ -2876,7 +2881,7 @@ void WatchAddFields(WatchWindow* w, Watch* watch) {
          fields[i].depth     = watch->depth + 1;
       }
    } else {
-      char* start    = strdup(ctx.evaluateResult);
+      char* start    = strdup(res->c_str());
       char* position = start;
 
       while (true) {
@@ -2955,13 +2960,11 @@ void WatchAddExpression(WatchWindow* w, char* string = nullptr) {
    w->baseExpressions.push_back(watch);
    w->selectedRow++;
 
-   WatchEvaluate("gf_typeof", watch);
+   auto res = WatchEvaluate("gf_typeof", watch);
 
-   if (!strstr(ctx.evaluateResult, "??")) {
-      watch->type = strdup(ctx.evaluateResult);
-      char* end   = strchr(watch->type, '\n');
-      if (end)
-         *end = 0;
+   if (res && !res->contains("??")) {
+      resize_to_lf(*res);
+      watch->type = *res; // todo: std::move(*res);
       watch->hasFields = WatchHasFields(watch);
    }
 }
@@ -3082,28 +3085,23 @@ int WatchLoggerTraceMessage(UIElement* element, UIMessage message, int di, void*
    return 0;
 }
 
-bool WatchGetAddress(Watch* watch) {
-   WatchEvaluate("gf_addressof", watch);
+std::optional<std::string> WatchGetAddress(Watch* watch) {
+   auto res = WatchEvaluate("gf_addressof", watch);
 
-   if (strstr(ctx.evaluateResult, "??")) {
+   if (!res || strstr(res->c_str(), "??")) {
       UIDialogShow(windowMain, 0, "Couldn't get the address of the variable.\n%f%B", "OK");
-      return false;
+      return {};
    }
 
-   char* end = strstr(ctx.evaluateResult, " ");
-
-   if (!end) {
+   auto end = res->find_first_of(' ');
+   if (end == npos) {
       UIDialogShow(windowMain, 0, "Couldn't get the address of the variable.\n%f%B", "OK");
-      return false;
+      return {};
    }
+   res->resize(end);
 
-   *end = 0;
-
-   char* end2 = strchr(ctx.evaluateResult, '\n');
-   if (end2)
-      *end2 = 0;
-
-   return true;
+   resize_to_lf(*res);
+   return res;
 }
 
 void WatchLoggerResizeColumns(WatchLogger* logger) {
@@ -3121,7 +3119,8 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
       return;
    }
 
-   if (!WatchGetAddress(w->rows[w->selectedRow])) {
+   auto res = WatchGetAddress(w->rows[w->selectedRow]);
+   if (!res) {
       return;
    }
 
@@ -3137,11 +3136,11 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
    }
 
    char buffer[256];
-   StringFormat(buffer, sizeof(buffer), "Log %s", ctx.evaluateResult);
+   StringFormat(buffer, sizeof(buffer), "Log %s", res->c_str());
    UIMDIChild* child = UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, UIRectangle(0), buffer, -1);
-   StringFormat(buffer, sizeof(buffer), "watch * %s", ctx.evaluateResult);
-   EvaluateCommand(buffer);
-   char* number = strstr(ctx.evaluateResult, "point ");
+   StringFormat(buffer, sizeof(buffer), "watch * %s", res->c_str());
+   res = EvaluateCommand(buffer);
+   const char* number = strstr(res->c_str(), "point ");
 
    if (!number) {
       UIDialogShow(windowMain, 0, "Couldn't set the watchpoint.\n%f%B", "OK");
@@ -3243,13 +3242,13 @@ bool WatchLoggerUpdate(char* data) {
             WatchLogEvaluated evaluated;
             char              buffer[256];
             StringFormat(buffer, sizeof(buffer), "%.*s", i - start, expressionsToEvaluate + start);
-            EvaluateExpression(buffer);
+            auto res = EvaluateExpression(buffer);
             start         = i + 1;
-            size_t length = strlen(ctx.evaluateResult);
+            size_t length = strlen(res->c_str());
             if (length >= sizeof(evaluated.result))
                length = sizeof(evaluated.result) - 1;
-            char* start = strstr(ctx.evaluateResult, " = ");
-            memcpy(evaluated.result, start ? start + 3 : ctx.evaluateResult, length);
+            const char* start = strstr(res->c_str(), " = ");
+            memcpy(evaluated.result, start ? start + 3 : res->c_str(), length);
             evaluated.result[length] = 0;
             entry.evaluated.push_back(evaluated);
          }
@@ -3274,7 +3273,7 @@ bool WatchLoggerUpdate(char* data) {
    logger->entries.push_back(entry);
    logger->table->itemCount++;
    logger->table->Refresh();
-   DebuggerSend("c", false, false);
+   (void)DebuggerSend("c", false, false);
    return true;
 }
 
@@ -3304,7 +3303,8 @@ void CommandWatchAddEntryForAddress(WatchWindow* _w) {
    if (w->mode == WATCH_NORMAL && w->selectedRow == w->rows.size())
       return;
    Watch* watch = w->rows[w->selectedRow];
-   if (!WatchGetAddress(watch))
+   auto res = WatchGetAddress(watch);
+   if (!res)
       return;
 
    if (w->mode != WATCH_NORMAL) {
@@ -3314,16 +3314,14 @@ void CommandWatchAddEntryForAddress(WatchWindow* _w) {
    }
 
    char address[64];
-   StringFormat(address, sizeof(address), "%s", ctx.evaluateResult);
-   WatchEvaluate("gf_typeof", watch);
-   if (strstr(ctx.evaluateResult, "??"))
+   StringFormat(address, sizeof(address), "%s", res->c_str());
+   res = WatchEvaluate("gf_typeof", watch);
+   if (!res || strstr(res->c_str(), "??"))
       return;
-   char* end = strchr(ctx.evaluateResult, '\n');
-   if (end)
-      *end = 0;
-   size_t size   = strlen(address) + strlen(ctx.evaluateResult) + 16;
+   resize_to_lf(*res);
+   size_t size   = strlen(address) + res->size() + 16;
    char*  buffer = (char*)malloc(size);
-   StringFormat(buffer, size, "(%s*)%s", ctx.evaluateResult, address);
+   StringFormat(buffer, size, "(%s*)%s", res->c_str(), address);
    WatchAddExpression(w, buffer);
    WatchEnsureRowVisible(w, w->selectedRow);
    w->element->parent->Refresh();
@@ -3340,22 +3338,20 @@ void CommandWatchViewSourceAtAddress(WatchWindow* _w) {
       return;
    if (w->mode == WATCH_NORMAL && w->selectedRow == w->rows.size())
       return;
-   char* position = w->rows[w->selectedRow]->value;
+   char* position = (char *)w->rows[w->selectedRow]->value.c_str();
    while (*position && !isdigit(*position))
       position++;
    if (!(*position))
       return;
-   uint64_t value = strtoul(position, &position, 0);
+   uint64_t value = strtoul(position, nullptr, 0);
    char     buffer[256];
    StringFormat(buffer, sizeof(buffer), "info line * 0x%lx", value);
-   EvaluateCommand(buffer);
-   position = ctx.evaluateResult;
+   auto res = EvaluateCommand(buffer);
+   position = (char *)res->c_str();
 
-   if (strstr(ctx.evaluateResult, "No line number")) {
-      char* end = strchr(ctx.evaluateResult, '\n');
-      if (end)
-         *end = 0;
-      UIDialogShow(windowMain, 0, "%s\n%f%B", ctx.evaluateResult, "OK");
+   if (strstr(res->c_str(), "No line number")) {
+      resize_to_lf(*res);
+      UIDialogShow(windowMain, 0, "%s\n%f%B", res->c_str(), "OK");
       return;
    }
 
@@ -3396,13 +3392,11 @@ void CommandWatchSaveAsRecurse(FILE* file, Watch* watch, int indent, int indexIn
          CommandWatchSaveAsRecurse(file, watch->fields[i], indent + 1, watch->isArray ? i : -1);
       }
    } else {
-      WatchEvaluate("gf_valueof", watch);
-      char* value = strdup(ctx.evaluateResult);
-      char* end   = strchr(value, '\n');
-      if (end)
-         *end = 0;
-      fprintf(file, "%s\n", value);
-      free(value);
+      auto res = WatchEvaluate("gf_valueof", watch);
+      if (res) {
+         resize_to_lf(*res);
+         fprintf(file, "%s\n", res->c_str());
+      }
    }
 }
 
@@ -3442,13 +3436,11 @@ void CommandWatchCopyValueToClipboard(WatchWindow* w) {
 
    Watch* watch = w->rows[w->selectedRow];
 
-   WatchEvaluate("gf_valueof", watch);
-   char* value = strdup(ctx.evaluateResult);
-   char* end   = strchr(value, '\n');
-   if (end)
-      *end = 0;
-
-   _UIClipboardWriteText(w->element->window, value, sel_target_t::clipboard);
+   auto res = WatchEvaluate("gf_valueof", watch);
+   if (res) {
+      resize_to_lf(*res);
+      _UIClipboardWriteText(w->element->window, strdup(res->c_str()), sel_target_t::clipboard);
+   }
 }
 
 int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) {
@@ -3480,18 +3472,14 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
             Watch* watch = w->rows[i];
             char   buffer[256];
 
-            if ((!watch->value || watch->updateIndex != w->updateIndex) && !watch->open) {
+            if ((watch->value.empty() || watch->updateIndex != w->updateIndex) && !watch->open) {
                if (!ctx.programRunning) {
-                  free(watch->value);
                   watch->updateIndex = w->updateIndex;
-                  WatchEvaluate("gf_valueof", watch);
-                  watch->value = strdup(ctx.evaluateResult);
-                  char* end    = strchr(watch->value, '\n');
-                  if (end)
-                     *end = 0;
+                  auto res = WatchEvaluate("gf_valueof", watch);
+                  resize_to_lf(*res);
+                  watch->value = *res; // ?? why `*std::move(res);` crashes?? - probably Watch objects not constructed!
                } else {
-                  free(watch->value);
-                  watch->value = strdup("..");
+                  watch->value = "..";
                }
             }
 
@@ -3509,7 +3497,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
                             watch->open        ? "v "
                             : watch->hasFields ? "> "
                                                : "",
-                            watch->key ?: keyIndex, watch->open ? "" : " = ", watch->open ? "" : watch->value);
+                            watch->key ?: keyIndex, watch->open ? "" : " = ", watch->open ? "" : watch->value.c_str());
             }
 
             if (focused) {
@@ -3566,11 +3554,12 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
             UIMenuAddItem(menu, 0, "Break on writes to address", -1, [w]() {
                if (w->selectedRow == w->rows.size())
                   return;
-               if (!WatchGetAddress(w->rows[w->selectedRow]))
+               auto res = WatchGetAddress(w->rows[w->selectedRow]);
+               if (!res)
                   return;
                char buffer[256];
-               StringFormat(buffer, sizeof(buffer), "watch * %s", ctx.evaluateResult);
-               DebuggerSend(buffer, true, false);
+               StringFormat(buffer, sizeof(buffer), "watch * %s", res->c_str());
+               (void)DebuggerSend(buffer, true, false);
             });
 
             if (firstWatchWindow) {
@@ -3737,16 +3726,16 @@ void WatchWindowUpdate(const char*, UIElement* element) {
    WatchWindow* w = (WatchWindow*)element->cp;
 
    if (w->mode == WATCH_LOCALS) {
-      EvaluateCommand("py gf_locals()");
+      auto res = EvaluateCommand("py gf_locals()");
 
-      bool newFrame = (!w->lastLocalList || 0 != strcmp(w->lastLocalList, ctx.evaluateResult));
+      bool newFrame = (!w->lastLocalList || 0 != strcmp(w->lastLocalList, res->c_str()));
 
       if (newFrame) {
          if (w->lastLocalList)
             free(w->lastLocalList);
-         w->lastLocalList = strdup(ctx.evaluateResult);
+         w->lastLocalList = strdup(res->c_str());
 
-         char*        buffer = strdup(ctx.evaluateResult);
+         char*        buffer = strdup(res->c_str());
          char*        s      = buffer;
          char*        end;
          vector<char*> expressions = {};
@@ -3802,16 +3791,11 @@ void WatchWindowUpdate(const char*, UIElement* element) {
 
    for (size_t i = 0; i < w->baseExpressions.size(); i++) {
       Watch* watch = w->baseExpressions[i];
-      WatchEvaluate("gf_typeof", watch);
-      char* result = strdup(ctx.evaluateResult);
-      char* end    = strchr(result, '\n');
-      if (end)
-         *end = 0;
-      const char* oldType = watch->type ?: "??";
+      auto res = WatchEvaluate("gf_typeof", watch);
+      resize_to_lf(*res);
 
-      if (strcmp(result, oldType) && strcmp(result, "??")) {
-         free(watch->type);
-         watch->type = result;
+      if (*res != watch->type && *res != "??") {
+         watch->type = std::move(*res);
 
          for (size_t j = 0; j < w->rows.size(); j++) {
             if (w->rows[j] == watch) {
@@ -3821,17 +3805,15 @@ void WatchWindowUpdate(const char*, UIElement* element) {
                break;
             }
          }
-      } else {
-         free(result);
       }
    }
 
    for (size_t i = 0; i < w->dynamicArrays.size(); i++) {
       Watch* watch = w->dynamicArrays[i];
-      WatchEvaluate("gf_fields", watch);
-      if (!strstr(ctx.evaluateResult, "(d_arr)"))
+      auto res = WatchEvaluate("gf_fields", watch);
+      if (!res || !res->contains("(d_arr)"))
          continue;
-      int count = atoi(ctx.evaluateResult + 7);
+      int count = atoi(res->c_str() + 7);
       if (count > WATCH_ARRAY_MAX_FIELDS)
          count = WATCH_ARRAY_MAX_FIELDS;
       if (count < 0)
@@ -3886,7 +3868,7 @@ void StackSetFrame(UIElement* element, int index) {
    if (index >= 0 && index < ((UITable*)element)->itemCount && stackSelected != (size_t)index) {
       char buffer[64];
       StringFormat(buffer, 64, "frame %d", index);
-      DebuggerSend(buffer, false, false);
+      (void)DebuggerSend(buffer, false, false);
       stackSelected = index;
       stackChanged  = true;
       element->Repaint(nullptr);
@@ -3952,7 +3934,7 @@ struct BreakpointTableData {
             if (breakpoint.number == selected) {                            \
                char buffer[1024];                                           \
                StringFormat(buffer, 1024, action " %d", selected);          \
-               DebuggerSend(buffer, true, false);                           \
+               (void)DebuggerSend(buffer, true, false);                     \
                break;                                                       \
             }                                                               \
          }                                                                  \
@@ -4170,11 +4152,11 @@ int TextboxStructNameMessage(UIElement* element, UIMessage message, int di, void
       if (m->code == UIKeycode::ENTER) {
          char buffer[4096];
          StringFormat(buffer, sizeof(buffer), "ptype /o %.*s", (int)window->textbox->bytes, window->textbox->string);
-         EvaluateCommand(buffer);
-         char* end = strstr(ctx.evaluateResult, "\n(gdb)");
+         auto res = EvaluateCommand(buffer);
+         char* end = (char *)strstr(res->c_str(), "\n(gdb)");
          if (end)
             *end = 0;
-         UICodeInsertContent(window->display, ctx.evaluateResult, -1, true);
+         UICodeInsertContent(window->display, res->c_str(), -1, true);
          UITextboxClear(window->textbox, false);
          window->display->Refresh();
          element->Refresh();
@@ -4346,40 +4328,40 @@ UIElement* RegistersWindowCreate(UIElement* parent) {
 }
 
 void RegistersWindowUpdate(const char*, UIElement* panel) {
-   EvaluateCommand("info registers");
+   auto res = EvaluateCommand("info registers");
 
-   if (strstr(ctx.evaluateResult, "The program has no registers now.") ||
-       strstr(ctx.evaluateResult, "The current thread has terminated")) {
+   if (strstr(res->c_str(), "The program has no registers now.") ||
+       strstr(res->c_str(), "The current thread has terminated")) {
       return;
    }
 
    panel->DestroyDescendents();
-   char*                position        = ctx.evaluateResult;
+   const char*          position        = res->c_str();
    vector<RegisterData> newRegisterData = {};
    bool                 anyChanges      = false;
 
    while (*position != '(') {
-      char* nameStart = position;
+      const char* nameStart = position;
       while (isspace(*nameStart))
          nameStart++;
-      char* nameEnd = position = strchr(nameStart, ' ');
+      const char* nameEnd = position = strchr(nameStart, ' ');
       if (!nameEnd)
          break;
-      char* format1Start = position;
+      const char* format1Start = position;
       while (isspace(*format1Start))
          format1Start++;
-      char* format1End = position = strchr(format1Start, ' ');
+      const char* format1End = position = strchr(format1Start, ' ');
       if (!format1End)
          break;
-      char* format2Start = position;
+      const char* format2Start = position;
       while (isspace(*format2Start))
          format2Start++;
-      char* format2End = position = strchr(format2Start, '\n');
+      const char* format2End = position = strchr(format2Start, '\n');
       if (!format2End)
          break;
 
-      char* stringStart = nameStart;
-      char* stringEnd   = format2End;
+      const char* stringStart = nameStart;
+      const char* stringEnd   = format2End;
 
       RegisterData data;
       StringFormat(data.string, sizeof(data.string), "%.*s", (int)(stringEnd - stringStart), stringStart);
@@ -4536,7 +4518,7 @@ int ThreadTableMessage(UIElement* element, UIMessage message, int di, void* dp) 
       if (index != -1) {
          char buffer[1024];
          StringFormat(buffer, 1024, "thread %d", window->threads[index].id);
-         DebuggerSend(buffer, true, false);
+         (void)DebuggerSend(buffer, true, false);
       }
    }
 
@@ -4554,8 +4536,8 @@ void ThreadWindowUpdate(const char*, UIElement* _table) {
    ThreadWindow* window   = (ThreadWindow*)_table->cp;
    window->threads.clear();
 
-   EvaluateCommand("info threads");
-   char* position = ctx.evaluateResult;
+   auto res = EvaluateCommand("info threads");
+   char* position = (char *)res->c_str();
 
    for (int i = 0; position[i]; i++) {
       if (position[i] == '\n' && position[i + 1] == ' ' && position[i + 2] == ' ' && position[i + 3] == ' ') {
@@ -4604,22 +4586,22 @@ struct ExecutableWindow {
 void ExecutableWindowStartOrRun(ExecutableWindow* window, bool pause) {
    char buffer[4096];
    StringFormat(buffer, sizeof(buffer), "file \"%.*s\"", window->path->bytes, window->path->string);
-   EvaluateCommand(buffer);
+   auto res = EvaluateCommand(buffer);
 
-   if (strstr(ctx.evaluateResult, "No such file or directory.")) {
+   if (res->contains("No such file or directory.")) {
       UIDialogShow(windowMain, 0, "The executable path is invalid.\n%f%B", "OK");
       return;
    }
 
    StringFormat(buffer, sizeof(buffer), "start %.*s", window->arguments->bytes, window->arguments->string);
-   EvaluateCommand(buffer);
+   (void)EvaluateCommand(buffer);
 
    if (window->askDirectory->check == UICheckbox::CHECKED) {
       CommandParseInternal("gf-get-pwd", true);
    }
 
    if (!pause) {
-      CommandParseInternal("run", false);
+      (void)CommandParseInternal("run", false);
    } else {
       DebuggerGetStack();
       DisplaySetPositionFromStack();
@@ -4702,15 +4684,18 @@ int TextboxSearchCommandMessage(UIElement* element, UIMessage message, int di, v
 
    if (message == UIMessage::KEY_TYPED) {
       if (!window->commands.size()) {
-         EvaluateCommand("help all");
-
-         for (int i = 0; ctx.evaluateResult[i]; i++) {
-            if (ctx.evaluateResult[i] == ',' && ctx.evaluateResult[i + 1] == ' ' && ctx.evaluateResult[i + 2] == '\n') {
-               ctx.evaluateResult[i + 2] = ' ';
+         auto res = EvaluateCommand("help all");
+         char *s = nullptr;
+         if (res) {
+            s = (char *)res->c_str();
+            for (int i = 0; s[i]; i++) {
+               if (s[i] == ',' && s[i + 1] == ' ' && s[i + 2] == '\n') {
+                  s[i + 2] = ' ';
+               }
             }
          }
 
-         char* position = ctx.evaluateResult;
+         char* position = s;
 
          while (position) {
             char* next = strchr(position, '\n');
@@ -5577,8 +5562,8 @@ int ProfTableMessage(UIElement* element, UIMessage message, int di, void* dp) {
 void ProfLoadProfileData(void* _window) {
    ProfWindow* data = (ProfWindow*)_window;
 
-   const char* ticksPerMsString = EvaluateExpression("gfProfilingTicksPerMs");
-   ticksPerMsString             = ticksPerMsString ? strstr(ticksPerMsString, "= ") : nullptr;
+   auto        res              = EvaluateExpression("gfProfilingTicksPerMs");
+   const char* ticksPerMsString = res ? strstr(res->c_str(), "= ") : nullptr;
    data->ticksPerMs             = ticksPerMsString ? atoi(ticksPerMsString + 2) : 0;
 
    if (!ticksPerMsString || !data->ticksPerMs) {
@@ -5586,7 +5571,8 @@ void ProfLoadProfileData(void* _window) {
       return;
    }
 
-   int rawEntryCount = atoi(strstr(EvaluateExpression("gfProfilingBufferPosition"), "= ") + 2);
+   auto pos = EvaluateExpression("gfProfilingBufferPosition");
+   int rawEntryCount = atoi(strstr(pos->c_str(), "= ") + 2);
    printf("Reading %d profiling entries...\n", rawEntryCount);
 
    if (rawEntryCount == 0) {
@@ -5617,7 +5603,7 @@ void ProfLoadProfileData(void* _window) {
    char buffer[PATH_MAX * 2];
    StringFormat(buffer, sizeof(buffer),
                 "dump binary memory %s (gfProfilingBuffer) (gfProfilingBuffer+gfProfilingBufferPosition)", path);
-   EvaluateCommand(buffer);
+   (void)EvaluateCommand(buffer);
    FILE* f = fopen(path, "rb");
 
    if (!f) {
@@ -5655,16 +5641,16 @@ void ProfLoadProfileData(void* _window) {
       function.sourceFileIndex = -1;
 
       StringFormat(buffer, sizeof(buffer), "(void *) %ld", rawEntries[i].thisFunction);
-      const char* cName = EvaluateExpression(buffer);
+      auto cName = EvaluateExpression(buffer);
       if (!cName)
          continue;
 
-      if (strchr(cName, '<'))
-         cName = strchr(cName, '<') + 1;
-      int length = strlen(cName);
+      if (strchr(cName->c_str(), '<'))
+         cName = strchr(cName->c_str(), '<') + 1;
+      int length = strlen(cName->c_str());
       if (length > (int)sizeof(function.cName) - 1)
          length = sizeof(function.cName) - 1;
-      memcpy(function.cName, cName, length);
+      memcpy(function.cName, cName->c_str(), length);
       function.cName[length] = 0;
 
       int inTemplate = 0;
@@ -5686,22 +5672,20 @@ void ProfLoadProfileData(void* _window) {
       }
 
       StringFormat(buffer, sizeof(buffer), "py print(gdb.lookup_global_symbol('%s').symtab.filename)", function.cName);
-      EvaluateCommand(buffer);
+      auto res = EvaluateCommand(buffer);
 
-      if (!strstr(ctx.evaluateResult, "Traceback (most recent call last):")) {
-         char* end = strchr(ctx.evaluateResult, '\n');
-         if (end)
-            *end = 0;
+      if (!strstr(res->c_str(), "Traceback (most recent call last):")) {
+         resize_to_lf(*res);
          ProfSourceFileEntry sourceFile  = {};
-         char*               cSourceFile = ctx.evaluateResult;
+         const char*         cSourceFile = res->c_str();
          length                          = strlen(cSourceFile);
          if (length > (int)sizeof(sourceFile.cPath) - 1)
             length = sizeof(sourceFile.cPath) - 1;
          memcpy(sourceFile.cPath, cSourceFile, length);
          sourceFile.cPath[length] = 0;
          StringFormat(buffer, sizeof(buffer), "py print(gdb.lookup_global_symbol('%s').line)", function.cName);
-         EvaluateCommand(buffer);
-         function.lineNumber = atoi(ctx.evaluateResult);
+         res = EvaluateCommand(buffer);
+         function.lineNumber = atoi(res->c_str());
 
          for (size_t i = 0; i < sourceFiles.size(); i++) {
             if (0 == strcmp(sourceFiles[i].cPath, sourceFile.cPath)) {
@@ -5864,7 +5848,7 @@ void ProfLoadProfileData(void* _window) {
 }
 
 void ProfStepOverProfiled(ProfWindow* window) {
-   EvaluateCommand("call GfProfilingStart()");
+   (void)EvaluateCommand("call GfProfilingStart()");
    CommandSendToGDB("gf-next");
    window->inStepOverProfiled = true;
 }
@@ -5873,7 +5857,7 @@ void ProfWindowUpdate(const char* data, UIElement* element) {
    ProfWindow* window = (ProfWindow*)element->cp;
 
    if (window->inStepOverProfiled) {
-      EvaluateCommand("call GfProfilingStop()");
+      (void)EvaluateCommand("call GfProfilingStop()");
       ProfLoadProfileData(window);
       InterfaceWindowSwitchToAndFocus("Data");
       dataWindow->Refresh();
@@ -5959,18 +5943,18 @@ int MemoryWindowMessage(UIElement* element, UIMessage message, int di, void* dp)
 
          for (size_t i = 0; i < (size_t)rowCount * 16 / 8; i++) {
             StringFormat(buffer, sizeof(buffer), "x/8xb 0x%lx", window->offset + i * 8);
-            EvaluateCommand(buffer);
+            auto res = EvaluateCommand(buffer);
 
             bool error = true;
 
-            if (!strstr(ctx.evaluateResult, "Cannot access memory")) {
-               char* position = strchr(ctx.evaluateResult, ':');
+            if (!strstr(res->c_str(), "Cannot access memory")) {
+               const char* position = strchr(res->c_str(), ':');
 
                if (position) {
                   position++;
 
                   for (int i = 0; i < 8; i++) {
-                     window->loadedBytes.push_back(strtol(position, &position, 0));
+                     window->loadedBytes.push_back(strtol(position, nullptr, 0));
                   }
 
                   error = false;
@@ -6048,8 +6032,8 @@ void MemoryWindowGotoButtonInvoke(void* cp) {
                                         "Cancel"))) {
       char buffer[4096];
       StringFormat(buffer, sizeof(buffer), "py gf_valueof(['%s'],' ')", expression);
-      EvaluateCommand(buffer);
-      const char* result = ctx.evaluateResult;
+      auto res = EvaluateCommand(buffer);
+      const char* result = res->c_str();
 
       if (result && ((*result == '(' && isdigit(result[1])) || isdigit(*result))) {
          if (*result == '(')
@@ -6374,20 +6358,18 @@ void ViewWindowView(void* cp) {
    button->invoke   = [panel]() { ViewWindowView(panel); };
 
    // Get information about the watch expression.
-   char *end, type[256], buffer[256];
+   char type[256], buffer[256];
    char  oldFormat = watch->format;
    watch->format   = 0;
-   WatchEvaluate("gf_typeof", watch);
-   end = strchr(ctx.evaluateResult, '\n');
-   if (end)
-      *end = 0;
-   StringFormat(type, sizeof(type), "%s", ctx.evaluateResult);
+
+   auto res = WatchEvaluate("gf_typeof", watch);
+   resize_to_lf(*res);
+   StringFormat(type, sizeof(type), "%s", res->c_str());
    StringFormat(buffer, sizeof(buffer), "Type: %s", type);
    UILabelCreate(panel, 0, buffer, -1);
-   WatchEvaluate("gf_valueof", watch);
-   end = strchr(ctx.evaluateResult, '\n');
-   if (end)
-      *end = 0;
+
+   res = WatchEvaluate("gf_valueof", watch);
+   resize_to_lf(*res);
    watch->format = oldFormat;
    // printf("valueof: {%s}\n", ctx.evaluateResult);
 
@@ -6401,10 +6383,10 @@ void ViewWindowView(void* cp) {
        0 == strcmp(type, "long long")) {
       uint64_t value;
 
-      if (ctx.evaluateResult[0] == '-') {
-         value = -strtoul(ctx.evaluateResult + 1, nullptr, 10);
+      if ((*res)[0] == '-') {
+         value = -strtoul(res->c_str() + 1, nullptr, 10);
       } else {
-         value = strtoul(ctx.evaluateResult, nullptr, 10);
+         value = strtoul(res->c_str(), nullptr, 10);
       }
 
       StringFormat(buffer, sizeof(buffer), " 8b: %d %u 0x%x '%c'", (int8_t)value, (uint8_t)value, (uint8_t)value,
@@ -6442,34 +6424,30 @@ void ViewWindowView(void* cp) {
       }
    } else if ((0 == memcmp(type, "char [", 6) && !strstr(type, "][")) || 0 == strcmp(type, "const char *") ||
               0 == strcmp(type, "char *")) {
-      printf("string '%s'\n", ctx.evaluateResult);
+      printf("string '%s'\n", res->c_str());
       char address[64];
 
-      if (ctx.evaluateResult[0] != '(') {
-         WatchEvaluate("gf_addressof", watch);
-         printf("addressof '%s'\n", ctx.evaluateResult);
-         char* end = strchr(ctx.evaluateResult, ' ');
-         if (end)
-            *end = 0;
-         end = strchr(ctx.evaluateResult, '\n');
-         if (end)
-            *end = 0;
-         StringFormat(address, sizeof(address), "%s", ctx.evaluateResult);
+      if ((*res)[0] != '(') {
+         res = WatchEvaluate("gf_addressof", watch);
+         printf("addressof '%s'\n", res->c_str());
+         resize_to_lf(*res, ' ');
+         resize_to_lf(*res);
+         StringFormat(address, sizeof(address), "%s", res->c_str());
       } else {
-         char* end = strchr(ctx.evaluateResult + 1, ' ');
+         char* end = (char *)strchr(res->c_str() + 1, ' ');
          if (!end)
             goto unrecognised;
          *end = 0;
-         StringFormat(address, sizeof(address), "%s", ctx.evaluateResult + 1);
+         StringFormat(address, sizeof(address), "%s", res->c_str() + 1);
       }
 
       char tempPath[PATH_MAX];
       realpath(".temp.gf", tempPath);
       char buffer[PATH_MAX * 2];
       StringFormat(buffer, sizeof(buffer), "(size_t)strlen((const char *)(%s))", address);
-      EvaluateExpression(buffer);
-      printf("'%s' -> '%s'\n", buffer, ctx.evaluateResult);
-      const char* lengthString = ctx.evaluateResult ? strstr(ctx.evaluateResult, "= ") : nullptr;
+      auto res = EvaluateExpression(buffer);
+      printf("'%s' -> '%s'\n", buffer, res->c_str());
+      const char* lengthString = res->c_str() ? strstr(res->c_str(), "= ") : nullptr;
       size_t      length       = lengthString ? atoi(lengthString + 2) : 0;
       // TODO Preventing errors when calling strlen from crashing the target?
 
@@ -6484,8 +6462,8 @@ void ViewWindowView(void* cp) {
       }
 
       StringFormat(buffer, sizeof(buffer), "dump binary memory %s (%s) (%s+%d)", tempPath, address, address, length);
-      EvaluateCommand(buffer);
-      printf("'%s' -> '%s'\n", buffer, ctx.evaluateResult);
+      res = EvaluateCommand(buffer);
+      printf("'%s' -> '%s'\n", buffer, res->c_str());
       FILE* f = fopen(tempPath, "rb");
 
       if (f) {
@@ -6512,7 +6490,8 @@ void ViewWindowView(void* cp) {
          goto unrecognised;
       if (w <= 1 || h <= 1)
          goto unrecognised;
-      if (!WatchGetAddress(watch))
+      auto res = WatchGetAddress(watch);
+      if (!res)
          goto unrecognised;
 
       ViewWindowMatrixGrid* grid = new ViewWindowMatrixGrid(panel, w, h, type[0]);
@@ -6520,9 +6499,9 @@ void ViewWindowView(void* cp) {
       char tempPath[PATH_MAX];
       realpath(".temp.gf", tempPath);
       char buffer[PATH_MAX * 2];
-      StringFormat(buffer, sizeof(buffer), "dump binary memory %s (%s) (%s+%d)", tempPath, ctx.evaluateResult,
-                   ctx.evaluateResult, w * h * itemSize);
-      EvaluateCommand(buffer);
+      StringFormat(buffer, sizeof(buffer), "dump binary memory %s (%s) (%s+%d)", tempPath, res->c_str(),
+                   res->c_str(), w * h * itemSize);
+      res = EvaluateCommand(buffer);
       FILE* f = fopen(tempPath, "rb");
 
       if (f) {
@@ -6903,30 +6882,29 @@ void WaveformViewerUpdate(const char* pointerString, const char* sampleCountStri
 
 const char* WaveformViewerGetSamples(const char* pointerString, const char* sampleCountString,
                                      const char* channelsString, float** _samples, int* _sampleCount, int* _channels) {
-   const char* sampleCountResult = EvaluateExpression(sampleCountString);
+   auto sampleCountResult = EvaluateExpression(sampleCountString);
    if (!sampleCountResult) {
       return "Could not evaluate sample count.";
    }
-   int         sampleCount    = atoi(sampleCountResult + 1);
-   const char* channelsResult = EvaluateExpression(channelsString);
+   int  sampleCount    = atoi(sampleCountResult->c_str() + 1);
+   auto channelsResult = EvaluateExpression(channelsString);
    if (!channelsResult) {
       return "Could not evaluate channels.";
    }
-   int channels = atoi(channelsResult + 1);
+   int channels = atoi(channelsResult->c_str() + 1 + 1);
    if (channels < 1 || channels > 8) {
       return "Channels must be between 1 and 8.";
    }
-   const char* pointerResult = EvaluateExpression(pointerString, "/x");
+   auto pointerResult = EvaluateExpression(pointerString, "/x");
    if (!pointerResult) {
       return "Could not evaluate pointer.";
    }
    char _pointerResult[1024];
-   StringFormat(_pointerResult, sizeof(_pointerResult), "%s", pointerResult);
+   StringFormat(_pointerResult, sizeof(_pointerResult), "%s", pointerResult->c_str());
    pointerResult = strstr(_pointerResult, " 0x");
    if (!pointerResult) {
       return "Pointer to sample data does not look like an address!";
    }
-   pointerResult++;
 
    size_t byteCount = sampleCount * channels * 4;
    float* samples   = (float*)malloc(byteCount);
@@ -6935,9 +6913,9 @@ const char* WaveformViewerGetSamples(const char* pointerString, const char* samp
    realpath(".transfer.gf", transferPath);
 
    char buffer[PATH_MAX * 2];
-   StringFormat(buffer, sizeof(buffer), "dump binary memory %s (%s) (%s+%d)", transferPath, pointerResult,
-                pointerResult, byteCount);
-   EvaluateCommand(buffer);
+   StringFormat(buffer, sizeof(buffer), "dump binary memory %s (%s) (%s+%d)", transferPath, pointerResult->c_str() + 1,
+                pointerResult->c_str() + 1, byteCount);
+   auto res = EvaluateCommand(buffer);
 
    FILE* f = fopen(transferPath, "rb");
 
@@ -6947,7 +6925,7 @@ const char* WaveformViewerGetSamples(const char* pointerString, const char* samp
       unlink(transferPath);
    }
 
-   if (!f || strstr(ctx.evaluateResult, "access")) {
+   if (!f || strstr(res->c_str(), "access")) {
       return "Could not read the waveform samples!";
    }
 
@@ -7145,7 +7123,7 @@ void MsgReceivedData(str_unique_ptr input) {
    ctx.programRunning = false;
 
    if (ctx.firstUpdate) {
-      EvaluateCommand(pythonCode);
+      (void)EvaluateCommand(pythonCode);
 
       char path[PATH_MAX];
       StringFormat(path, sizeof(path), "%s/.config/gf2_watch.txt", getenv("HOME"));
@@ -7203,7 +7181,7 @@ void MsgReceivedControl(str_unique_ptr input) {
    } else if (start[0] == 'l' && start[1] == ' ') {
       DisplaySetPosition(nullptr, atoi(start + 2), false);
    } else if (start[0] == 'c' && start[1] == ' ') {
-      CommandParseInternal(start + 2, false);
+      (void)CommandParseInternal(start + 2, false);
    }
 }
 
