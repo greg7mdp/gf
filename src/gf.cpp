@@ -1097,7 +1097,7 @@ std::optional<std::string> CommandParseInternal(const char* command, bool synchr
                async = nullptr;
             if (synchronous)
                async = nullptr; // Trim the '&' character, but run synchronously anyway.
-            (void)CommandParseInternal(position, !async);
+            res = CommandParseInternal(position, !async);
             if (displayOutput && res)
                UICodeInsertContent(displayOutput, res->c_str(), -1, false);
             if (end)
@@ -2964,7 +2964,7 @@ void WatchAddExpression(WatchWindow* w, char* string = nullptr) {
 
    if (res && !res->contains("??")) {
       resize_to_lf(*res);
-      watch->type = std::move(*res);
+      watch->type = *res; // todo: std::move(*res);
       watch->hasFields = WatchHasFields(watch);
    }
 }
