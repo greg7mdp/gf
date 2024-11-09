@@ -2330,14 +2330,16 @@ struct BitmapViewer {
 };
 
 int BitmapViewerWindowMessage(UIElement* element, UIMessage message, int di, void* dp) {
+   BitmapViewer* viewer = (BitmapViewer*)element->cp;
    if (message == UIMessage::DESTROY) {
       DataViewerRemoveFromAutoUpdateList(element);
-      free(element->cp);
+      free(viewer);
+      element->cp = nullptr;
    } else if (message == UIMessage::GET_WIDTH) {
-      int fit = ((BitmapViewer*)element->cp)->parsedWidth + 40;
+      int fit = viewer->parsedWidth + 40;
       return fit > 300 ? fit : 300;
    } else if (message == UIMessage::GET_HEIGHT) {
-      int fit = ((BitmapViewer*)element->cp)->parsedHeight + 40;
+      int fit = viewer->parsedHeight + 40;
       return fit > 100 ? fit : 100;
    }
 
@@ -2658,18 +2660,19 @@ enum WatchWindowMode {
    WATCH_LOCALS,
 };
 
-struct WatchWindow {
+struct WatchWindow  : public UIElement {
    vector<Watch*>  rows;
    vector<Watch*>  baseExpressions;
    vector<Watch*>  dynamicArrays;
-   UIElement*      element;
    UITextbox*      textbox;
-   char*           lastLocalList;
+   std::string     lastLocalList;
    size_t          selectedRow;
    int             extraRows;
    WatchWindowMode mode;
    uint64_t        updateIndex;
    bool            waitingForFormatCharacter;
+
+   WatchWindow(UIElement* parent, uint32_t flags, const char* name);
 };
 
 struct WatchLogEvaluated {
@@ -2727,7 +2730,7 @@ void WatchDestroyTextbox(WatchWindow* w) {
       return;
    w->textbox->Destroy();
    w->textbox = nullptr;
-   w->element->Focus();
+   w->Focus();
 }
 
 void WatchFree(WatchWindow* w, Watch* watch, bool fieldsOnly = false) {
@@ -2908,9 +2911,9 @@ void WatchAddFields(WatchWindow* w, Watch* watch) {
 void WatchEnsureRowVisible(WatchWindow* w, size_t index) {
    if (w->selectedRow > w->rows.size())
       w->selectedRow = w->rows.size();
-   UIScrollBar* scroll    = ((UIPanel*)w->element->parent)->scrollBar;
-   int          rowHeight = (int)(ui_size::TEXTBOX_HEIGHT * w->element->window->scale);
-   int  start = index * rowHeight, end = (index + 1) * rowHeight, height = w->element->parent->bounds.height();
+   UIScrollBar* scroll    = ((UIPanel*)w->parent)->scrollBar;
+   int          rowHeight = (int)(ui_size::TEXTBOX_HEIGHT * w->window->scale);
+   int  start = index * rowHeight, end = (index + 1) * rowHeight, height = w->parent->bounds.height();
    bool unchanged = false;
    if (end >= scroll->position + height)
       scroll->position = end - height;
@@ -2919,7 +2922,7 @@ void WatchEnsureRowVisible(WatchWindow* w, size_t index) {
    else
       unchanged = true;
    if (!unchanged)
-      w->element->parent->Refresh();
+      w->parent->Refresh();
 }
 
 void WatchInsertFieldRows2(WatchWindow* w, Watch* watch, vector<Watch*>* array) {
@@ -2977,8 +2980,8 @@ void WatchAddExpression2(char* string) {
    if (w->selectedRow)
       w->selectedRow--;
    WatchEnsureRowVisible(w, w->selectedRow);
-   w->element->parent->Refresh();
-   w->element->Refresh();
+   w->parent->Refresh();
+   w->Refresh();
 }
 
 int WatchLoggerWindowMessage(UIElement* element, UIMessage message, int di, void* dp) {
@@ -3278,10 +3281,10 @@ bool WatchLoggerUpdate(char* data) {
 }
 
 void WatchCreateTextboxForRow(WatchWindow* w, bool addExistingText) {
-   int         rowHeight = (int)(ui_size::TEXTBOX_HEIGHT * w->element->window->scale);
-   UIRectangle row       = w->element->bounds;
+   int         rowHeight = (int)(ui_size::TEXTBOX_HEIGHT * w->window->scale);
+   UIRectangle row       = w->bounds;
    row.t += w->selectedRow * rowHeight, row.b = row.t + rowHeight;
-   w->textbox                = UITextboxCreate(w->element, 0);
+   w->textbox                = UITextboxCreate(w, 0);
    w->textbox->messageUser = WatchTextboxMessage;
    w->textbox->cp          = w;
    w->textbox->Move(row, true);
@@ -3324,8 +3327,8 @@ void CommandWatchAddEntryForAddress(WatchWindow* _w) {
    StringFormat(buffer, size, "(%s*)%s", res->c_str(), address);
    WatchAddExpression(w, buffer);
    WatchEnsureRowVisible(w, w->selectedRow);
-   w->element->parent->Refresh();
-   w->element->Refresh();
+   w->parent->Refresh();
+   w->Refresh();
 }
 
 void CommandWatchAddEntryForAddress() {
@@ -3439,7 +3442,7 @@ void CommandWatchCopyValueToClipboard(WatchWindow* w) {
    auto res = WatchEvaluate("gf_valueof", watch);
    if (res) {
       resize_to_lf(*res);
-      _UIClipboardWriteText(w->element->window, strdup(res->c_str()), sel_target_t::clipboard);
+      _UIClipboardWriteText(w->window, strdup(res->c_str()), sel_target_t::clipboard);
    }
 }
 
@@ -3541,8 +3544,8 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
 
                UIMenuAddItem(menu, 0, "Delete", -1, [w]() {
                   WatchDeleteExpression(w);
-                  w->element->parent->Refresh();
-                  w->element->Refresh();
+                  w->parent->Refresh();
+                  w->Refresh();
                });
             }
 
@@ -3686,8 +3689,8 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
 }
 
 int WatchPanelMessage(UIElement* element, UIMessage message, int di, void* dp) {
+   WatchWindow* window = (WatchWindow*)element->cp;
    if (message == UIMessage::LEFT_DOWN) {
-      UIElement* window = ((WatchWindow*)element->cp)->element;
       window->Focus();
       window->Repaint(nullptr);
    }
@@ -3695,30 +3698,35 @@ int WatchPanelMessage(UIElement* element, UIMessage message, int di, void* dp) {
    return 0;
 }
 
+WatchWindow::WatchWindow(UIElement* parent, uint32_t flags, const char* name)
+   : UIElement(parent, flags, WatchWindowMessage, name)
+   , textbox(nullptr)
+   , selectedRow(0)
+   , mode(WATCH_NORMAL)
+   , updateIndex(0)
+   , waitingForFormatCharacter(false) {
+   cp = this; // todo: shouldn't be needed
+}
+
 UIElement* WatchWindowCreate(UIElement* parent) {
-   WatchWindow* w       = (WatchWindow*)calloc(1, sizeof(WatchWindow));
-   UIPanel*     panel   = UIPanelCreate(parent, UIPanel::SCROLL | UIPanel::COLOR_1);
+   UIPanel*     panel = UIPanelCreate(parent, UIPanel::SCROLL | UIPanel::COLOR_1);
+   WatchWindow* w     = new WatchWindow(panel, UIElement::H_FILL | UIElement::TAB_STOP, "Watch");
    panel->messageUser = WatchPanelMessage;
    panel->cp          = w;
-   w->element           = UIElementCreate(sizeof(UIElement), panel, UIElement::H_FILL | UIElement::TAB_STOP,
-                                          WatchWindowMessage, "Watch");
-   w->element->cp       = w;
-   w->mode              = WATCH_NORMAL;
-   w->extraRows         = 1;
+
+   w->mode      = WATCH_NORMAL;
+   w->extraRows = 1;
    if (!firstWatchWindow)
       firstWatchWindow = w;
    return panel;
 }
 
 UIElement* LocalsWindowCreate(UIElement* parent) {
-   WatchWindow* w       = (WatchWindow*)calloc(1, sizeof(WatchWindow));
-   UIPanel*     panel   = UIPanelCreate(parent, UIPanel::SCROLL | UIPanel::COLOR_1);
+   UIPanel*     panel = UIPanelCreate(parent, UIPanel::SCROLL | UIPanel::COLOR_1);
+   WatchWindow* w     = new WatchWindow(panel, UIElement::H_FILL | UIElement::TAB_STOP, "Locals");
    panel->messageUser = WatchPanelMessage;
    panel->cp          = w;
-   w->element           = UIElementCreate(sizeof(UIElement), panel, UIElement::H_FILL | UIElement::TAB_STOP,
-                                          WatchWindowMessage, "Locals");
-   w->element->cp       = w;
-   w->mode              = WATCH_LOCALS;
+   w->mode            = WATCH_LOCALS;
    return panel;
 }
 
@@ -3728,24 +3736,20 @@ void WatchWindowUpdate(const char*, UIElement* element) {
    if (w->mode == WATCH_LOCALS) {
       auto res = EvaluateCommand("py gf_locals()");
 
-      bool newFrame = (!w->lastLocalList || 0 != strcmp(w->lastLocalList, res->c_str()));
+      bool newFrame = (w->lastLocalList.empty() || w->lastLocalList != *res);
 
       if (newFrame) {
-         if (w->lastLocalList)
-            free(w->lastLocalList);
-         w->lastLocalList = strdup(res->c_str());
+         w->lastLocalList = *res;
 
-         char*        buffer = strdup(res->c_str());
-         char*        s      = buffer;
-         char*        end;
+         char*         buffer      = strdup(res->c_str());
+         char*         s           = buffer;
          vector<char*> expressions = {};
 
-         while ((end = strchr(s, '\n')) != NULL) {
+         for (char* end = strchr(s, '\n'); end != nullptr; s = end + 1) {
             *end = '\0';
             if (strstr(s, "(gdb)"))
                break;
             expressions.push_back(s);
-            s = end + 1;
          }
 
          if (expressions.size() > 0) {
@@ -3845,8 +3849,8 @@ void WatchWindowUpdate(const char*, UIElement* element) {
 }
 
 void WatchWindowFocus(UIElement* element) {
-   WatchWindow* w = (WatchWindow*)element->cp;
-   w->element->Focus();
+   WatchWindow* w = (WatchWindow*)element;
+   w->Focus();
 }
 
 void CommandAddWatch() {
@@ -4069,7 +4073,7 @@ int TableBreakpointsMessage(UIElement* element, UIMessage message, int di, void*
 }
 
 UIElement* BreakpointsWindowCreate(UIElement* parent) {
-   UITable* table       = UITableCreate(parent, 0, "File\tLine\tEnabled\tCondition\tHit");
+   UITable* table     = UITableCreate(parent, 0, "File\tLine\tEnabled\tCondition\tHit");
    table->cp          = (BreakpointTableData*)calloc(1, sizeof(BreakpointTableData));
    table->messageUser = TableBreakpointsMessage;
    return table;
@@ -4300,7 +4304,7 @@ UIElement* FilesWindowCreate(UIElement* parent) {
    window->panel =
       UIPanelCreate(container, UIPanel::COLOR_1 | UIPanel::EXPAND | UIPanel::SCROLL | UIElement::V_FILL);
    window->panel->gap = -1, window->panel->border = UIRectangle(1);
-   window->panel->cp = window;
+   window->panel->cp  = window;
    UIPanel*  row       = UIPanelCreate(container, UIPanel::COLOR_2 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
 
    UIButton* button    = UIButtonCreate(row, UIButton::SMALL, "-> cwd", -1);
@@ -5870,7 +5874,7 @@ UIElement* ProfWindowCreate(UIElement* parent) {
    ProfWindow* window             = (ProfWindow*)calloc(1, sizeof(ProfWindow));
    window->fontFlameGraph         = UIFontCreate(_UI_TO_STRING_2(UI_FONT_PATH), fontSizeFlameGraph);
    UIPanel* panel                 = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
-   panel->cp                    = window;
+   panel->cp                      = window;
    UIButton* button               = UIButtonCreate(panel, UIElement::V_FILL, "Step over profiled", -1);
    button->invoke                 = [window]() { ProfStepOverProfiled(window); };
 
