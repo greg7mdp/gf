@@ -2678,7 +2678,7 @@ struct WatchWindow : public UIElement {
 };
 
 struct WatchLogEvaluated {
-   char result[64];
+   std::string result;
 };
 
 struct WatchLogEntry {
@@ -2985,12 +2985,6 @@ int WatchLoggerWindowMessage(UIElement* element, UIMessage message, int di, void
          char buffer[256];
          StringFormat(buffer, sizeof(buffer), "delete %d", logger->id);
          EvaluateCommand(buffer);
-
-         for (auto& e : logger->entries) {
-            e.trace.clear();
-            e.evaluated.clear();
-         }
-
          delete logger;
       }
    } else if (message == UIMessage::GET_WIDTH || message == UIMessage::GET_HEIGHT) {
@@ -3031,7 +3025,7 @@ int WatchLoggerTableMessage(UIElement* element, UIMessage message, int di, void*
          return StringFormat(m->buffer, m->bufferBytes, "%s", entry->where.c_str());
       } else {
          if (m->column - 2 < (int)entry->evaluated.size()) {
-            return StringFormat(m->buffer, m->bufferBytes, "%s", entry->evaluated[m->column - 2].result);
+            return StringFormat(m->buffer, m->bufferBytes, "%s", entry->evaluated[m->column - 2].result.c_str());
          } else {
             return 0;
          }
@@ -3230,18 +3224,18 @@ bool WatchLoggerUpdate(char* data) {
 
       for (uintptr_t i = 0; true; i++) {
          if (expressionsToEvaluate[i] == ';' || !expressionsToEvaluate[i]) {
-            WatchLogEvaluated evaluated;
-            char              buffer[256];
+
+            char buffer[256];
             StringFormat(buffer, sizeof(buffer), "%.*s", i - start, expressionsToEvaluate + start);
             auto res = EvaluateExpression(buffer);
-            start         = i + 1;
-            size_t length = strlen(res->c_str());
-            if (length >= sizeof(evaluated.result))
-               length = sizeof(evaluated.result) - 1;
+            start                    = i + 1;
+            WatchLogEvaluated evaluated;
             const char* start = strstr(res->c_str(), " = ");
-            memcpy(evaluated.result, start ? start + 3 : res->c_str(), length);
-            evaluated.result[length] = 0;
-            entry.evaluated.push_back(evaluated);
+            if (start)
+               evaluated.result = start + 3;
+            else
+               evaluated.result = std::move(*res);
+            entry.evaluated.push_back(std::move(evaluated));
          }
 
          if (!expressionsToEvaluate[i]) {
@@ -3468,7 +3462,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
                   watch->updateIndex = w->updateIndex;
                   auto res = WatchEvaluate("gf_valueof", watch);
                   resize_to_lf(*res);
-                  watch->value = *res; // ?? why `*std::move(res);` crashes?? - probably Watch objects not constructed!
+                  watch->value = std::move(*res);
                } else {
                   watch->value = "..";
                }
