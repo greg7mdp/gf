@@ -2641,18 +2641,20 @@ UIElement* ConsoleWindowCreate(UIElement* parent) {
 // ---------------------------------------------------/
 // Watch window:
 // ---------------------------------------------------/
+struct Watch;
+using WatchVector = vector<shared_ptr<Watch>>;
 
 struct Watch {
-   bool           open, hasFields, loadedFields, isArray, isDynamicArray;
-   uint8_t        depth;
-   char           format;
-   uintptr_t      arrayIndex;
-   char*          key;
-   std::string    value;
-   std::string    type;
-   vector<Watch*> fields;
-   Watch*         parent;
-   uint64_t       updateIndex;
+   bool        open = false, hasFields = false, loadedFields = false, isArray = false, isDynamicArray = false;
+   uint8_t     depth      = 0;
+   char        format     = 0;
+   uintptr_t   arrayIndex = 0;
+   std::string key;
+   std::string value;
+   std::string type;
+   WatchVector fields;
+   Watch*      parent      = nullptr;
+   uint64_t    updateIndex = 0;
 };
 
 enum WatchWindowMode {
@@ -2660,10 +2662,10 @@ enum WatchWindowMode {
    WATCH_LOCALS,
 };
 
-struct WatchWindow  : public UIElement {
-   vector<Watch*>  rows;
-   vector<Watch*>  baseExpressions;
-   vector<Watch*>  dynamicArrays;
+struct WatchWindow : public UIElement {
+   WatchVector     rows;
+   WatchVector     baseExpressions;
+   WatchVector     dynamicArrays;
    UITextbox*      textbox;
    std::string     lastLocalList;
    size_t          selectedRow;
@@ -2733,27 +2735,17 @@ void WatchDestroyTextbox(WatchWindow* w) {
    w->Focus();
 }
 
-void WatchFree(WatchWindow* w, Watch* watch, bool fieldsOnly = false) {
-   for (const auto& field : watch->fields) {
-      WatchFree(w, field);
-      if (!watch->isArray)
-         free(field);
-   }
-
+void WatchFree(WatchWindow* w, const shared_ptr<Watch>& watch, bool fieldsOnly = false) {
    if (watch->isDynamicArray) {
       if (auto it = rng::find(w->dynamicArrays, watch); it != rng::end(w->dynamicArrays))
          w->dynamicArrays.erase(it);
-   }
-
-   if (watch->isArray && watch->fields.size()) {
-      free(watch->fields[0]);
    }
 
    watch->loadedFields = false;
    watch->fields.clear();
 
    if (!fieldsOnly) {
-      free(watch->key);
+      watch->key.clear();
    }
 }
 
@@ -2769,7 +2761,7 @@ void WatchDeleteExpression(WatchWindow* w, bool fieldsOnly = false) {
       }
    }
 
-   Watch* watch = w->rows[w->selectedRow];
+   shared_ptr<Watch> watch = w->rows[w->selectedRow]; // no reference as we want to hold the pointer
 
    if (!fieldsOnly) {
       if (auto it = rng::find(w->baseExpressions, watch); it != rng::end(w->baseExpressions))
@@ -2781,10 +2773,10 @@ void WatchDeleteExpression(WatchWindow* w, bool fieldsOnly = false) {
    w->rows.erase(w->rows.cbegin() + w->selectedRow, w->rows.cbegin() + end);
    WatchFree(w, watch, fieldsOnly);
    if (!fieldsOnly)
-      free(watch);
+      watch.reset();
 }
 
-std::optional<std::string> WatchEvaluate(const char* function, Watch* watch) {
+std::optional<std::string> WatchEvaluate(const char* function, const shared_ptr<Watch>& watch) {
    char      buffer[4096];
    uintptr_t position = 0;
 
@@ -2792,7 +2784,7 @@ std::optional<std::string> WatchEvaluate(const char* function, Watch* watch) {
 
    Watch* stack[32];
    int    stackCount = 0;
-   stack[0]          = watch;
+   stack[0]          = watch.get();
 
    while (stack[stackCount]) {
       stack[stackCount + 1] = stack[stackCount]->parent;
@@ -2812,13 +2804,13 @@ std::optional<std::string> WatchEvaluate(const char* function, Watch* watch) {
          first = false;
       }
 
-      if (stack[stackCount]->key) {
-         position += StringFormat(buffer + position, sizeof(buffer) - position, "'%s'", stack[stackCount]->key);
-      } else if (stack[stackCount]->parent && stack[stackCount]->parent->isDynamicArray) {
-         position +=
-            StringFormat(buffer + position, sizeof(buffer) - position, "'[%lu]'", stack[stackCount]->arrayIndex);
+      auto w = stack[stackCount];
+      if (!w->key.empty()) {
+         position += StringFormat(buffer + position, sizeof(buffer) - position, "'%s'", w->key.c_str());
+      } else if (w->parent && w->parent->isDynamicArray) {
+         position += StringFormat(buffer + position, sizeof(buffer) - position, "'[%lu]'", w->arrayIndex);
       } else {
-         position += StringFormat(buffer + position, sizeof(buffer) - position, "%lu", stack[stackCount]->arrayIndex);
+         position += StringFormat(buffer + position, sizeof(buffer) - position, "%lu", w->arrayIndex);
       }
    }
 
@@ -2833,7 +2825,7 @@ std::optional<std::string> WatchEvaluate(const char* function, Watch* watch) {
    return EvaluateCommand(buffer);
 }
 
-bool WatchHasFields(Watch* watch) {
+bool WatchHasFields(const shared_ptr<Watch>& watch) {
    auto res = WatchEvaluate("gf_fields", watch);
    if (!res)
       return false;
@@ -2844,7 +2836,7 @@ bool WatchHasFields(Watch* watch) {
    return res->contains('\n') && !res->starts_with("(gdb)\n");
 }
 
-void WatchAddFields(WatchWindow* w, Watch* watch) {
+void WatchAddFields(WatchWindow* w, const shared_ptr<Watch>& watch) {
    if (watch->loadedFields) {
       return;
    }
@@ -2864,7 +2856,6 @@ void WatchAddFields(WatchWindow* w, Watch* watch) {
       if (count < 0)
          count = 0;
 
-      Watch* fields     = (Watch*)calloc(count, sizeof(Watch));
       watch->isArray    = true;
       bool hasSubFields = false;
 
@@ -2874,14 +2865,16 @@ void WatchAddFields(WatchWindow* w, Watch* watch) {
       }
 
       for (int i = 0; i < count; i++) {
-         fields[i].format     = watch->format;
-         fields[i].parent     = watch;
-         fields[i].arrayIndex = i;
-         watch->fields.push_back(&fields[i]);
+         auto field = make_shared<Watch>();
+         field->format = watch->format;
+         field->arrayIndex = (uintptr_t)i;
+         field->parent = watch.get();
+
+         watch->fields.push_back(field);
          if (!i)
-            hasSubFields = WatchHasFields(&fields[i]);
-         fields[i].hasFields = hasSubFields;
-         fields[i].depth     = watch->depth + 1;
+            hasSubFields = WatchHasFields(field);
+         field->hasFields = hasSubFields;
+         field->depth     = watch->depth + 1;
       }
    } else {
       char* start    = strdup(res->c_str());
@@ -2889,17 +2882,15 @@ void WatchAddFields(WatchWindow* w, Watch* watch) {
 
       while (true) {
          char* end = strchr(position, '\n');
-         if (!end)
+         if (!end || strstr(position, "(gdb)"))
             break;
          *end = 0;
-         if (strstr(position, "(gdb)"))
-            break;
-         Watch* field  = (Watch*)calloc(1, sizeof(Watch));
-         field->depth  = watch->depth + 1;
-         field->parent = watch;
-         field->key    = (char*)malloc(end - position + 1);
-         strcpy(field->key, position);
-         watch->fields.push_back(field);
+         auto field = make_shared<Watch>();
+         field->depth = (uint8_t)(watch->depth + 1);
+         field->key = position;
+         field->parent = watch.get();
+
+         watch->fields.emplace_back(field);
          field->hasFields = WatchHasFields(field);
          position         = end + 1;
       }
@@ -2925,17 +2916,17 @@ void WatchEnsureRowVisible(WatchWindow* w, size_t index) {
       w->parent->Refresh();
 }
 
-void WatchInsertFieldRows2(WatchWindow* w, Watch* watch, vector<Watch*>* array) {
+void WatchInsertFieldRows2(const shared_ptr<Watch>& watch, WatchVector* array) {
    for (const auto& field : watch->fields) {
       array->push_back(field);
       if (field->open)
-         WatchInsertFieldRows2(w, field, array);
+         WatchInsertFieldRows2(field, array);
    }
 }
 
-void WatchInsertFieldRows(WatchWindow* w, Watch* watch, size_t position, bool ensureLastVisible) {
-   vector<Watch*> array = {};
-   WatchInsertFieldRows2(w, watch, &array);
+void WatchInsertFieldRows(WatchWindow* w, const shared_ptr<Watch>& watch, size_t position, bool ensureLastVisible) {
+   WatchVector array = {};
+   WatchInsertFieldRows2(watch, &array);
    w->rows.insert(w->rows.cbegin() + position, array.cbegin(), array.cend());
    if (ensureLastVisible)
       WatchEnsureRowVisible(w, position + array.size() - 1);
@@ -2948,15 +2939,12 @@ void WatchAddExpression(WatchWindow* w, char* string = nullptr) {
       return;
    }
 
-   Watch* watch = (Watch*)calloc(1, sizeof(Watch));
+   auto watch = make_shared<Watch>();
 
-   if (string) {
+   if (string)
       watch->key = string;
-   } else {
-      watch->key                    = (char*)malloc(w->textbox->bytes + 1);
-      watch->key[w->textbox->bytes] = 0;
-      memcpy(watch->key, w->textbox->string, w->textbox->bytes);
-   }
+   else
+      watch->key = std::string_view(w->textbox->string, w->textbox->bytes);
 
    WatchDeleteExpression(w); // Deletes textbox.
    w->rows.insert(w->rows.cbegin() + w->selectedRow, watch);
@@ -2967,7 +2955,7 @@ void WatchAddExpression(WatchWindow* w, char* string = nullptr) {
 
    if (res && !res->contains("??")) {
       resize_to_lf(*res);
-      watch->type = *res; // todo: std::move(*res);
+      watch->type = std::move(*res);
       watch->hasFields = WatchHasFields(watch);
    }
 }
@@ -3088,7 +3076,7 @@ int WatchLoggerTraceMessage(UIElement* element, UIMessage message, int di, void*
    return 0;
 }
 
-std::optional<std::string> WatchGetAddress(Watch* watch) {
+std::optional<std::string> WatchGetAddress(const shared_ptr<Watch>& watch) {
    auto res = WatchEvaluate("gf_addressof", watch);
 
    if (!res || strstr(res->c_str(), "??")) {
@@ -3291,7 +3279,7 @@ void WatchCreateTextboxForRow(WatchWindow* w, bool addExistingText) {
    w->textbox->Focus();
 
    if (addExistingText) {
-      UITextboxReplace(w->textbox, w->rows[w->selectedRow]->key, -1, false);
+      UITextboxReplace(w->textbox, w->rows[w->selectedRow]->key.c_str(), -1, false);
    }
 }
 
@@ -3305,7 +3293,7 @@ void CommandWatchAddEntryForAddress(WatchWindow* _w) {
       return;
    if (w->mode == WATCH_NORMAL && w->selectedRow == w->rows.size())
       return;
-   Watch* watch = w->rows[w->selectedRow];
+   const auto& watch = w->rows[w->selectedRow];
    auto res = WatchGetAddress(watch);
    if (!res)
       return;
@@ -3379,11 +3367,11 @@ void CommandWatchViewSourceAtAddress() {
    CommandWatchViewSourceAtAddress(WatchGetFocused());
 }
 
-void CommandWatchSaveAsRecurse(FILE* file, Watch* watch, int indent, int indexInParentArray) {
+void CommandWatchSaveAsRecurse(FILE* file, const shared_ptr<Watch>& watch, int indent, int indexInParentArray) {
    fprintf(file, "%.*s", indent, "\t\t\t\t\t\t\t\t\t\t\t\t\t\t");
 
    if (indexInParentArray == -1) {
-      fprintf(file, "%s = ", watch->key);
+      fprintf(file, "%s = ", watch->key.c_str());
    } else {
       fprintf(file, "[%d] = ", indexInParentArray);
    }
@@ -3426,8 +3414,7 @@ void CommandWatchSaveAs(WatchWindow* _w) {
       return;
    }
 
-   Watch* watch = w->rows[w->selectedRow];
-   CommandWatchSaveAsRecurse(f, watch, 0, -1);
+   CommandWatchSaveAsRecurse(f, w->rows[w->selectedRow], 0, -1);
    fclose(f);
 }
 
@@ -3437,7 +3424,7 @@ void CommandWatchCopyValueToClipboard(WatchWindow* w) {
    if (w->mode == WATCH_NORMAL && w->selectedRow == w->rows.size())
       return;
 
-   Watch* watch = w->rows[w->selectedRow];
+   const shared_ptr<Watch>& watch = w->rows[w->selectedRow];
 
    auto res = WatchEvaluate("gf_valueof", watch);
    if (res) {
@@ -3471,8 +3458,8 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
          row.l += ui_size::TEXTBOX_MARGIN;
          row.r -= ui_size::TEXTBOX_MARGIN;
 
-         if (i != w->rows.size()) {
-            Watch* watch = w->rows[i];
+         if (i < w->rows.size()) {
+            const shared_ptr<Watch>& watch = w->rows[i];
             char   buffer[256];
 
             if ((watch->value.empty() || watch->updateIndex != w->updateIndex) && !watch->open) {
@@ -3488,7 +3475,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
 
             char keyIndex[64];
 
-            if (!watch->key) {
+            if (watch->key.empty()) {
                StringFormat(keyIndex, sizeof(keyIndex), "[%lu]", watch->arrayIndex);
             }
 
@@ -3500,7 +3487,8 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
                             watch->open        ? "v "
                             : watch->hasFields ? "> "
                                                : "",
-                            watch->key ?: keyIndex, watch->open ? "" : " = ", watch->open ? "" : watch->value.c_str());
+                            !watch->key.empty() ? watch->key.c_str() : keyIndex, watch->open ? "" : " = ",
+                            watch->open ? "" : watch->value.c_str());
             }
 
             if (focused) {
@@ -3517,7 +3505,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
          w->selectedRow = (element->window->cursor.y - element->bounds.t) / rowHeight;
 
          if (w->selectedRow < w->rows.size()) {
-            Watch* watch = w->rows[w->selectedRow];
+            const shared_ptr<Watch>& watch = w->rows[w->selectedRow];
             int    x     = (element->window->cursor.x - element->bounds.l) / ui->activeFont->glyphWidth;
 
             if (x >= watch->depth * 3 - 1 && x <= watch->depth * 3 + 1 && watch->hasFields) {
@@ -3645,7 +3633,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
          w->selectedRow = WatchLastRow(w);
       } else if (m->code == UIKeycode::RIGHT && !w->textbox && w->selectedRow != w->rows.size() &&
                  w->rows[w->selectedRow]->hasFields && !w->rows[w->selectedRow]->open) {
-         Watch* watch = w->rows[w->selectedRow];
+         const shared_ptr<Watch>& watch = w->rows[w->selectedRow];
          watch->open  = true;
          WatchAddFields(w, watch);
          WatchInsertFieldRows(w, watch, w->selectedRow + 1, true);
@@ -3664,7 +3652,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
       } else if (m->code == UIKeycode::LEFT && !w->textbox && w->selectedRow != w->rows.size() &&
                  !w->rows[w->selectedRow]->open) {
          for (size_t i = 0; i < w->rows.size(); i++) {
-            if (w->rows[w->selectedRow]->parent == w->rows[i]) {
+            if (w->rows[w->selectedRow]->parent == w->rows[i].get()) {
                w->selectedRow = i;
                break;
             }
@@ -3754,10 +3742,10 @@ void WatchWindowUpdate(const char*, UIElement* element) {
 
          if (expressions.size() > 0) {
             for (size_t watchIndex = 0; watchIndex < w->baseExpressions.size(); watchIndex++) {
-               Watch* watch   = w->baseExpressions[watchIndex];
+               const shared_ptr<Watch>& watch = w->baseExpressions[watchIndex];
                bool   matched = false;
 
-               if (auto it = rng::find_if(expressions, [&](char* e) { return !strcmp(watch->key, e); });
+               if (auto it = rng::find_if(expressions, [&](char* e) { return watch->key == e; });
                    it != rng::end(expressions)) {
                   expressions.erase(it);
                   matched = true;
@@ -3794,7 +3782,7 @@ void WatchWindowUpdate(const char*, UIElement* element) {
    }
 
    for (size_t i = 0; i < w->baseExpressions.size(); i++) {
-      Watch* watch = w->baseExpressions[i];
+      const shared_ptr<Watch>& watch = w->baseExpressions[i];
       auto res = WatchEvaluate("gf_typeof", watch);
       resize_to_lf(*res);
 
@@ -3804,7 +3792,7 @@ void WatchWindowUpdate(const char*, UIElement* element) {
          for (size_t j = 0; j < w->rows.size(); j++) {
             if (w->rows[j] == watch) {
                w->selectedRow = j;
-               WatchAddExpression(w, strdup(watch->key));
+               WatchAddExpression(w, strdup(watch->key.c_str()));
                w->selectedRow = w->rows.size(), i--;
                break;
             }
@@ -3813,7 +3801,7 @@ void WatchWindowUpdate(const char*, UIElement* element) {
    }
 
    for (size_t i = 0; i < w->dynamicArrays.size(); i++) {
-      Watch* watch = w->dynamicArrays[i];
+      const shared_ptr<Watch>& watch = w->dynamicArrays[i];
       auto res = WatchEvaluate("gf_fields", watch);
       if (!res || !res->contains("(d_arr)"))
          continue;
@@ -6347,7 +6335,7 @@ void ViewWindowView(void* cp) {
       return;
    if (w->selectedRow > w->rows.size() || !w->rows.size())
       return;
-   Watch* watch = w->rows[w->selectedRow == w->rows.size() ? w->selectedRow - 1 : w->selectedRow];
+   const shared_ptr<Watch>& watch = w->rows[w->selectedRow == w->rows.size() ? w->selectedRow - 1 : w->selectedRow];
    if (!watch)
       return;
    if (!cp)
@@ -7630,7 +7618,7 @@ int main(int argc, char** argv) {
 
       if (f) {
          for (const auto& exp : firstWatchWindow->baseExpressions) {
-            fprintf(f, "%s\n", exp->key);
+            fprintf(f, "%s\n", exp->key.c_str());
          }
 
          fclose(f);
