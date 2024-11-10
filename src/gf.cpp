@@ -2682,18 +2682,20 @@ struct WatchLogEvaluated {
 };
 
 struct WatchLogEntry {
-   char                      value[64];
-   char                      where[128];
+   std::string               value;
+   std::string               where;
    vector<WatchLogEvaluated> evaluated;
    vector<StackEntry>        trace;
 };
 
 struct WatchLogger {
-   int                   id, selectedEntry;
-   char                  columns[256];
-   char*                 expressionsToEvaluate;
+   int                   id            = 0;
+   int                   selectedEntry = 0;
+   char                  columns[256]  = {0};
+   std::string           expressionsToEvaluate;
    vector<WatchLogEntry> entries;
-   UITable *             table, *trace;
+   UITable*              table = nullptr;
+   UITable*              trace = nullptr;
 };
 
 vector<WatchLogger*> watchLoggers;
@@ -2933,7 +2935,7 @@ void WatchInsertFieldRows(WatchWindow* w, const shared_ptr<Watch>& watch, size_t
    array.clear();
 }
 
-void WatchAddExpression(WatchWindow* w, char* string = nullptr) {
+void WatchAddExpression(WatchWindow* w, const char* string = nullptr) {
    if (!string && w->textbox && !w->textbox->bytes) {
       WatchDestroyTextbox(w);
       return;
@@ -2964,7 +2966,7 @@ void WatchAddExpression2(char* string) {
    UIElement*   element = InterfaceWindowSwitchToAndFocus("Watch");
    WatchWindow* w       = (WatchWindow*)element->cp;
    w->selectedRow       = w->rows.size();
-   WatchAddExpression(w, strdup(string));
+   WatchAddExpression(w, string);
    if (w->selectedRow)
       w->selectedRow--;
    WatchEnsureRowVisible(w, w->selectedRow);
@@ -2989,9 +2991,7 @@ int WatchLoggerWindowMessage(UIElement* element, UIMessage message, int di, void
             e.evaluated.clear();
          }
 
-         logger->entries.clear();
-         free(logger->expressionsToEvaluate);
-         free(logger);
+         delete logger;
       }
    } else if (message == UIMessage::GET_WIDTH || message == UIMessage::GET_HEIGHT) {
       return element->window->scale * 400;
@@ -3026,9 +3026,9 @@ int WatchLoggerTableMessage(UIElement* element, UIMessage message, int di, void*
       m->isSelected         = m->index == logger->selectedEntry;
 
       if (m->column == 0) {
-         return StringFormat(m->buffer, m->bufferBytes, "%s", entry->value);
+         return StringFormat(m->buffer, m->bufferBytes, "%s", entry->value.c_str());
       } else if (m->column == 1) {
-         return StringFormat(m->buffer, m->bufferBytes, "%s", entry->where);
+         return StringFormat(m->buffer, m->bufferBytes, "%s", entry->where.c_str());
       } else {
          if (m->column - 2 < (int)entry->evaluated.size()) {
             return StringFormat(m->buffer, m->bufferBytes, "%s", entry->evaluated[m->column - 2].result);
@@ -3138,7 +3138,7 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
       return;
    }
 
-   WatchLogger* logger = (WatchLogger*)calloc(1, sizeof(WatchLogger));
+   WatchLogger* logger = new WatchLogger;
 
    UIButton* button = UIButtonCreate(child, UIButton::SMALL | UIElement::NON_CLIENT, "Resize columns", -1);
    button->invoke   = [logger]() { WatchLoggerResizeColumns(logger); };
@@ -3223,7 +3223,7 @@ bool WatchLoggerUpdate(char* data) {
    *afterWhere         = 0;
    WatchLogEntry entry = {};
 
-   char* expressionsToEvaluate = logger->expressionsToEvaluate;
+   const char* expressionsToEvaluate = logger->expressionsToEvaluate.c_str();
 
    if (expressionsToEvaluate) {
       uintptr_t start = 0;
@@ -3254,8 +3254,8 @@ bool WatchLoggerUpdate(char* data) {
       value[sizeof(entry.value) - 1] = 0;
    if (strlen(where) >= sizeof(entry.where))
       where[sizeof(entry.where) - 1] = 0;
-   strcpy(entry.value, value);
-   strcpy(entry.where, where);
+   entry.value = value;
+   entry.where = where;
    vector<StackEntry> previousStack = stack;
    stack                            = {};
    DebuggerGetStack();
@@ -3314,6 +3314,7 @@ void CommandWatchAddEntryForAddress(WatchWindow* _w) {
    char*  buffer = (char*)malloc(size);
    StringFormat(buffer, size, "(%s*)%s", res->c_str(), address);
    WatchAddExpression(w, buffer);
+   free(buffer);
    WatchEnsureRowVisible(w, w->selectedRow);
    w->parent->Refresh();
    w->Refresh();
@@ -3768,9 +3769,8 @@ void WatchWindowUpdate(const char*, UIElement* element) {
 
             // Add the remaining (new) variables.
             for (auto exp : expressions) {
-               char* expression = strdup(exp);
                w->selectedRow   = w->rows.size();
-               WatchAddExpression(w, expression);
+               WatchAddExpression(w, exp);
             }
 
             w->selectedRow = w->rows.size();
@@ -3792,7 +3792,7 @@ void WatchWindowUpdate(const char*, UIElement* element) {
          for (size_t j = 0; j < w->rows.size(); j++) {
             if (w->rows[j] == watch) {
                w->selectedRow = j;
-               WatchAddExpression(w, strdup(watch->key.c_str()));
+               WatchAddExpression(w, watch->key.c_str());
                w->selectedRow = w->rows.size(), i--;
                break;
             }
@@ -7131,6 +7131,7 @@ void MsgReceivedData(str_unique_ptr input) {
       }
 
       ctx.firstUpdate = false;
+      free(data);
    }
 
    if (WatchLoggerUpdate(input.get()))
