@@ -36,8 +36,8 @@
 #include <vector>
 #include <iostream>
 
-namespace views = std::views;
-namespace rng   = std::ranges;
+namespace views        = std::views;
+namespace rng          = std::ranges;
 static const auto npos = std::string::npos;
 
 using namespace std;
@@ -50,7 +50,8 @@ using namespace std;
 template <typename T>
 class SPSCQueue {
 public:
-   SPSCQueue() : quit_(false) {}
+   SPSCQueue()
+      : quit_(false) {}
 
    void push(T&& item) {
       std::unique_lock<std::mutex> lock(mutex_);
@@ -114,11 +115,11 @@ struct InterfaceCommand {
 struct InterfaceWindow {
    const char* name = nullptr;
    UIElement* (*create)(UIElement* parent);
-   void       (*update)(const char* data, UIElement* element);
-   void       (*focus)(UIElement* element);
+   void (*update)(const char* data, UIElement* element);
+   void (*focus)(UIElement* element);
    UIElement* element = nullptr;
    bool       queuedUpdate, alwaysUpdate;
-   void       (*config)(const char* key, const char* value);
+   void (*config)(const char* key, const char* value);
 };
 
 struct InterfaceDataViewer {
@@ -127,17 +128,17 @@ struct InterfaceDataViewer {
 };
 
 struct INIState {
-   char * buffer = nullptr;
-   char *section = nullptr;
-   char *key = nullptr;
-   char *value = nullptr;
+   char*  buffer  = nullptr;
+   char*  section = nullptr;
+   char*  key     = nullptr;
+   char*  value   = nullptr;
    size_t bytes = 0, sectionBytes = 0, keyBytes = 0, valueBytes = 0;
 };
 
 using str_unique_ptr = std::unique_ptr<char, decltype([](char* s) { free(s); })>;
 
 struct ReceiveMessageType {
-   UIMessage                  message;
+   UIMessage                           message;
    std::function<void(str_unique_ptr)> callback;
 };
 
@@ -155,15 +156,15 @@ struct Context {
    UICode*     logWindow         = nullptr; // if sent, log all debugger output there
 
    // ========== Debugger interaction ======================
-   int                    pipeToGDB    = 0;
-   pid_t                  gdbPID       = 0;
-   std::atomic<bool>      killGdbThread= false;
-   std::thread            gdbThread;                // reads gdb output and pushes it to queue (we wait on queue in DebuggerSend
-   std::atomic<bool>      evaluateMode = false;     // when true, means we sent a command to gdb and are waiting for the response
-   char**                 gdbArgv      = nullptr;
-   int                    gdbArgc      = 0;
+   int               pipeToGDB     = 0;
+   pid_t             gdbPID        = 0;
+   std::atomic<bool> killGdbThread = false;
+   std::thread       gdbThread;            // reads gdb output and pushes it to queue (we wait on queue in DebuggerSend
+   std::atomic<bool> evaluateMode = false; // when true, means we sent a command to gdb and are waiting for the response
+   char**            gdbArgv      = nullptr;
+   int               gdbArgc      = 0;
    SPSCQueue<std::string> evaluateResultQueue;
-   bool                   programRunning = true;    // true
+   bool                   programRunning = true; // true
 
    // make private
    void SendToGdb(std::string_view sv) const {
@@ -231,9 +232,7 @@ bool         confirmCommandConnect = true, confirmCommandKill = true;
 int          backtraceCountLimit = 50;
 UIMessage    msgReceivedData, msgReceivedLog, msgReceivedControl, msgReceivedNext = (UIMessage)(UIMessage::USER_PLUS_1);
 
-UIConfig ui_config = {
-   .rfu = true
-};
+UIConfig ui_config = {.rfu = true};
 
 // Current file and line:
 
@@ -246,16 +245,16 @@ char   previousLocation[256];
 
 // User interface:
 
-UIWindow*   windowMain = nullptr;
+UIWindow*   windowMain   = nullptr;
 UISwitcher* switcherMain = nullptr;
 
-UICode*    displayCode = nullptr;
+UICode*    displayCode   = nullptr;
 UICode*    displayOutput = nullptr;
-UITextbox* textboxInput = nullptr;
-UISpacer*  trafficLight = nullptr;
+UITextbox* textboxInput  = nullptr;
+UISpacer*  trafficLight  = nullptr;
 
 UIMDIClient* dataWindow = nullptr;
-UIPanel*     dataTab = nullptr;
+UIPanel*     dataTab    = nullptr;
 
 UIFont* fontCode = nullptr;
 
@@ -417,25 +416,20 @@ int StringFormat(char* buffer, size_t bufferSize, const char* format, ...) {
    return length;
 }
 
-char* LoadFile(const char* path, size_t* _bytes) {
+vector<char> LoadFile(const char* path, size_t* _bytes) {
    FILE* f = fopen(path, "rb");
 
    if (!f) {
-      return nullptr;
+      return vector<char>{'\0'};
    }
 
    fseek(f, 0, SEEK_END);
    size_t bytes = ftell(f);
    fseek(f, 0, SEEK_SET);
-   char* buffer = (char*)malloc(bytes + 1);
-
-   if (!buffer) {
-      fclose(f);
-      return nullptr;
-   }
+   vector<char> buffer(bytes + 1);
 
    buffer[bytes] = 0;
-   fread(buffer, 1, bytes, f);
+   fread(buffer.data(), 1, bytes, f);
    fclose(f);
    if (_bytes)
       *_bytes = bytes;
@@ -600,7 +594,7 @@ bool SourceFindOuterFunctionCall(char** start, char** end) {
    return found;
 }
 
-UIMessage ReceiveMessageRegister(std::function<void (str_unique_ptr)> callback) {
+UIMessage ReceiveMessageRegister(std::function<void(str_unique_ptr)> callback) {
    receiveMessageTypes.push_back({.message = msgReceivedNext, .callback = std::move(callback)});
    msgReceivedNext = (UIMessage)((uint32_t)msgReceivedNext + 1);
    return receiveMessageTypes.back().message;
@@ -619,10 +613,10 @@ void Context::DebuggerThread() {
 
    if (gdbPID == 0) {
       setsid();
-      dup2(inputPipe[0], 0);      // inputPipe[0]  == stdin
-      dup2(outputPipe[1], 1);     // outputPipe[1] == stdout
-      dup2(outputPipe[1], 2);     // outputPipe[1] == stderr
-      execvp(gdbPath, gdbArgv);   // execute gdb with arguments gdbArgv
+      dup2(inputPipe[0], 0);    // inputPipe[0]  == stdin
+      dup2(outputPipe[1], 1);   // outputPipe[1] == stdout
+      dup2(outputPipe[1], 2);   // outputPipe[1] == stderr
+      execvp(gdbPath, gdbArgv); // execute gdb with arguments gdbArgv
       fprintf(stderr, "Error: Couldn't execute gdb.\n");
       exit(EXIT_FAILURE);
 
@@ -634,7 +628,7 @@ void Context::DebuggerThread() {
    fprintf(stderr, "Using spawn\n");
    posix_spawn_file_actions_t actions = {};
    posix_spawn_file_actions_init(&actions);
-   posix_spawn_file_actions_adddup2(&actions, inputPipe[0],  0); // inputPipe[0]  == stdin
+   posix_spawn_file_actions_adddup2(&actions, inputPipe[0], 0);  // inputPipe[0]  == stdin
    posix_spawn_file_actions_adddup2(&actions, outputPipe[1], 1); // outputPipe[1] == stdout
    posix_spawn_file_actions_adddup2(&actions, outputPipe[1], 2); // outputPipe[1] == stderr
 
@@ -654,8 +648,8 @@ void Context::DebuggerThread() {
 
    int pipeFromGdb = outputPipe[0];
 
-   fd_set readfds;
-   timeval timeout { 0, 10000 }; // Wait for 10 ms
+   fd_set  readfds;
+   timeval timeout{0, 10000}; // Wait for 10 ms
 
    std::string catBuffer;
    while (true) {
@@ -667,13 +661,13 @@ void Context::DebuggerThread() {
       FD_SET(pipeFromGdb, &readfds);
       int result = select(pipeFromGdb + 1, &readfds, NULL, NULL, &timeout);
 
-      if (result == -1) {                             // "Error in select"
+      if (result == -1) { // "Error in select"
          std::cout << "error: " << errno << '\n';
          break;
-      } else if (result == 0) {                       // timeout
+      } else if (result == 0) { // timeout
          if (killGdbThread)
             break;
-      } else if (FD_ISSET(pipeFromGdb, &readfds)) {   // Data is available for reading
+      } else if (FD_ISSET(pipeFromGdb, &readfds)) { // Data is available for reading
          char buffer[512 + 1];
          int  count = read(pipeFromGdb, buffer, 512);
          if (killGdbThread)
@@ -773,11 +767,15 @@ std::optional<std::string> EvaluateExpression(const char* expression, const char
    if (res) {
       auto eq = res->find_first_of('=');
       if (eq != npos) {
-         res->erase(0, eq);   // remove characters up to '='
-         resize_to_lf(*res);  // terminate string at '\n'
+         res->erase(0, eq);  // remove characters up to '='
+         resize_to_lf(*res); // terminate string at '\n'
       }
    }
    return res;
+}
+
+std::optional<std::string> EvaluateExpression(const std::string& expression, const char* format = nullptr) {
+   return EvaluateExpression(expression.c_str(), format);
 }
 
 void* ControlPipeThread(void*) {
@@ -931,8 +929,8 @@ void DebuggerGetBreakpoints() {
          realpath(breakpoint.file, breakpoint.fileFull);
 
          for (const auto& bp : breakpoints) {
-            if (strcmp(bp.fileFull, breakpoint.fileFull) == 0 &&
-                bp.conditionHash == breakpoint.conditionHash && bp.line == breakpoint.line) {
+            if (strcmp(bp.fileFull, breakpoint.fileFull) == 0 && bp.conditionHash == breakpoint.conditionHash &&
+                bp.line == breakpoint.line) {
                // Prevent having identical breakpoints on the same line.
                char buffer[1024];
                StringFormat(buffer, 1024, "delete %d", breakpoint.number);
@@ -1055,13 +1053,13 @@ std::optional<std::string> CommandParseInternal(const char* command, bool synchr
       ctx.KillGdb();
       DebuggerStartThread();
    } else if (0 == strcmp(command, "gf-get-pwd")) {
-      auto res = EvaluateCommand("info source");
+      auto        res    = EvaluateCommand("info source");
       const char* needle = "Compilation directory is ";
       const char* pwd    = strstr(res->c_str(), needle);
 
       if (pwd) {
          pwd += strlen(needle);
-         char* end = (char *)strchr(pwd, '\n');
+         char* end = (char*)strchr(pwd, '\n');
          if (end)
             *end = 0;
 
@@ -1223,13 +1221,13 @@ void CommandCustom(const char* command) {
       if (displayOutput)
          UICodeInsertContent(displayOutput, buffer, -1, false);
       StringFormat(buffer, 4096, "%s > .output.gf 2>&1", command);
-      int    start  = time(nullptr);
-      int    result = system(buffer);
-      size_t bytes  = 0;
-      char*  output = LoadFile(".output.gf", &bytes);
+      int          start  = time(nullptr);
+      int          result = system(buffer);
+      size_t       bytes  = 0;
+      vector<char> output = LoadFile(".output.gf", &bytes);
       unlink(".output.gf");
-      char*     copy = (char*)malloc(bytes + 1);
-      uintptr_t j    = 0;
+      vector<char> copy(bytes + 1);
+      uintptr_t    j = 0;
 
       for (uintptr_t i = 0; i <= bytes;) {
          if ((uint8_t)output[i] == 0xE2 && (uint8_t)output[i + 1] == 0x80 &&
@@ -1242,9 +1240,7 @@ void CommandCustom(const char* command) {
       }
 
       if (displayOutput)
-         UICodeInsertContent(displayOutput, copy, j, false);
-      free(output);
-      free(copy);
+         UICodeInsertContent(displayOutput, copy.data(), j, false);
       StringFormat(buffer, 4096, "(exit code: %d; time: %ds)\n", result, (int)(time(nullptr) - start));
       if (displayOutput)
          UICodeInsertContent(displayOutput, buffer, -1, false);
@@ -1267,17 +1263,17 @@ const char* themeItems[] = {
 };
 
 void SettingsAddTrustedFolder() {
-   char*       config           = LoadFile(globalConfigPath, nullptr);
-   size_t      length           = config ? strlen(config) : 0;
+   vector<char> config          = LoadFile(globalConfigPath, nullptr);
+   size_t      length           = strlen(config.data());
    size_t      insert           = 0;
    const char* sectionString    = "\n[trusted_folders]\n";
    bool        addSectionString = true;
 
-   if (config) {
-      char* section = strstr(config, sectionString);
+   if (length) {
+      char* section = strstr(config.data(), sectionString);
 
       if (section) {
-         insert           = section - config + strlen(sectionString);
+         insert           = section - config.data() + strlen(sectionString);
          addSectionString = false;
       } else {
          insert = length;
@@ -1290,14 +1286,14 @@ void SettingsAddTrustedFolder() {
       fprintf(stderr, "Error: Could not modify the global config file!\n");
    } else {
       if (insert)
-         fwrite(config, 1, insert, f);
+         fwrite(config.data(), 1, insert, f);
       if (addSectionString)
          fwrite(sectionString, 1, strlen(sectionString), f);
       fwrite(localConfigDirectory, 1, strlen(localConfigDirectory), f);
       char newline = '\n';
       fwrite(&newline, 1, 1, f);
       if (length - insert)
-         fwrite(config + insert, 1, length - insert, f);
+         fwrite(config.data() + insert, 1, length - insert, f);
       fclose(f);
    }
 }
@@ -1308,7 +1304,8 @@ void SettingsLoad(bool earlyPass) {
 
    for (int i = 0; i < 2; i++) {
       INIState state;
-      state.buffer = LoadFile(i ? localConfigPath : globalConfigPath, &state.bytes);
+      auto config_vec = LoadFile(i ? localConfigPath : globalConfigPath, &state.bytes);
+      state.buffer = config_vec[0] ? strdup(config_vec.data()) : nullptr;
 
       if (earlyPass && i && !currentFolderIsTrusted && state.buffer) {
          fprintf(stderr, "Would you like to load the config file .project.gf from your current directory?\n");
@@ -1399,7 +1396,7 @@ void SettingsLoad(bool earlyPass) {
          } else if (0 == strcmp(state.section, "gdb") && !earlyPass) {
             if (0 == strcmp(state.key, "argument")) {
                ctx.gdbArgc++;
-               ctx.gdbArgv              = (char**)realloc(ctx.gdbArgv, sizeof(char*) * (ctx.gdbArgc + 1));
+               ctx.gdbArgv                  = (char**)realloc(ctx.gdbArgv, sizeof(char*) * (ctx.gdbArgc + 1));
                ctx.gdbArgv[ctx.gdbArgc - 1] = state.value;
                ctx.gdbArgv[ctx.gdbArgc]     = nullptr;
             } else if (0 == strcmp(state.key, "arguments")) {
@@ -1441,12 +1438,12 @@ void SettingsLoad(bool earlyPass) {
                                &state.value[argumentStart]);
 
                   ctx.gdbArgc++;
-                  ctx.gdbArgv              = (char**)realloc(ctx.gdbArgv, sizeof(char*) * (ctx.gdbArgc + 1));
+                  ctx.gdbArgv                  = (char**)realloc(ctx.gdbArgv, sizeof(char*) * (ctx.gdbArgc + 1));
                   ctx.gdbArgv[ctx.gdbArgc - 1] = strdup(buffer);
                   ctx.gdbArgv[ctx.gdbArgc]     = nullptr;
                }
             } else if (0 == strcmp(state.key, "path")) {
-               ctx.gdbPath = state.value;
+               ctx.gdbPath    = state.value;
                ctx.gdbArgv[0] = state.value;
             } else if (0 == strcmp(state.key, "log_all_output") && atoi(state.value)) {
                for (const auto& iw : interfaceWindows) {
@@ -1547,8 +1544,8 @@ bool DisplaySetPosition(const char* file, int line, bool useGDBToGetFullPath) {
       StringFormat(buffer, sizeof(buffer), "%s/%s", getenv("HOME"), 1 + file);
       file = buffer;
    } else if (file && file[0] != '/' && useGDBToGetFullPath) {
-      auto res = EvaluateCommand("info source");
-      const char* f = strstr(res->c_str(), "Located in ");
+      auto        res = EvaluateCommand("info source");
+      const char* f   = strstr(res->c_str(), "Located in ");
 
       if (f) {
          f += 11;
@@ -1587,15 +1584,14 @@ bool DisplaySetPosition(const char* file, int line, bool useGDBToGetFullPath) {
       XStoreName(ui->display, windowMain->xwindow, currentFileFull);
 
       size_t bytes;
-      char*  buffer2 = LoadFile(file, &bytes);
+      vector<char> buffer2 = LoadFile(file, &bytes);
 
-      if (!buffer2) {
+      if (!bytes) {
          char buffer3[4096];
          StringFormat(buffer3, 4096, "The file '%s' (from '%s') could not be loaded.", file, originalFile);
          UICodeInsertContent(displayCode, buffer3, -1, true);
       } else {
-         UICodeInsertContent(displayCode, buffer2, bytes, true);
-         free(buffer2);
+         UICodeInsertContent(displayCode, buffer2.data(), bytes, true);
       }
 
       changed            = true;
@@ -1656,7 +1652,7 @@ void DisassemblyLoad() {
       return;
    }
 
-   char* pointer = (char *)strstr(start, "=> ");
+   char* pointer = (char*)strstr(start, "=> ");
 
    if (pointer) {
       pointer[0] = ' ';
@@ -1667,7 +1663,7 @@ void DisassemblyLoad() {
 }
 
 void DisassemblyUpdateLine() {
-   auto res = EvaluateCommand("p $pc");
+   auto        res     = EvaluateCommand("p $pc");
    const char* address = strstr(res->c_str(), "0x");
 
    if (address) {
@@ -1772,7 +1768,7 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
 
    char        buffer[256];
    int         lineHeight = UIMeasureStringHeight();
-   UIRectangle bounds     =
+   UIRectangle bounds =
       displayCurrentLineBounds + UIRectangle(xOffset, 0, lineHeight, 8 + lineHeight * (inspectResults.size() / 2 + 1));
    bounds.r = bounds.l + width;
    UIDrawBlock(painter, bounds + UIRectangle(3), ui->theme.border);
@@ -1854,7 +1850,7 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
             if (atLeastOneBreakpointEnabled)
                UIMenuAddItem(menu, 0, "Disable", -1, [=]() { CommandDisableAllBreakpointsOnLine(-result); });
             else
-               UIMenuAddItem(menu, 0, "Enable",  -1, [=]() { CommandEnableAllBreakpointsOnLine(-result); });
+               UIMenuAddItem(menu, 0, "Enable", -1, [=]() { CommandEnableAllBreakpointsOnLine(-result); });
             UIMenuShow(menu);
          }
       }
@@ -1903,8 +1899,8 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
           !element->window->textboxModifiedFlag) {
          UIDrawBorder(m->painter, m->bounds, element->window->ctrl ? ui->theme.selected : ui->theme.codeOperator,
                       UIRectangle(2));
-         UIDrawString(m->painter, m->bounds, element->window->ctrl ? "=> run until " : "=> skip to ", -1, ui->theme.text,
-                      UIAlign::right, NULL);
+         UIDrawString(m->painter, m->bounds, element->window->ctrl ? "=> run until " : "=> skip to ", -1,
+                      ui->theme.text, UIAlign::right, NULL);
       } else if (m->index == currentEndOfBlock) {
          UIDrawString(m->painter, m->bounds, "[Shift+F10]", -1, ui->theme.codeComment, UIAlign::right, NULL);
       }
@@ -1914,7 +1910,7 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
          int columnTo   = _UICodeByteToColumn(code, ifConditionLine - 1, ifConditionTo);
          UIDrawBlock(m->painter,
                      UIRectangle(m->bounds.l + columnFrom * ui->activeFont->glyphWidth,
-                               m->bounds.l + columnTo * ui->activeFont->glyphWidth, m->bounds.b - 2, m->bounds.b),
+                                 m->bounds.l + columnTo * ui->activeFont->glyphWidth, m->bounds.b - 2, m->bounds.b),
                      ifConditionEvaluation == 2 ? ui->theme.accent2 : ui->theme.accent1);
       }
    } else if (message == UIMessage::MOUSE_MOVE || message == UIMessage::UPDATE) {
@@ -1931,8 +1927,8 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
 }
 
 UIElement* SourceWindowCreate(UIElement* parent) {
-   displayCode                = UICodeCreate(parent, selectableSource ? UICode::SELECTABLE : 0);
-   displayCode->font          = fontCode;
+   displayCode              = UICodeCreate(parent, selectableSource ? UICode::SELECTABLE : 0);
+   displayCode->font        = fontCode;
    displayCode->messageUser = DisplayCodeMessage;
    return displayCode;
 }
@@ -1982,7 +1978,7 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
       if (autoPrintExpression[0]) {
          char buffer[1024];
          StringFormat(buffer, sizeof(buffer), "p %s", autoPrintExpression);
-         auto res = EvaluateCommand(buffer);
+         auto        res    = EvaluateCommand(buffer);
          const char* result = strchr(res->c_str(), '=');
 
          if (result) {
@@ -2318,34 +2314,37 @@ void DataViewersUpdateAll() {
 // ---------------------------------------------------/
 
 struct BitmapViewer {
-   char            pointer[256];
-   char            width[256];
-   char            height[256];
-   char            stride[256];
-   int             parsedWidth, parsedHeight;
-   UIButton*       autoToggle;
-   UIImageDisplay* display;
-   UIPanel*        labelPanel;
-   UILabel*        label;
+   std::string     pointer;
+   std::string     width;
+   std::string     height;
+   std::string     stride;
+   int             parsedWidth  = 0;
+   int             parsedHeight = 0;
+   UIButton*       autoToggle   = nullptr;
+   UIImageDisplay* display      = nullptr;
+   UIPanel*        labelPanel   = nullptr;
+   UILabel*        label        = nullptr;
 };
 
 int BitmapViewerWindowMessage(UIElement* element, UIMessage message, int di, void* dp) {
+   BitmapViewer* viewer = (BitmapViewer*)element->cp;
    if (message == UIMessage::DESTROY) {
       DataViewerRemoveFromAutoUpdateList(element);
-      free(element->cp);
+      delete viewer;
+      element->cp = nullptr;
    } else if (message == UIMessage::GET_WIDTH) {
-      int fit = ((BitmapViewer*)element->cp)->parsedWidth + 40;
+      int fit = viewer->parsedWidth + 40;
       return fit > 300 ? fit : 300;
    } else if (message == UIMessage::GET_HEIGHT) {
-      int fit = ((BitmapViewer*)element->cp)->parsedHeight + 40;
+      int fit = viewer->parsedHeight + 40;
       return fit > 100 ? fit : 100;
    }
 
    return 0;
 }
 
-void BitmapViewerUpdate(const char* pointerString, const char* widthString, const char* heightString,
-                        const char* strideString, UIElement* owner = nullptr);
+void BitmapViewerUpdate(std::string pointerString, std::string widthString, std::string heightString,
+                        std::string strideString, UIElement* owner = nullptr);
 
 int BitmapViewerRefreshMessage(UIElement* element, UIMessage message, int di, void* dp) {
    if (message == UIMessage::CLICKED) {
@@ -2356,8 +2355,8 @@ int BitmapViewerRefreshMessage(UIElement* element, UIMessage message, int di, vo
    return 0;
 }
 
-const char* BitmapViewerGetBits(const char* pointerString, const char* widthString, const char* heightString,
-                                const char* strideString, uint32_t** _bits, int* _width, int* _height, int* _stride) {
+const char* BitmapViewerGetBits(std::string pointerString, std::string widthString, std::string heightString,
+                                std::string strideString, uint32_t** _bits, int* _width, int* _height, int* _stride) {
    auto widthResult = EvaluateExpression(widthString);
    if (!widthResult) {
       return "Could not evaluate width.";
@@ -2367,9 +2366,9 @@ const char* BitmapViewerGetBits(const char* pointerString, const char* widthStri
    if (!heightResult) {
       return "Could not evaluate height.";
    }
-   int         height        = atoi(heightResult->c_str() + 1);
-   int         stride        = width * 4;
-   auto        pointerResult = EvaluateExpression(pointerString, "/x");
+   int  height        = atoi(heightResult->c_str() + 1);
+   int  stride        = width * 4;
+   auto pointerResult = EvaluateExpression(pointerString, "/x");
    if (!pointerResult) {
       return "Could not evaluate pointer.";
    }
@@ -2380,7 +2379,7 @@ const char* BitmapViewerGetBits(const char* pointerString, const char* widthStri
       return "Pointer to image bits does not look like an address!";
    }
 
-   if (strideString && *strideString) {
+   if (!strideString.empty()) {
       auto strideResult = EvaluateExpression(strideString);
       if (!strideResult) {
          return "Could not evaluate stride.";
@@ -2418,27 +2417,25 @@ int BitmapViewerDisplayMessage(UIElement* element, UIMessage message, int di, vo
    if (message == UIMessage::RIGHT_UP) {
       UIMenu* menu = UIMenuCreate(element->window, UIMenu::NO_SCROLL);
 
-      UIMenuAddItem(
-         menu, 0, "Save to file...", -1,
-         [element]() {
-            static char* path = NULL;
-            const char*  result =
-               UIDialogShow(windowMain, 0, "Save to file       \nPath:\n%t\n%f%B%C", &path, "Save", "Cancel");
-            if (strcmp(result, "Save"))
-               return;
+      UIMenuAddItem(menu, 0, "Save to file...", -1, [element]() {
+         static char* path = NULL;
+         const char*  result =
+            UIDialogShow(windowMain, 0, "Save to file       \nPath:\n%t\n%f%B%C", &path, "Save", "Cancel");
+         if (strcmp(result, "Save"))
+            return;
 
-            UIImageDisplay* display = (UIImageDisplay*)element;
-            FILE*           f       = fopen(path, "wb");
-            fprintf(f, "P6\n%d %d\n255\n", display->width, display->height);
+         UIImageDisplay* display = (UIImageDisplay*)element;
+         FILE*           f       = fopen(path, "wb");
+         fprintf(f, "P6\n%d %d\n255\n", display->width, display->height);
 
-            for (int i = 0; i < display->width * display->height; i++) {
-               uint8_t pixel[3] = {(uint8_t)(display->bits[i] >> 16), (uint8_t)(display->bits[i] >> 8),
-                                   (uint8_t)display->bits[i]};
-               fwrite(pixel, 1, 3, f);
-            }
+         for (int i = 0; i < display->width * display->height; i++) {
+            uint8_t pixel[3] = {(uint8_t)(display->bits[i] >> 16), (uint8_t)(display->bits[i] >> 8),
+                                (uint8_t)display->bits[i]};
+            fwrite(pixel, 1, 3, f);
+         }
 
-            fclose(f);
-         });
+         fclose(f);
+      });
 
       UIMenuShow(menu);
    }
@@ -2451,23 +2448,20 @@ void BitmapViewerAutoUpdateCallback(UIElement* element) {
    BitmapViewerUpdate(bitmap->pointer, bitmap->width, bitmap->height, bitmap->stride, element);
 }
 
-void BitmapViewerUpdate(const char* pointerString, const char* widthString, const char* heightString,
-                        const char* strideString, UIElement* owner) {
+void BitmapViewerUpdate(std::string pointerString, std::string widthString, std::string heightString,
+                        std::string strideString, UIElement* owner) {
    uint32_t*   bits  = nullptr;
    int         width = 0, height = 0, stride = 0;
    const char* error =
       BitmapViewerGetBits(pointerString, widthString, heightString, strideString, &bits, &width, &height, &stride);
 
    if (!owner) {
-      BitmapViewer* bitmap = (BitmapViewer*)calloc(1, sizeof(BitmapViewer));
-      if (pointerString)
-         StringFormat(bitmap->pointer, sizeof(bitmap->pointer), "%s", pointerString);
-      if (widthString)
-         StringFormat(bitmap->width, sizeof(bitmap->width), "%s", widthString);
-      if (heightString)
-         StringFormat(bitmap->height, sizeof(bitmap->height), "%s", heightString);
-      if (strideString)
-         StringFormat(bitmap->stride, sizeof(bitmap->stride), "%s", strideString);
+      BitmapViewer* bitmap = new BitmapViewer;
+
+      bitmap->pointer = std::move(pointerString);
+      bitmap->width   = std::move(widthString);
+      bitmap->height  = std::move(heightString);
+      bitmap->stride  = std::move(strideString);
 
       UIMDIChild* window     = UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Bitmap", -1);
       window->messageUser    = BitmapViewerWindowMessage;
@@ -2482,8 +2476,8 @@ void BitmapViewerUpdate(const char* pointerString, const char* widthString, cons
       UIPanel* panel = UIPanelCreate(owner, UIPanel::EXPAND);
       bitmap->display =
          UIImageDisplayCreate(panel, UIImageDisplay::INTERACTIVE | UIElement::V_FILL, bits, width, height, stride);
-      bitmap->labelPanel             = UIPanelCreate(panel, UIPanel::COLOR_1 | UIElement::V_FILL);
-      bitmap->label                  = UILabelCreate(bitmap->labelPanel, UIElement::H_FILL, nullptr, 0);
+      bitmap->labelPanel           = UIPanelCreate(panel, UIPanel::COLOR_1 | UIElement::V_FILL);
+      bitmap->label                = UILabelCreate(bitmap->labelPanel, UIElement::H_FILL, nullptr, 0);
       bitmap->display->messageUser = BitmapViewerDisplayMessage;
    }
 
@@ -2512,7 +2506,7 @@ void BitmapAddDialog() {
                                      &pointer, &width, &height, &stride, "Add", "Cancel");
 
    if (0 == strcmp(result, "Add")) {
-      BitmapViewerUpdate(pointer, width, height, (stride && stride[0]) ? stride : nullptr);
+      BitmapViewerUpdate(pointer ?: "", width ?: "", height ?: "", (stride && stride[0]) ? stride : "");
    }
 }
 
@@ -2621,17 +2615,17 @@ int TextboxInputMessage(UIElement* element, UIMessage message, int di, void* dp)
 }
 
 UIElement* ConsoleWindowCreate(UIElement* parent) {
-   UIPanel* panel2             = UIPanelCreate(parent, UIPanel::EXPAND);
-   displayOutput               = UICodeCreate(panel2, UICode::NO_MARGIN | UIElement::V_FILL | UICode::SELECTABLE);
-   UIPanel* panel3             = UIPanelCreate(panel2, UIPanel::HORIZONTAL | UIPanel::EXPAND | UIPanel::COLOR_1);
-   panel3->border              = UIRectangle(5);
-   panel3->gap                 = 5;
-   trafficLight                = UISpacerCreate(panel3, 0, 30, 30);
-   trafficLight->messageUser   = TrafficLightMessage;
-   UIButton* buttonMenu        = UIButtonCreate(panel3, 0, "Menu", -1);
-   buttonMenu->invoke          = [buttonMenu]() { InterfaceShowMenu(buttonMenu); };
-   textboxInput                = UITextboxCreate(panel3, UIElement::H_FILL);
-   textboxInput->messageUser   = TextboxInputMessage;
+   UIPanel* panel2           = UIPanelCreate(parent, UIPanel::EXPAND);
+   displayOutput             = UICodeCreate(panel2, UICode::NO_MARGIN | UIElement::V_FILL | UICode::SELECTABLE);
+   UIPanel* panel3           = UIPanelCreate(panel2, UIPanel::HORIZONTAL | UIPanel::EXPAND | UIPanel::COLOR_1);
+   panel3->border            = UIRectangle(5);
+   panel3->gap               = 5;
+   trafficLight              = UISpacerCreate(panel3, 0, 30, 30);
+   trafficLight->messageUser = TrafficLightMessage;
+   UIButton* buttonMenu      = UIButtonCreate(panel3, 0, "Menu", -1);
+   buttonMenu->invoke        = [buttonMenu]() { InterfaceShowMenu(buttonMenu); };
+   textboxInput              = UITextboxCreate(panel3, UIElement::H_FILL);
+   textboxInput->messageUser = TextboxInputMessage;
    textboxInput->Focus();
    return panel2;
 }
@@ -2639,18 +2633,20 @@ UIElement* ConsoleWindowCreate(UIElement* parent) {
 // ---------------------------------------------------/
 // Watch window:
 // ---------------------------------------------------/
+struct Watch;
+using WatchVector = vector<shared_ptr<Watch>>;
 
 struct Watch {
-   bool           open, hasFields, loadedFields, isArray, isDynamicArray;
-   uint8_t        depth;
-   char           format;
-   uintptr_t      arrayIndex;
-   char*          key;
-   std::string    value;
-   std::string    type;
-   vector<Watch*> fields;
-   Watch*         parent;
-   uint64_t       updateIndex;
+   bool        open = false, hasFields = false, loadedFields = false, isArray = false, isDynamicArray = false;
+   uint8_t     depth      = 0;
+   char        format     = 0;
+   uintptr_t   arrayIndex = 0;
+   std::string key;
+   std::string value;
+   std::string type;
+   WatchVector fields;
+   Watch*      parent      = nullptr;
+   uint64_t    updateIndex = 0;
 };
 
 enum WatchWindowMode {
@@ -2658,37 +2654,40 @@ enum WatchWindowMode {
    WATCH_LOCALS,
 };
 
-struct WatchWindow {
-   vector<Watch*>  rows;
-   vector<Watch*>  baseExpressions;
-   vector<Watch*>  dynamicArrays;
-   UIElement*      element;
+struct WatchWindow : public UIElement {
+   WatchVector     rows;
+   WatchVector     baseExpressions;
+   WatchVector     dynamicArrays;
    UITextbox*      textbox;
-   char*           lastLocalList;
+   std::string     lastLocalList;
    size_t          selectedRow;
    int             extraRows;
    WatchWindowMode mode;
    uint64_t        updateIndex;
    bool            waitingForFormatCharacter;
+
+   WatchWindow(UIElement* parent, uint32_t flags, const char* name);
 };
 
 struct WatchLogEvaluated {
-   char result[64];
+   std::string result;
 };
 
 struct WatchLogEntry {
-   char                      value[64];
-   char                      where[128];
+   std::string               value;
+   std::string               where;
    vector<WatchLogEvaluated> evaluated;
    vector<StackEntry>        trace;
 };
 
 struct WatchLogger {
-   int                   id, selectedEntry;
-   char                  columns[256];
-   char*                 expressionsToEvaluate;
+   int                   id            = 0;
+   int                   selectedEntry = 0;
+   char                  columns[256]  = {0};
+   std::string           expressionsToEvaluate;
    vector<WatchLogEntry> entries;
-   UITable *             table, *trace;
+   UITable*              table = nullptr;
+   UITable*              trace = nullptr;
 };
 
 vector<WatchLogger*> watchLoggers;
@@ -2727,30 +2726,20 @@ void WatchDestroyTextbox(WatchWindow* w) {
       return;
    w->textbox->Destroy();
    w->textbox = nullptr;
-   w->element->Focus();
+   w->Focus();
 }
 
-void WatchFree(WatchWindow* w, Watch* watch, bool fieldsOnly = false) {
-   for (const auto& field : watch->fields) {
-      WatchFree(w, field);
-      if (!watch->isArray)
-         free(field);
-   }
-
+void WatchFree(WatchWindow* w, const shared_ptr<Watch>& watch, bool fieldsOnly = false) {
    if (watch->isDynamicArray) {
       if (auto it = rng::find(w->dynamicArrays, watch); it != rng::end(w->dynamicArrays))
          w->dynamicArrays.erase(it);
-   }
-
-   if (watch->isArray && watch->fields.size()) {
-      free(watch->fields[0]);
    }
 
    watch->loadedFields = false;
    watch->fields.clear();
 
    if (!fieldsOnly) {
-      free(watch->key);
+      watch->key.clear();
    }
 }
 
@@ -2766,7 +2755,7 @@ void WatchDeleteExpression(WatchWindow* w, bool fieldsOnly = false) {
       }
    }
 
-   Watch* watch = w->rows[w->selectedRow];
+   shared_ptr<Watch> watch = w->rows[w->selectedRow]; // no reference as we want to hold the pointer
 
    if (!fieldsOnly) {
       if (auto it = rng::find(w->baseExpressions, watch); it != rng::end(w->baseExpressions))
@@ -2778,10 +2767,10 @@ void WatchDeleteExpression(WatchWindow* w, bool fieldsOnly = false) {
    w->rows.erase(w->rows.cbegin() + w->selectedRow, w->rows.cbegin() + end);
    WatchFree(w, watch, fieldsOnly);
    if (!fieldsOnly)
-      free(watch);
+      watch.reset();
 }
 
-std::optional<std::string> WatchEvaluate(const char* function, Watch* watch) {
+std::optional<std::string> WatchEvaluate(const char* function, const shared_ptr<Watch>& watch) {
    char      buffer[4096];
    uintptr_t position = 0;
 
@@ -2789,7 +2778,7 @@ std::optional<std::string> WatchEvaluate(const char* function, Watch* watch) {
 
    Watch* stack[32];
    int    stackCount = 0;
-   stack[0]          = watch;
+   stack[0]          = watch.get();
 
    while (stack[stackCount]) {
       stack[stackCount + 1] = stack[stackCount]->parent;
@@ -2809,13 +2798,13 @@ std::optional<std::string> WatchEvaluate(const char* function, Watch* watch) {
          first = false;
       }
 
-      if (stack[stackCount]->key) {
-         position += StringFormat(buffer + position, sizeof(buffer) - position, "'%s'", stack[stackCount]->key);
-      } else if (stack[stackCount]->parent && stack[stackCount]->parent->isDynamicArray) {
-         position +=
-            StringFormat(buffer + position, sizeof(buffer) - position, "'[%lu]'", stack[stackCount]->arrayIndex);
+      auto w = stack[stackCount];
+      if (!w->key.empty()) {
+         position += StringFormat(buffer + position, sizeof(buffer) - position, "'%s'", w->key.c_str());
+      } else if (w->parent && w->parent->isDynamicArray) {
+         position += StringFormat(buffer + position, sizeof(buffer) - position, "'[%lu]'", w->arrayIndex);
       } else {
-         position += StringFormat(buffer + position, sizeof(buffer) - position, "%lu", stack[stackCount]->arrayIndex);
+         position += StringFormat(buffer + position, sizeof(buffer) - position, "%lu", w->arrayIndex);
       }
    }
 
@@ -2830,7 +2819,7 @@ std::optional<std::string> WatchEvaluate(const char* function, Watch* watch) {
    return EvaluateCommand(buffer);
 }
 
-bool WatchHasFields(Watch* watch) {
+bool WatchHasFields(const shared_ptr<Watch>& watch) {
    auto res = WatchEvaluate("gf_fields", watch);
    if (!res)
       return false;
@@ -2841,7 +2830,7 @@ bool WatchHasFields(Watch* watch) {
    return res->contains('\n') && !res->starts_with("(gdb)\n");
 }
 
-void WatchAddFields(WatchWindow* w, Watch* watch) {
+void WatchAddFields(WatchWindow* w, const shared_ptr<Watch>& watch) {
    if (watch->loadedFields) {
       return;
    }
@@ -2861,7 +2850,6 @@ void WatchAddFields(WatchWindow* w, Watch* watch) {
       if (count < 0)
          count = 0;
 
-      Watch* fields     = (Watch*)calloc(count, sizeof(Watch));
       watch->isArray    = true;
       bool hasSubFields = false;
 
@@ -2871,47 +2859,45 @@ void WatchAddFields(WatchWindow* w, Watch* watch) {
       }
 
       for (int i = 0; i < count; i++) {
-         fields[i].format     = watch->format;
-         fields[i].parent     = watch;
-         fields[i].arrayIndex = i;
-         watch->fields.push_back(&fields[i]);
+         auto field        = make_shared<Watch>();
+         field->format     = watch->format;
+         field->arrayIndex = (uintptr_t)i;
+         field->parent     = watch.get();
+
+         watch->fields.push_back(field);
          if (!i)
-            hasSubFields = WatchHasFields(&fields[i]);
-         fields[i].hasFields = hasSubFields;
-         fields[i].depth     = watch->depth + 1;
+            hasSubFields = WatchHasFields(field);
+         field->hasFields = hasSubFields;
+         field->depth     = watch->depth + 1;
       }
    } else {
-      char* start    = strdup(res->c_str());
+      char* start    = (char *)res->c_str();
       char* position = start;
 
       while (true) {
          char* end = strchr(position, '\n');
-         if (!end)
+         if (!end || strstr(position, "(gdb)"))
             break;
-         *end = 0;
-         if (strstr(position, "(gdb)"))
-            break;
-         Watch* field  = (Watch*)calloc(1, sizeof(Watch));
-         field->depth  = watch->depth + 1;
-         field->parent = watch;
-         field->key    = (char*)malloc(end - position + 1);
-         strcpy(field->key, position);
-         watch->fields.push_back(field);
+         *end          = 0;
+         auto field    = make_shared<Watch>();
+         field->depth  = (uint8_t)(watch->depth + 1);
+         field->key    = position;
+         field->parent = watch.get();
+
+         watch->fields.emplace_back(field);
          field->hasFields = WatchHasFields(field);
          position         = end + 1;
       }
-
-      free(start);
    }
 }
 
 void WatchEnsureRowVisible(WatchWindow* w, size_t index) {
    if (w->selectedRow > w->rows.size())
       w->selectedRow = w->rows.size();
-   UIScrollBar* scroll    = ((UIPanel*)w->element->parent)->scrollBar;
-   int          rowHeight = (int)(ui_size::TEXTBOX_HEIGHT * w->element->window->scale);
-   int  start = index * rowHeight, end = (index + 1) * rowHeight, height = w->element->parent->bounds.height();
-   bool unchanged = false;
+   UIScrollBar* scroll    = ((UIPanel*)w->parent)->scrollBar;
+   int          rowHeight = (int)(ui_size::TEXTBOX_HEIGHT * w->window->scale);
+   int          start = index * rowHeight, end = (index + 1) * rowHeight, height = w->parent->bounds.height();
+   bool         unchanged = false;
    if (end >= scroll->position + height)
       scroll->position = end - height;
    else if (start <= scroll->position)
@@ -2919,41 +2905,38 @@ void WatchEnsureRowVisible(WatchWindow* w, size_t index) {
    else
       unchanged = true;
    if (!unchanged)
-      w->element->parent->Refresh();
+      w->parent->Refresh();
 }
 
-void WatchInsertFieldRows2(WatchWindow* w, Watch* watch, vector<Watch*>* array) {
+void WatchInsertFieldRows2(const shared_ptr<Watch>& watch, WatchVector* array) {
    for (const auto& field : watch->fields) {
       array->push_back(field);
       if (field->open)
-         WatchInsertFieldRows2(w, field, array);
+         WatchInsertFieldRows2(field, array);
    }
 }
 
-void WatchInsertFieldRows(WatchWindow* w, Watch* watch, size_t position, bool ensureLastVisible) {
-   vector<Watch*> array = {};
-   WatchInsertFieldRows2(w, watch, &array);
+void WatchInsertFieldRows(WatchWindow* w, const shared_ptr<Watch>& watch, size_t position, bool ensureLastVisible) {
+   WatchVector array = {};
+   WatchInsertFieldRows2(watch, &array);
    w->rows.insert(w->rows.cbegin() + position, array.cbegin(), array.cend());
    if (ensureLastVisible)
       WatchEnsureRowVisible(w, position + array.size() - 1);
    array.clear();
 }
 
-void WatchAddExpression(WatchWindow* w, char* string = nullptr) {
+void WatchAddExpression(WatchWindow* w, const char* string = nullptr) {
    if (!string && w->textbox && !w->textbox->bytes) {
       WatchDestroyTextbox(w);
       return;
    }
 
-   Watch* watch = (Watch*)calloc(1, sizeof(Watch));
+   auto watch = make_shared<Watch>();
 
-   if (string) {
+   if (string)
       watch->key = string;
-   } else {
-      watch->key                    = (char*)malloc(w->textbox->bytes + 1);
-      watch->key[w->textbox->bytes] = 0;
-      memcpy(watch->key, w->textbox->string, w->textbox->bytes);
-   }
+   else
+      watch->key = std::string_view(w->textbox->string, w->textbox->bytes);
 
    WatchDeleteExpression(w); // Deletes textbox.
    w->rows.insert(w->rows.cbegin() + w->selectedRow, watch);
@@ -2964,7 +2947,7 @@ void WatchAddExpression(WatchWindow* w, char* string = nullptr) {
 
    if (res && !res->contains("??")) {
       resize_to_lf(*res);
-      watch->type = *res; // todo: std::move(*res);
+      watch->type      = std::move(*res);
       watch->hasFields = WatchHasFields(watch);
    }
 }
@@ -2973,12 +2956,12 @@ void WatchAddExpression2(char* string) {
    UIElement*   element = InterfaceWindowSwitchToAndFocus("Watch");
    WatchWindow* w       = (WatchWindow*)element->cp;
    w->selectedRow       = w->rows.size();
-   WatchAddExpression(w, strdup(string));
+   WatchAddExpression(w, string);
    if (w->selectedRow)
       w->selectedRow--;
    WatchEnsureRowVisible(w, w->selectedRow);
-   w->element->parent->Refresh();
-   w->element->Refresh();
+   w->parent->Refresh();
+   w->Refresh();
 }
 
 int WatchLoggerWindowMessage(UIElement* element, UIMessage message, int di, void* dp) {
@@ -2992,15 +2975,7 @@ int WatchLoggerWindowMessage(UIElement* element, UIMessage message, int di, void
          char buffer[256];
          StringFormat(buffer, sizeof(buffer), "delete %d", logger->id);
          EvaluateCommand(buffer);
-
-         for (auto& e : logger->entries) {
-            e.trace.clear();
-            e.evaluated.clear();
-         }
-
-         logger->entries.clear();
-         free(logger->expressionsToEvaluate);
-         free(logger);
+         delete logger;
       }
    } else if (message == UIMessage::GET_WIDTH || message == UIMessage::GET_HEIGHT) {
       return element->window->scale * 400;
@@ -3035,12 +3010,12 @@ int WatchLoggerTableMessage(UIElement* element, UIMessage message, int di, void*
       m->isSelected         = m->index == logger->selectedEntry;
 
       if (m->column == 0) {
-         return StringFormat(m->buffer, m->bufferBytes, "%s", entry->value);
+         return StringFormat(m->buffer, m->bufferBytes, "%s", entry->value.c_str());
       } else if (m->column == 1) {
-         return StringFormat(m->buffer, m->bufferBytes, "%s", entry->where);
+         return StringFormat(m->buffer, m->bufferBytes, "%s", entry->where.c_str());
       } else {
          if (m->column - 2 < (int)entry->evaluated.size()) {
-            return StringFormat(m->buffer, m->bufferBytes, "%s", entry->evaluated[m->column - 2].result);
+            return StringFormat(m->buffer, m->bufferBytes, "%s", entry->evaluated[m->column - 2].result.c_str());
          } else {
             return 0;
          }
@@ -3085,7 +3060,7 @@ int WatchLoggerTraceMessage(UIElement* element, UIMessage message, int di, void*
    return 0;
 }
 
-std::optional<std::string> WatchGetAddress(Watch* watch) {
+std::optional<std::string> WatchGetAddress(const shared_ptr<Watch>& watch) {
    auto res = WatchEvaluate("gf_addressof", watch);
 
    if (!res || strstr(res->c_str(), "??")) {
@@ -3139,7 +3114,7 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
    StringFormat(buffer, sizeof(buffer), "Log %s", res->c_str());
    UIMDIChild* child = UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, UIRectangle(0), buffer, -1);
    StringFormat(buffer, sizeof(buffer), "watch * %s", res->c_str());
-   res = EvaluateCommand(buffer);
+   res                = EvaluateCommand(buffer);
    const char* number = strstr(res->c_str(), "point ");
 
    if (!number) {
@@ -3147,7 +3122,7 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
       return;
    }
 
-   WatchLogger* logger = (WatchLogger*)calloc(1, sizeof(WatchLogger));
+   WatchLogger* logger = new WatchLogger;
 
    UIButton* button = UIButtonCreate(child, UIButton::SMALL | UIElement::NON_CLIENT, "Resize columns", -1);
    button->invoke   = [logger]() { WatchLoggerResizeColumns(logger); };
@@ -3232,25 +3207,25 @@ bool WatchLoggerUpdate(char* data) {
    *afterWhere         = 0;
    WatchLogEntry entry = {};
 
-   char* expressionsToEvaluate = logger->expressionsToEvaluate;
+   const char* expressionsToEvaluate = logger->expressionsToEvaluate.c_str();
 
    if (expressionsToEvaluate) {
       uintptr_t start = 0;
 
       for (uintptr_t i = 0; true; i++) {
          if (expressionsToEvaluate[i] == ';' || !expressionsToEvaluate[i]) {
-            WatchLogEvaluated evaluated;
-            char              buffer[256];
+
+            char buffer[256];
             StringFormat(buffer, sizeof(buffer), "%.*s", i - start, expressionsToEvaluate + start);
             auto res = EvaluateExpression(buffer);
-            start         = i + 1;
-            size_t length = strlen(res->c_str());
-            if (length >= sizeof(evaluated.result))
-               length = sizeof(evaluated.result) - 1;
-            const char* start = strstr(res->c_str(), " = ");
-            memcpy(evaluated.result, start ? start + 3 : res->c_str(), length);
-            evaluated.result[length] = 0;
-            entry.evaluated.push_back(evaluated);
+            start    = i + 1;
+            WatchLogEvaluated evaluated;
+            const char*       start = strstr(res->c_str(), " = ");
+            if (start)
+               evaluated.result = start + 3;
+            else
+               evaluated.result = std::move(*res);
+            entry.evaluated.push_back(std::move(evaluated));
          }
 
          if (!expressionsToEvaluate[i]) {
@@ -3263,8 +3238,8 @@ bool WatchLoggerUpdate(char* data) {
       value[sizeof(entry.value) - 1] = 0;
    if (strlen(where) >= sizeof(entry.where))
       where[sizeof(entry.where) - 1] = 0;
-   strcpy(entry.value, value);
-   strcpy(entry.where, where);
+   entry.value                      = value;
+   entry.where                      = where;
    vector<StackEntry> previousStack = stack;
    stack                            = {};
    DebuggerGetStack();
@@ -3278,17 +3253,17 @@ bool WatchLoggerUpdate(char* data) {
 }
 
 void WatchCreateTextboxForRow(WatchWindow* w, bool addExistingText) {
-   int         rowHeight = (int)(ui_size::TEXTBOX_HEIGHT * w->element->window->scale);
-   UIRectangle row       = w->element->bounds;
+   int         rowHeight = (int)(ui_size::TEXTBOX_HEIGHT * w->window->scale);
+   UIRectangle row       = w->bounds;
    row.t += w->selectedRow * rowHeight, row.b = row.t + rowHeight;
-   w->textbox                = UITextboxCreate(w->element, 0);
+   w->textbox              = UITextboxCreate(w, 0);
    w->textbox->messageUser = WatchTextboxMessage;
    w->textbox->cp          = w;
    w->textbox->Move(row, true);
    w->textbox->Focus();
 
    if (addExistingText) {
-      UITextboxReplace(w->textbox, w->rows[w->selectedRow]->key, -1, false);
+      UITextboxReplace(w->textbox, w->rows[w->selectedRow]->key.c_str(), -1, false);
    }
 }
 
@@ -3302,8 +3277,8 @@ void CommandWatchAddEntryForAddress(WatchWindow* _w) {
       return;
    if (w->mode == WATCH_NORMAL && w->selectedRow == w->rows.size())
       return;
-   Watch* watch = w->rows[w->selectedRow];
-   auto res = WatchGetAddress(watch);
+   const auto& watch = w->rows[w->selectedRow];
+   auto        res   = WatchGetAddress(watch);
    if (!res)
       return;
 
@@ -3320,12 +3295,12 @@ void CommandWatchAddEntryForAddress(WatchWindow* _w) {
       return;
    resize_to_lf(*res);
    size_t size   = strlen(address) + res->size() + 16;
-   char*  buffer = (char*)malloc(size);
-   StringFormat(buffer, size, "(%s*)%s", res->c_str(), address);
-   WatchAddExpression(w, buffer);
+   vector<char> buffer(size);
+   StringFormat(buffer.data(), size, "(%s*)%s", res->c_str(), address);
+   WatchAddExpression(w, buffer.data());
    WatchEnsureRowVisible(w, w->selectedRow);
-   w->element->parent->Refresh();
-   w->element->Refresh();
+   w->parent->Refresh();
+   w->Refresh();
 }
 
 void CommandWatchAddEntryForAddress() {
@@ -3338,7 +3313,7 @@ void CommandWatchViewSourceAtAddress(WatchWindow* _w) {
       return;
    if (w->mode == WATCH_NORMAL && w->selectedRow == w->rows.size())
       return;
-   char* position = (char *)w->rows[w->selectedRow]->value.c_str();
+   char* position = (char*)w->rows[w->selectedRow]->value.c_str();
    while (*position && !isdigit(*position))
       position++;
    if (!(*position))
@@ -3347,7 +3322,7 @@ void CommandWatchViewSourceAtAddress(WatchWindow* _w) {
    char     buffer[256];
    StringFormat(buffer, sizeof(buffer), "info line * 0x%lx", value);
    auto res = EvaluateCommand(buffer);
-   position = (char *)res->c_str();
+   position = (char*)res->c_str();
 
    if (strstr(res->c_str(), "No line number")) {
       resize_to_lf(*res);
@@ -3376,11 +3351,11 @@ void CommandWatchViewSourceAtAddress() {
    CommandWatchViewSourceAtAddress(WatchGetFocused());
 }
 
-void CommandWatchSaveAsRecurse(FILE* file, Watch* watch, int indent, int indexInParentArray) {
+void CommandWatchSaveAsRecurse(FILE* file, const shared_ptr<Watch>& watch, int indent, int indexInParentArray) {
    fprintf(file, "%.*s", indent, "\t\t\t\t\t\t\t\t\t\t\t\t\t\t");
 
    if (indexInParentArray == -1) {
-      fprintf(file, "%s = ", watch->key);
+      fprintf(file, "%s = ", watch->key.c_str());
    } else {
       fprintf(file, "[%d] = ", indexInParentArray);
    }
@@ -3423,8 +3398,7 @@ void CommandWatchSaveAs(WatchWindow* _w) {
       return;
    }
 
-   Watch* watch = w->rows[w->selectedRow];
-   CommandWatchSaveAsRecurse(f, watch, 0, -1);
+   CommandWatchSaveAsRecurse(f, w->rows[w->selectedRow], 0, -1);
    fclose(f);
 }
 
@@ -3434,12 +3408,12 @@ void CommandWatchCopyValueToClipboard(WatchWindow* w) {
    if (w->mode == WATCH_NORMAL && w->selectedRow == w->rows.size())
       return;
 
-   Watch* watch = w->rows[w->selectedRow];
+   const shared_ptr<Watch>& watch = w->rows[w->selectedRow];
 
    auto res = WatchEvaluate("gf_valueof", watch);
    if (res) {
       resize_to_lf(*res);
-      _UIClipboardWriteText(w->element->window, strdup(res->c_str()), sel_target_t::clipboard);
+      _UIClipboardWriteText(w->window, strdup(res->c_str()), sel_target_t::clipboard);
    }
 }
 
@@ -3468,16 +3442,16 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
          row.l += ui_size::TEXTBOX_MARGIN;
          row.r -= ui_size::TEXTBOX_MARGIN;
 
-         if (i != w->rows.size()) {
-            Watch* watch = w->rows[i];
-            char   buffer[256];
+         if (i < w->rows.size()) {
+            const shared_ptr<Watch>& watch = w->rows[i];
+            char                     buffer[256];
 
             if ((watch->value.empty() || watch->updateIndex != w->updateIndex) && !watch->open) {
                if (!ctx.programRunning) {
                   watch->updateIndex = w->updateIndex;
-                  auto res = WatchEvaluate("gf_valueof", watch);
+                  auto res           = WatchEvaluate("gf_valueof", watch);
                   resize_to_lf(*res);
-                  watch->value = *res; // ?? why `*std::move(res);` crashes?? - probably Watch objects not constructed!
+                  watch->value = std::move(*res);
                } else {
                   watch->value = "..";
                }
@@ -3485,7 +3459,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
 
             char keyIndex[64];
 
-            if (!watch->key) {
+            if (watch->key.empty()) {
                StringFormat(keyIndex, sizeof(keyIndex), "[%lu]", watch->arrayIndex);
             }
 
@@ -3497,7 +3471,8 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
                             watch->open        ? "v "
                             : watch->hasFields ? "> "
                                                : "",
-                            watch->key ?: keyIndex, watch->open ? "" : " = ", watch->open ? "" : watch->value.c_str());
+                            !watch->key.empty() ? watch->key.c_str() : keyIndex, watch->open ? "" : " = ",
+                            watch->open ? "" : watch->value.c_str());
             }
 
             if (focused) {
@@ -3514,8 +3489,8 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
          w->selectedRow = (element->window->cursor.y - element->bounds.t) / rowHeight;
 
          if (w->selectedRow < w->rows.size()) {
-            Watch* watch = w->rows[w->selectedRow];
-            int    x     = (element->window->cursor.x - element->bounds.l) / ui->activeFont->glyphWidth;
+            const shared_ptr<Watch>& watch = w->rows[w->selectedRow];
+            int                      x = (element->window->cursor.x - element->bounds.l) / ui->activeFont->glyphWidth;
 
             if (x >= watch->depth * 3 - 1 && x <= watch->depth * 3 + 1 && watch->hasFields) {
                UIKeyTyped m = {0};
@@ -3541,8 +3516,8 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
 
                UIMenuAddItem(menu, 0, "Delete", -1, [w]() {
                   WatchDeleteExpression(w);
-                  w->element->parent->Refresh();
-                  w->element->Refresh();
+                  w->parent->Refresh();
+                  w->Refresh();
                });
             }
 
@@ -3642,8 +3617,8 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
          w->selectedRow = WatchLastRow(w);
       } else if (m->code == UIKeycode::RIGHT && !w->textbox && w->selectedRow != w->rows.size() &&
                  w->rows[w->selectedRow]->hasFields && !w->rows[w->selectedRow]->open) {
-         Watch* watch = w->rows[w->selectedRow];
-         watch->open  = true;
+         const shared_ptr<Watch>& watch = w->rows[w->selectedRow];
+         watch->open                    = true;
          WatchAddFields(w, watch);
          WatchInsertFieldRows(w, watch, w->selectedRow + 1, true);
       } else if (m->code == UIKeycode::LEFT && !w->textbox && w->selectedRow != w->rows.size() &&
@@ -3661,7 +3636,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
       } else if (m->code == UIKeycode::LEFT && !w->textbox && w->selectedRow != w->rows.size() &&
                  !w->rows[w->selectedRow]->open) {
          for (size_t i = 0; i < w->rows.size(); i++) {
-            if (w->rows[w->selectedRow]->parent == w->rows[i]) {
+            if (w->rows[w->selectedRow]->parent == w->rows[i].get()) {
                w->selectedRow = i;
                break;
             }
@@ -3686,8 +3661,8 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
 }
 
 int WatchPanelMessage(UIElement* element, UIMessage message, int di, void* dp) {
+   WatchWindow* window = (WatchWindow*)element->cp;
    if (message == UIMessage::LEFT_DOWN) {
-      UIElement* window = ((WatchWindow*)element->cp)->element;
       window->Focus();
       window->Repaint(nullptr);
    }
@@ -3695,30 +3670,35 @@ int WatchPanelMessage(UIElement* element, UIMessage message, int di, void* dp) {
    return 0;
 }
 
+WatchWindow::WatchWindow(UIElement* parent, uint32_t flags, const char* name)
+   : UIElement(parent, flags, WatchWindowMessage, name)
+   , textbox(nullptr)
+   , selectedRow(0)
+   , mode(WATCH_NORMAL)
+   , updateIndex(0)
+   , waitingForFormatCharacter(false) {
+   cp = this; // todo: shouldn't be needed
+}
+
 UIElement* WatchWindowCreate(UIElement* parent) {
-   WatchWindow* w       = (WatchWindow*)calloc(1, sizeof(WatchWindow));
-   UIPanel*     panel   = UIPanelCreate(parent, UIPanel::SCROLL | UIPanel::COLOR_1);
+   UIPanel*     panel = UIPanelCreate(parent, UIPanel::SCROLL | UIPanel::COLOR_1);
+   WatchWindow* w     = new WatchWindow(panel, UIElement::H_FILL | UIElement::TAB_STOP, "Watch");
    panel->messageUser = WatchPanelMessage;
    panel->cp          = w;
-   w->element           = UIElementCreate(sizeof(UIElement), panel, UIElement::H_FILL | UIElement::TAB_STOP,
-                                          WatchWindowMessage, "Watch");
-   w->element->cp       = w;
-   w->mode              = WATCH_NORMAL;
-   w->extraRows         = 1;
+
+   w->mode      = WATCH_NORMAL;
+   w->extraRows = 1;
    if (!firstWatchWindow)
       firstWatchWindow = w;
    return panel;
 }
 
 UIElement* LocalsWindowCreate(UIElement* parent) {
-   WatchWindow* w       = (WatchWindow*)calloc(1, sizeof(WatchWindow));
-   UIPanel*     panel   = UIPanelCreate(parent, UIPanel::SCROLL | UIPanel::COLOR_1);
+   UIPanel*     panel = UIPanelCreate(parent, UIPanel::SCROLL | UIPanel::COLOR_1);
+   WatchWindow* w     = new WatchWindow(panel, UIElement::H_FILL | UIElement::TAB_STOP, "Locals");
    panel->messageUser = WatchPanelMessage;
    panel->cp          = w;
-   w->element           = UIElementCreate(sizeof(UIElement), panel, UIElement::H_FILL | UIElement::TAB_STOP,
-                                          WatchWindowMessage, "Locals");
-   w->element->cp       = w;
-   w->mode              = WATCH_LOCALS;
+   w->mode            = WATCH_LOCALS;
    return panel;
 }
 
@@ -3728,32 +3708,28 @@ void WatchWindowUpdate(const char*, UIElement* element) {
    if (w->mode == WATCH_LOCALS) {
       auto res = EvaluateCommand("py gf_locals()");
 
-      bool newFrame = (!w->lastLocalList || 0 != strcmp(w->lastLocalList, res->c_str()));
+      bool newFrame = (w->lastLocalList.empty() || w->lastLocalList != *res);
 
       if (newFrame) {
-         if (w->lastLocalList)
-            free(w->lastLocalList);
-         w->lastLocalList = strdup(res->c_str());
+         w->lastLocalList = *res;
 
-         char*        buffer = strdup(res->c_str());
-         char*        s      = buffer;
-         char*        end;
+         char*         buffer      = strdup(res->c_str());
+         char*         s           = buffer;
          vector<char*> expressions = {};
 
-         while ((end = strchr(s, '\n')) != NULL) {
+         for (char* end = strchr(s, '\n'); end != nullptr; s = end + 1) {
             *end = '\0';
             if (strstr(s, "(gdb)"))
                break;
             expressions.push_back(s);
-            s = end + 1;
          }
 
          if (expressions.size() > 0) {
             for (size_t watchIndex = 0; watchIndex < w->baseExpressions.size(); watchIndex++) {
-               Watch* watch   = w->baseExpressions[watchIndex];
-               bool   matched = false;
+               const shared_ptr<Watch>& watch   = w->baseExpressions[watchIndex];
+               bool                     matched = false;
 
-               if (auto it = rng::find_if(expressions, [&](char* e) { return !strcmp(watch->key, e); });
+               if (auto it = rng::find_if(expressions, [&](char* e) { return watch->key == e; });
                    it != rng::end(expressions)) {
                   expressions.erase(it);
                   matched = true;
@@ -3776,9 +3752,8 @@ void WatchWindowUpdate(const char*, UIElement* element) {
 
             // Add the remaining (new) variables.
             for (auto exp : expressions) {
-               char* expression = strdup(exp);
-               w->selectedRow   = w->rows.size();
-               WatchAddExpression(w, expression);
+               w->selectedRow = w->rows.size();
+               WatchAddExpression(w, exp);
             }
 
             w->selectedRow = w->rows.size();
@@ -3790,8 +3765,8 @@ void WatchWindowUpdate(const char*, UIElement* element) {
    }
 
    for (size_t i = 0; i < w->baseExpressions.size(); i++) {
-      Watch* watch = w->baseExpressions[i];
-      auto res = WatchEvaluate("gf_typeof", watch);
+      const shared_ptr<Watch>& watch = w->baseExpressions[i];
+      auto                     res   = WatchEvaluate("gf_typeof", watch);
       resize_to_lf(*res);
 
       if (*res != watch->type && *res != "??") {
@@ -3800,7 +3775,7 @@ void WatchWindowUpdate(const char*, UIElement* element) {
          for (size_t j = 0; j < w->rows.size(); j++) {
             if (w->rows[j] == watch) {
                w->selectedRow = j;
-               WatchAddExpression(w, strdup(watch->key));
+               WatchAddExpression(w, watch->key.c_str());
                w->selectedRow = w->rows.size(), i--;
                break;
             }
@@ -3809,8 +3784,8 @@ void WatchWindowUpdate(const char*, UIElement* element) {
    }
 
    for (size_t i = 0; i < w->dynamicArrays.size(); i++) {
-      Watch* watch = w->dynamicArrays[i];
-      auto res = WatchEvaluate("gf_fields", watch);
+      const shared_ptr<Watch>& watch = w->dynamicArrays[i];
+      auto                     res   = WatchEvaluate("gf_fields", watch);
       if (!res || !res->contains("(d_arr)"))
          continue;
       int count = atoi(res->c_str() + 7);
@@ -3845,8 +3820,8 @@ void WatchWindowUpdate(const char*, UIElement* element) {
 }
 
 void WatchWindowFocus(UIElement* element) {
-   WatchWindow* w = (WatchWindow*)element->cp;
-   w->element->Focus();
+   WatchWindow* w = (WatchWindow*)element;
+   w->Focus();
 }
 
 void CommandAddWatch() {
@@ -3906,7 +3881,7 @@ int TableStackMessage(UIElement* element, UIMessage message, int di, void* dp) {
 }
 
 UIElement* StackWindowCreate(UIElement* parent) {
-   UITable* table       = UITableCreate(parent, 0, "Index\tFunction\tLocation\tAddress");
+   UITable* table     = UITableCreate(parent, 0, "Index\tFunction\tLocation\tAddress");
    table->messageUser = TableStackMessage;
    return table;
 }
@@ -3924,21 +3899,21 @@ void StackWindowUpdate(const char*, UIElement* _table) {
 
 struct BreakpointTableData {
    vector<int> selected;
-   int         anchor;
+   int         anchor = 0;
 };
 
-#define BREAKPOINT_WINDOW_COMMAND_FOR_EACH_SELECTED(function, action)       \
-   void function(BreakpointTableData* data) {                               \
-      for (auto selected : data->selected) {                                \
-         for (const auto& breakpoint : breakpoints) {                       \
-            if (breakpoint.number == selected) {                            \
-               char buffer[1024];                                           \
-               StringFormat(buffer, 1024, action " %d", selected);          \
-               (void)DebuggerSend(buffer, true, false);                     \
-               break;                                                       \
-            }                                                               \
-         }                                                                  \
-      }                                                                     \
+#define BREAKPOINT_WINDOW_COMMAND_FOR_EACH_SELECTED(function, action) \
+   void function(BreakpointTableData* data) {                         \
+      for (auto selected : data->selected) {                          \
+         for (const auto& breakpoint : breakpoints) {                 \
+            if (breakpoint.number == selected) {                      \
+               char buffer[1024];                                     \
+               StringFormat(buffer, 1024, action " %d", selected);    \
+               (void)DebuggerSend(buffer, true, false);               \
+               break;                                                 \
+            }                                                         \
+         }                                                            \
+      }                                                               \
    }
 
 BREAKPOINT_WINDOW_COMMAND_FOR_EACH_SELECTED(CommandDeleteSelectedBreakpoints, "delete");
@@ -4069,8 +4044,8 @@ int TableBreakpointsMessage(UIElement* element, UIMessage message, int di, void*
 }
 
 UIElement* BreakpointsWindowCreate(UIElement* parent) {
-   UITable* table       = UITableCreate(parent, 0, "File\tLine\tEnabled\tCondition\tHit");
-   table->cp          = (BreakpointTableData*)calloc(1, sizeof(BreakpointTableData));
+   UITable* table     = UITableCreate(parent, 0, "File\tLine\tEnabled\tCondition\tHit");
+   table->cp          = new BreakpointTableData;
    table->messageUser = TableBreakpointsMessage;
    return table;
 }
@@ -4119,17 +4094,17 @@ void CommandToggleFillDataTab() {
 }
 
 UIElement* DataWindowCreate(UIElement* parent) {
-   dataTab          = UIPanelCreate(parent, UIPanel::EXPAND);
-   UIPanel* panel5  = UIPanelCreate(dataTab, UIPanel::COLOR_1 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
-   buttonFillWindow = UIButtonCreate(panel5, UIButton::SMALL, "Fill window", -1);
+   dataTab                  = UIPanelCreate(parent, UIPanel::EXPAND);
+   UIPanel* panel5          = UIPanelCreate(dataTab, UIPanel::COLOR_1 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
+   buttonFillWindow         = UIButtonCreate(panel5, UIButton::SMALL, "Fill window", -1);
    buttonFillWindow->invoke = []() { CommandToggleFillDataTab(); };
 
    for (const auto& idw : interfaceDataViewers) {
-      UIButton *b = UIButtonCreate(panel5, UIButton::SMALL, idw.addButtonLabel, -1);
-      b->invoke = [&]() { idw.addButtonCallback(); };
+      UIButton* b = UIButtonCreate(panel5, UIButton::SMALL, idw.addButtonLabel, -1);
+      b->invoke   = [&]() { idw.addButtonCallback(); };
    }
 
-   dataWindow             = UIMDIClientCreate(dataTab, UIElement::V_FILL);
+   dataWindow           = UIMDIClientCreate(dataTab, UIElement::V_FILL);
    dataTab->messageUser = DataTabMessage;
    return dataTab;
 }
@@ -4139,8 +4114,8 @@ UIElement* DataWindowCreate(UIElement* parent) {
 // ---------------------------------------------------/
 
 struct StructWindow {
-   UICode*    display;
-   UITextbox* textbox;
+   UICode*    display = nullptr;
+   UITextbox* textbox = nullptr;
 };
 
 int TextboxStructNameMessage(UIElement* element, UIMessage message, int di, void* dp) {
@@ -4152,8 +4127,8 @@ int TextboxStructNameMessage(UIElement* element, UIMessage message, int di, void
       if (m->code == UIKeycode::ENTER) {
          char buffer[4096];
          StringFormat(buffer, sizeof(buffer), "ptype /o %.*s", (int)window->textbox->bytes, window->textbox->string);
-         auto res = EvaluateCommand(buffer);
-         char* end = (char *)strstr(res->c_str(), "\n(gdb)");
+         auto  res = EvaluateCommand(buffer);
+         char* end = (char*)strstr(res->c_str(), "\n(gdb)");
          if (end)
             *end = 0;
          UICodeInsertContent(window->display, res->c_str(), -1, true);
@@ -4168,12 +4143,12 @@ int TextboxStructNameMessage(UIElement* element, UIMessage message, int di, void
 }
 
 UIElement* StructWindowCreate(UIElement* parent) {
-   StructWindow* window           = (StructWindow*)calloc(1, sizeof(StructWindow));
-   UIPanel*      panel            = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
-   window->textbox                = UITextboxCreate(panel, 0);
+   StructWindow* window         = new StructWindow;
+   UIPanel*      panel          = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
+   window->textbox              = UITextboxCreate(panel, 0);
    window->textbox->messageUser = TextboxStructNameMessage;
    window->textbox->cp          = window;
-   window->display                = UICodeCreate(panel, UIElement::V_FILL | UICode::NO_MARGIN | UICode::SELECTABLE);
+   window->display              = UICodeCreate(panel, UIElement::V_FILL | UICode::NO_MARGIN | UICode::SELECTABLE);
    UICodeInsertContent(window->display, "Type the name of a struct to view its layout.", -1, false);
    return panel;
 }
@@ -4184,8 +4159,8 @@ UIElement* StructWindowCreate(UIElement* parent) {
 
 struct FilesWindow {
    char     directory[PATH_MAX];
-   UIPanel* panel;
-   UILabel* path;
+   UIPanel* panel = nullptr;
+   UILabel* path  = nullptr;
 };
 
 bool FilesPanelPopulate(FilesWindow* window);
@@ -4295,21 +4270,20 @@ void FilesNavigateToActiveFile(FilesWindow* window) {
 }
 
 UIElement* FilesWindowCreate(UIElement* parent) {
-   FilesWindow* window    = (FilesWindow*)calloc(1, sizeof(FilesWindow));
+   FilesWindow* window    = new FilesWindow;
    UIPanel*     container = UIPanelCreate(parent, UIPanel::EXPAND);
-   window->panel =
-      UIPanelCreate(container, UIPanel::COLOR_1 | UIPanel::EXPAND | UIPanel::SCROLL | UIElement::V_FILL);
+   window->panel = UIPanelCreate(container, UIPanel::COLOR_1 | UIPanel::EXPAND | UIPanel::SCROLL | UIElement::V_FILL);
    window->panel->gap = -1, window->panel->border = UIRectangle(1);
    window->panel->cp = window;
-   UIPanel*  row       = UIPanelCreate(container, UIPanel::COLOR_2 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
+   UIPanel* row      = UIPanelCreate(container, UIPanel::COLOR_2 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
 
-   UIButton* button    = UIButtonCreate(row, UIButton::SMALL, "-> cwd", -1);
-   button->invoke      = [window]() { FilesNavigateToCWD(window); };
+   UIButton* button = UIButtonCreate(row, UIButton::SMALL, "-> cwd", -1);
+   button->invoke   = [window]() { FilesNavigateToCWD(window); };
 
-   button              = UIButtonCreate(row, UIButton::SMALL, "-> active file", -1);
-   button->invoke      = [window]() { FilesNavigateToActiveFile(window); };
+   button         = UIButtonCreate(row, UIButton::SMALL, "-> active file", -1);
+   button->invoke = [window]() { FilesNavigateToActiveFile(window); };
 
-   window->path        = UILabelCreate(row, UIElement::H_FILL, "", 0);
+   window->path = UILabelCreate(row, UIElement::H_FILL, "", 0);
    FilesNavigateToCWD(window);
    return container;
 }
@@ -4425,7 +4399,7 @@ UIElement* CommandsWindowCreate(UIElement* parent) {
       char buffer[256];
       StringFormat(buffer, sizeof(buffer), "gf-command %s", cmd.key);
       UIButton* button = UIButtonCreate(panel, 0, cmd.key, -1);
-      char *b = strdup(buffer);
+      char*     b      = strdup(buffer);
       button->invoke   = [b]() { CommandSendToGDB(b); };
    }
 
@@ -4492,8 +4466,8 @@ UIElement* LogWindowCreate(UIElement* parent) {
 
 struct Thread {
    char frame[127];
-   bool active;
-   int  id;
+   bool active = false;
+   int  id     = 0;
 };
 
 struct ThreadWindow {
@@ -4526,18 +4500,18 @@ int ThreadTableMessage(UIElement* element, UIMessage message, int di, void* dp) 
 }
 
 UIElement* ThreadWindowCreate(UIElement* parent) {
-   UITable* table       = UITableCreate(parent, 0, "ID\tFrame");
-   table->cp          = (ThreadWindow*)calloc(1, sizeof(ThreadWindow));
+   UITable* table     = UITableCreate(parent, 0, "ID\tFrame");
+   table->cp          = new ThreadWindow;
    table->messageUser = ThreadTableMessage;
    return table;
 }
 
 void ThreadWindowUpdate(const char*, UIElement* _table) {
-   ThreadWindow* window   = (ThreadWindow*)_table->cp;
+   ThreadWindow* window = (ThreadWindow*)_table->cp;
    window->threads.clear();
 
-   auto res = EvaluateCommand("info threads");
-   char* position = (char *)res->c_str();
+   auto  res      = EvaluateCommand("info threads");
+   char* position = (char*)res->c_str();
 
    for (int i = 0; position[i]; i++) {
       if (position[i] == '\n' && position[i + 1] == ' ' && position[i + 2] == ' ' && position[i + 3] == ' ') {
@@ -4579,8 +4553,9 @@ void ThreadWindowUpdate(const char*, UIElement* _table) {
 // ---------------------------------------------------/
 
 struct ExecutableWindow {
-   UITextbox * path, *arguments;
-   UICheckbox* askDirectory;
+   UITextbox*  path         = nullptr;
+   UITextbox*  arguments    = nullptr;
+   UICheckbox* askDirectory = nullptr;
 };
 
 void ExecutableWindowStartOrRun(ExecutableWindow* window, bool pause) {
@@ -4638,7 +4613,7 @@ void ExecutableWindowSaveButton(void* _window) {
 }
 
 UIElement* ExecutableWindowCreate(UIElement* parent) {
-   ExecutableWindow* window = (ExecutableWindow*)calloc(1, sizeof(ExecutableWindow));
+   ExecutableWindow* window = new ExecutableWindow;
    UIPanel*          panel  = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
    UILabelCreate(panel, 0, "Path to executable:", -1);
    window->path = UITextboxCreate(panel, 0);
@@ -4668,14 +4643,14 @@ UIElement* ExecutableWindowCreate(UIElement* parent) {
 // ---------------------------------------------------/
 
 struct GDBCommand {
-   char* name;
-   char* description;
-   char* descriptionLower;
+   char* name             = nullptr;
+   char* description      = nullptr;
+   char* descriptionLower = nullptr;
 };
 
 struct CommandSearchWindow {
-   UICode*            display;
-   UITextbox*         textbox;
+   UICode*            display = nullptr;
+   UITextbox*         textbox = nullptr;
    vector<GDBCommand> commands;
 };
 
@@ -4684,10 +4659,10 @@ int TextboxSearchCommandMessage(UIElement* element, UIMessage message, int di, v
 
    if (message == UIMessage::KEY_TYPED) {
       if (!window->commands.size()) {
-         auto res = EvaluateCommand("help all");
-         char *s = nullptr;
+         auto  res = EvaluateCommand("help all");
+         char* s   = nullptr;
          if (res) {
-            s = (char *)res->c_str();
+            s = (char*)res->c_str();
             for (int i = 0; s[i]; i++) {
                if (s[i] == ',' && s[i + 1] == ' ' && s[i + 2] == '\n') {
                   s[i + 2] = ' ';
@@ -4759,12 +4734,12 @@ int TextboxSearchCommandMessage(UIElement* element, UIMessage message, int di, v
 }
 
 UIElement* CommandSearchWindowCreate(UIElement* parent) {
-   CommandSearchWindow* window    = (CommandSearchWindow*)calloc(1, sizeof(CommandSearchWindow));
-   UIPanel*             panel     = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
-   window->textbox                = UITextboxCreate(panel, 0);
+   CommandSearchWindow* window  = new CommandSearchWindow;
+   UIPanel*             panel   = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
+   window->textbox              = UITextboxCreate(panel, 0);
    window->textbox->messageUser = TextboxSearchCommandMessage;
    window->textbox->cp          = window;
-   window->display                = UICodeCreate(panel, UIElement::V_FILL | UICode::NO_MARGIN | UICode::SELECTABLE);
+   window->display              = UICodeCreate(panel, UIElement::V_FILL | UICode::NO_MARGIN | UICode::SELECTABLE);
    UICodeInsertContent(window->display, "Type here to search \nGDB command descriptions.", -1, true);
    return panel;
 }
@@ -4773,8 +4748,8 @@ UIElement* CommandSearchWindowCreate(UIElement* parent) {
 // Utilities:
 // ----------------------------------------------------------
 
-void ThumbnailResize(uint32_t* bits, uint32_t originalWidth, uint32_t originalHeight,
-                     uint32_t targetWidth, uint32_t targetHeight) {
+void ThumbnailResize(uint32_t* bits, uint32_t originalWidth, uint32_t originalHeight, uint32_t targetWidth,
+                     uint32_t targetHeight) {
    float cx = (float)originalWidth / targetWidth;
    float cy = (float)originalHeight / targetHeight;
 
@@ -4846,28 +4821,30 @@ void ThumbnailResize(uint32_t* bits, uint32_t originalWidth, uint32_t originalHe
 // TODO Coloring the flame graph based on other parameters?
 // TODO Watching expressions during profiled step; highlight entries that modify it.
 struct ProfProfilingEntry {
-   void*    thisFunction;
-   uint64_t timeStamp; // High bit set if exiting the function.
+   void*    thisFunction = nullptr;
+   uint64_t timeStamp    = 0; // High bit set if exiting the function.
 };
 
 struct ProfWindow {
-   uint64_t ticksPerMs;
-   UIFont*  fontFlameGraph;
-   bool     inStepOverProfiled;
+   uint64_t ticksPerMs = 0;
+   UIFont*  fontFlameGraph = nullptr;
+   bool     inStepOverProfiled = false;
 };
 
 struct ProfFlameGraphEntry {
-   void*       thisFunction;
-   const char* cName;
-   double      startTime, endTime;
-   int         depth;
-   uint8_t     colorIndex;
+   void*       thisFunction = nullptr;
+   const char* cName        = nullptr;
+   double      startTime    = 0;
+   double      endTime      = 0;
+   int         depth        = 0;
+   uint8_t     colorIndex   = 0;
 };
 
 struct ProfFlameGraphEntryTime {
    // Keep this structure as small as possible!
-   float start, end;
-   int   depth;
+   float start = 0;
+   float end   = 0;
+   int   depth = 0;
 };
 
 struct ProfSourceFileEntry {
@@ -4875,16 +4852,16 @@ struct ProfSourceFileEntry {
 };
 
 struct ProfFunctionEntry {
-   uint32_t callCount;
-   int      lineNumber;
-   int      sourceFileIndex;
-   double   totalTime;
+   uint32_t callCount       = 0;
+   int      lineNumber      = 0;
+   int      sourceFileIndex = 0;
+   double   totalTime       = 0;
    char     cName[64];
 };
 
 int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* dp);
 
-struct ProfFlameGraphReport : public UIElement{
+struct ProfFlameGraphReport : public UIElement {
    UIRectangle  client;
    UIFont*      font;
    UITable*     table;
@@ -4988,7 +4965,7 @@ int ProfFlameGraphEntryCompare(const void* _a, const void* _b) {
 }
 
 void ProfShowSource(ProfFlameGraphReport* report) {
-   ProfFlameGraphEntry*  entry    = report->menuItem;
+   ProfFlameGraphEntry* entry = report->menuItem;
    if (!report->functions.contains(entry->thisFunction)) {
       UIDialogShow(windowMain, 0, "Source information was not found for this function.\n%f%b", "OK");
       return;
@@ -5010,9 +4987,9 @@ void ProfAddBreakpoint(ProfFlameGraphEntry* entry) {
 }
 
 void ProfFillView(ProfFlameGraphReport* report) {
-   ProfFlameGraphEntry*  entry  = report->menuItem;
-   report->xStart               = entry->startTime;
-   report->xEnd                 = entry->endTime;
+   ProfFlameGraphEntry* entry = report->menuItem;
+   report->xStart             = entry->startTime;
+   report->xEnd               = entry->endTime;
    report->Repaint(0);
 }
 
@@ -5110,7 +5087,8 @@ void* ProfFlameGraphRenderThread(void* _unused) {
             if (r.width() > 40) {
                char string[128];
                StringFormat(string, sizeof(string), "%s %fms", entry->cName, entry->endTime - entry->startTime);
-               UIDrawString(painter, UIRectangle(r.l + 2, r.r, r.t, r.b), string, -1, profTextColor, UIAlign::left, NULL);
+               UIDrawString(painter, UIRectangle(r.l + 2, r.r, r.t, r.b), string, -1, profTextColor, UIAlign::left,
+                            NULL);
             }
          }
 
@@ -5358,9 +5336,9 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
       } else if (!report->dragStarted && message == UIMessage::RIGHT_UP && report->hover) {
          report->menuItem = report->hover;
          UIMenu* menu     = UIMenuCreate(element->window, UIMenu::NO_SCROLL);
-         UIMenuAddItem(menu, 0, "Show source", -1,    [report]() { ProfShowSource(report); });
+         UIMenuAddItem(menu, 0, "Show source", -1, [report]() { ProfShowSource(report); });
          UIMenuAddItem(menu, 0, "Add breakpoint", -1, [report]() { ProfAddBreakpoint(report->hover); });
-         UIMenuAddItem(menu, 0, "Fill view", -1,      [report]() { ProfFillView(report); });
+         UIMenuAddItem(menu, 0, "Fill view", -1, [report]() { ProfFillView(report); });
          UIMenuShow(menu);
       } else if (!report->dragStarted && message == UIMessage::MIDDLE_UP && report->hover) {
          report->menuItem = report->hover;
@@ -5571,8 +5549,8 @@ void ProfLoadProfileData(void* _window) {
       return;
    }
 
-   auto pos = EvaluateExpression("gfProfilingBufferPosition");
-   int rawEntryCount = atoi(strstr(pos->c_str(), "= ") + 2);
+   auto pos           = EvaluateExpression("gfProfilingBufferPosition");
+   int  rawEntryCount = atoi(strstr(pos->c_str(), "= ") + 2);
    printf("Reading %d profiling entries...\n", rawEntryCount);
 
    if (rawEntryCount == 0) {
@@ -5684,7 +5662,7 @@ void ProfLoadProfileData(void* _window) {
          memcpy(sourceFile.cPath, cSourceFile, length);
          sourceFile.cPath[length] = 0;
          StringFormat(buffer, sizeof(buffer), "py print(gdb.lookup_global_symbol('%s').line)", function.cName);
-         res = EvaluateCommand(buffer);
+         res                 = EvaluateCommand(buffer);
          function.lineNumber = atoi(res->c_str());
 
          for (size_t i = 0; i < sourceFiles.size(); i++) {
@@ -5701,22 +5679,21 @@ void ProfLoadProfileData(void* _window) {
       }
    }
 
-   UIMDIChild* window =
-      UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, ui_rect_2s(800, 600), "Flame graph", -1);
-   UIButton* switchViewButton = UIButtonCreate(window, UIButton::SMALL | UIElement::NON_CLIENT, "Table view", -1);
-   UITable*  table = UITableCreate(window, 0, "Name\tTime spent (ms)\tCall count\tAverage per call (ms)");
+   UIMDIChild* window = UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, ui_rect_2s(800, 600), "Flame graph", -1);
+   UIButton*   switchViewButton = UIButtonCreate(window, UIButton::SMALL | UIElement::NON_CLIENT, "Table view", -1);
+   UITable*    table            = UITableCreate(window, 0, "Name\tTime spent (ms)\tCall count\tAverage per call (ms)");
    ProfFlameGraphReport* report = new ProfFlameGraphReport(window, 0);
 
    report->vScroll = UIScrollBarCreate(report, 0);
    report->font    = data->fontFlameGraph;
 
-   window->cp             = report;
-   window->messageUser    = ProfReportWindowMessage;
+   window->cp          = report;
+   window->messageUser = ProfReportWindowMessage;
 
-   switchViewButton->cp   = report;
+   switchViewButton->cp     = report;
    switchViewButton->invoke = [report]() { ProfSwitchView(report); };
-   table->cp              = report;
-   table->messageUser     = ProfTableMessage;
+   table->cp                = report;
+   table->messageUser       = ProfTableMessage;
    report->switchViewButton = switchViewButton;
    report->table            = table;
 
@@ -5755,10 +5732,10 @@ void ProfLoadProfileData(void* _window) {
          stack.pop_back();
          report->entries.push_back(entry);
       } else {
-         ProfFlameGraphEntry entry    = {};
+         ProfFlameGraphEntry entry = {};
          if (report->functions.contains(rawEntries[i].thisFunction)) {
             ProfFunctionEntry& function = report->functions[rawEntries[i].thisFunction];
-            entry.cName = function.cName;
+            entry.cName                 = function.cName;
             entry.colorIndex =
                function.sourceFileIndex % (sizeof(profEntryColorPalette) / sizeof(profEntryColorPalette[0]));
          }
@@ -5867,10 +5844,10 @@ void ProfWindowUpdate(const char* data, UIElement* element) {
 
 UIElement* ProfWindowCreate(UIElement* parent) {
    const int   fontSizeFlameGraph = 8;
-   ProfWindow* window             = (ProfWindow*)calloc(1, sizeof(ProfWindow));
+   ProfWindow* window             = new ProfWindow;
    window->fontFlameGraph         = UIFontCreate(_UI_TO_STRING_2(UI_FONT_PATH), fontSizeFlameGraph);
    UIPanel* panel                 = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
-   panel->cp                    = window;
+   panel->cp                      = window;
    UIButton* button               = UIButtonCreate(panel, UIElement::V_FILL, "Step over profiled", -1);
    button->invoke                 = [window]() { ProfStepOverProfiled(window); };
 
@@ -5898,7 +5875,7 @@ UIElement* ProfWindowCreate(UIElement* parent) {
 // TODO Set data breakpoints.
 // TODO Highlight modified bytes.
 
-static int MemoryWindowMessage(UIElement* element, UIMessage message, int di, void* dp);
+static int  MemoryWindowMessage(UIElement* element, UIMessage message, int di, void* dp);
 static void MemoryWindowGotoButtonInvoke(void* cp);
 
 struct MemoryWindow : public UIElement {
@@ -6007,7 +5984,8 @@ int MemoryWindowMessage(UIElement* element, UIMessage message, int di, void* dp)
    } else if (message == UIMessage::LAYOUT) {
       UIRectangle bounds = element->bounds + ui_rect_1i(10);
       window->gotoButton->Move(UIRectangle(bounds.r - window->gotoButton->Message(UIMessage::GET_WIDTH, 0, 0), bounds.r,
-                                         bounds.t, bounds.t + window->gotoButton->Message(UIMessage::GET_HEIGHT, 0, 0)),
+                                           bounds.t,
+                                           bounds.t + window->gotoButton->Message(UIMessage::GET_HEIGHT, 0, 0)),
                                false);
    } else if (message == UIMessage::MOUSE_WHEEL) {
       window->offset += di / 72 * 0x10;
@@ -6032,7 +6010,7 @@ void MemoryWindowGotoButtonInvoke(void* cp) {
                                         "Cancel"))) {
       char buffer[4096];
       StringFormat(buffer, sizeof(buffer), "py gf_valueof(['%s'],' ')", expression);
-      auto res = EvaluateCommand(buffer);
+      auto        res    = EvaluateCommand(buffer);
       const char* result = res->c_str();
 
       if (result && ((*result == '(' && isdigit(result[1])) || isdigit(*result))) {
@@ -6077,7 +6055,7 @@ struct ViewWindowColorSwatch : public UIElement {
 enum class grid_type_t { char_t, float_t, double_t };
 
 struct storage_t {
-   virtual ~storage_t() = default;
+   virtual ~storage_t()              = default;
    virtual void        read(FILE* f) = 0;
    virtual const char* data() const  = 0;
 };
@@ -6158,7 +6136,7 @@ int ViewWindowColorSwatchMessage(UIElement* element, UIMessage message, int di, 
       const char* message = "Col: ";
       UIDrawString(painter, element->bounds, message, -1, ui->theme.text, UIAlign::left, nullptr);
       UIRectangle swatch = UIRectangle(element->bounds.l + UIMeasureStringWidth(message, -1), 0, element->bounds.t + 2,
-                                     element->bounds.b - 2);
+                                       element->bounds.b - 2);
       swatch.r           = swatch.l + 50;
       UIDrawRectangle(painter, swatch, color, 0xFF000000, UIRectangle(1));
    }
@@ -6214,17 +6192,15 @@ int ViewWindowMatrixGridMessage(UIElement* element, UIMessage message, int di, v
                   continue;
                UIDrawGlyph(painter, element->bounds.l + j * glyphWidth - grid->hScroll->position,
                            element->bounds.t + i * glyphHeight - grid->vScroll->position, c, ui->theme.text);
-            } else if (grid->grid_type == grid_type_t::float_t ||
-                       grid->grid_type == grid_type_t::double_t) {
-               double f = grid->grid_type == grid_type_t::double_t
-                  ? ((double*)grid->data())[i * grid->w + j]
-                  : (double)((float*)grid->data())[i * grid->w + j];
+            } else if (grid->grid_type == grid_type_t::float_t || grid->grid_type == grid_type_t::double_t) {
+               double f = grid->grid_type == grid_type_t::double_t ? ((double*)grid->data())[i * grid->w + j]
+                                                                   : (double)((float*)grid->data())[i * grid->w + j];
                char   buffer[64];
                StringFormat(buffer, sizeof(buffer), "%f", f);
                UIRectangle rectangle =
                   UIRectangle(j * glyphWidth * 14, (j + 1) * glyphWidth * 14, i * glyphHeight, (i + 1) * glyphHeight);
                UIRectangle offset = UIRectangle(element->bounds.l - (int)grid->hScroll->position,
-                                              element->bounds.t - (int)grid->vScroll->position);
+                                                element->bounds.t - (int)grid->vScroll->position);
                UIDrawString(painter, rectangle + offset, buffer, -1, ui->theme.text, UIAlign::right, nullptr);
             }
          }
@@ -6233,7 +6209,7 @@ int ViewWindowMatrixGridMessage(UIElement* element, UIMessage message, int di, v
       int scrollBarSize = ui_size::SCROLL_BAR * element->window->scale;
       UIDrawBlock(painter,
                   UIRectangle(element->bounds.r - scrollBarSize, element->bounds.r, element->bounds.b - scrollBarSize,
-                            element->bounds.b),
+                              element->bounds.b),
                   ui->theme.panel1);
    } else if (message == UIMessage::LAYOUT) {
       UIRectangle scrollBarBounds = element->bounds;
@@ -6343,7 +6319,7 @@ void ViewWindowView(void* cp) {
       return;
    if (w->selectedRow > w->rows.size() || !w->rows.size())
       return;
-   Watch* watch = w->rows[w->selectedRow == w->rows.size() ? w->selectedRow - 1 : w->selectedRow];
+   const shared_ptr<Watch>& watch = w->rows[w->selectedRow == w->rows.size() ? w->selectedRow - 1 : w->selectedRow];
    if (!watch)
       return;
    if (!cp)
@@ -6359,8 +6335,8 @@ void ViewWindowView(void* cp) {
 
    // Get information about the watch expression.
    char type[256], buffer[256];
-   char  oldFormat = watch->format;
-   watch->format   = 0;
+   char oldFormat = watch->format;
+   watch->format  = 0;
 
    auto res = WatchEvaluate("gf_typeof", watch);
    resize_to_lf(*res);
@@ -6434,7 +6410,7 @@ void ViewWindowView(void* cp) {
          resize_to_lf(*res);
          StringFormat(address, sizeof(address), "%s", res->c_str());
       } else {
-         char* end = (char *)strchr(res->c_str() + 1, ' ');
+         char* end = (char*)strchr(res->c_str() + 1, ' ');
          if (!end)
             goto unrecognised;
          *end = 0;
@@ -6479,9 +6455,9 @@ void ViewWindowView(void* cp) {
          goto unrecognised;
       }
    } else if (0 == memcmp(type, "char [", 6) || 0 == memcmp(type, "float [", 7) || 0 == memcmp(type, "double [", 8)) {
-      int itemSize       = type[0] == 'c' ? sizeof(char) : type[0] == 'f' ? sizeof(float) : sizeof(double);
-      char* p = strchr(type, '[') + 1;
-      int   w = strtol(p, &p, 0);
+      int   itemSize = type[0] == 'c' ? sizeof(char) : type[0] == 'f' ? sizeof(float) : sizeof(double);
+      char* p        = strchr(type, '[') + 1;
+      int   w        = strtol(p, &p, 0);
       if (memcmp(p, "][", 2))
          goto unrecognised;
       p += 2;
@@ -6499,9 +6475,9 @@ void ViewWindowView(void* cp) {
       char tempPath[PATH_MAX];
       realpath(".temp.gf", tempPath);
       char buffer[PATH_MAX * 2];
-      StringFormat(buffer, sizeof(buffer), "dump binary memory %s (%s) (%s+%d)", tempPath, res->c_str(),
-                   res->c_str(), w * h * itemSize);
-      res = EvaluateCommand(buffer);
+      StringFormat(buffer, sizeof(buffer), "dump binary memory %s (%s) (%s+%d)", tempPath, res->c_str(), res->c_str(),
+                   w * h * itemSize);
+      res     = EvaluateCommand(buffer);
       FILE* f = fopen(tempPath, "rb");
 
       if (f) {
@@ -6510,8 +6486,8 @@ void ViewWindowView(void* cp) {
          unlink(tempPath);
       }
 
-      if ((grid->grid_type == grid_type_t::float_t || grid->grid_type == grid_type_t::double_t) && w == h &&
-          w <= 4 && w >= 2) {
+      if ((grid->grid_type == grid_type_t::float_t || grid->grid_type == grid_type_t::double_t) && w == h && w <= 4 &&
+          w >= 2) {
          double matrix[16];
 
          for (int i = 0; i < w; i++) {
@@ -6633,19 +6609,19 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
       display->scrollBar->Move(scrollBarBounds, true);
 
       display->zoomOut->Move(UIRectangle(element->bounds.l + (int)(15 * element->window->scale),
-                                       element->bounds.l + (int)(45 * element->window->scale),
-                                       element->bounds.t + (int)(15 * element->window->scale),
-                                       element->bounds.t + (int)(45 * element->window->scale)),
-                             true);
-      display->zoomIn->Move(UIRectangle(element->bounds.l + (int)(45 * element->window->scale),
-                                      element->bounds.l + (int)(75 * element->window->scale),
-                                      element->bounds.t + (int)(15 * element->window->scale),
-                                      element->bounds.t + (int)(45 * element->window->scale)),
-                            true);
-      display->normalize->Move(UIRectangle(element->bounds.l + (int)(75 * element->window->scale),
-                                         element->bounds.l + (int)(135 * element->window->scale),
+                                         element->bounds.l + (int)(45 * element->window->scale),
                                          element->bounds.t + (int)(15 * element->window->scale),
                                          element->bounds.t + (int)(45 * element->window->scale)),
+                             true);
+      display->zoomIn->Move(UIRectangle(element->bounds.l + (int)(45 * element->window->scale),
+                                        element->bounds.l + (int)(75 * element->window->scale),
+                                        element->bounds.t + (int)(15 * element->window->scale),
+                                        element->bounds.t + (int)(45 * element->window->scale)),
+                            true);
+      display->normalize->Move(UIRectangle(element->bounds.l + (int)(75 * element->window->scale),
+                                           element->bounds.l + (int)(135 * element->window->scale),
+                                           element->bounds.t + (int)(15 * element->window->scale),
+                                           element->bounds.t + (int)(45 * element->window->scale)),
                                true);
    } else if (message == UIMessage::MOUSE_DRAG && element->window->pressedButton == 1) {
       display->scrollBar->position += display->dragLastModification;
@@ -6759,22 +6735,21 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
                for (int32_t i = 0; i < sampleCount; i++) {
                   int32_t x1 = (int)((float)(i + 1) / sampleCount * client.width()) + client.l;
                   int32_t y  = ym + h2 * yScale * samples[channel + display->channels * (int)i];
-                  UIDrawBlock(painter, UIRectangle(x1 - 2, x1 + 2, y - 2, y + 2), channel % 2 ? 0xFFFF00FF : 0xFF00FFFF);
+                  UIDrawBlock(painter, UIRectangle(x1 - 2, x1 + 2, y - 2, y + 2),
+                              channel % 2 ? 0xFFFF00FF : 0xFF00FFFF);
                }
             }
          }
 
          int mouseXSample =
-            (float)(element->window->cursor.x - client.l) / element->bounds.width() * display->samplesOnScreen -
-            0.5f;
+            (float)(element->window->cursor.x - client.l) / element->bounds.width() * display->samplesOnScreen - 0.5f;
 
-         if (mouseXSample >= 0 && mouseXSample < sampleCount &&
-             element->clip.contains(element->window->cursor) &&
+         if (mouseXSample >= 0 && mouseXSample < sampleCount && element->clip.contains(element->window->cursor) &&
              !display->scrollBar->clip.contains(element->window->cursor)) {
             int         stringOffset = 20 * element->window->scale;
             UIRectangle stringRectangle =
                UIRectangle(client.l + stringOffset, client.r - stringOffset, client.t + stringOffset,
-                         client.t + stringOffset + UIMeasureStringHeight());
+                           client.t + stringOffset + UIMeasureStringHeight());
             char buffer[100];
             snprintf(buffer, sizeof(buffer), "%d: ", (int)(mouseXSample + display->scrollBar->position));
 
@@ -6870,11 +6845,12 @@ struct WaveformViewer {
    char             pointer[256];
    char             sampleCount[256];
    char             channels[256];
-   int              parsedSampleCount, parsedChannels;
-   UIButton*        autoToggle;
-   UIPanel*         labelPanel;
-   UILabel*         label;
-   WaveformDisplay* display;
+   int              parsedSampleCount = 0;
+   int              parsedChannels    = 0;
+   UIButton*        autoToggle        = nullptr;
+   UIPanel*         labelPanel        = nullptr;
+   UILabel*         label             = nullptr;
+   WaveformDisplay* display           = nullptr;
 };
 
 void WaveformViewerUpdate(const char* pointerString, const char* sampleCountString, const char* channelsString,
@@ -6936,7 +6912,7 @@ const char* WaveformViewerGetSamples(const char* pointerString, const char* samp
 int WaveformViewerWindowMessage(UIElement* element, UIMessage message, int di, void* dp) {
    if (message == UIMessage::DESTROY) {
       DataViewerRemoveFromAutoUpdateList(element);
-      free(element->cp);
+      delete (WaveformViewer*)element->cp;
    } else if (message == UIMessage::GET_WIDTH) {
       return 300;
    } else if (message == UIMessage::GET_HEIGHT) {
@@ -6965,7 +6941,7 @@ void WaveformViewerSaveToFile(WaveformDisplay* display) {
       UIDialogShow(windowMain, 0, "Save to file       \nPath:\n%t\n%f%b%b%b", &path, "Save", "Save and open", "Cancel");
    if (0 == strcmp(result, "Cancel"))
       return;
-   FILE*            f       = fopen(path, "wb");
+   FILE* f = fopen(path, "wb");
    if (!f) {
       UIDialogShow(windowMain, 0, "Unable to open file for writing.\n%f%b", "OK");
       return;
@@ -7007,7 +6983,7 @@ void WaveformViewerSaveToFile(WaveformDisplay* display) {
 int WaveformViewerDisplayMessage(UIElement* element, UIMessage message, int di, void* dp) {
    if (message == UIMessage::RIGHT_UP) {
       WaveformDisplay* display = (WaveformDisplay*)element;
-      UIMenu* menu = UIMenuCreate(element->window, UIMenu::NO_SCROLL);
+      UIMenu*          menu    = UIMenuCreate(element->window, UIMenu::NO_SCROLL);
       UIMenuAddItem(menu, 0, "Save to .wav...", -1, [display]() { WaveformViewerSaveToFile(display); });
       UIMenuShow(menu);
    }
@@ -7023,7 +6999,7 @@ void WaveformViewerUpdate(const char* pointerString, const char* sampleCountStri
       WaveformViewerGetSamples(pointerString, sampleCountString, channelsString, &samples, &sampleCount, &channels);
 
    if (!owner) {
-      WaveformViewer* viewer = (WaveformViewer*)calloc(1, sizeof(WaveformViewer));
+      WaveformViewer* viewer = new WaveformViewer;
       if (pointerString)
          StringFormat(viewer->pointer, sizeof(viewer->pointer), "%s", pointerString);
       if (sampleCountString)
@@ -7031,20 +7007,20 @@ void WaveformViewerUpdate(const char* pointerString, const char* sampleCountStri
       if (channelsString)
          StringFormat(viewer->channels, sizeof(viewer->channels), "%s", channelsString);
 
-      UIMDIChild* window    = UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Waveform", -1);
-      window->messageUser = WaveformViewerWindowMessage;
-      window->cp          = viewer;
-      viewer->autoToggle    = UIButtonCreate(window, UIButton::SMALL | UIElement::NON_CLIENT, "Auto", -1);
-      viewer->autoToggle->cp          = (void*)WaveformViewerAutoUpdateCallback;
+      UIMDIChild* window     = UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Waveform", -1);
+      window->messageUser    = WaveformViewerWindowMessage;
+      window->cp             = viewer;
+      viewer->autoToggle     = UIButtonCreate(window, UIButton::SMALL | UIElement::NON_CLIENT, "Auto", -1);
+      viewer->autoToggle->cp = (void*)WaveformViewerAutoUpdateCallback;
       viewer->autoToggle->messageUser = DataViewerAutoUpdateButtonMessage;
       UIButtonCreate(window, UIButton::SMALL | UIElement::NON_CLIENT, "Refresh", -1)->messageUser =
          WaveformViewerRefreshMessage;
       owner = window;
 
-      UIPanel* panel                 = UIPanelCreate(owner, UIPanel::EXPAND);
-      viewer->labelPanel             = UIPanelCreate(panel, UIPanel::COLOR_1 | UIElement::V_FILL);
-      viewer->label                  = UILabelCreate(viewer->labelPanel, UIElement::H_FILL, nullptr, 0);
-      viewer->display                = WaveformDisplayCreate(panel, UIElement::V_FILL);
+      UIPanel* panel               = UIPanelCreate(owner, UIPanel::EXPAND);
+      viewer->labelPanel           = UIPanelCreate(panel, UIPanel::COLOR_1 | UIElement::V_FILL);
+      viewer->label                = UILabelCreate(viewer->labelPanel, UIElement::H_FILL, nullptr, 0);
+      viewer->display              = WaveformDisplayCreate(panel, UIElement::V_FILL);
       viewer->display->messageUser = WaveformViewerDisplayMessage;
    }
 
@@ -7089,7 +7065,8 @@ void WaveformAddDialog() {
 // ----------------------------------------------------------
 
 __attribute__((constructor)) void ExtensionsRegister() {
-   interfaceWindows.push_back({.name = "Prof", .create = ProfWindowCreate, .update = ProfWindowUpdate, .alwaysUpdate = true});
+   interfaceWindows.push_back(
+      {.name = "Prof", .create = ProfWindowCreate, .update = ProfWindowUpdate, .alwaysUpdate = true});
    interfaceWindows.push_back({"Memory", MemoryWindowCreate, MemoryWindowUpdate});
    interfaceWindows.push_back({"View", ViewWindowCreate, ViewWindowUpdate});
    interfaceDataViewers.push_back({"Add waveform...", WaveformAddDialog});
@@ -7127,7 +7104,8 @@ void MsgReceivedData(str_unique_ptr input) {
 
       char path[PATH_MAX];
       StringFormat(path, sizeof(path), "%s/.config/gf2_watch.txt", getenv("HOME"));
-      char* data = LoadFile(path, NULL);
+      vector<char> data_vec = LoadFile(path, NULL);
+      char* data = data_vec.data();
 
       while (data && restoreWatchWindow) {
          char* end = strchr(data, '\n');
@@ -7172,7 +7150,7 @@ void MsgReceivedData(str_unique_ptr input) {
 
 void MsgReceivedControl(str_unique_ptr input) {
    const char* start = input.get();
-   char* end   = strchr(input.get(), '\n');
+   char*       end   = strchr(input.get(), '\n');
    if (end)
       *end = 0;
 
@@ -7186,7 +7164,7 @@ void MsgReceivedControl(str_unique_ptr input) {
 }
 
 auto gdb_invoker(const char* cmd) {
-   return  [cmd]() { CommandSendToGDB(cmd); };
+   return [cmd]() { CommandSendToGDB(cmd); };
 }
 
 __attribute__((constructor)) void InterfaceAddBuiltinWindowsAndCommands() {
@@ -7209,49 +7187,42 @@ __attribute__((constructor)) void InterfaceAddBuiltinWindowsAndCommands() {
    interfaceDataViewers.push_back({"Add bitmap...", BitmapAddDialog});
 
    interfaceCommands.push_back({
-      .label = "Run\tShift+F5",
-         .shortcut{.code = UI_KEYCODE_FKEY(5), .shift = true, .invoke = gdb_invoker("r") }
+      .label = "Run\tShift+F5", .shortcut{.code = UI_KEYCODE_FKEY(5), .shift = true, .invoke = gdb_invoker("r")}
    });
    interfaceCommands.push_back({
       .label = "Run paused\tCtrl+F5",
-         .shortcut{.code = UI_KEYCODE_FKEY(5), .ctrl = true, .invoke = gdb_invoker("start") }
+      .shortcut{.code = UI_KEYCODE_FKEY(5), .ctrl = true, .invoke = gdb_invoker("start")}
    });
    interfaceCommands.push_back({
-         .label = "Kill\tF3", .shortcut{.code = UI_KEYCODE_FKEY(3), .invoke = gdb_invoker("kill") }
+      .label = "Kill\tF3", .shortcut{.code = UI_KEYCODE_FKEY(3), .invoke = gdb_invoker("kill")}
    });
    interfaceCommands.push_back({
       .label = "Restart GDB\tCtrl+R",
-      .shortcut{
-         .code = UI_KEYCODE_LETTER('R'), .ctrl = true, .invoke = gdb_invoker("gf-restart-gdb") }
+      .shortcut{.code = UI_KEYCODE_LETTER('R'), .ctrl = true, .invoke = gdb_invoker("gf-restart-gdb")}
    });
    interfaceCommands.push_back({
-      .label = "Connect\tF4",
-      .shortcut{.code = UI_KEYCODE_FKEY(4), .invoke = gdb_invoker("target remote :1234") }
+      .label = "Connect\tF4", .shortcut{.code = UI_KEYCODE_FKEY(4), .invoke = gdb_invoker("target remote :1234")}
    });
    interfaceCommands.push_back({
-         .label = "Continue\tF5", .shortcut{.code = UI_KEYCODE_FKEY(5), .invoke = gdb_invoker("c") }
+      .label = "Continue\tF5", .shortcut{.code = UI_KEYCODE_FKEY(5), .invoke = gdb_invoker("c")}
    });
    interfaceCommands.push_back({
-      .label = "Step over\tF10",
-      .shortcut{.code = UI_KEYCODE_FKEY(10), .invoke = gdb_invoker("gf-next") }
+      .label = "Step over\tF10", .shortcut{.code = UI_KEYCODE_FKEY(10), .invoke = gdb_invoker("gf-next")}
    });
    interfaceCommands.push_back({
       .label = "Step out of block\tShift+F10",
-      .shortcut{
-         .code = UI_KEYCODE_FKEY(10), .shift = true, .invoke = gdb_invoker("gf-step-out-of-block") }
+      .shortcut{.code = UI_KEYCODE_FKEY(10), .shift = true, .invoke = gdb_invoker("gf-step-out-of-block")}
    });
    interfaceCommands.push_back({
-      .label = "Step in\tF11",
-      .shortcut{.code = UI_KEYCODE_FKEY(11), .invoke = gdb_invoker("gf-step") }
+      .label = "Step in\tF11", .shortcut{.code = UI_KEYCODE_FKEY(11), .invoke = gdb_invoker("gf-step")}
    });
    interfaceCommands.push_back({
       .label = "Step into outer\tShift+F8",
-      .shortcut{
-         .code = UI_KEYCODE_FKEY(8), .shift = true, .invoke = gdb_invoker("gf-step-into-outer") }
+      .shortcut{.code = UI_KEYCODE_FKEY(8), .shift = true, .invoke = gdb_invoker("gf-step-into-outer")}
    });
    interfaceCommands.push_back({
       .label = "Step out\tShift+F11",
-      .shortcut{.code = UI_KEYCODE_FKEY(11), .shift = true, .invoke = gdb_invoker("finish") }
+      .shortcut{.code = UI_KEYCODE_FKEY(11), .shift = true, .invoke = gdb_invoker("finish")}
    });
    interfaceCommands.push_back({
       .label = "Reverse continue\tCtrl+Shift+F5",
@@ -7259,30 +7230,25 @@ __attribute__((constructor)) void InterfaceAddBuiltinWindowsAndCommands() {
    });
    interfaceCommands.push_back({
       .label = "Reverse step over\tCtrl+Shift+F10",
-      .shortcut{.code   = UI_KEYCODE_FKEY(10),
-                .ctrl   = true,
-                .shift  = true,
-                .invoke = gdb_invoker("reverse-next") }
+      .shortcut{.code = UI_KEYCODE_FKEY(10), .ctrl = true, .shift = true, .invoke = gdb_invoker("reverse-next")}
    });
    interfaceCommands.push_back({
       .label = "Reverse step in\tCtrl+Shift+F11",
       .shortcut{.code = UI_KEYCODE_FKEY(11), .ctrl = true, .shift = true, .invoke = gdb_invoker("reverse-step")}
    });
    interfaceCommands.push_back({
-         .label = "Break\tF8", .shortcut{.code = UI_KEYCODE_FKEY(8), .invoke = [&]() { ctx.InterruptGdb(0); } }
+      .label = "Break\tF8", .shortcut{.code = UI_KEYCODE_FKEY(8), .invoke = [&]() { ctx.InterruptGdb(0); }}
    });
    interfaceCommands.push_back({
-         .label = "Toggle breakpoint\tF9", .shortcut{.code = UI_KEYCODE_FKEY(9), .invoke = []() { CommandToggleBreakpoint(); }}
+      .label = "Toggle breakpoint\tF9",
+      .shortcut{.code = UI_KEYCODE_FKEY(9), .invoke = []() { CommandToggleBreakpoint(); }}
    });
    interfaceCommands.push_back({
       .label = "Sync with gvim\tF2", .shortcut{.code = UI_KEYCODE_FKEY(2), .invoke = CommandSyncWithGvim}
    });
    interfaceCommands.push_back({
       .label = "Ask GDB for PWD\tCtrl+Shift+P",
-      .shortcut{.code   = UI_KEYCODE_LETTER('P'),
-                .ctrl   = true,
-                .shift  = true,
-                .invoke = gdb_invoker("gf-get-pwd") }
+      .shortcut{.code = UI_KEYCODE_LETTER('P'), .ctrl = true, .shift = true, .invoke = gdb_invoker("gf-get-pwd")}
    });
    interfaceCommands.push_back({
       .label = "Toggle disassembly\tCtrl+D",
@@ -7298,11 +7264,11 @@ __attribute__((constructor)) void InterfaceAddBuiltinWindowsAndCommands() {
    });
    interfaceCommands.push_back({
       .label = nullptr,
-         .shortcut{.code = UI_KEYCODE_LETTER('E'), .ctrl = true, .invoke = []() { CommandWatchAddEntryForAddress(); } }
+      .shortcut{.code = UI_KEYCODE_LETTER('E'), .ctrl = true, .invoke = []() { CommandWatchAddEntryForAddress(); }}
    });
    interfaceCommands.push_back({
       .label = nullptr,
-      .shortcut{.code = UI_KEYCODE_LETTER('G'), .ctrl = true, .invoke = []() { CommandWatchViewSourceAtAddress(); } }
+      .shortcut{.code = UI_KEYCODE_LETTER('G'), .ctrl = true, .invoke = []() { CommandWatchViewSourceAtAddress(); }}
    });
    interfaceCommands.push_back({
       .label = nullptr, .shortcut{.code = UI_KEYCODE_LETTER('B'), .ctrl = true, .invoke = CommandToggleFillDataTab}
@@ -7537,7 +7503,10 @@ unique_ptr<UI> GfMain(int argc, char** argv) {
 
    // catch some signals
    // ------------------
-   std::signal(SIGINT,  [](int) { ctx.KillGdb(); exit(0); });
+   std::signal(SIGINT, [](int) {
+      ctx.KillGdb();
+      exit(0);
+   });
    std::signal(SIGPIPE, [](int) { fprintf(stderr, "SIGPIPE Received - ignored.\n"); });
 
    // process command arguments and create updated version to pass to gdb
@@ -7561,7 +7530,7 @@ unique_ptr<UI> GfMain(int argc, char** argv) {
 
    SettingsLoad(true);
    auto ui_ptr = UIInitialise(ui_config);
-   ui->theme = uiThemeDark;
+   ui->theme   = uiThemeDark;
 
    // create fonts for interface and code
    // -----------------------------------
@@ -7626,7 +7595,7 @@ int main(int argc, char** argv) {
 
       if (f) {
          for (const auto& exp : firstWatchWindow->baseExpressions) {
-            fprintf(f, "%s\n", exp->key);
+            fprintf(f, "%s\n", exp->key.c_str());
          }
 
          fclose(f);
