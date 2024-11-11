@@ -416,25 +416,20 @@ int StringFormat(char* buffer, size_t bufferSize, const char* format, ...) {
    return length;
 }
 
-char* LoadFile(const char* path, size_t* _bytes) {
+vector<char> LoadFile(const char* path, size_t* _bytes) {
    FILE* f = fopen(path, "rb");
 
    if (!f) {
-      return nullptr;
+      return vector<char>{'\0'};
    }
 
    fseek(f, 0, SEEK_END);
    size_t bytes = ftell(f);
    fseek(f, 0, SEEK_SET);
-   char* buffer = (char*)malloc(bytes + 1);
-
-   if (!buffer) {
-      fclose(f);
-      return nullptr;
-   }
+   vector<char> buffer(bytes + 1);
 
    buffer[bytes] = 0;
-   fread(buffer, 1, bytes, f);
+   fread(buffer.data(), 1, bytes, f);
    fclose(f);
    if (_bytes)
       *_bytes = bytes;
@@ -777,6 +772,10 @@ std::optional<std::string> EvaluateExpression(const char* expression, const char
       }
    }
    return res;
+}
+
+std::optional<std::string> EvaluateExpression(const std::string& expression, const char* format = nullptr) {
+   return EvaluateExpression(expression.c_str(), format);
 }
 
 void* ControlPipeThread(void*) {
@@ -1222,13 +1221,13 @@ void CommandCustom(const char* command) {
       if (displayOutput)
          UICodeInsertContent(displayOutput, buffer, -1, false);
       StringFormat(buffer, 4096, "%s > .output.gf 2>&1", command);
-      int    start  = time(nullptr);
-      int    result = system(buffer);
-      size_t bytes  = 0;
-      char*  output = LoadFile(".output.gf", &bytes);
+      int          start  = time(nullptr);
+      int          result = system(buffer);
+      size_t       bytes  = 0;
+      vector<char> output = LoadFile(".output.gf", &bytes);
       unlink(".output.gf");
-      char*     copy = (char*)malloc(bytes + 1);
-      uintptr_t j    = 0;
+      vector<char> copy(bytes + 1);
+      uintptr_t    j = 0;
 
       for (uintptr_t i = 0; i <= bytes;) {
          if ((uint8_t)output[i] == 0xE2 && (uint8_t)output[i + 1] == 0x80 &&
@@ -1241,9 +1240,7 @@ void CommandCustom(const char* command) {
       }
 
       if (displayOutput)
-         UICodeInsertContent(displayOutput, copy, j, false);
-      free(output);
-      free(copy);
+         UICodeInsertContent(displayOutput, copy.data(), j, false);
       StringFormat(buffer, 4096, "(exit code: %d; time: %ds)\n", result, (int)(time(nullptr) - start));
       if (displayOutput)
          UICodeInsertContent(displayOutput, buffer, -1, false);
@@ -1266,17 +1263,17 @@ const char* themeItems[] = {
 };
 
 void SettingsAddTrustedFolder() {
-   char*       config           = LoadFile(globalConfigPath, nullptr);
-   size_t      length           = config ? strlen(config) : 0;
+   vector<char> config          = LoadFile(globalConfigPath, nullptr);
+   size_t      length           = strlen(config.data());
    size_t      insert           = 0;
    const char* sectionString    = "\n[trusted_folders]\n";
    bool        addSectionString = true;
 
-   if (config) {
-      char* section = strstr(config, sectionString);
+   if (length) {
+      char* section = strstr(config.data(), sectionString);
 
       if (section) {
-         insert           = section - config + strlen(sectionString);
+         insert           = section - config.data() + strlen(sectionString);
          addSectionString = false;
       } else {
          insert = length;
@@ -1289,14 +1286,14 @@ void SettingsAddTrustedFolder() {
       fprintf(stderr, "Error: Could not modify the global config file!\n");
    } else {
       if (insert)
-         fwrite(config, 1, insert, f);
+         fwrite(config.data(), 1, insert, f);
       if (addSectionString)
          fwrite(sectionString, 1, strlen(sectionString), f);
       fwrite(localConfigDirectory, 1, strlen(localConfigDirectory), f);
       char newline = '\n';
       fwrite(&newline, 1, 1, f);
       if (length - insert)
-         fwrite(config + insert, 1, length - insert, f);
+         fwrite(config.data() + insert, 1, length - insert, f);
       fclose(f);
    }
 }
@@ -1307,7 +1304,8 @@ void SettingsLoad(bool earlyPass) {
 
    for (int i = 0; i < 2; i++) {
       INIState state;
-      state.buffer = LoadFile(i ? localConfigPath : globalConfigPath, &state.bytes);
+      auto config_vec = LoadFile(i ? localConfigPath : globalConfigPath, &state.bytes);
+      state.buffer = config_vec[0] ? strdup(config_vec.data()) : nullptr;
 
       if (earlyPass && i && !currentFolderIsTrusted && state.buffer) {
          fprintf(stderr, "Would you like to load the config file .project.gf from your current directory?\n");
@@ -1586,15 +1584,14 @@ bool DisplaySetPosition(const char* file, int line, bool useGDBToGetFullPath) {
       XStoreName(ui->display, windowMain->xwindow, currentFileFull);
 
       size_t bytes;
-      char*  buffer2 = LoadFile(file, &bytes);
+      vector<char> buffer2 = LoadFile(file, &bytes);
 
-      if (!buffer2) {
+      if (!bytes) {
          char buffer3[4096];
          StringFormat(buffer3, 4096, "The file '%s' (from '%s') could not be loaded.", file, originalFile);
          UICodeInsertContent(displayCode, buffer3, -1, true);
       } else {
-         UICodeInsertContent(displayCode, buffer2, bytes, true);
-         free(buffer2);
+         UICodeInsertContent(displayCode, buffer2.data(), bytes, true);
       }
 
       changed            = true;
@@ -2317,22 +2314,23 @@ void DataViewersUpdateAll() {
 // ---------------------------------------------------/
 
 struct BitmapViewer {
-   char            pointer[256];
-   char            width[256];
-   char            height[256];
-   char            stride[256];
-   int             parsedWidth, parsedHeight;
-   UIButton*       autoToggle;
-   UIImageDisplay* display;
-   UIPanel*        labelPanel;
-   UILabel*        label;
+   std::string     pointer;
+   std::string     width;
+   std::string     height;
+   std::string     stride;
+   int             parsedWidth  = 0;
+   int             parsedHeight = 0;
+   UIButton*       autoToggle   = nullptr;
+   UIImageDisplay* display      = nullptr;
+   UIPanel*        labelPanel   = nullptr;
+   UILabel*        label        = nullptr;
 };
 
 int BitmapViewerWindowMessage(UIElement* element, UIMessage message, int di, void* dp) {
    BitmapViewer* viewer = (BitmapViewer*)element->cp;
    if (message == UIMessage::DESTROY) {
       DataViewerRemoveFromAutoUpdateList(element);
-      free(viewer);
+      delete viewer;
       element->cp = nullptr;
    } else if (message == UIMessage::GET_WIDTH) {
       int fit = viewer->parsedWidth + 40;
@@ -2345,8 +2343,8 @@ int BitmapViewerWindowMessage(UIElement* element, UIMessage message, int di, voi
    return 0;
 }
 
-void BitmapViewerUpdate(const char* pointerString, const char* widthString, const char* heightString,
-                        const char* strideString, UIElement* owner = nullptr);
+void BitmapViewerUpdate(std::string pointerString, std::string widthString, std::string heightString,
+                        std::string strideString, UIElement* owner = nullptr);
 
 int BitmapViewerRefreshMessage(UIElement* element, UIMessage message, int di, void* dp) {
    if (message == UIMessage::CLICKED) {
@@ -2357,8 +2355,8 @@ int BitmapViewerRefreshMessage(UIElement* element, UIMessage message, int di, vo
    return 0;
 }
 
-const char* BitmapViewerGetBits(const char* pointerString, const char* widthString, const char* heightString,
-                                const char* strideString, uint32_t** _bits, int* _width, int* _height, int* _stride) {
+const char* BitmapViewerGetBits(std::string pointerString, std::string widthString, std::string heightString,
+                                std::string strideString, uint32_t** _bits, int* _width, int* _height, int* _stride) {
    auto widthResult = EvaluateExpression(widthString);
    if (!widthResult) {
       return "Could not evaluate width.";
@@ -2381,7 +2379,7 @@ const char* BitmapViewerGetBits(const char* pointerString, const char* widthStri
       return "Pointer to image bits does not look like an address!";
    }
 
-   if (strideString && *strideString) {
+   if (!strideString.empty()) {
       auto strideResult = EvaluateExpression(strideString);
       if (!strideResult) {
          return "Could not evaluate stride.";
@@ -2450,23 +2448,20 @@ void BitmapViewerAutoUpdateCallback(UIElement* element) {
    BitmapViewerUpdate(bitmap->pointer, bitmap->width, bitmap->height, bitmap->stride, element);
 }
 
-void BitmapViewerUpdate(const char* pointerString, const char* widthString, const char* heightString,
-                        const char* strideString, UIElement* owner) {
+void BitmapViewerUpdate(std::string pointerString, std::string widthString, std::string heightString,
+                        std::string strideString, UIElement* owner) {
    uint32_t*   bits  = nullptr;
    int         width = 0, height = 0, stride = 0;
    const char* error =
       BitmapViewerGetBits(pointerString, widthString, heightString, strideString, &bits, &width, &height, &stride);
 
    if (!owner) {
-      BitmapViewer* bitmap = (BitmapViewer*)calloc(1, sizeof(BitmapViewer));
-      if (pointerString)
-         StringFormat(bitmap->pointer, sizeof(bitmap->pointer), "%s", pointerString);
-      if (widthString)
-         StringFormat(bitmap->width, sizeof(bitmap->width), "%s", widthString);
-      if (heightString)
-         StringFormat(bitmap->height, sizeof(bitmap->height), "%s", heightString);
-      if (strideString)
-         StringFormat(bitmap->stride, sizeof(bitmap->stride), "%s", strideString);
+      BitmapViewer* bitmap = new BitmapViewer;
+
+      bitmap->pointer = std::move(pointerString);
+      bitmap->width   = std::move(widthString);
+      bitmap->height  = std::move(heightString);
+      bitmap->stride  = std::move(strideString);
 
       UIMDIChild* window     = UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Bitmap", -1);
       window->messageUser    = BitmapViewerWindowMessage;
@@ -2511,7 +2506,7 @@ void BitmapAddDialog() {
                                      &pointer, &width, &height, &stride, "Add", "Cancel");
 
    if (0 == strcmp(result, "Add")) {
-      BitmapViewerUpdate(pointer, width, height, (stride && stride[0]) ? stride : nullptr);
+      BitmapViewerUpdate(pointer ?: "", width ?: "", height ?: "", (stride && stride[0]) ? stride : "");
    }
 }
 
@@ -3907,7 +3902,7 @@ void StackWindowUpdate(const char*, UIElement* _table) {
 
 struct BreakpointTableData {
    vector<int> selected;
-   int         anchor;
+   int         anchor = 0;
 };
 
 #define BREAKPOINT_WINDOW_COMMAND_FOR_EACH_SELECTED(function, action) \
@@ -4053,7 +4048,7 @@ int TableBreakpointsMessage(UIElement* element, UIMessage message, int di, void*
 
 UIElement* BreakpointsWindowCreate(UIElement* parent) {
    UITable* table     = UITableCreate(parent, 0, "File\tLine\tEnabled\tCondition\tHit");
-   table->cp          = (BreakpointTableData*)calloc(1, sizeof(BreakpointTableData));
+   table->cp          = new BreakpointTableData;
    table->messageUser = TableBreakpointsMessage;
    return table;
 }
@@ -4122,8 +4117,8 @@ UIElement* DataWindowCreate(UIElement* parent) {
 // ---------------------------------------------------/
 
 struct StructWindow {
-   UICode*    display;
-   UITextbox* textbox;
+   UICode*    display = nullptr;
+   UITextbox* textbox = nullptr;
 };
 
 int TextboxStructNameMessage(UIElement* element, UIMessage message, int di, void* dp) {
@@ -4151,7 +4146,7 @@ int TextboxStructNameMessage(UIElement* element, UIMessage message, int di, void
 }
 
 UIElement* StructWindowCreate(UIElement* parent) {
-   StructWindow* window         = (StructWindow*)calloc(1, sizeof(StructWindow));
+   StructWindow* window         = new StructWindow;
    UIPanel*      panel          = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
    window->textbox              = UITextboxCreate(panel, 0);
    window->textbox->messageUser = TextboxStructNameMessage;
@@ -4167,8 +4162,8 @@ UIElement* StructWindowCreate(UIElement* parent) {
 
 struct FilesWindow {
    char     directory[PATH_MAX];
-   UIPanel* panel;
-   UILabel* path;
+   UIPanel* panel = nullptr;
+   UILabel* path  = nullptr;
 };
 
 bool FilesPanelPopulate(FilesWindow* window);
@@ -4278,7 +4273,7 @@ void FilesNavigateToActiveFile(FilesWindow* window) {
 }
 
 UIElement* FilesWindowCreate(UIElement* parent) {
-   FilesWindow* window    = (FilesWindow*)calloc(1, sizeof(FilesWindow));
+   FilesWindow* window    = new FilesWindow;
    UIPanel*     container = UIPanelCreate(parent, UIPanel::EXPAND);
    window->panel = UIPanelCreate(container, UIPanel::COLOR_1 | UIPanel::EXPAND | UIPanel::SCROLL | UIElement::V_FILL);
    window->panel->gap = -1, window->panel->border = UIRectangle(1);
@@ -4474,8 +4469,8 @@ UIElement* LogWindowCreate(UIElement* parent) {
 
 struct Thread {
    char frame[127];
-   bool active;
-   int  id;
+   bool active = false;
+   int  id     = 0;
 };
 
 struct ThreadWindow {
@@ -4509,7 +4504,7 @@ int ThreadTableMessage(UIElement* element, UIMessage message, int di, void* dp) 
 
 UIElement* ThreadWindowCreate(UIElement* parent) {
    UITable* table     = UITableCreate(parent, 0, "ID\tFrame");
-   table->cp          = (ThreadWindow*)calloc(1, sizeof(ThreadWindow));
+   table->cp          = new ThreadWindow;
    table->messageUser = ThreadTableMessage;
    return table;
 }
@@ -4561,8 +4556,9 @@ void ThreadWindowUpdate(const char*, UIElement* _table) {
 // ---------------------------------------------------/
 
 struct ExecutableWindow {
-   UITextbox * path, *arguments;
-   UICheckbox* askDirectory;
+   UITextbox*  path         = nullptr;
+   UITextbox*  arguments    = nullptr;
+   UICheckbox* askDirectory = nullptr;
 };
 
 void ExecutableWindowStartOrRun(ExecutableWindow* window, bool pause) {
@@ -4620,7 +4616,7 @@ void ExecutableWindowSaveButton(void* _window) {
 }
 
 UIElement* ExecutableWindowCreate(UIElement* parent) {
-   ExecutableWindow* window = (ExecutableWindow*)calloc(1, sizeof(ExecutableWindow));
+   ExecutableWindow* window = new ExecutableWindow;
    UIPanel*          panel  = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
    UILabelCreate(panel, 0, "Path to executable:", -1);
    window->path = UITextboxCreate(panel, 0);
@@ -4650,14 +4646,14 @@ UIElement* ExecutableWindowCreate(UIElement* parent) {
 // ---------------------------------------------------/
 
 struct GDBCommand {
-   char* name;
-   char* description;
-   char* descriptionLower;
+   char* name             = nullptr;
+   char* description      = nullptr;
+   char* descriptionLower = nullptr;
 };
 
 struct CommandSearchWindow {
-   UICode*            display;
-   UITextbox*         textbox;
+   UICode*            display = nullptr;
+   UITextbox*         textbox = nullptr;
    vector<GDBCommand> commands;
 };
 
@@ -4741,7 +4737,7 @@ int TextboxSearchCommandMessage(UIElement* element, UIMessage message, int di, v
 }
 
 UIElement* CommandSearchWindowCreate(UIElement* parent) {
-   CommandSearchWindow* window  = (CommandSearchWindow*)calloc(1, sizeof(CommandSearchWindow));
+   CommandSearchWindow* window  = new CommandSearchWindow;
    UIPanel*             panel   = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
    window->textbox              = UITextboxCreate(panel, 0);
    window->textbox->messageUser = TextboxSearchCommandMessage;
@@ -4828,28 +4824,30 @@ void ThumbnailResize(uint32_t* bits, uint32_t originalWidth, uint32_t originalHe
 // TODO Coloring the flame graph based on other parameters?
 // TODO Watching expressions during profiled step; highlight entries that modify it.
 struct ProfProfilingEntry {
-   void*    thisFunction;
-   uint64_t timeStamp; // High bit set if exiting the function.
+   void*    thisFunction = nullptr;
+   uint64_t timeStamp    = 0; // High bit set if exiting the function.
 };
 
 struct ProfWindow {
-   uint64_t ticksPerMs;
-   UIFont*  fontFlameGraph;
-   bool     inStepOverProfiled;
+   uint64_t ticksPerMs = 0;
+   UIFont*  fontFlameGraph = nullptr;
+   bool     inStepOverProfiled = false;
 };
 
 struct ProfFlameGraphEntry {
-   void*       thisFunction;
-   const char* cName;
-   double      startTime, endTime;
-   int         depth;
-   uint8_t     colorIndex;
+   void*       thisFunction = nullptr;
+   const char* cName        = nullptr;
+   double      startTime    = 0;
+   double      endTime      = 0;
+   int         depth        = 0;
+   uint8_t     colorIndex   = 0;
 };
 
 struct ProfFlameGraphEntryTime {
    // Keep this structure as small as possible!
-   float start, end;
-   int   depth;
+   float start = 0;
+   float end   = 0;
+   int   depth = 0;
 };
 
 struct ProfSourceFileEntry {
@@ -4857,10 +4855,10 @@ struct ProfSourceFileEntry {
 };
 
 struct ProfFunctionEntry {
-   uint32_t callCount;
-   int      lineNumber;
-   int      sourceFileIndex;
-   double   totalTime;
+   uint32_t callCount       = 0;
+   int      lineNumber      = 0;
+   int      sourceFileIndex = 0;
+   double   totalTime       = 0;
    char     cName[64];
 };
 
@@ -5849,7 +5847,7 @@ void ProfWindowUpdate(const char* data, UIElement* element) {
 
 UIElement* ProfWindowCreate(UIElement* parent) {
    const int   fontSizeFlameGraph = 8;
-   ProfWindow* window             = (ProfWindow*)calloc(1, sizeof(ProfWindow));
+   ProfWindow* window             = new ProfWindow;
    window->fontFlameGraph         = UIFontCreate(_UI_TO_STRING_2(UI_FONT_PATH), fontSizeFlameGraph);
    UIPanel* panel                 = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
    panel->cp                      = window;
@@ -6850,11 +6848,12 @@ struct WaveformViewer {
    char             pointer[256];
    char             sampleCount[256];
    char             channels[256];
-   int              parsedSampleCount, parsedChannels;
-   UIButton*        autoToggle;
-   UIPanel*         labelPanel;
-   UILabel*         label;
-   WaveformDisplay* display;
+   int              parsedSampleCount = 0;
+   int              parsedChannels    = 0;
+   UIButton*        autoToggle        = nullptr;
+   UIPanel*         labelPanel        = nullptr;
+   UILabel*         label             = nullptr;
+   WaveformDisplay* display           = nullptr;
 };
 
 void WaveformViewerUpdate(const char* pointerString, const char* sampleCountString, const char* channelsString,
@@ -6916,7 +6915,7 @@ const char* WaveformViewerGetSamples(const char* pointerString, const char* samp
 int WaveformViewerWindowMessage(UIElement* element, UIMessage message, int di, void* dp) {
    if (message == UIMessage::DESTROY) {
       DataViewerRemoveFromAutoUpdateList(element);
-      free(element->cp);
+      delete (WaveformViewer*)element->cp;
    } else if (message == UIMessage::GET_WIDTH) {
       return 300;
    } else if (message == UIMessage::GET_HEIGHT) {
@@ -7003,7 +7002,7 @@ void WaveformViewerUpdate(const char* pointerString, const char* sampleCountStri
       WaveformViewerGetSamples(pointerString, sampleCountString, channelsString, &samples, &sampleCount, &channels);
 
    if (!owner) {
-      WaveformViewer* viewer = (WaveformViewer*)calloc(1, sizeof(WaveformViewer));
+      WaveformViewer* viewer = new WaveformViewer;
       if (pointerString)
          StringFormat(viewer->pointer, sizeof(viewer->pointer), "%s", pointerString);
       if (sampleCountString)
@@ -7108,7 +7107,8 @@ void MsgReceivedData(str_unique_ptr input) {
 
       char path[PATH_MAX];
       StringFormat(path, sizeof(path), "%s/.config/gf2_watch.txt", getenv("HOME"));
-      char* data = LoadFile(path, NULL);
+      vector<char> data_vec = LoadFile(path, NULL);
+      char* data = data_vec.data();
 
       while (data && restoreWatchWindow) {
          char* end = strchr(data, '\n');
@@ -7120,7 +7120,6 @@ void MsgReceivedData(str_unique_ptr input) {
       }
 
       ctx.firstUpdate = false;
-      free(data);
    }
 
    if (WatchLoggerUpdate(input.get()))
