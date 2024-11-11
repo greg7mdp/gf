@@ -2871,7 +2871,7 @@ void WatchAddFields(WatchWindow* w, const shared_ptr<Watch>& watch) {
          field->depth     = watch->depth + 1;
       }
    } else {
-      char* start    = strdup(res->c_str());
+      char* start    = (char *)res->c_str();
       char* position = start;
 
       while (true) {
@@ -2888,8 +2888,6 @@ void WatchAddFields(WatchWindow* w, const shared_ptr<Watch>& watch) {
          field->hasFields = WatchHasFields(field);
          position         = end + 1;
       }
-
-      free(start);
    }
 }
 
@@ -3297,10 +3295,9 @@ void CommandWatchAddEntryForAddress(WatchWindow* _w) {
       return;
    resize_to_lf(*res);
    size_t size   = strlen(address) + res->size() + 16;
-   char*  buffer = (char*)malloc(size);
-   StringFormat(buffer, size, "(%s*)%s", res->c_str(), address);
-   WatchAddExpression(w, buffer);
-   free(buffer);
+   vector<char> buffer(size);
+   StringFormat(buffer.data(), size, "(%s*)%s", res->c_str(), address);
+   WatchAddExpression(w, buffer.data());
    WatchEnsureRowVisible(w, w->selectedRow);
    w->parent->Refresh();
    w->Refresh();
