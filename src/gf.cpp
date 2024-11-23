@@ -42,7 +42,7 @@ static const auto npos = std::string::npos;
 
 using namespace std;
 
-#include <ctre.hpp> 
+#include <ctre.hpp>
 using namespace ctre::literals;
 
 #include "luigi.hpp"
@@ -750,7 +750,7 @@ std::optional<std::string> DebuggerSend(const char* string, bool echo, bool sync
    if (synchronous) {
       bool quit = !ctx.evaluateResultQueue.pop(res);
       if (!res)
-         res = std::string{};  // in synchronous mode we always return a (possibly empty) string
+         res = std::string{}; // in synchronous mode we always return a (possibly empty) string
       ctx.programRunning = false;
       if (!quit && trafficLight)
          trafficLight->Repaint(nullptr);
@@ -766,7 +766,7 @@ std::string EvaluateExpression(const char* expression, const char* format = null
    char buffer[1024];
    StringFormat(buffer, sizeof(buffer), "p%s %s", format ?: "", expression);
    auto res = EvaluateCommand(buffer);
-   auto eq = res.find_first_of('=');
+   auto eq  = res.find_first_of('=');
    if (eq != npos) {
       res.erase(0, eq);  // remove characters up to '='
       resize_to_lf(res); // terminate string at '\n'
@@ -796,7 +796,7 @@ void DebuggerGetStack() {
    auto res = EvaluateCommand(buffer);
    if (res.empty())
       return;
-   
+
    stack.clear();
 
    const char* position = res.c_str();
@@ -1266,11 +1266,11 @@ const char* themeItems[] = {
 };
 
 void SettingsAddTrustedFolder() {
-   vector<char> config          = LoadFile(globalConfigPath, nullptr);
-   size_t      length           = strlen(config.data());
-   size_t      insert           = 0;
-   const char* sectionString    = "\n[trusted_folders]\n";
-   bool        addSectionString = true;
+   vector<char> config           = LoadFile(globalConfigPath, nullptr);
+   size_t       length           = strlen(config.data());
+   size_t       insert           = 0;
+   const char*  sectionString    = "\n[trusted_folders]\n";
+   bool         addSectionString = true;
 
    if (length) {
       char* section = strstr(config.data(), sectionString);
@@ -1307,8 +1307,8 @@ void SettingsLoad(bool earlyPass) {
 
    for (int i = 0; i < 2; i++) {
       INIState state;
-      auto config_vec = LoadFile(i ? localConfigPath : globalConfigPath, &state.bytes);
-      state.buffer = config_vec[0] ? strdup(config_vec.data()) : nullptr;
+      auto     config_vec = LoadFile(i ? localConfigPath : globalConfigPath, &state.bytes);
+      state.buffer        = config_vec[0] ? strdup(config_vec.data()) : nullptr;
 
       if (earlyPass && i && !currentFolderIsTrusted && state.buffer) {
          fprintf(stderr, "Would you like to load the config file .project.gf from your current directory?\n");
@@ -1586,7 +1586,7 @@ bool DisplaySetPosition(const char* file, int line, bool useGDBToGetFullPath) {
 
       XStoreName(ui->display, windowMain->xwindow, currentFileFull);
 
-      size_t bytes;
+      size_t       bytes;
       vector<char> buffer2 = LoadFile(file, &bytes);
 
       if (!bytes) {
@@ -2119,15 +2119,15 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
                auto res = EvaluateExpression(&text[expressionStart]);
                text[i]  = ')';
 
-                  if (res == "= true") {
-                     ifConditionEvaluation = 2;
-                     ifConditionFrom = expressionStart, ifConditionTo = i;
-                     ifConditionLine = currentLine;
-                  } else if (res == "= false") {
-                     ifConditionEvaluation = 1;
-                     ifConditionFrom = expressionStart, ifConditionTo = i;
-                     ifConditionLine = currentLine;
-                  }
+               if (res == "= true") {
+                  ifConditionEvaluation = 2;
+                  ifConditionFrom = expressionStart, ifConditionTo = i;
+                  ifConditionLine = currentLine;
+               } else if (res == "= false") {
+                  ifConditionEvaluation = 1;
+                  ifConditionFrom = expressionStart, ifConditionTo = i;
+                  ifConditionLine = currentLine;
+               }
                break;
             }
          }
@@ -2188,8 +2188,8 @@ void InspectCurrentLine() {
             continue;
 
          auto res = EvaluateExpression(buffer);
-         //std::cout << "eval(\"" << buffer << "\") -> " << res << '\n';
-         
+         // std::cout << "eval(\"" << buffer << "\") -> " << res << '\n';
+
          if (ctre::starts_with<"(A syntax error|No symbol|Attempt to|cannot resolve)">(res))
             continue;
 
@@ -2865,7 +2865,7 @@ void WatchAddFields(WatchWindow* w, const shared_ptr<Watch>& watch) {
          field->depth     = watch->depth + 1;
       }
    } else {
-      char* start    = (char *)res.c_str();
+      char* start    = (char*)res.c_str();
       char* position = start;
 
       while (true) {
@@ -3055,7 +3055,6 @@ int WatchLoggerTraceMessage(UIElement* element, UIMessage message, int di, void*
 }
 
 std::string WatchGetAddress(const shared_ptr<Watch>& watch) {
-std::optional<std::string> WatchGetAddress(const shared_ptr<Watch>& watch) {
    auto res = WatchEvaluate("gf_addressof", watch);
 
    if (strstr(res.c_str(), "??")) {
@@ -3289,7 +3288,7 @@ void CommandWatchAddEntryForAddress(WatchWindow* _w) {
    if (res.empty() || strstr(res.c_str(), "??"))
       return;
    resize_to_lf(res);
-   size_t size   = strlen(address) + res.size() + 16;
+   size_t       size = strlen(address) + res.size() + 16;
    vector<char> buffer(size);
    StringFormat(buffer.data(), size, "(%s*)%s", res.c_str(), address);
    WatchAddExpression(w, buffer.data());
@@ -3786,7 +3785,7 @@ void WatchWindowUpdate(const char*, UIElement* element) {
          continue;
       int count = atoi(res.c_str() + 7);
 
-      count = std::clamp(count, 0, Watch::WATCH_ARRAY_MAX_FIELDS);
+      count        = std::clamp(count, 0, Watch::WATCH_ARRAY_MAX_FIELDS);
       int oldCount = watch->fields.size();
 
       if (oldCount != count) {
@@ -4298,8 +4297,7 @@ UIElement* RegistersWindowCreate(UIElement* parent) {
 void RegistersWindowUpdate(const char*, UIElement* panel) {
    auto res = EvaluateCommand("info registers");
 
-   if (res.empty() ||
-       strstr(res.c_str(), "The program has no registers now.") ||
+   if (res.empty() || strstr(res.c_str(), "The program has no registers now.") ||
        strstr(res.c_str(), "The current thread has terminated")) {
       return;
    }
@@ -4505,10 +4503,10 @@ void ThreadWindowUpdate(const char*, UIElement* _table) {
    ThreadWindow* window = (ThreadWindow*)_table->cp;
    window->threads.clear();
 
-   auto  res      = EvaluateCommand("info threads");
+   auto res = EvaluateCommand("info threads");
    if (res.empty())
       return;
-  
+
    char* position = (char*)res.c_str();
 
    for (int i = 0; position[i]; i++) {
@@ -4824,8 +4822,8 @@ struct ProfProfilingEntry {
 };
 
 struct ProfWindow {
-   uint64_t ticksPerMs = 0;
-   UIFont*  fontFlameGraph = nullptr;
+   uint64_t ticksPerMs         = 0;
+   UIFont*  fontFlameGraph     = nullptr;
    bool     inStepOverProfiled = false;
 };
 
@@ -7103,7 +7101,7 @@ void MsgReceivedData(str_unique_ptr input) {
       char path[PATH_MAX];
       StringFormat(path, sizeof(path), "%s/.config/gf2_watch.txt", getenv("HOME"));
       vector<char> data_vec = LoadFile(path, NULL);
-      char* data = data_vec.data();
+      char*        data     = data_vec.data();
 
       while (data && restoreWatchWindow) {
          char* end = strchr(data, '\n');
