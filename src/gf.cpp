@@ -1129,17 +1129,24 @@ void CommandSendToGDB(const char* s) {
    (void)CommandParseInternal(s, false);
 }
 
-#define BREAKPOINT_COMMAND(function, action)                        \
-   void function(int index) {                                       \
-      Breakpoint* breakpoint = &breakpoints[index];                 \
-      char        buffer[1024];                                     \
-      StringFormat(buffer, 1024, action " %d", breakpoint->number); \
-      (void)DebuggerSend(buffer, true, false);                      \
-   }
+static void BreakpointCommand(int index, const char* action) {
+   Breakpoint* breakpoint = &breakpoints[index];
+   char        buffer[1024];
+   StringFormat(buffer, 1024, "%s %d", action, breakpoint->number);
+   (void)DebuggerSend(buffer, true, false);
+}
 
-BREAKPOINT_COMMAND(CommandDeleteBreakpoint, "delete");
-BREAKPOINT_COMMAND(CommandDisableBreakpoint, "disable");
-BREAKPOINT_COMMAND(CommandEnableBreakpoint, "enable");
+static void CommandDeleteBreakpoint(int index) {
+   BreakpointCommand(index, "delete");
+}
+
+static void CommandDisableBreakpoint(int index) {
+   BreakpointCommand(index, "disable");
+}
+
+static void CommandEnableBreakpoint(int index) {
+   BreakpointCommand(index, "enable");
+}
 
 void CommandSyncWithGvim() {
    char buffer[1024];
