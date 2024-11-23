@@ -2656,6 +2656,8 @@ struct Watch {
    WatchVector fields;
    Watch*      parent      = nullptr;
    uint64_t    updateIndex = 0;
+
+   static constexpr int WATCH_ARRAY_MAX_FIELDS = 10000000;
 };
 
 enum WatchWindowMode {
@@ -2853,11 +2855,7 @@ void WatchAddFields(WatchWindow* w, const shared_ptr<Watch>& watch) {
    if (res->contains("(array)") || res->contains("(d_arr)")) {
       int count = atoi(res->c_str() + 7);
 
-#define WATCH_ARRAY_MAX_FIELDS (10000000)
-      if (count > WATCH_ARRAY_MAX_FIELDS)
-         count = WATCH_ARRAY_MAX_FIELDS;
-      if (count < 0)
-         count = 0;
+      count = std::clamp(count, 0, Watch::WATCH_ARRAY_MAX_FIELDS);
 
       watch->isArray    = true;
       bool hasSubFields = false;
@@ -3798,10 +3796,8 @@ void WatchWindowUpdate(const char*, UIElement* element) {
       if (!res || !res->contains("(d_arr)"))
          continue;
       int count = atoi(res->c_str() + 7);
-      if (count > WATCH_ARRAY_MAX_FIELDS)
-         count = WATCH_ARRAY_MAX_FIELDS;
-      if (count < 0)
-         count = 0;
+
+      count = std::clamp(count, 0, Watch::WATCH_ARRAY_MAX_FIELDS);
       int oldCount = watch->fields.size();
 
       if (oldCount != count) {
