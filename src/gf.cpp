@@ -261,15 +261,16 @@ UIFont* fontCode = nullptr;
 // Breakpoints:
 
 struct Breakpoint {
-   int      number;
+   int      number = 0;
    char     file[PATH_MAX];
    char     fileFull[PATH_MAX];
-   int      line;
-   bool     watchpoint;
-   int      hit;
-   bool     enabled;
+   int      line       = 0;
+   int      hit        = 0;
+   bool     watchpoint = false;
+   bool     enabled    = false;
+   bool     multiple   = false;
    char     condition[128];
-   uint64_t conditionHash;
+   uint64_t conditionHash = 0;
 };
 
 vector<Breakpoint> breakpoints;
@@ -930,38 +931,33 @@ void DebuggerGetBreakpoints() {
       if (recognised) {
          realpath(breakpoint.file, breakpoint.fileFull);
 
-         for (const auto& bp : breakpoints) {
+         for (auto& bp : breakpoints) {
             if (strcmp(bp.fileFull, breakpoint.fileFull) == 0 && bp.conditionHash == breakpoint.conditionHash &&
                 bp.line == breakpoint.line) {
-               // Prevent having identical breakpoints on the same line.
-               char buffer[1024];
-               StringFormat(buffer, 1024, "delete %d", breakpoint.number);
-               (void)DebuggerSend(buffer, true, true);
-               goto doNext;
+               bp.multiple = breakpoint.multiple = true;
+               break;
             }
          }
-
-         breakpoints.push_back(breakpoint);
-      } else {
-         if (!strstr(position, "watchpoint"))
-            goto doNext;
+         if (!breakpoint.multiple)
+            breakpoints.push_back(std::move(breakpoint));
+      } else if (strstr(position, "watchpoint") != 0) {
+         // we have a watchpoint
          const char* address = strstr(position, enabled ? " y  " : " n  ");
-         if (!address)
-            goto doNext;
-         address += 2;
-         while (*address == ' ')
-            address++;
-         if (isspace(*address))
-            goto doNext;
-         const char* end = strchr(address, '\n');
-         if (!end)
-            goto doNext;
-         breakpoint.watchpoint = true;
-         snprintf(breakpoint.file, sizeof(breakpoint.file), "%.*s", (int)(end - address), address);
-         breakpoints.push_back(breakpoint);
+         if (address) {
+            address += 2;
+            while (*address == ' ')
+               address++;
+            if (!isspace(*address)) {
+               const char* end = strchr(address, '\n');
+               if (end) {
+                  breakpoint.watchpoint = true;
+                  snprintf(breakpoint.file, sizeof(breakpoint.file), "%.*s", (int)(end - address), address);
+                  breakpoints.push_back(std::move(breakpoint));
+               }
+            }
+         }
       }
 
-   doNext:;
       position = next;
    }
 }
