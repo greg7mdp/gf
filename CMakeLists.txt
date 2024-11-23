@@ -33,7 +33,7 @@ set_property(TARGET ${PROJECT_NAME} PROPERTY PUBLIC_HEADER ${header_files})
 
 if (UNIX)
     target_link_libraries(${PROJECT_NAME} ${FREETYPE_LIBRARIES} ${X11_LIBRARIES} Threads::Threads)
-    target_include_directories(${PROJECT_NAME} PRIVATE ${FREETYPE_INCLUDE_DIRS} ${X11_INCLUDE_DIR} )
+    target_include_directories(${PROJECT_NAME} PRIVATE ${FREETYPE_INCLUDE_DIRS} ${X11_INCLUDE_DIR} deps/include )
     target_compile_options(${PROJECT_NAME} PRIVATE -DUI_LINUX -DUI_FONT_PATH -DUI_SSE2 -DUI_FREETYPE -DUI_FREETYPE_SUBPIXEL -DUI_UNICODE)
 
     target_compile_options(${PROJECT_NAME} PRIVATE 

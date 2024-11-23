@@ -42,6 +42,8 @@ static const auto npos = std::string::npos;
 
 using namespace std;
 
+#include <ctre.hpp> 
+
 #include "luigi.hpp"
 
 // ---------------------------------------------------------------------------------------------
@@ -745,34 +747,28 @@ std::optional<std::string> DebuggerSend(const char* string, bool echo, bool sync
    ctx.SendToGdb(string);
 
    if (synchronous) {
-      if (!ctx.evaluateResultQueue.pop(res)) {
-         // quit signaled
-         return res;
-      }
-      assert(res);
-      if (res->empty())
-         *res = "\n(gdb) \n";
+      bool quit = !ctx.evaluateResultQueue.pop(res);
+      if (!res)
+         res = std::string{};  // in synchronous mode we always return a (possibly empty) string
       ctx.programRunning = false;
-      if (trafficLight)
+      if (!quit && trafficLight)
          trafficLight->Repaint(nullptr);
    }
    return res;
 }
 
-std::optional<std::string> EvaluateCommand(const char* command, bool echo = false) {
-   return DebuggerSend(command, echo, true);
+std::string EvaluateCommand(const char* command, bool echo = false) {
+   return *std::move(DebuggerSend(command, echo, true));
 }
 
-std::optional<std::string> EvaluateExpression(const char* expression, const char* format = nullptr) {
+std::string EvaluateExpression(const char* expression, const char* format = nullptr) {
    char buffer[1024];
    StringFormat(buffer, sizeof(buffer), "p%s %s", format ?: "", expression);
    auto res = EvaluateCommand(buffer);
-   if (res) {
-      auto eq = res->find_first_of('=');
-      if (eq != npos) {
-         res->erase(0, eq);  // remove characters up to '='
-         resize_to_lf(*res); // terminate string at '\n'
-      }
+   auto eq = res.find_first_of('=');
+   if (eq != npos) {
+      res.erase(0, eq);  // remove characters up to '='
+      resize_to_lf(res); // terminate string at '\n'
    }
    return res;
 }
@@ -797,11 +793,12 @@ void DebuggerGetStack() {
    char buffer[16];
    StringFormat(buffer, sizeof(buffer), "bt %d", backtraceCountLimit);
    auto res = EvaluateCommand(buffer);
-   if (!res)
+   if (res.empty())
       return;
+   
    stack.clear();
 
-   const char* position = res->c_str();
+   const char* position = res.c_str();
 
    while (*position == '#') {
       const char* next = position;
@@ -858,7 +855,7 @@ void DebuggerGetBreakpoints() {
    auto eval_res = EvaluateCommand("info break");
    breakpoints.clear();
 
-   const char* position = eval_res->c_str();
+   const char* position = eval_res.c_str();
 
    while (true) {
       while (true) {
@@ -976,10 +973,10 @@ void TabCompleterRun(TabCompleter* completer, UITextbox* textbox, bool lastKeyWa
       if (buffer[i] == '\\')
          buffer[i] = ' ';
    auto res = EvaluateCommand(buffer);
-   if (!res)
+   if (res.empty())
       return;
 
-   const char* start = res->c_str();
+   const char* start = res.c_str();
    const char* end   = strchr(start, '\n');
 
    if (!lastKeyWasTab) {
@@ -999,7 +996,7 @@ void TabCompleterRun(TabCompleter* completer, UITextbox* textbox, bool lastKeyWa
 
    if (!end) {
       completer->consecutiveTabCount = 0;
-      start                          = res->c_str();
+      start                          = res.c_str();
       end                            = strchr(start, '\n');
    }
 
@@ -1053,7 +1050,7 @@ std::optional<std::string> CommandParseInternal(const char* command, bool synchr
    } else if (0 == strcmp(command, "gf-get-pwd")) {
       auto        res    = EvaluateCommand("info source");
       const char* needle = "Compilation directory is ";
-      const char* pwd    = strstr(res->c_str(), needle);
+      const char* pwd    = strstr(res.c_str(), needle);
 
       if (pwd) {
          pwd += strlen(needle);
@@ -1550,7 +1547,7 @@ bool DisplaySetPosition(const char* file, int line, bool useGDBToGetFullPath) {
       file = buffer;
    } else if (file && file[0] != '/' && useGDBToGetFullPath) {
       auto        res = EvaluateCommand("info source");
-      const char* f   = strstr(res->c_str(), "Located in ");
+      const char* f   = strstr(res.c_str(), "Located in ");
 
       if (f) {
          f += 11;
@@ -1630,30 +1627,30 @@ void DisplaySetPositionFromStack() {
 void DisassemblyLoad() {
    auto res = EvaluateCommand(disassemblyCommand);
 
-   if (!strstr(res->c_str(), "Dump of assembler code for function")) {
+   if (!strstr(res.c_str(), "Dump of assembler code for function")) {
       char buffer[32];
       StringFormat(buffer, sizeof(buffer), "disas $pc,+1000");
       res = EvaluateCommand(buffer);
    }
 
-   const char* end = strstr(res->c_str(), "End of assembler dump.");
+   const char* end = strstr(res.c_str(), "End of assembler dump.");
 
    if (!end) {
-      printf("Disassembly failed. GDB output:\n%s\n", res->c_str());
+      printf("Disassembly failed. GDB output:\n%s\n", res.c_str());
       return;
    }
 
-   const char* start = strstr(res->c_str(), ":\n");
+   const char* start = strstr(res.c_str(), ":\n");
 
    if (!start) {
-      printf("Disassembly failed. GDB output:\n%s\n", res->c_str());
+      printf("Disassembly failed. GDB output:\n%s\n", res.c_str());
       return;
    }
 
    start += 2;
 
    if (start >= end) {
-      printf("Disassembly failed. GDB output:\n%s\n", res->c_str());
+      printf("Disassembly failed. GDB output:\n%s\n", res.c_str());
       return;
    }
 
@@ -1669,7 +1666,7 @@ void DisassemblyLoad() {
 
 void DisassemblyUpdateLine() {
    auto        res     = EvaluateCommand("p $pc");
-   const char* address = strstr(res->c_str(), "0x");
+   const char* address = strstr(res.c_str(), "0x");
 
    if (address) {
       char*    addressEnd;
@@ -1984,7 +1981,7 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
          char buffer[1024];
          StringFormat(buffer, sizeof(buffer), "p %s", autoPrintExpression);
          auto        res    = EvaluateCommand(buffer);
-         const char* result = strchr(res->c_str(), '=');
+         const char* result = strchr(res.c_str(), '=');
 
          if (result) {
             autoPrintResultLine = autoPrintExpressionLine;
@@ -2121,17 +2118,15 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
                auto res = EvaluateExpression(&text[expressionStart]);
                text[i]  = ')';
 
-               if (res) {
-                  if (*res == "= true") {
+                  if (res == "= true") {
                      ifConditionEvaluation = 2;
                      ifConditionFrom = expressionStart, ifConditionTo = i;
                      ifConditionLine = currentLine;
-                  } else if (*res == "= false") {
+                  } else if (res == "= false") {
                      ifConditionEvaluation = 1;
                      ifConditionFrom = expressionStart, ifConditionTo = i;
                      ifConditionLine = currentLine;
                   }
-               }
                break;
             }
          }
@@ -2196,12 +2191,10 @@ void InspectCurrentLine() {
             continue;
 
          auto res = EvaluateExpression(buffer);
-         if (!res)
-            continue;
-         if (0 == memcmp(res->c_str(), "= {", 3) && !strchr(res->c_str() + 3, '='))
+         if (0 == memcmp(res.c_str(), "= {", 3) && !strchr(res.c_str() + 3, '='))
             continue;
          inspectResults.push_back(strdup(buffer));
-         inspectResults.push_back(strdup(res->c_str()));
+         inspectResults.push_back(strdup(res.c_str()));
       }
    }
 
@@ -2410,7 +2403,7 @@ const char* BitmapViewerGetBits(std::string pointerString, std::string widthStri
       unlink(bitmapPath);
    }
 
-   if (!f || !res || strstr(res->c_str(), "access")) {
+   if (!f || strstr(res.c_str(), "access")) {
       return "Could not read the image bits!";
    }
 
@@ -2777,7 +2770,7 @@ void WatchDeleteExpression(WatchWindow* w, bool fieldsOnly = false) {
       watch.reset();
 }
 
-std::optional<std::string> WatchEvaluate(const char* function, const shared_ptr<Watch>& watch) {
+std::string WatchEvaluate(const char* function, const shared_ptr<Watch>& watch) {
    char      buffer[4096];
    uintptr_t position = 0;
 
@@ -2828,13 +2821,11 @@ std::optional<std::string> WatchEvaluate(const char* function, const shared_ptr<
 
 bool WatchHasFields(const shared_ptr<Watch>& watch) {
    auto res = WatchEvaluate("gf_fields", watch);
-   if (!res)
-      return false;
 
-   if (res->contains("(array)") || res->contains("(d_arr)")) {
+   if (res.contains("(array)") || res.contains("(d_arr)")) {
       return true;
    }
-   return res->contains('\n') && !res->starts_with("(gdb)\n");
+   return res.contains('\n') && !res.starts_with("(gdb)\n");
 }
 
 void WatchAddFields(WatchWindow* w, const shared_ptr<Watch>& watch) {
@@ -2845,18 +2836,16 @@ void WatchAddFields(WatchWindow* w, const shared_ptr<Watch>& watch) {
    watch->loadedFields = true;
 
    auto res = WatchEvaluate("gf_fields", watch);
-   if (!res)
-      return;
 
-   if (res->contains("(array)") || res->contains("(d_arr)")) {
-      int count = atoi(res->c_str() + 7);
+   if (res.contains("(array)") || res.contains("(d_arr)")) {
+      int count = atoi(res.c_str() + 7);
 
       count = std::clamp(count, 0, Watch::WATCH_ARRAY_MAX_FIELDS);
 
       watch->isArray    = true;
       bool hasSubFields = false;
 
-      if (res->contains("(d_arr)")) {
+      if (res.contains("(d_arr)")) {
          watch->isDynamicArray = true;
          w->dynamicArrays.push_back(watch);
       }
@@ -2874,7 +2863,7 @@ void WatchAddFields(WatchWindow* w, const shared_ptr<Watch>& watch) {
          field->depth     = watch->depth + 1;
       }
    } else {
-      char* start    = (char *)res->c_str();
+      char* start    = (char *)res.c_str();
       char* position = start;
 
       while (true) {
@@ -2948,9 +2937,9 @@ void WatchAddExpression(WatchWindow* w, const char* string = nullptr) {
 
    auto res = WatchEvaluate("gf_typeof", watch);
 
-   if (res && !res->contains("??")) {
-      resize_to_lf(*res);
-      watch->type      = std::move(*res);
+   if (!res.contains("??")) {
+      resize_to_lf(res);
+      watch->type      = std::move(res);
       watch->hasFields = WatchHasFields(watch);
    }
 }
@@ -3063,22 +3052,22 @@ int WatchLoggerTraceMessage(UIElement* element, UIMessage message, int di, void*
    return 0;
 }
 
-std::optional<std::string> WatchGetAddress(const shared_ptr<Watch>& watch) {
+std::string WatchGetAddress(const shared_ptr<Watch>& watch) {
    auto res = WatchEvaluate("gf_addressof", watch);
 
-   if (!res || strstr(res->c_str(), "??")) {
+   if (strstr(res.c_str(), "??")) {
       UIDialogShow(windowMain, 0, "Couldn't get the address of the variable.\n%f%B", "OK");
       return {};
    }
 
-   auto end = res->find_first_of(' ');
+   auto end = res.find_first_of(' ');
    if (end == npos) {
       UIDialogShow(windowMain, 0, "Couldn't get the address of the variable.\n%f%B", "OK");
       return {};
    }
-   res->resize(end);
+   res.resize(end);
 
-   resize_to_lf(*res);
+   resize_to_lf(res);
    return res;
 }
 
@@ -3098,7 +3087,7 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
    }
 
    auto res = WatchGetAddress(w->rows[w->selectedRow]);
-   if (!res) {
+   if (res.empty()) {
       return;
    }
 
@@ -3114,11 +3103,11 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
    }
 
    char buffer[256];
-   StringFormat(buffer, sizeof(buffer), "Log %s", res->c_str());
+   StringFormat(buffer, sizeof(buffer), "Log %s", res.c_str());
    UIMDIChild* child = UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, UIRectangle(0), buffer, -1);
-   StringFormat(buffer, sizeof(buffer), "watch * %s", res->c_str());
+   StringFormat(buffer, sizeof(buffer), "watch * %s", res.c_str());
    res                = EvaluateCommand(buffer);
-   const char* number = strstr(res->c_str(), "point ");
+   const char* number = strstr(res.c_str(), "point ");
 
    if (!number) {
       UIDialogShow(windowMain, 0, "Couldn't set the watchpoint.\n%f%B", "OK");
@@ -3223,11 +3212,11 @@ bool WatchLoggerUpdate(char* data) {
             auto res = EvaluateExpression(buffer);
             start    = i + 1;
             WatchLogEvaluated evaluated;
-            const char*       start = strstr(res->c_str(), " = ");
+            const char*       start = strstr(res.c_str(), " = ");
             if (start)
                evaluated.result = start + 3;
             else
-               evaluated.result = std::move(*res);
+               evaluated.result = std::move(res);
             entry.evaluated.push_back(std::move(evaluated));
          }
 
@@ -3282,7 +3271,7 @@ void CommandWatchAddEntryForAddress(WatchWindow* _w) {
       return;
    const auto& watch = w->rows[w->selectedRow];
    auto        res   = WatchGetAddress(watch);
-   if (!res)
+   if (res.empty())
       return;
 
    if (w->mode != WATCH_NORMAL) {
@@ -3292,14 +3281,14 @@ void CommandWatchAddEntryForAddress(WatchWindow* _w) {
    }
 
    char address[64];
-   StringFormat(address, sizeof(address), "%s", res->c_str());
+   StringFormat(address, sizeof(address), "%s", res.c_str());
    res = WatchEvaluate("gf_typeof", watch);
-   if (!res || strstr(res->c_str(), "??"))
+   if (res.empty() || strstr(res.c_str(), "??"))
       return;
-   resize_to_lf(*res);
-   size_t size   = strlen(address) + res->size() + 16;
+   resize_to_lf(res);
+   size_t size   = strlen(address) + res.size() + 16;
    vector<char> buffer(size);
-   StringFormat(buffer.data(), size, "(%s*)%s", res->c_str(), address);
+   StringFormat(buffer.data(), size, "(%s*)%s", res.c_str(), address);
    WatchAddExpression(w, buffer.data());
    WatchEnsureRowVisible(w, w->selectedRow);
    w->parent->Refresh();
@@ -3325,11 +3314,11 @@ void CommandWatchViewSourceAtAddress(WatchWindow* _w) {
    char     buffer[256];
    StringFormat(buffer, sizeof(buffer), "info line * 0x%lx", value);
    auto res = EvaluateCommand(buffer);
-   position = (char*)res->c_str();
+   position = (char*)res.c_str();
 
-   if (strstr(res->c_str(), "No line number")) {
-      resize_to_lf(*res);
-      UIDialogShow(windowMain, 0, "%s\n%f%B", res->c_str(), "OK");
+   if (strstr(res.c_str(), "No line number")) {
+      resize_to_lf(res);
+      UIDialogShow(windowMain, 0, "%s\n%f%B", res.c_str(), "OK");
       return;
    }
 
@@ -3371,9 +3360,9 @@ void CommandWatchSaveAsRecurse(FILE* file, const shared_ptr<Watch>& watch, int i
       }
    } else {
       auto res = WatchEvaluate("gf_valueof", watch);
-      if (res) {
-         resize_to_lf(*res);
-         fprintf(file, "%s\n", res->c_str());
+      if (!res.empty()) {
+         resize_to_lf(res);
+         fprintf(file, "%s\n", res.c_str());
       }
    }
 }
@@ -3414,9 +3403,9 @@ void CommandWatchCopyValueToClipboard(WatchWindow* w) {
    const shared_ptr<Watch>& watch = w->rows[w->selectedRow];
 
    auto res = WatchEvaluate("gf_valueof", watch);
-   if (res) {
-      resize_to_lf(*res);
-      _UIClipboardWriteText(w->window, strdup(res->c_str()), sel_target_t::clipboard);
+   if (!res.empty()) {
+      resize_to_lf(res);
+      _UIClipboardWriteText(w->window, strdup(res.c_str()), sel_target_t::clipboard);
    }
 }
 
@@ -3453,8 +3442,8 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
                if (!ctx.programRunning) {
                   watch->updateIndex = w->updateIndex;
                   auto res           = WatchEvaluate("gf_valueof", watch);
-                  resize_to_lf(*res);
-                  watch->value = std::move(*res);
+                  resize_to_lf(res);
+                  watch->value = std::move(res);
                } else {
                   watch->value = "..";
                }
@@ -3533,10 +3522,11 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
                if (w->selectedRow == w->rows.size())
                   return;
                auto res = WatchGetAddress(w->rows[w->selectedRow]);
-               if (!res)
+               if (res.empty())
                   return;
+
                char buffer[256];
-               StringFormat(buffer, sizeof(buffer), "watch * %s", res->c_str());
+               StringFormat(buffer, sizeof(buffer), "watch * %s", res.c_str());
                (void)DebuggerSend(buffer, true, false);
             });
 
@@ -3711,12 +3701,12 @@ void WatchWindowUpdate(const char*, UIElement* element) {
    if (w->mode == WATCH_LOCALS) {
       auto res = EvaluateCommand("py gf_locals()");
 
-      bool newFrame = (w->lastLocalList.empty() || w->lastLocalList != *res);
+      bool newFrame = (w->lastLocalList.empty() || w->lastLocalList != res);
 
       if (newFrame) {
-         w->lastLocalList = *res;
+         w->lastLocalList = res;
 
-         char*         buffer      = strdup(res->c_str());
+         char*         buffer      = strdup(res.c_str());
          char*         s           = buffer;
          vector<char*> expressions = {};
 
@@ -3770,10 +3760,10 @@ void WatchWindowUpdate(const char*, UIElement* element) {
    for (size_t i = 0; i < w->baseExpressions.size(); i++) {
       const shared_ptr<Watch>& watch = w->baseExpressions[i];
       auto                     res   = WatchEvaluate("gf_typeof", watch);
-      resize_to_lf(*res);
+      resize_to_lf(res);
 
-      if (*res != watch->type && *res != "??") {
-         watch->type = std::move(*res);
+      if (res != watch->type && res != "??") {
+         watch->type = std::move(res);
 
          for (size_t j = 0; j < w->rows.size(); j++) {
             if (w->rows[j] == watch) {
@@ -3789,9 +3779,9 @@ void WatchWindowUpdate(const char*, UIElement* element) {
    for (size_t i = 0; i < w->dynamicArrays.size(); i++) {
       const shared_ptr<Watch>& watch = w->dynamicArrays[i];
       auto                     res   = WatchEvaluate("gf_fields", watch);
-      if (!res || !res->contains("(d_arr)"))
+      if (res.empty() || !res.contains("(d_arr)"))
          continue;
-      int count = atoi(res->c_str() + 7);
+      int count = atoi(res.c_str() + 7);
 
       count = std::clamp(count, 0, Watch::WATCH_ARRAY_MAX_FIELDS);
       int oldCount = watch->fields.size();
@@ -4129,10 +4119,10 @@ int TextboxStructNameMessage(UIElement* element, UIMessage message, int di, void
          char buffer[4096];
          StringFormat(buffer, sizeof(buffer), "ptype /o %.*s", (int)window->textbox->bytes, window->textbox->string);
          auto  res = EvaluateCommand(buffer);
-         char* end = (char*)strstr(res->c_str(), "\n(gdb)");
+         char* end = (char*)strstr(res.c_str(), "\n(gdb)");
          if (end)
             *end = 0;
-         UICodeInsertContent(window->display, res->c_str(), -1, true);
+         UICodeInsertContent(window->display, res.c_str(), -1, true);
          UITextboxClear(window->textbox, false);
          window->display->Refresh();
          element->Refresh();
@@ -4305,13 +4295,14 @@ UIElement* RegistersWindowCreate(UIElement* parent) {
 void RegistersWindowUpdate(const char*, UIElement* panel) {
    auto res = EvaluateCommand("info registers");
 
-   if (strstr(res->c_str(), "The program has no registers now.") ||
-       strstr(res->c_str(), "The current thread has terminated")) {
+   if (res.empty() ||
+       strstr(res.c_str(), "The program has no registers now.") ||
+       strstr(res.c_str(), "The current thread has terminated")) {
       return;
    }
 
    panel->DestroyDescendents();
-   const char*          position        = res->c_str();
+   const char*          position        = res.c_str();
    vector<RegisterData> newRegisterData = {};
    bool                 anyChanges      = false;
 
@@ -4512,7 +4503,10 @@ void ThreadWindowUpdate(const char*, UIElement* _table) {
    window->threads.clear();
 
    auto  res      = EvaluateCommand("info threads");
-   char* position = (char*)res->c_str();
+   if (res.empty())
+      return;
+  
+   char* position = (char*)res.c_str();
 
    for (int i = 0; position[i]; i++) {
       if (position[i] == '\n' && position[i + 1] == ' ' && position[i + 2] == ' ' && position[i + 3] == ' ') {
@@ -4564,7 +4558,7 @@ void ExecutableWindowStartOrRun(ExecutableWindow* window, bool pause) {
    StringFormat(buffer, sizeof(buffer), "file \"%.*s\"", window->path->bytes, window->path->string);
    auto res = EvaluateCommand(buffer);
 
-   if (res->contains("No such file or directory.")) {
+   if (res.contains("No such file or directory.")) {
       UIDialogShow(windowMain, 0, "The executable path is invalid.\n%f%B", "OK");
       return;
    }
@@ -4662,8 +4656,8 @@ int TextboxSearchCommandMessage(UIElement* element, UIMessage message, int di, v
       if (!window->commands.size()) {
          auto  res = EvaluateCommand("help all");
          char* s   = nullptr;
-         if (res) {
-            s = (char*)res->c_str();
+         if (!res.empty()) {
+            s = (char*)res.c_str();
             for (int i = 0; s[i]; i++) {
                if (s[i] == ',' && s[i + 1] == ' ' && s[i + 2] == '\n') {
                   s[i + 2] = ' ';
@@ -5542,7 +5536,7 @@ void ProfLoadProfileData(void* _window) {
    ProfWindow* data = (ProfWindow*)_window;
 
    auto        res              = EvaluateExpression("gfProfilingTicksPerMs");
-   const char* ticksPerMsString = res ? strstr(res->c_str(), "= ") : nullptr;
+   const char* ticksPerMsString = strstr(res.c_str(), "= ");
    data->ticksPerMs             = ticksPerMsString ? atoi(ticksPerMsString + 2) : 0;
 
    if (!ticksPerMsString || !data->ticksPerMs) {
@@ -5551,7 +5545,7 @@ void ProfLoadProfileData(void* _window) {
    }
 
    auto pos           = EvaluateExpression("gfProfilingBufferPosition");
-   int  rawEntryCount = atoi(strstr(pos->c_str(), "= ") + 2);
+   int  rawEntryCount = atoi(strstr(pos.c_str(), "= ") + 2);
    printf("Reading %d profiling entries...\n", rawEntryCount);
 
    if (rawEntryCount == 0) {
@@ -5621,15 +5615,15 @@ void ProfLoadProfileData(void* _window) {
 
       StringFormat(buffer, sizeof(buffer), "(void *) %ld", rawEntries[i].thisFunction);
       auto cName = EvaluateExpression(buffer);
-      if (!cName)
+      if (cName.empty())
          continue;
 
-      if (strchr(cName->c_str(), '<'))
-         cName = strchr(cName->c_str(), '<') + 1;
-      int length = strlen(cName->c_str());
+      if (strchr(cName.c_str(), '<'))
+         cName = strchr(cName.c_str(), '<') + 1;
+      int length = strlen(cName.c_str());
       if (length > (int)sizeof(function.cName) - 1)
          length = sizeof(function.cName) - 1;
-      memcpy(function.cName, cName->c_str(), length);
+      memcpy(function.cName, cName.c_str(), length);
       function.cName[length] = 0;
 
       int inTemplate = 0;
@@ -5653,10 +5647,10 @@ void ProfLoadProfileData(void* _window) {
       StringFormat(buffer, sizeof(buffer), "py print(gdb.lookup_global_symbol('%s').symtab.filename)", function.cName);
       auto res = EvaluateCommand(buffer);
 
-      if (!strstr(res->c_str(), "Traceback (most recent call last):")) {
-         resize_to_lf(*res);
+      if (!strstr(res.c_str(), "Traceback (most recent call last):")) {
+         resize_to_lf(res);
          ProfSourceFileEntry sourceFile  = {};
-         const char*         cSourceFile = res->c_str();
+         const char*         cSourceFile = res.c_str();
          length                          = strlen(cSourceFile);
          if (length > (int)sizeof(sourceFile.cPath) - 1)
             length = sizeof(sourceFile.cPath) - 1;
@@ -5664,7 +5658,7 @@ void ProfLoadProfileData(void* _window) {
          sourceFile.cPath[length] = 0;
          StringFormat(buffer, sizeof(buffer), "py print(gdb.lookup_global_symbol('%s').line)", function.cName);
          res                 = EvaluateCommand(buffer);
-         function.lineNumber = atoi(res->c_str());
+         function.lineNumber = atoi(res.c_str());
 
          for (size_t i = 0; i < sourceFiles.size(); i++) {
             if (0 == strcmp(sourceFiles[i].cPath, sourceFile.cPath)) {
@@ -5925,8 +5919,8 @@ int MemoryWindowMessage(UIElement* element, UIMessage message, int di, void* dp)
 
             bool error = true;
 
-            if (!strstr(res->c_str(), "Cannot access memory")) {
-               const char* position = strchr(res->c_str(), ':');
+            if (!strstr(res.c_str(), "Cannot access memory")) {
+               const char* position = strchr(res.c_str(), ':');
 
                if (position) {
                   position++;
@@ -6012,7 +6006,7 @@ void MemoryWindowGotoButtonInvoke(void* cp) {
       char buffer[4096];
       StringFormat(buffer, sizeof(buffer), "py gf_valueof(['%s'],' ')", expression);
       auto        res    = EvaluateCommand(buffer);
-      const char* result = res->c_str();
+      const char* result = res.c_str();
 
       if (result && ((*result == '(' && isdigit(result[1])) || isdigit(*result))) {
          if (*result == '(')
@@ -6340,13 +6334,13 @@ void ViewWindowView(void* cp) {
    watch->format  = 0;
 
    auto res = WatchEvaluate("gf_typeof", watch);
-   resize_to_lf(*res);
-   StringFormat(type, sizeof(type), "%s", res->c_str());
+   resize_to_lf(res);
+   StringFormat(type, sizeof(type), "%s", res.c_str());
    StringFormat(buffer, sizeof(buffer), "Type: %s", type);
    UILabelCreate(panel, 0, buffer, -1);
 
    res = WatchEvaluate("gf_valueof", watch);
-   resize_to_lf(*res);
+   resize_to_lf(res);
    watch->format = oldFormat;
    // printf("valueof: {%s}\n", ctx.evaluateResult);
 
@@ -6360,10 +6354,10 @@ void ViewWindowView(void* cp) {
        0 == strcmp(type, "long long")) {
       uint64_t value;
 
-      if ((*res)[0] == '-') {
-         value = -strtoul(res->c_str() + 1, nullptr, 10);
+      if ((res)[0] == '-') {
+         value = -strtoul(res.c_str() + 1, nullptr, 10);
       } else {
-         value = strtoul(res->c_str(), nullptr, 10);
+         value = strtoul(res.c_str(), nullptr, 10);
       }
 
       StringFormat(buffer, sizeof(buffer), " 8b: %d %u 0x%x '%c'", (int8_t)value, (uint8_t)value, (uint8_t)value,
@@ -6401,21 +6395,21 @@ void ViewWindowView(void* cp) {
       }
    } else if ((0 == memcmp(type, "char [", 6) && !strstr(type, "][")) || 0 == strcmp(type, "const char *") ||
               0 == strcmp(type, "char *")) {
-      printf("string '%s'\n", res->c_str());
+      printf("string '%s'\n", res.c_str());
       char address[64];
 
-      if ((*res)[0] != '(') {
+      if ((res)[0] != '(') {
          res = WatchEvaluate("gf_addressof", watch);
-         printf("addressof '%s'\n", res->c_str());
-         resize_to_lf(*res, ' ');
-         resize_to_lf(*res);
-         StringFormat(address, sizeof(address), "%s", res->c_str());
+         printf("addressof '%s'\n", res.c_str());
+         resize_to_lf(res, ' ');
+         resize_to_lf(res);
+         StringFormat(address, sizeof(address), "%s", res.c_str());
       } else {
-         char* end = (char*)strchr(res->c_str() + 1, ' ');
+         char* end = (char*)strchr(res.c_str() + 1, ' ');
          if (!end)
             goto unrecognised;
          *end = 0;
-         StringFormat(address, sizeof(address), "%s", res->c_str() + 1);
+         StringFormat(address, sizeof(address), "%s", res.c_str() + 1);
       }
 
       char tempPath[PATH_MAX];
@@ -6423,8 +6417,8 @@ void ViewWindowView(void* cp) {
       char buffer[PATH_MAX * 2];
       StringFormat(buffer, sizeof(buffer), "(size_t)strlen((const char *)(%s))", address);
       auto res = EvaluateExpression(buffer);
-      printf("'%s' -> '%s'\n", buffer, res->c_str());
-      const char* lengthString = res->c_str() ? strstr(res->c_str(), "= ") : nullptr;
+      printf("'%s' -> '%s'\n", buffer, res.c_str());
+      const char* lengthString = res.c_str() ? strstr(res.c_str(), "= ") : nullptr;
       size_t      length       = lengthString ? atoi(lengthString + 2) : 0;
       // TODO Preventing errors when calling strlen from crashing the target?
 
@@ -6440,7 +6434,7 @@ void ViewWindowView(void* cp) {
 
       StringFormat(buffer, sizeof(buffer), "dump binary memory %s (%s) (%s+%d)", tempPath, address, address, length);
       res = EvaluateCommand(buffer);
-      printf("'%s' -> '%s'\n", buffer, res->c_str());
+      printf("'%s' -> '%s'\n", buffer, res.c_str());
       FILE* f = fopen(tempPath, "rb");
 
       if (f) {
@@ -6468,7 +6462,7 @@ void ViewWindowView(void* cp) {
       if (w <= 1 || h <= 1)
          goto unrecognised;
       auto res = WatchGetAddress(watch);
-      if (!res)
+      if (res.empty())
          goto unrecognised;
 
       ViewWindowMatrixGrid* grid = new ViewWindowMatrixGrid(panel, w, h, type[0]);
@@ -6476,7 +6470,7 @@ void ViewWindowView(void* cp) {
       char tempPath[PATH_MAX];
       realpath(".temp.gf", tempPath);
       char buffer[PATH_MAX * 2];
-      StringFormat(buffer, sizeof(buffer), "dump binary memory %s (%s) (%s+%d)", tempPath, res->c_str(), res->c_str(),
+      StringFormat(buffer, sizeof(buffer), "dump binary memory %s (%s) (%s+%d)", tempPath, res.c_str(), res.c_str(),
                    w * h * itemSize);
       res     = EvaluateCommand(buffer);
       FILE* f = fopen(tempPath, "rb");
@@ -6860,26 +6854,26 @@ void WaveformViewerUpdate(const char* pointerString, const char* sampleCountStri
 const char* WaveformViewerGetSamples(const char* pointerString, const char* sampleCountString,
                                      const char* channelsString, float** _samples, int* _sampleCount, int* _channels) {
    auto sampleCountResult = EvaluateExpression(sampleCountString);
-   if (!sampleCountResult) {
+   if (sampleCountResult.empty()) {
       return "Could not evaluate sample count.";
    }
-   int  sampleCount    = atoi(sampleCountResult->c_str() + 1);
+   int  sampleCount    = atoi(sampleCountResult.c_str() + 1);
    auto channelsResult = EvaluateExpression(channelsString);
-   if (!channelsResult) {
+   if (channelsResult.empty()) {
       return "Could not evaluate channels.";
    }
-   int channels = atoi(channelsResult->c_str() + 1 + 1);
+   int channels = atoi(channelsResult.c_str() + 1 + 1);
    if (channels < 1 || channels > 8) {
       return "Channels must be between 1 and 8.";
    }
    auto pointerResult = EvaluateExpression(pointerString, "/x");
-   if (!pointerResult) {
+   if (pointerResult.empty()) {
       return "Could not evaluate pointer.";
    }
    char _pointerResult[1024];
-   StringFormat(_pointerResult, sizeof(_pointerResult), "%s", pointerResult->c_str());
+   StringFormat(_pointerResult, sizeof(_pointerResult), "%s", pointerResult.c_str());
    pointerResult = strstr(_pointerResult, " 0x");
-   if (!pointerResult) {
+   if (pointerResult.empty()) {
       return "Pointer to sample data does not look like an address!";
    }
 
@@ -6890,8 +6884,8 @@ const char* WaveformViewerGetSamples(const char* pointerString, const char* samp
    realpath(".transfer.gf", transferPath);
 
    char buffer[PATH_MAX * 2];
-   StringFormat(buffer, sizeof(buffer), "dump binary memory %s (%s) (%s+%d)", transferPath, pointerResult->c_str() + 1,
-                pointerResult->c_str() + 1, byteCount);
+   StringFormat(buffer, sizeof(buffer), "dump binary memory %s (%s) (%s+%d)", transferPath, pointerResult.c_str() + 1,
+                pointerResult.c_str() + 1, byteCount);
    auto res = EvaluateCommand(buffer);
 
    FILE* f = fopen(transferPath, "rb");
@@ -6902,7 +6896,7 @@ const char* WaveformViewerGetSamples(const char* pointerString, const char* samp
       unlink(transferPath);
    }
 
-   if (!f || strstr(res->c_str(), "access")) {
+   if (!f || strstr(res.c_str(), "access")) {
       return "Could not read the waveform samples!";
    }
 
