@@ -43,6 +43,7 @@ static const auto npos = std::string::npos;
 using namespace std;
 
 #include <ctre.hpp> 
+using namespace ctre::literals;
 
 #include "luigi.hpp"
 
@@ -2172,12 +2173,8 @@ void InspectCurrentLine() {
             continue;
          StringFormat(buffer, sizeof(buffer), "%.*s", i - j + 1, string + j);
 
-         if (0 == strcmp(buffer, "true") || 0 == strcmp(buffer, "false") || 0 == strcmp(buffer, "if") ||
-             0 == strcmp(buffer, "for") || 0 == strcmp(buffer, "else") || 0 == strcmp(buffer, "while") ||
-             0 == strcmp(buffer, "int") || 0 == strcmp(buffer, "char") || 0 == strcmp(buffer, "switch") ||
-             0 == strcmp(buffer, "float")) {
+         if (ctre::starts_with<"(true|false|if|for|else|while|int|char|switch|float)">(buffer))
             continue;
-         }
 
          bool match = false;
 
@@ -2191,6 +2188,11 @@ void InspectCurrentLine() {
             continue;
 
          auto res = EvaluateExpression(buffer);
+         //std::cout << "eval(\"" << buffer << "\") -> " << res << '\n';
+         
+         if (ctre::starts_with<"(A syntax error|No symbol|Attempt to|cannot resolve)">(res))
+            continue;
+
          if (0 == memcmp(res.c_str(), "= {", 3) && !strchr(res.c_str() + 3, '='))
             continue;
          inspectResults.push_back(strdup(buffer));
