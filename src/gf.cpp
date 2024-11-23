@@ -420,6 +420,8 @@ vector<char> LoadFile(const char* path, size_t* _bytes) {
    FILE* f = fopen(path, "rb");
 
    if (!f) {
+      if (_bytes)
+         *_bytes = 0;
       return vector<char>{'\0'};
    }
 
