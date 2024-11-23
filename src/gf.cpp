@@ -3055,6 +3055,7 @@ int WatchLoggerTraceMessage(UIElement* element, UIMessage message, int di, void*
 }
 
 std::string WatchGetAddress(const shared_ptr<Watch>& watch) {
+std::optional<std::string> WatchGetAddress(const shared_ptr<Watch>& watch) {
    auto res = WatchEvaluate("gf_addressof", watch);
 
    if (strstr(res.c_str(), "??")) {
