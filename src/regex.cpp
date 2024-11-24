@@ -6,6 +6,7 @@
 
 #include <ctre.hpp>
 
+// --------------------------------------------------------------------------------
 template <ctll::fixed_string... Strings>
 constexpr auto fs_concat() noexcept {
    constexpr std::size_t len = (Strings.size() + ...);
@@ -20,13 +21,15 @@ constexpr auto fs_concat() noexcept {
    return ctll::fixed_string<len>(arr);
 }
 
+// --------------------------------------------------------------------------------
 template <ctll::fixed_string fs>
 constexpr auto fs_repeat() noexcept {
    return fs_concat<"(", fs, ")*">();
 }
 
-std::set<std::string> extract_debuggable_expressions(std::string_view code) {
-    std::set<std::string> expressions;
+// --------------------------------------------------------------------------------
+std::set<std::string_view> extract_debuggable_expressions(std::string_view code) {
+    std::set<std::string_view> expressions;
 
     // Basic patterns
     // --------------
@@ -60,28 +63,29 @@ std::set<std::string> extract_debuggable_expressions(std::string_view code) {
 
     // Basic binary expressions: a + b, x * y, ns::x + y etc.
     // ------------------------------------------------------
-    static constexpr auto oper          = ctll::fixed_string{R"(\s*[+\-*/%&|^]\s*)"};
+    static constexpr auto oper        = ctll::fixed_string{R"(\s*[+\-*/%&|^]\s*)"};
     static constexpr auto binary_expr = fs_concat<namespaced_id, oper, namespaced_id>();
 
     // Find all matches for each pattern
+    // ---------------------------------
     for (auto match : ctre::search_all<function_call>(code)) {
-        expressions.insert(std::string{match.get<0>()});
+        expressions.insert(match.get<0>());
     }
 
     for (auto match : ctre::search_all<parenthesized>(code)) {
-        expressions.insert(std::string{match.get<1>()});
+        expressions.insert(match.get<1>());
     }
 
     for (auto match : ctre::search_all<variables>(code)) {
-        expressions.insert(std::string{match.get<0>()});
+        expressions.insert(match.get<0>());
     }
 
     for (auto match : ctre::search_all<array_access>(code)) {
-        expressions.insert(std::string{match.get<0>()});
+       expressions.insert(match.get<0>());
     }
 
     for (auto match : ctre::search_all<binary_expr>(code)) {
-        expressions.insert(std::string{match.get<0>()});
+        expressions.insert(match.get<0>());
     }
 
     return expressions;
