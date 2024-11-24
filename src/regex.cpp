@@ -7,21 +7,17 @@
 #include <ctre.hpp>
 
 template <ctll::fixed_string... Strings>
-constexpr auto fs_concat() noexcept
-{
-    char32_t Data[(Strings.size() + ...) + 1];
+constexpr auto fs_concat() noexcept {
+   constexpr std::size_t len = (Strings.size() + ...);
+   std::array<char32_t, len> arr{};
+   std::size_t i = 0;
+   auto append = [&](auto const& s) mutable {
+      for (auto c : s)
+         arr[i++] = c;
+   };
+   (append(Strings), ...);
 
-    size_t Index = 0;
-
-    ([&](auto &Item) mutable
-     {
-         for (size_t i = 0; i < Item.size(); i++)
-         {
-             Data[Index++] = Item[i];
-         } }(Strings),
-     ...);
-
-    return ctll::fixed_string<(Strings.size() + ...)>(Data);
+   return ctll::fixed_string<len>(arr);
 }
 
 template <ctll::fixed_string fs>
