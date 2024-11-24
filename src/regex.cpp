@@ -1,16 +1,15 @@
-#include <string>
-#include <string_view>
-#include <vector>
+#include "regex.hpp"
+
 #include <algorithm>
 #include <iostream>
 
 #include <ctre.hpp>
 
 template <size_t N>
-using fs_t = ctll::fixed_string<N>;
+using fs_t = ctll::fixed_string<N>; // we can use `fs_t` instead of `ctll::fixed_string` only with clang++-19 or g++-11
 
 // --------------------------------------------------------------------------------
-template <fs_t... Strings>
+template <ctll::fixed_string... Strings>
 constexpr auto fs_concat() noexcept {
    constexpr std::size_t len = (Strings.size() + ...);
    std::array<char32_t, len> arr{};
@@ -21,60 +20,60 @@ constexpr auto fs_concat() noexcept {
    };
    (append(Strings), ...);
 
-   return fs_t<len>(arr);
+   return ctll::fixed_string<len>(arr);
 }
 
 // --------------------------------------------------------------------------------
-template <fs_t fs>
+template <ctll::fixed_string fs>
 constexpr auto fs_repeat() noexcept {
    return fs_concat<"(", fs, ")*">();
 }
 
 // --------------------------------------------------------------------------------
-template <fs_t pattern, size_t capture_index>
-constexpr void collect_matches(std::vector<std::string_view>& expressions, const std::string_view& code) {
+template <ctll::fixed_string pattern, size_t capture_index>
+void collect_matches(std::vector<std::string_view>& expressions, const std::string_view& code) {
    for (auto match : ctre::search_all<pattern>(code)) {
       expressions.push_back(match.template get<capture_index>());
    }
 }
 
 // --------------------------------------------------------------------------------
-std::vector<std::string_view> extract_debuggable_expressions(std::string_view code) {
+std::vector<std::string_view> regex::extract_debuggable_expressions(std::string_view code) {
     std::vector<std::string_view> expressions;
     expressions.reserve(32);
 
     // Basic patterns
     // --------------
-    constexpr auto identifier  = fs_t{"[a-zA-Z_][a-zA-Z0-9_]*"};
-    constexpr auto ns_delim    = fs_t{"::"};
-    constexpr auto call_params = fs_t{R"(\s*\([^()]*\))"};
-    constexpr auto bracket_op  = fs_t{R"(\s*\[[^\[\]]+\])"};
-    constexpr auto dereference = fs_t{R"((?:(?:\.|\->)[a-zA-Z0-9_]*)*)"};
+    static constexpr auto identifier  = ctll::fixed_string{"[a-zA-Z_][a-zA-Z0-9_]*"};
+    static constexpr auto ns_delim    = ctll::fixed_string{"::"};
+    static constexpr auto call_params = ctll::fixed_string{R"(\s*\([^()]*\))"};
+    static constexpr auto bracket_op  = ctll::fixed_string{R"(\s*\[[^\[\]]+\])"};
+    static constexpr auto dereference = ctll::fixed_string{R"((?:(?:\.|\->)[a-zA-Z0-9_]*)*)"};
 
     // Namespaced identifier pattern (includes non-namespaced as well)
     // ---------------------------------------------------------------
-    constexpr auto namespaced_id = fs_concat<identifier, fs_repeat<fs_concat<ns_delim, identifier>()>()>();
+    static constexpr auto namespaced_id = fs_concat<identifier, fs_repeat<fs_concat<ns_delim, identifier>()>()>();
 
     // Function calls with parameters: foo(arg1, arg2) or ns::foo(arg1, arg2)
     // ----------------------------------------------------------------------
-    constexpr auto function_call = fs_concat<namespaced_id, call_params>();
+    static constexpr auto function_call = fs_concat<namespaced_id, call_params>();
 
     // Parenthesized expressions: (x + y)
     // ----------------------------------
-    constexpr auto parenthesized = fs_t{R"(\(([^()]+)\))"};
+    static constexpr auto parenthesized = ctll::fixed_string{R"(\(([^()]+)\))"};
 
     // Variable names and member access: foo, foo.bar, foo->bar, ns::foo, ns::foo->bar
     // -------------------------------------------------------------------------------
-    constexpr auto variables = fs_concat<namespaced_id, dereference>();
+    static constexpr auto variables = fs_concat<namespaced_id, dereference>();
 
     // Array access: arr[idx] or ns::arr[idx]
     // --------------------------------------
-    constexpr auto array_access = fs_concat<namespaced_id, bracket_op>();
+    static constexpr auto array_access = fs_concat<namespaced_id, bracket_op>();
 
     // Basic binary expressions: a + b, x * y, ns::x + y etc.
     // ------------------------------------------------------
-    constexpr auto oper        = fs_t{R"(\s*[+\-*/%&|^]\s*)"};
-    constexpr auto binary_expr = fs_concat<namespaced_id, oper, namespaced_id>();
+    static constexpr auto oper        = ctll::fixed_string{R"(\s*[+\-*/%&|^]\s*)"};
+    static constexpr auto binary_expr = fs_concat<namespaced_id, oper, namespaced_id>();
 
     // Find all matches for each pattern
     // ---------------------------------

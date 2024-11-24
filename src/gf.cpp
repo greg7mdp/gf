@@ -46,6 +46,7 @@ using namespace std;
 using namespace ctre::literals;
 
 #include "luigi.hpp"
+#include "regex.hpp"
 
 // ---------------------------------------------------------------------------------------------
 //                              Generic Data structures
