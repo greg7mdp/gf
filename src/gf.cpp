@@ -2149,6 +2149,11 @@ void InspectCurrentLine() {
 
    UICodeLine* line   = &displayCode->lines[currentLine - 1];
    const char* string = displayCode->content + line->offset;
+   auto code = std::string_view{string, size_t(line->bytes)};
+
+   auto expressions = regex::extract_debuggable_expressions(code);
+   for (auto e : expressions) {
+   }
 
    for (int i = 0; i < line->bytes; i++) {
       if ((i != line->bytes - 1 && InspectIsTokenCharacter(string[i]) && !InspectIsTokenCharacter(string[i + 1])) ||

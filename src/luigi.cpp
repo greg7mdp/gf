@@ -2687,18 +2687,10 @@ void UICodeFocusLine(UICode* code, int index) {
    code->Refresh();
 }
 
-void UICodeInsertContent(UICode* code, const char* content, ptrdiff_t byteCount, bool replace) {
+void UICodeInsertContent(UICode* code, std::string_view content, bool replace) {
    code->useVerticalMotionColumn = false;
 
    UIFont* previousFont = UIFontActivate(code->font);
-
-   if (byteCount == -1) {
-      byteCount = _UIStringLength(content);
-   }
-
-   if (byteCount > 1000000000) {
-      byteCount = 1000000000;
-   }
 
    if (replace) {
       UI_FREE(code->content);
@@ -2712,15 +2704,16 @@ void UICodeInsertContent(UICode* code, const char* content, ptrdiff_t byteCount,
       code->selection[0].offset = code->selection[1].offset = 0;
    }
 
-   code->content = (char*)UI_REALLOC(code->content, code->contentBytes + byteCount);
+   int sz = (int)content.size();
+   code->content = (char*)UI_REALLOC(code->content, code->contentBytes + sz);
 
-   if (!byteCount) {
+   if (content.empty()) {
       return;
    }
 
-   int lineCount = content[byteCount - 1] != '\n';
+   int lineCount = content.back() != '\n';
 
-   for (int i = 0; i < byteCount; i++) {
+   for (int i = 0; i < sz; i++) {
       code->content[i + code->contentBytes] = content[i];
 
       if (content[i] == '\n') {
@@ -2731,8 +2724,8 @@ void UICodeInsertContent(UICode* code, const char* content, ptrdiff_t byteCount,
    code->lines = (UICodeLine*)UI_REALLOC(code->lines, sizeof(UICodeLine) * (code->lineCount + lineCount));
    int offset = 0, lineIndex = 0;
 
-   for (intptr_t i = 0; i <= byteCount && lineIndex < lineCount; i++) {
-      if (content[i] == '\n' || i == byteCount) {
+   for (intptr_t i = 0; i <= sz && lineIndex < lineCount; i++) {
+      if (content[i] == '\n' || i == sz) {
          UICodeLine line = {0};
          line.offset     = offset + code->contentBytes;
          line.bytes      = i - offset;
@@ -2745,7 +2738,7 @@ void UICodeInsertContent(UICode* code, const char* content, ptrdiff_t byteCount,
    }
 
    code->lineCount += lineCount;
-   code->contentBytes += byteCount;
+   code->contentBytes += sz;
 
    if (!replace) {
       code->vScroll->position = code->lineCount * UIMeasureStringHeight();
@@ -2753,6 +2746,17 @@ void UICodeInsertContent(UICode* code, const char* content, ptrdiff_t byteCount,
 
    UIFontActivate(previousFont);
    code->Repaint(NULL);
+}
+
+void UICodeInsertContent(UICode* code, const char* content, ptrdiff_t byteCount, bool replace) {
+   if (byteCount == -1) {
+      byteCount = _UIStringLength(content);
+   }
+
+   if (byteCount > 1000000000) {
+      byteCount = 1000000000;
+   }
+   UICodeInsertContent(code, std::string_view{content, (size_t)byteCount}, replace);
 }
 
 UICode::UICode(UIElement* parent, uint32_t flags) :
