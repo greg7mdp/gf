@@ -793,41 +793,46 @@ inline void  UIKeyInputVScroll(EL* el, UIKeyTyped* m, int rowHeight, int pageHei
 }
 
 struct UICodeLine {
-   int offset, bytes;
+   size_t offset, bytes;
 };
 
 struct UICode : public UIElement {
-   enum {
-      NO_MARGIN  = 1 << 0,
-      SELECTABLE = 1 << 1
-   };
+   enum { NO_MARGIN = 1 << 0, SELECTABLE = 1 << 1 };
 
    struct code_pos {
-      int line   = 0;
-      int offset = 0;
+      size_t line   = 0;
+      size_t offset = 0;
    };
 
-   UIScrollBar* vScroll;
-   UIScrollBar* hScroll;
-   UICodeLine*  lines;
-   UIFont*      font;
-   int          lineCount;
-   int          focused;
-   bool         moveScrollToFocusNextLayout;
-   bool         leftDownInMargin;
-   char*        content;
-   size_t       contentBytes;
-   int          tabSize;
-   int          columns;
-   UI_CLOCK_T   lastAnimateTime;
+   UIScrollBar*            vScroll;
+   UIScrollBar*            hScroll;
+   UIFont*                 font;
+   int                     focused;
+   bool                    moveScrollToFocusNextLayout;
+   bool                    leftDownInMargin;
+   std::vector<char>       content;
+   std::vector<UICodeLine> lines;
+   int                     tabSize;
+   size_t                  columns;
+   UI_CLOCK_T              lastAnimateTime;
 
-   std::array<code_pos, 4> selection {}; // start, end, anchor, caret
+   std::array<code_pos, 4> selection{}; // start, end, anchor, caret
 
    int  verticalMotionColumn;
    bool useVerticalMotionColumn;
    bool moveScrollToCaretNextLayout;
 
    UICode(UIElement* parent, uint32_t flags);
+   
+   const char* line(size_t line) const { return &content[lines[line].offset]; }
+   size_t      num_lines() const { return lines.size(); }
+   size_t      size() const {return content.size(); }
+   void        clear() {
+      content.clear();
+      lines.clear();
+      columns   = 0;
+      selection = {};
+   }
 };
 
 struct UIGauge : public UIElement {
@@ -1083,16 +1088,18 @@ inline void _ui_skip_tab(int ti, const char* text, int bytesLeft, int tabSize) {
          ++ti;
 }
 
-inline void _ui_move_caret_backwards(int& caret, const char* text, int offset, int offset2) {
+template <class T>
+inline void _ui_move_caret_backwards(T& caret, const char* text, size_t offset, size_t offset2) {
    const char* prev = Utf8GetPreviousChar(text, text + offset);
    caret            = prev - text - offset2;
 }
 
-inline void _ui_move_caret_forward(int& caret, const char* text, ptrdiff_t bytes, int offset) {
+template <class T>
+inline void _ui_move_caret_forward(T& caret, const char* text, ptrdiff_t bytes, size_t offset) {
    caret += Utf8GetCharBytes(text + caret, bytes - offset);
 }
 
-inline bool _ui_move_caret_by_word(const char* text, ptrdiff_t bytes, int offset) {
+inline bool _ui_move_caret_by_word(const char* text, ptrdiff_t bytes, size_t offset) {
    const char* prev = Utf8GetPreviousChar(text, text + offset);
    int         c1   = Utf8GetCodePoint(prev, bytes - (prev - text), NULL);
    int         c2   = Utf8GetCodePoint(text + offset, bytes - offset, NULL);
@@ -1113,15 +1120,17 @@ inline void _ui_skip_tab(int ti, const char* text, int bytesLeft, int tabSize) {
          ++ti;
 }
 
-inline void _ui_move_caret_backwards(int& caret, const char* text, int offset, int offset2) {
+template <class T>
+inline void _ui_move_caret_backwards(T& caret, const char* text, size_t offset, size_t offset2) {
    --caret;
 }
 
-inline void _ui_move_caret_forward(int& caret, const char* text, ptrdiff_t bytes, int offset) {
+template <class T>
+inline void _ui_move_caret_forward(T& caret, const char* text, ptrdiff_t bytes, size_t offset) {
    ++caret;
 }
 
-inline bool _ui_move_caret_by_word(const char* text, ptrdiff_t bytes, int offset) {
+inline bool _ui_move_caret_by_word(const char* text, ptrdiff_t bytes, size_t offset) {
    char c1 = (text)[offset - 1];
    char c2 = (text)[offset];
    return (_UICharIsAlphaOrDigitOrUnderscore(c1) != _UICharIsAlphaOrDigitOrUnderscore(c2));

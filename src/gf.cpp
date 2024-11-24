@@ -507,22 +507,24 @@ int TrafficLightMessage(UIElement* element, UIMessage message, int di, void* dp)
 }
 
 int SourceFindEndOfBlock() {
-   if (!currentLine || currentLine - 1 >= displayCode->lineCount)
+   int num_lines = (int)displayCode->num_lines();
+
+   if (!currentLine || currentLine - 1 >= (int)num_lines)
       return -1;
 
    int tabs = 0;
 
-   for (int i = 0; i < displayCode->lines[currentLine - 1].bytes; i++) {
+   for (size_t i = 0; i < displayCode->lines[currentLine - 1].bytes; i++) {
       if (isspace(displayCode->content[displayCode->lines[currentLine - 1].offset + i]))
          tabs++;
       else
          break;
    }
 
-   for (int j = currentLine; j < displayCode->lineCount; j++) {
+   for (int j = currentLine; j < num_lines; j++) {
       int t = 0;
 
-      for (int i = 0; i < displayCode->lines[j].bytes - 1; i++) {
+      for (int i = 0; i < (int)displayCode->lines[j].bytes - 1; i++) {
          if (isspace(displayCode->content[displayCode->lines[j].offset + i]))
             t++;
          else
@@ -538,14 +540,17 @@ int SourceFindEndOfBlock() {
 }
 
 bool SourceFindOuterFunctionCall(char** start, char** end) {
-   if (!currentLine || currentLine - 1 >= displayCode->lineCount)
+   int num_lines = (int)displayCode->num_lines();
+
+   if (!currentLine || currentLine - 1 >= num_lines)
       return false;
-   uintptr_t offset = displayCode->lines[currentLine - 1].offset;
-   bool      found  = false;
+   size_t offset = displayCode->lines[currentLine - 1].offset;
+   bool   found  = false;
 
    // Look forwards for the end of the call ");".
 
-   while (offset < displayCode->contentBytes - 1) {
+   size_t num_chars = displayCode->size() ;
+   while (offset < num_chars - 1) {
       if (displayCode->content[offset] == ')' && displayCode->content[offset + 1] == ';') {
          found = true;
          break;
@@ -578,7 +583,7 @@ bool SourceFindOuterFunctionCall(char** start, char** end) {
    if (level)
       return false;
 
-   *start = *end = displayCode->content + offset;
+   *start = *end = &displayCode->content[offset];
    found         = false;
    offset--;
 
@@ -592,7 +597,7 @@ bool SourceFindOuterFunctionCall(char** start, char** end) {
          // Part of the function name.
          offset--;
       } else {
-         *start = displayCode->content + offset + 1;
+         *start = &displayCode->content[offset + 1];
          found  = true;
          break;
       }
@@ -1679,8 +1684,9 @@ void DisassemblyUpdateLine() {
 
          bool found = false;
 
-         for (int i = 0; i < displayCode->lineCount; i++) {
-            uint64_t b = strtoul(displayCode->content + displayCode->lines[i].offset + 3, &addressEnd, 0);
+         size_t num_lines = displayCode->num_lines();
+         for (size_t i = 0; i < num_lines; i++) {
+            uint64_t b = strtoul(displayCode->line(i) + 3, &addressEnd, 0);
 
             if (a == b) {
                UICodeFocusLine(displayCode, i + 1);
@@ -1759,7 +1765,7 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
    {
       UICodeLine* line = &displayCode->lines[currentLine - 1];
 
-      for (int i = 0; i < line->bytes; i++) {
+      for (size_t i = 0; i < line->bytes; i++) {
          if (displayCode->content[line->offset + i] == '\t') {
             xOffset += 4 * ui->activeFont->glyphWidth;
          } else if (displayCode->content[line->offset + i] == ' ') {
@@ -1976,7 +1982,7 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
       DisplaySetPositionFromStack();
    }
 
-   if (changedSourceLine && currentLine < displayCode->lineCount && currentLine > 0) {
+   if (changedSourceLine && currentLine < (int)displayCode->num_lines() && currentLine > 0) {
       // If there is an auto-print expression from the previous line, evaluate it.
 
       if (autoPrintExpression[0]) {
@@ -2000,8 +2006,8 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
 
       // Parse the new source line.
 
-      UICodeLine* line     = displayCode->lines + currentLine - 1;
-      char*       text     = displayCode->content + line->offset;
+      UICodeLine* line     = &displayCode->lines[currentLine - 1];
+      const char* text     = displayCode->line(currentLine - 1);
       size_t      bytes    = line->bytes;
       uintptr_t   position = 0;
 
@@ -2116,9 +2122,9 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
             } else if (text[i] == ')' && depth) {
                depth--;
             } else if (text[i] == ')' && !depth) {
-               text[i]  = 0;
-               auto res = EvaluateExpression(&text[expressionStart]);
-               text[i]  = ')';
+               ((char *)text)[i] = 0;
+               auto res = EvaluateExpression(&text[expressionStart]);       // todo: use string_view variant
+               ((char *)text)[i] = ')';
 
                if (res == "= true") {
                   ifConditionEvaluation = 2;
@@ -2148,14 +2154,15 @@ void InspectCurrentLine() {
    inspectResults.clear();
 
    UICodeLine* line   = &displayCode->lines[currentLine - 1];
-   const char* string = displayCode->content + line->offset;
+   const char* string = displayCode->line(currentLine - 1);
    auto code = std::string_view{string, size_t(line->bytes)};
 
-   auto expressions = regex::extract_debuggable_expressions(code);
-   for (auto e : expressions) {
-   }
+   //auto expressions = regex::extract_debuggable_expressions(code);
+   //for (auto e : expressions) {
+   //}
 
-   for (int i = 0; i < line->bytes; i++) {
+   for (size_t i = 0; i < line->bytes; i++) {
+      assert(line->bytes >= 1);
       if ((i != line->bytes - 1 && InspectIsTokenCharacter(string[i]) && !InspectIsTokenCharacter(string[i + 1])) ||
           string[i] == ']') {
          int b = 0, j = i;
@@ -2240,7 +2247,7 @@ int InspectLineModeMessage(UIElement* element, UIMessage message, int di, void* 
             WatchAddExpression2(inspectResults[index]);
          }
       } else if ((m->code == UIKeycode::UP && currentLine != 1) ||
-                 (m->code == UIKeycode::DOWN && currentLine != displayCode->lineCount)) {
+                 (m->code == UIKeycode::DOWN && currentLine != (int)displayCode->num_lines())) {
          currentLine += m->code == UIKeycode::UP ? -1 : 1;
          UICodeFocusLine(displayCode, currentLine);
          InspectCurrentLine();
@@ -2254,7 +2261,7 @@ int InspectLineModeMessage(UIElement* element, UIMessage message, int di, void* 
 }
 
 void CommandInspectLine() {
-   if (!currentLine || currentLine - 1 >= displayCode->lineCount)
+   if (!currentLine || currentLine - 1 >= (int)displayCode->num_lines())
       return;
 
    inspectModeRestoreLine = currentLine;
@@ -2545,12 +2552,7 @@ void CommandNextCommand() {
 }
 
 void CommandClearOutput() {
-   UI_FREE(displayOutput->content);
-   UI_FREE(displayOutput->lines);
-   displayOutput->content      = NULL;
-   displayOutput->lines        = NULL;
-   displayOutput->contentBytes = 0;
-   displayOutput->lineCount    = 0;
+   displayOutput->clear();
    displayOutput->Refresh();
 }
 
@@ -2608,7 +2610,7 @@ int TextboxInputMessage(UIElement* element, UIMessage message, int di, void* dp)
          }
       } else if (m->code == UIKeycode::DOWN) {
          if (element->window->shift) {
-            if (currentLine < displayCode->lineCount) {
+            if (currentLine < (int)displayCode->num_lines()) {
                DisplaySetPosition(NULL, currentLine + 1, false);
             }
          } else {
@@ -3605,7 +3607,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
          }
       } else if (m->code == UIKeycode::DOWN) {
          if (element->window->shift) {
-            if (currentLine < displayCode->lineCount) {
+            if (currentLine < (int)displayCode->num_lines()) {
                DisplaySetPosition(NULL, currentLine + 1, false);
             }
          } else {
