@@ -35,6 +35,7 @@
 #include <unordered_map>
 #include <vector>
 #include <iostream>
+#include <format>
 
 namespace views        = std::views;
 namespace rng          = std::ranges;
@@ -730,7 +731,7 @@ void DebuggerStartThread() {
 }
 
 // synchronous means we will wait for the debugger output
-std::optional<std::string> DebuggerSend(const char* string, bool echo, bool synchronous) {
+std::optional<std::string> DebuggerSend(std::string_view string, bool echo, bool synchronous) {
    std::optional<std::string> res;
    if (synchronous) {
       ctx.InterruptGdb();
@@ -744,10 +745,10 @@ std::optional<std::string> DebuggerSend(const char* string, bool echo, bool sync
    if (trafficLight)
       trafficLight->Repaint(nullptr);
 
-   // printf("sending: %s\n", string);
+   // std::cout << "sending: " << string << '\n';
 
    if (echo && displayOutput) {
-      UICodeInsertContent(displayOutput, string, -1, false);
+      UICodeInsertContent(displayOutput, string, false);
       displayOutput->Refresh();
    }
 
@@ -764,24 +765,19 @@ std::optional<std::string> DebuggerSend(const char* string, bool echo, bool sync
    return res;
 }
 
-std::string EvaluateCommand(const char* command, bool echo = false) {
+std::string EvaluateCommand(std::string_view command, bool echo = false) {
    return *std::move(DebuggerSend(command, echo, true));
 }
 
-std::string EvaluateExpression(const char* expression, const char* format = nullptr) {
-   char buffer[1024];
-   StringFormat(buffer, sizeof(buffer), "p%s %s", format ?: "", expression);
-   auto res = EvaluateCommand(buffer);
+std::string EvaluateExpression(std::string_view expression, std::string_view format = {}) {
+   auto cmd = std::format("p{} {}", format, expression);
+   auto res = EvaluateCommand(cmd);
    auto eq  = res.find_first_of('=');
    if (eq != npos) {
       res.erase(0, eq);  // remove characters up to '='
       resize_to_lf(res); // terminate string at '\n'
    }
    return res;
-}
-
-std::optional<std::string> EvaluateExpression(const std::string& expression, const char* format = nullptr) {
-   return EvaluateExpression(expression.c_str(), format);
 }
 
 void* ControlPipeThread(void*) {
@@ -797,9 +793,7 @@ void* ControlPipeThread(void*) {
 }
 
 void DebuggerGetStack() {
-   char buffer[16];
-   StringFormat(buffer, sizeof(buffer), "bt %d", backtraceCountLimit);
-   auto res = EvaluateCommand(buffer);
+   auto res = EvaluateCommand(std::format("bt {}", backtraceCountLimit));
    if (res.empty())
       return;
 
@@ -2122,9 +2116,7 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
             } else if (text[i] == ')' && depth) {
                depth--;
             } else if (text[i] == ')' && !depth) {
-               ((char *)text)[i] = 0;
-               auto res = EvaluateExpression(&text[expressionStart]);       // todo: use string_view variant
-               ((char *)text)[i] = ')';
+               auto res = EvaluateExpression(std::string_view{&text[expressionStart], i - expressionStart});
 
                if (res == "= true") {
                   ifConditionEvaluation = 2;
@@ -2371,33 +2363,34 @@ int BitmapViewerRefreshMessage(UIElement* element, UIMessage message, int di, vo
 const char* BitmapViewerGetBits(std::string pointerString, std::string widthString, std::string heightString,
                                 std::string strideString, uint32_t** _bits, int* _width, int* _height, int* _stride) {
    auto widthResult = EvaluateExpression(widthString);
-   if (!widthResult) {
+   if (widthResult.empty()) {
       return "Could not evaluate width.";
    }
-   int  width        = atoi(widthResult->c_str() + 1);
+   int  width        = atoi(widthResult.c_str() + 1);
    auto heightResult = EvaluateExpression(heightString);
-   if (!heightResult) {
+   if (heightResult.empty()) {
       return "Could not evaluate height.";
    }
-   int  height        = atoi(heightResult->c_str() + 1);
+   int  height        = atoi(heightResult.c_str() + 1);
    int  stride        = width * 4;
    auto pointerResult = EvaluateExpression(pointerString, "/x");
-   if (!pointerResult) {
+   if (pointerResult.empty()) {
       return "Could not evaluate pointer.";
    }
    char _pointerResult[1024];
-   StringFormat(_pointerResult, sizeof(_pointerResult), "%s", pointerResult->c_str());
-   pointerResult = strstr(_pointerResult, " 0x");
-   if (!pointerResult) {
+   StringFormat(_pointerResult, sizeof(_pointerResult), "%s", pointerResult.c_str());
+   auto pr = strstr(_pointerResult, " 0x");
+   if (!pr) {
       return "Pointer to image bits does not look like an address!";
    }
+   ++pr;
 
    if (!strideString.empty()) {
       auto strideResult = EvaluateExpression(strideString);
-      if (!strideResult) {
+      if (strideResult.empty()) {
          return "Could not evaluate stride.";
       }
-      stride = atoi(strideResult->c_str() + 1);
+      stride = atoi(strideResult.c_str() + 1);
    }
 
    uint32_t* bits = (uint32_t*)malloc(stride * height * 4); // TODO Is this multiply by 4 necessary?! And the one below.
@@ -2406,8 +2399,7 @@ const char* BitmapViewerGetBits(std::string pointerString, std::string widthStri
    realpath(".bitmap.gf", bitmapPath);
 
    char buffer[PATH_MAX * 2];
-   StringFormat(buffer, sizeof(buffer), "dump binary memory %s (%s) (%s+%d)", bitmapPath, pointerResult->c_str() + 1,
-                pointerResult->c_str() + 1, stride * height);
+   StringFormat(buffer, sizeof(buffer), "dump binary memory %s (%s) (%s+%d)", bitmapPath, pr, pr, stride * height);
    auto res = EvaluateCommand(buffer);
 
    FILE* f = fopen(bitmapPath, "rb");

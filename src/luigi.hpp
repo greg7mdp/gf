@@ -1004,6 +1004,7 @@ void    UICodeFocusLine(UICode* code, int index); // Line numbers are 1-indexed!
 int UICodeHitTest(UICode* code, int x, int y); // Returns line number; negates if in margin. Returns 0 if not on a line.
 void UICodePositionToByte(UICode* code, int x, int y, int* line, int* byte);
 void UICodeInsertContent(UICode* code, const char* content, ptrdiff_t byteCount, bool replace);
+void UICodeInsertContent(UICode* code, std::string_view content, bool replace);
 void UICodeMoveCaret(UICode* code, bool backward, bool word);
 
 void UIDrawBlock(UIPainter* painter, UIRectangle rectangle, uint32_t color);
