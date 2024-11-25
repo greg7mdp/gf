@@ -1,6 +1,6 @@
 ##
 ## Example of use:
-##    cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++ -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -GNinja ..
+##    cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=clang++-18 -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -GNinja ..
 ##
 ## ----------------------------------------------------------------------------------
 

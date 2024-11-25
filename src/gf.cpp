@@ -35,6 +35,7 @@
 #include <unordered_map>
 #include <vector>
 #include <iostream>
+#include <format>
 
 namespace views        = std::views;
 namespace rng          = std::ranges;
@@ -46,6 +47,7 @@ using namespace std;
 using namespace ctre::literals;
 
 #include "luigi.hpp"
+#include "regex.hpp"
 
 // ---------------------------------------------------------------------------------------------
 //                              Generic Data structures
@@ -506,22 +508,24 @@ int TrafficLightMessage(UIElement* element, UIMessage message, int di, void* dp)
 }
 
 int SourceFindEndOfBlock() {
-   if (!currentLine || currentLine - 1 >= displayCode->lineCount)
+   int num_lines = (int)displayCode->num_lines();
+
+   if (!currentLine || currentLine - 1 >= (int)num_lines)
       return -1;
 
    int tabs = 0;
 
-   for (int i = 0; i < displayCode->lines[currentLine - 1].bytes; i++) {
+   for (size_t i = 0; i < displayCode->lines[currentLine - 1].bytes; i++) {
       if (isspace(displayCode->content[displayCode->lines[currentLine - 1].offset + i]))
          tabs++;
       else
          break;
    }
 
-   for (int j = currentLine; j < displayCode->lineCount; j++) {
+   for (int j = currentLine; j < num_lines; j++) {
       int t = 0;
 
-      for (int i = 0; i < displayCode->lines[j].bytes - 1; i++) {
+      for (int i = 0; i < (int)displayCode->lines[j].bytes - 1; i++) {
          if (isspace(displayCode->content[displayCode->lines[j].offset + i]))
             t++;
          else
@@ -537,14 +541,17 @@ int SourceFindEndOfBlock() {
 }
 
 bool SourceFindOuterFunctionCall(char** start, char** end) {
-   if (!currentLine || currentLine - 1 >= displayCode->lineCount)
+   int num_lines = (int)displayCode->num_lines();
+
+   if (!currentLine || currentLine - 1 >= num_lines)
       return false;
-   uintptr_t offset = displayCode->lines[currentLine - 1].offset;
-   bool      found  = false;
+   size_t offset = displayCode->lines[currentLine - 1].offset;
+   bool   found  = false;
 
    // Look forwards for the end of the call ");".
 
-   while (offset < displayCode->contentBytes - 1) {
+   size_t num_chars = displayCode->size() ;
+   while (offset < num_chars - 1) {
       if (displayCode->content[offset] == ')' && displayCode->content[offset + 1] == ';') {
          found = true;
          break;
@@ -577,7 +584,7 @@ bool SourceFindOuterFunctionCall(char** start, char** end) {
    if (level)
       return false;
 
-   *start = *end = displayCode->content + offset;
+   *start = *end = &displayCode->content[offset];
    found         = false;
    offset--;
 
@@ -591,7 +598,7 @@ bool SourceFindOuterFunctionCall(char** start, char** end) {
          // Part of the function name.
          offset--;
       } else {
-         *start = displayCode->content + offset + 1;
+         *start = &displayCode->content[offset + 1];
          found  = true;
          break;
       }
@@ -724,7 +731,7 @@ void DebuggerStartThread() {
 }
 
 // synchronous means we will wait for the debugger output
-std::optional<std::string> DebuggerSend(const char* string, bool echo, bool synchronous) {
+std::optional<std::string> DebuggerSend(std::string_view string, bool echo, bool synchronous) {
    std::optional<std::string> res;
    if (synchronous) {
       ctx.InterruptGdb();
@@ -738,10 +745,10 @@ std::optional<std::string> DebuggerSend(const char* string, bool echo, bool sync
    if (trafficLight)
       trafficLight->Repaint(nullptr);
 
-   // printf("sending: %s\n", string);
+   // std::cout << "sending: " << string << '\n';
 
    if (echo && displayOutput) {
-      UICodeInsertContent(displayOutput, string, -1, false);
+      UICodeInsertContent(displayOutput, string, false);
       displayOutput->Refresh();
    }
 
@@ -758,24 +765,19 @@ std::optional<std::string> DebuggerSend(const char* string, bool echo, bool sync
    return res;
 }
 
-std::string EvaluateCommand(const char* command, bool echo = false) {
+std::string EvaluateCommand(std::string_view command, bool echo = false) {
    return *std::move(DebuggerSend(command, echo, true));
 }
 
-std::string EvaluateExpression(const char* expression, const char* format = nullptr) {
-   char buffer[1024];
-   StringFormat(buffer, sizeof(buffer), "p%s %s", format ?: "", expression);
-   auto res = EvaluateCommand(buffer);
+std::string EvaluateExpression(std::string_view expression, std::string_view format = {}) {
+   auto cmd = std::format("p{} {}", format, expression);
+   auto res = EvaluateCommand(cmd);
    auto eq  = res.find_first_of('=');
    if (eq != npos) {
       res.erase(0, eq);  // remove characters up to '='
       resize_to_lf(res); // terminate string at '\n'
    }
    return res;
-}
-
-std::optional<std::string> EvaluateExpression(const std::string& expression, const char* format = nullptr) {
-   return EvaluateExpression(expression.c_str(), format);
 }
 
 void* ControlPipeThread(void*) {
@@ -791,9 +793,7 @@ void* ControlPipeThread(void*) {
 }
 
 void DebuggerGetStack() {
-   char buffer[16];
-   StringFormat(buffer, sizeof(buffer), "bt %d", backtraceCountLimit);
-   auto res = EvaluateCommand(buffer);
+   auto res = EvaluateCommand(std::format("bt {}", backtraceCountLimit));
    if (res.empty())
       return;
 
@@ -1678,8 +1678,9 @@ void DisassemblyUpdateLine() {
 
          bool found = false;
 
-         for (int i = 0; i < displayCode->lineCount; i++) {
-            uint64_t b = strtoul(displayCode->content + displayCode->lines[i].offset + 3, &addressEnd, 0);
+         size_t num_lines = displayCode->num_lines();
+         for (size_t i = 0; i < num_lines; i++) {
+            uint64_t b = strtoul(displayCode->line(i) + 3, &addressEnd, 0);
 
             if (a == b) {
                UICodeFocusLine(displayCode, i + 1);
@@ -1758,7 +1759,7 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
    {
       UICodeLine* line = &displayCode->lines[currentLine - 1];
 
-      for (int i = 0; i < line->bytes; i++) {
+      for (size_t i = 0; i < line->bytes; i++) {
          if (displayCode->content[line->offset + i] == '\t') {
             xOffset += 4 * ui->activeFont->glyphWidth;
          } else if (displayCode->content[line->offset + i] == ' ') {
@@ -1975,7 +1976,7 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
       DisplaySetPositionFromStack();
    }
 
-   if (changedSourceLine && currentLine < displayCode->lineCount && currentLine > 0) {
+   if (changedSourceLine && currentLine < (int)displayCode->num_lines() && currentLine > 0) {
       // If there is an auto-print expression from the previous line, evaluate it.
 
       if (autoPrintExpression[0]) {
@@ -1999,8 +2000,8 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
 
       // Parse the new source line.
 
-      UICodeLine* line     = displayCode->lines + currentLine - 1;
-      char*       text     = displayCode->content + line->offset;
+      UICodeLine* line     = &displayCode->lines[currentLine - 1];
+      const char* text     = displayCode->line(currentLine - 1);
       size_t      bytes    = line->bytes;
       uintptr_t   position = 0;
 
@@ -2115,9 +2116,7 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
             } else if (text[i] == ')' && depth) {
                depth--;
             } else if (text[i] == ')' && !depth) {
-               text[i]  = 0;
-               auto res = EvaluateExpression(&text[expressionStart]);
-               text[i]  = ')';
+               auto res = EvaluateExpression(std::string_view{&text[expressionStart], i - expressionStart});
 
                if (res == "= true") {
                   ifConditionEvaluation = 2;
@@ -2147,9 +2146,15 @@ void InspectCurrentLine() {
    inspectResults.clear();
 
    UICodeLine* line   = &displayCode->lines[currentLine - 1];
-   const char* string = displayCode->content + line->offset;
+   const char* string = displayCode->line(currentLine - 1);
+   auto code = std::string_view{string, size_t(line->bytes)};
 
-   for (int i = 0; i < line->bytes; i++) {
+   //auto expressions = regex::extract_debuggable_expressions(code);
+   //for (auto e : expressions) {
+   //}
+
+   for (size_t i = 0; i < line->bytes; i++) {
+      assert(line->bytes >= 1);
       if ((i != line->bytes - 1 && InspectIsTokenCharacter(string[i]) && !InspectIsTokenCharacter(string[i + 1])) ||
           string[i] == ']') {
          int b = 0, j = i;
@@ -2234,7 +2239,7 @@ int InspectLineModeMessage(UIElement* element, UIMessage message, int di, void* 
             WatchAddExpression2(inspectResults[index]);
          }
       } else if ((m->code == UIKeycode::UP && currentLine != 1) ||
-                 (m->code == UIKeycode::DOWN && currentLine != displayCode->lineCount)) {
+                 (m->code == UIKeycode::DOWN && currentLine != (int)displayCode->num_lines())) {
          currentLine += m->code == UIKeycode::UP ? -1 : 1;
          UICodeFocusLine(displayCode, currentLine);
          InspectCurrentLine();
@@ -2248,7 +2253,7 @@ int InspectLineModeMessage(UIElement* element, UIMessage message, int di, void* 
 }
 
 void CommandInspectLine() {
-   if (!currentLine || currentLine - 1 >= displayCode->lineCount)
+   if (!currentLine || currentLine - 1 >= (int)displayCode->num_lines())
       return;
 
    inspectModeRestoreLine = currentLine;
@@ -2358,33 +2363,34 @@ int BitmapViewerRefreshMessage(UIElement* element, UIMessage message, int di, vo
 const char* BitmapViewerGetBits(std::string pointerString, std::string widthString, std::string heightString,
                                 std::string strideString, uint32_t** _bits, int* _width, int* _height, int* _stride) {
    auto widthResult = EvaluateExpression(widthString);
-   if (!widthResult) {
+   if (widthResult.empty()) {
       return "Could not evaluate width.";
    }
-   int  width        = atoi(widthResult->c_str() + 1);
+   int  width        = atoi(widthResult.c_str() + 1);
    auto heightResult = EvaluateExpression(heightString);
-   if (!heightResult) {
+   if (heightResult.empty()) {
       return "Could not evaluate height.";
    }
-   int  height        = atoi(heightResult->c_str() + 1);
+   int  height        = atoi(heightResult.c_str() + 1);
    int  stride        = width * 4;
    auto pointerResult = EvaluateExpression(pointerString, "/x");
-   if (!pointerResult) {
+   if (pointerResult.empty()) {
       return "Could not evaluate pointer.";
    }
    char _pointerResult[1024];
-   StringFormat(_pointerResult, sizeof(_pointerResult), "%s", pointerResult->c_str());
-   pointerResult = strstr(_pointerResult, " 0x");
-   if (!pointerResult) {
+   StringFormat(_pointerResult, sizeof(_pointerResult), "%s", pointerResult.c_str());
+   auto pr = strstr(_pointerResult, " 0x");
+   if (!pr) {
       return "Pointer to image bits does not look like an address!";
    }
+   ++pr;
 
    if (!strideString.empty()) {
       auto strideResult = EvaluateExpression(strideString);
-      if (!strideResult) {
+      if (strideResult.empty()) {
          return "Could not evaluate stride.";
       }
-      stride = atoi(strideResult->c_str() + 1);
+      stride = atoi(strideResult.c_str() + 1);
    }
 
    uint32_t* bits = (uint32_t*)malloc(stride * height * 4); // TODO Is this multiply by 4 necessary?! And the one below.
@@ -2393,8 +2399,7 @@ const char* BitmapViewerGetBits(std::string pointerString, std::string widthStri
    realpath(".bitmap.gf", bitmapPath);
 
    char buffer[PATH_MAX * 2];
-   StringFormat(buffer, sizeof(buffer), "dump binary memory %s (%s) (%s+%d)", bitmapPath, pointerResult->c_str() + 1,
-                pointerResult->c_str() + 1, stride * height);
+   StringFormat(buffer, sizeof(buffer), "dump binary memory %s (%s) (%s+%d)", bitmapPath, pr, pr, stride * height);
    auto res = EvaluateCommand(buffer);
 
    FILE* f = fopen(bitmapPath, "rb");
@@ -2539,12 +2544,7 @@ void CommandNextCommand() {
 }
 
 void CommandClearOutput() {
-   UI_FREE(displayOutput->content);
-   UI_FREE(displayOutput->lines);
-   displayOutput->content      = NULL;
-   displayOutput->lines        = NULL;
-   displayOutput->contentBytes = 0;
-   displayOutput->lineCount    = 0;
+   displayOutput->clear();
    displayOutput->Refresh();
 }
 
@@ -2602,7 +2602,7 @@ int TextboxInputMessage(UIElement* element, UIMessage message, int di, void* dp)
          }
       } else if (m->code == UIKeycode::DOWN) {
          if (element->window->shift) {
-            if (currentLine < displayCode->lineCount) {
+            if (currentLine < (int)displayCode->num_lines()) {
                DisplaySetPosition(NULL, currentLine + 1, false);
             }
          } else {
@@ -3599,7 +3599,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
          }
       } else if (m->code == UIKeycode::DOWN) {
          if (element->window->shift) {
-            if (currentLine < displayCode->lineCount) {
+            if (currentLine < (int)displayCode->num_lines()) {
                DisplaySetPosition(NULL, currentLine + 1, false);
             }
          } else {
