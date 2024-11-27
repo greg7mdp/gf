@@ -3031,7 +3031,6 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
       return;
    }
 
-   auto buffer = std::format("Log {}", res);
    UIMDIChild* child =
       UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, UIRectangle(0), std::format("Log {}", res).c_str(), -1);
 
