@@ -967,9 +967,8 @@ struct TabCompleter {
 };
 
 void TabCompleterRun(TabCompleter* completer, UITextbox* textbox, bool lastKeyWasTab, bool addPrintPrefix) {
-   char buffer[4096];
-   StringFormat(buffer, sizeof(buffer), "complete %s%.*s", addPrintPrefix ? "p " : "",
-                lastKeyWasTab ? completer->lastTabBytes : (int)textbox->bytes, textbox->string);
+   auto buffer = std::format("complete {}{:.{}}", addPrintPrefix ? "p " : "",
+                             textbox->string, lastKeyWasTab ? completer->lastTabBytes : (int)textbox->bytes);
    for (int i = 0; buffer[i]; i++)
       if (buffer[i] == '\\')
          buffer[i] = ' ';
@@ -1029,9 +1028,7 @@ std::optional<std::string> CommandParseInternal(const char* command, bool synchr
       int line = SourceFindEndOfBlock();
 
       if (line != -1) {
-         char buffer[256];
-         StringFormat(buffer, sizeof(buffer), "until %d", line);
-         (void)DebuggerSend(buffer, true, synchronous); //
+         (void)DebuggerSend(std::format("until {}", line), true, synchronous);
       }
    } else if (0 == strcmp(command, "gf-step-into-outer")) {
       char *start, *end;
@@ -1198,16 +1195,12 @@ void CommandToggleBreakpoint(int line) {
 
    for (const auto& bp : breakpoints) {
       if (bp.line == line && 0 == strcmp(bp.fileFull, currentFileFull)) {
-         char buffer[1024];
-         StringFormat(buffer, 1024, "clear %s:%d", currentFile, line);
-         (void)DebuggerSend(buffer, true, false);
+         (void)DebuggerSend(std::format("clear {}:{}", currentFile, line), true, false);
          return;
       }
    }
 
-   char buffer[1024];
-   StringFormat(buffer, 1024, "b %s:%d", currentFile, line);
-   (void)DebuggerSend(buffer, true, false);
+   (void)DebuggerSend(std::format("b {}:{}", currentFile, line), true, false);
 }
 
 void CommandToggleBreakpoint() {
@@ -1219,13 +1212,10 @@ void CommandCustom(const char* command) {
    if (0 == memcmp(command, "shell ", 6)) {
       // TODO Move this into CommandParseInternal?
 
-      char buffer[4096];
-      StringFormat(buffer, 4096, "Running shell command \"%s\"...\n", command);
       if (displayOutput)
-         UICodeInsertContent(displayOutput, buffer, -1, false);
-      StringFormat(buffer, 4096, "%s > .output.gf 2>&1", command);
+         UICodeInsertContent(displayOutput, std::format("Running shell command \"{}\"...\n", command), false);
       int          start  = time(nullptr);
-      int          result = system(buffer);
+      int          result = system(std::format("{} > .output.gf 2>&1", command).c_str());
       size_t       bytes  = 0;
       vector<char> output = LoadFile(".output.gf", &bytes);
       unlink(".output.gf");
@@ -1242,13 +1232,12 @@ void CommandCustom(const char* command) {
          }
       }
 
-      if (displayOutput)
+      if (displayOutput) {
          UICodeInsertContent(displayOutput, copy.data(), j, false);
-      StringFormat(buffer, 4096, "(exit code: %d; time: %ds)\n", result, (int)(time(nullptr) - start));
-      if (displayOutput)
-         UICodeInsertContent(displayOutput, buffer, -1, false);
-      if (displayOutput)
+         UICodeInsertContent(displayOutput,
+                             std::format("(exit code: {}; time: {}s)\n", result, (int)(time(nullptr) - start)), false);
          displayOutput->Refresh();
+      }
    } else {
       (void)CommandParseInternal(command, false);
    }
@@ -2966,9 +2955,7 @@ int WatchLoggerWindowMessage(UIElement* element, UIMessage message, int di, void
          if (auto it = rng::find(watchLoggers, logger); it != rng::end(watchLoggers))
             watchLoggers.erase(it);
 
-         char buffer[256];
-         StringFormat(buffer, sizeof(buffer), "delete %d", logger->id);
-         EvaluateCommand(buffer);
+         EvaluateCommand(std::format("delete {}", logger->id));
          delete logger;
       }
    } else if (message == UIMessage::GET_WIDTH || message == UIMessage::GET_HEIGHT) {
@@ -3104,11 +3091,11 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
       return;
    }
 
-   char buffer[256];
-   StringFormat(buffer, sizeof(buffer), "Log %s", res.c_str());
-   UIMDIChild* child = UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, UIRectangle(0), buffer, -1);
-   StringFormat(buffer, sizeof(buffer), "watch * %s", res.c_str());
-   res                = EvaluateCommand(buffer);
+   auto buffer = std::format("Log {}", res);
+   UIMDIChild* child =
+      UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, UIRectangle(0), std::format("Log {}", res).c_str(), -1);
+
+   res                = EvaluateCommand(std::format("watch * {}", res));
    const char* number = strstr(res.c_str(), "point ");
 
    if (!number) {
@@ -3527,8 +3514,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
                if (res.empty())
                   return;
 
-               char buffer[256];
-               StringFormat(buffer, sizeof(buffer), "watch * %s", res.c_str());
+               auto buffer = std::format("watch * {}", res);
                (void)DebuggerSend(buffer, true, false);
             });
 
@@ -6415,9 +6401,7 @@ void ViewWindowView(void* cp) {
 
       char tempPath[PATH_MAX];
       realpath(".temp.gf", tempPath);
-      char buffer[PATH_MAX * 2];
-      StringFormat(buffer, sizeof(buffer), "(size_t)strlen((const char *)(%s))", address);
-      auto res = EvaluateExpression(buffer);
+      auto res = EvaluateExpression(std::format("(size_t)strlen((const char *)({})", address));
       printf("'%s' -> '%s'\n", buffer, res.c_str());
       const char* lengthString = res.c_str() ? strstr(res.c_str(), "= ") : nullptr;
       size_t      length       = lengthString ? atoi(lengthString + 2) : 0;
