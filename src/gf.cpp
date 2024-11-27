@@ -1035,9 +1035,7 @@ std::optional<std::string> CommandParseInternal(const char* command, bool synchr
       bool  found = SourceFindOuterFunctionCall(&start, &end);
 
       if (found) {
-         char buffer[256];
-         StringFormat(buffer, sizeof(buffer), "advance %.*s", (int)(end - start), start);
-         res = DebuggerSend(buffer, true, synchronous);
+         res = DebuggerSend(std::format("advance {}", std::string_view(start, (int)(end - start))), true, synchronous);
       } else {
          return CommandParseInternal("gf-step", synchronous);
       }
@@ -1058,9 +1056,7 @@ std::optional<std::string> CommandParseInternal(const char* command, bool synchr
 
          if (!chdir(pwd)) {
             if (displayOutput) {
-               char buffer[4096];
-               StringFormat(buffer, sizeof(buffer), "New working directory: %s", pwd);
-               UICodeInsertContent(displayOutput, buffer, -1, false);
+               UICodeInsertContent(displayOutput, std::format("New working directory: {}", pwd), false);
                displayOutput->Refresh();
             }
          }
@@ -1122,9 +1118,7 @@ void CommandSendToGDB(const char* s) {
 
 static void BreakpointCommand(int index, const char* action) {
    Breakpoint* breakpoint = &breakpoints[index];
-   char        buffer[1024];
-   StringFormat(buffer, 1024, "%s %d", action, breakpoint->number);
-   (void)DebuggerSend(buffer, true, false);
+   (void)DebuggerSend(std::format("{} {}", action, breakpoint->number), true, false);
 }
 
 static void CommandDeleteBreakpoint(int index) {
@@ -1579,9 +1573,8 @@ bool DisplaySetPosition(const char* file, int line, bool useGDBToGetFullPath) {
       vector<char> buffer2 = LoadFile(file, &bytes);
 
       if (!bytes) {
-         char buffer3[4096];
-         StringFormat(buffer3, 4096, "The file '%s' (from '%s') could not be loaded.", file, originalFile);
-         UICodeInsertContent(displayCode, buffer3, -1, true);
+         UICodeInsertContent(displayCode,
+                             std::format("The file '{}' (from '{}') could not be loaded.", file, originalFile), true);
       } else {
          UICodeInsertContent(displayCode, buffer2.data(), bytes, true);
       }
@@ -1618,9 +1611,7 @@ void DisassemblyLoad() {
    auto res = EvaluateCommand(disassemblyCommand);
 
    if (!strstr(res.c_str(), "Dump of assembler code for function")) {
-      char buffer[32];
-      StringFormat(buffer, sizeof(buffer), "disas $pc,+1000");
-      res = EvaluateCommand(buffer);
+      res = EvaluateCommand("disas $pc,+1000");
    }
 
    const char* end = strstr(res.c_str(), "End of assembler dump.");
@@ -1813,15 +1804,10 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
          int line = result;
 
          if (element->window->ctrl) {
-            char buffer[1024];
-            StringFormat(buffer, 1024, "until %d", line);
-            (void)DebuggerSend(buffer, true, false);
+            (void)DebuggerSend(std::format("until {}", line), true, false);
          } else if (element->window->alt || element->window->shift) {
-            char buffer[1024];
-            StringFormat(buffer, 1024, "tbreak %d", line);
-            EvaluateCommand(buffer);
-            StringFormat(buffer, 1024, "jump %d", line);
-            (void)DebuggerSend(buffer, true, false);
+            EvaluateCommand(std::format("tbreak {}", line));
+            (void)DebuggerSend(std::format("jump {}", line), true, false);
          }
       }
    } else if (message == UIMessage::RIGHT_DOWN && !showingDisassembly) {
@@ -1969,9 +1955,7 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
       // If there is an auto-print expression from the previous line, evaluate it.
 
       if (autoPrintExpression[0]) {
-         char buffer[1024];
-         StringFormat(buffer, sizeof(buffer), "p %s", autoPrintExpression);
-         auto        res    = EvaluateCommand(buffer);
+         auto        res    = EvaluateCommand(std::format("p {}", autoPrintExpression));
          const char* result = strchr(res.c_str(), '=');
 
          if (result) {
