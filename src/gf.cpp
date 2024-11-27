@@ -2330,9 +2330,7 @@ const char* BitmapViewerGetBits(std::string pointerString, std::string widthStri
    char bitmapPath[PATH_MAX];
    realpath(".bitmap.gf", bitmapPath);
 
-   char buffer[PATH_MAX * 2];
-   StringFormat(buffer, sizeof(buffer), "dump binary memory %s (%s) (%s+%d)", bitmapPath, pr, pr, stride * height);
-   auto res = EvaluateCommand(buffer);
+   auto res = EvaluateCommand(std::format("dump binary memory {} ({}) ({}+{})", bitmapPath, pr, pr, stride * height));
 
    FILE* f = fopen(bitmapPath, "rb");
 
@@ -2501,11 +2499,10 @@ int TextboxInputMessage(UIElement* element, UIMessage message, int di, void* dp)
             return 1;
          }
 
-         char buffer[1024];
-         StringFormat(buffer, 1024, "%.*s", (int)textbox->bytes, textbox->string);
+         auto buffer = std::format("{:.{}}", textbox->string, (int)textbox->bytes);
          if (commandLog)
-            fprintf(commandLog, "%s\n", buffer);
-         CommandSendToGDB(buffer);
+            fprintf(commandLog, "%s\n", buffer.c_str());
+         CommandSendToGDB(buffer.c_str());
 
          unique_ptr<char[]> string = std::make_unique<char[]>(textbox->bytes + 1);
          memcpy(string.get(), textbox->string, textbox->bytes);
@@ -3139,9 +3136,7 @@ bool WatchLoggerUpdate(char* data) {
       for (uintptr_t i = 0; true; i++) {
          if (expressionsToEvaluate[i] == ';' || !expressionsToEvaluate[i]) {
 
-            char buffer[256];
-            StringFormat(buffer, sizeof(buffer), "%.*s", i - start, expressionsToEvaluate + start);
-            auto res = EvaluateExpression(buffer);
+            auto res = EvaluateExpression(std::string_view(expressionsToEvaluate + start, i - start));
             start    = i + 1;
             WatchLogEvaluated evaluated;
             const char*       start = strstr(res.c_str(), " = ");
@@ -3218,10 +3213,9 @@ void CommandWatchAddEntryForAddress(WatchWindow* _w) {
    if (res.empty() || strstr(res.c_str(), "??"))
       return;
    resize_to_lf(res);
-   size_t       size = strlen(address) + res.size() + 16;
-   vector<char> buffer(size);
-   StringFormat(buffer.data(), size, "(%s*)%s", res.c_str(), address);
-   WatchAddExpression(w, buffer.data());
+
+   auto buffer = std::format("({}*){}", res, address);
+   WatchAddExpression(w, buffer.c_str());
    WatchEnsureRowVisible(w, w->selectedRow);
    w->parent->Refresh();
    w->Refresh();
@@ -3243,9 +3237,7 @@ void CommandWatchViewSourceAtAddress(WatchWindow* _w) {
    if (!(*position))
       return;
    uint64_t value = strtoul(position, nullptr, 0);
-   char     buffer[256];
-   StringFormat(buffer, sizeof(buffer), "info line * 0x%lx", value);
-   auto res = EvaluateCommand(buffer);
+   auto res = EvaluateCommand(std::format("info line * 0x{:x}", value));
    position = (char*)res.c_str();
 
    if (strstr(res.c_str(), "No line number")) {
@@ -3763,9 +3755,7 @@ void CommandAddWatch() {
 
 void StackSetFrame(UIElement* element, int index) {
    if (index >= 0 && index < ((UITable*)element)->itemCount && stackSelected != (size_t)index) {
-      char buffer[64];
-      StringFormat(buffer, 64, "frame %d", index);
-      (void)DebuggerSend(buffer, false, false);
+      (void)DebuggerSend(std::format("frame {}", index), false, false);
       stackSelected = index;
       stackChanged  = true;
       element->Repaint(nullptr);
@@ -3824,18 +3814,16 @@ struct BreakpointTableData {
    int         anchor = 0;
 };
 
-#define BREAKPOINT_WINDOW_COMMAND_FOR_EACH_SELECTED(function, action) \
-   void function(BreakpointTableData* data) {                         \
-      for (auto selected : data->selected) {                          \
-         for (const auto& breakpoint : breakpoints) {                 \
-            if (breakpoint.number == selected) {                      \
-               char buffer[1024];                                     \
-               StringFormat(buffer, 1024, action " %d", selected);    \
-               (void)DebuggerSend(buffer, true, false);               \
-               break;                                                 \
-            }                                                         \
-         }                                                            \
-      }                                                               \
+#define BREAKPOINT_WINDOW_COMMAND_FOR_EACH_SELECTED(function, action)                \
+   void function(BreakpointTableData* data) {                                        \
+      for (auto selected : data->selected) {                                         \
+         for (const auto& breakpoint : breakpoints) {                                \
+            if (breakpoint.number == selected) {                                     \
+               (void)DebuggerSend(std::format(action " {}", selected), true, false); \
+               break;                                                                \
+            }                                                                        \
+         }                                                                           \
+      }                                                                              \
    }
 
 BREAKPOINT_WINDOW_COMMAND_FOR_EACH_SELECTED(CommandDeleteSelectedBreakpoints, "delete");
@@ -4047,9 +4035,8 @@ int TextboxStructNameMessage(UIElement* element, UIMessage message, int di, void
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
       if (m->code == UIKeycode::ENTER) {
-         char buffer[4096];
-         StringFormat(buffer, sizeof(buffer), "ptype /o %.*s", (int)window->textbox->bytes, window->textbox->string);
-         auto  res = EvaluateCommand(buffer);
+         auto res = EvaluateCommand(
+            std::format("ptype /o {}", std::string_view(window->textbox->string, window->textbox->bytes)));
          char* end = (char*)strstr(res.c_str(), "\n(gdb)");
          if (end)
             *end = 0;
@@ -4318,11 +4305,8 @@ UIElement* CommandsWindowCreate(UIElement* parent) {
       UILabelCreate(panel, 0, "No preset commands found in config file!", -1);
 
    for (const auto& cmd : presetCommands) {
-      char buffer[256];
-      StringFormat(buffer, sizeof(buffer), "gf-command %s", cmd.key);
       UIButton* button = UIButtonCreate(panel, 0, cmd.key, -1);
-      char*     b      = strdup(buffer);
-      button->invoke   = [b]() { CommandSendToGDB(b); };
+      button->invoke   = [b = std::format("gf-command {}", cmd.key)]() { CommandSendToGDB(b.c_str()); };
    }
 
    return panel;
@@ -4412,9 +4396,7 @@ int ThreadTableMessage(UIElement* element, UIMessage message, int di, void* dp) 
       int index = UITableHitTest((UITable*)element, element->window->cursor.x, element->window->cursor.y);
 
       if (index != -1) {
-         char buffer[1024];
-         StringFormat(buffer, 1024, "thread %d", window->threads[index].id);
-         (void)DebuggerSend(buffer, true, false);
+         (void)DebuggerSend(std::format("thread {}", window->threads[index].id), true, false);
       }
    }
 
@@ -4484,17 +4466,14 @@ struct ExecutableWindow {
 };
 
 void ExecutableWindowStartOrRun(ExecutableWindow* window, bool pause) {
-   char buffer[4096];
-   StringFormat(buffer, sizeof(buffer), "file \"%.*s\"", window->path->bytes, window->path->string);
-   auto res = EvaluateCommand(buffer);
+   auto res = EvaluateCommand(std::format("file \"{:.{}}\"", window->path->string, window->path->bytes));
 
    if (res.contains("No such file or directory.")) {
       UIDialogShow(windowMain, 0, "The executable path is invalid.\n%f%B", "OK");
       return;
    }
 
-   StringFormat(buffer, sizeof(buffer), "start %.*s", window->arguments->bytes, window->arguments->string);
-   (void)EvaluateCommand(buffer);
+   (void)EvaluateCommand(std::format("start {:.{}}", window->arguments->string, window->arguments->bytes));
 
    if (window->askDirectory->check == UICheckbox::CHECKED) {
       CommandParseInternal("gf-get-pwd", true);
