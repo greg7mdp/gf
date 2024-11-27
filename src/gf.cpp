@@ -392,7 +392,7 @@ end
 bool       DisplaySetPosition(const char* file, int line, bool useGDBToGetFullPath);
 void       InterfaceShowMenu(UIButton* self);
 UIElement* InterfaceWindowSwitchToAndFocus(const char* name);
-void       WatchAddExpression2(char* string);
+void       WatchAddExpression2(const char* string);
 int        WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp);
 void       CommandInspectLine();
 
@@ -1511,7 +1511,12 @@ int lastCursorX, lastCursorY;
 int ifConditionEvaluation, ifConditionLine;
 int ifConditionFrom, ifConditionTo;
 
-vector<char*> inspectResults;
+struct InspectResult {
+   std::string expression;
+   std::string value;
+};
+
+vector<InspectResult> inspectResults;
 bool          noInspectResults;
 bool          inInspectLineMode;
 int           inspectModeRestoreLine;
@@ -1727,9 +1732,8 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
    const char* instructions = "(Press Esc to exit inspect line mode.)";
    int         width        = (strlen(instructions) + 8) * ui->activeFont->glyphWidth;
 
-   for (size_t index = 0; index < inspectResults.size() / 2; index++) {
-      int w =
-         (strlen(inspectResults[index * 2]) + strlen(inspectResults[index * 2 + 1]) + 8) * ui->activeFont->glyphWidth;
+   for (const auto& ir : inspectResults) {
+      int w = (ir.expression.size() + ir.value.size() + 8) * ui->activeFont->glyphWidth;
       if (w > width)
          width = w;
    }
@@ -1750,7 +1754,6 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
       }
    }
 
-   char        buffer[256];
    int         lineHeight = UIMeasureStringHeight();
    UIRectangle bounds =
       displayCurrentLineBounds + UIRectangle(xOffset, 0, lineHeight, 8 + lineHeight * (inspectResults.size() / 2 + 1));
@@ -1759,20 +1762,22 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
    UIDrawRectangle(painter, bounds, ui->theme.codeBackground, ui->theme.border, UIRectangle(2));
    UIRectangle line = bounds + UIRectangle(4, -4, 4, 0);
    line.b           = line.t + lineHeight;
+   std::string buffer;
 
-   for (size_t index = 0; index < inspectResults.size() / 2; index++) {
+   size_t index = 0;
+   for (const auto& ir : inspectResults) {
       if (noInspectResults) {
-         StringFormat(buffer, sizeof(buffer), "%s", inspectResults[index * 2]);
+         buffer = ir.expression.c_str();
       } else if (index < 9) {
-         StringFormat(buffer, sizeof(buffer), "[%d] %s %s", index + 1, inspectResults[index * 2],
-                      inspectResults[index * 2 + 1]);
+         buffer = std::format("[{}] {} {}", index + 1, ir.expression, ir.value);
       } else {
-         StringFormat(buffer, sizeof(buffer), "    %s %s", inspectResults[index * 2], inspectResults[index * 2 + 1]);
+         buffer = std::format("    {} {}", ir.expression, ir.value);
       }
 
-      UIDrawString(painter, line, buffer, -1, noInspectResults ? ui->theme.codeOperator : ui->theme.codeString,
+      UIDrawString(painter, line, buffer.c_str(), -1, noInspectResults ? ui->theme.codeOperator : ui->theme.codeString,
                    UIAlign::left, NULL);
       line = line + UIRectangle(0, lineHeight);
+      ++index;
    }
 
    UIDrawString(painter, line, instructions, -1, ui->theme.codeNumber, UIAlign::right, NULL);
@@ -2114,74 +2119,28 @@ bool InspectIsTokenCharacter(char c) {
 }
 
 void InspectCurrentLine() {
-   for (auto& ir : inspectResults)
-      free(ir);
    inspectResults.clear();
 
    UICodeLine* line   = &displayCode->lines[currentLine - 1];
    const char* string = displayCode->line(currentLine - 1);
    auto code = std::string_view{string, size_t(line->bytes)};
 
-   //auto expressions = regex::extract_debuggable_expressions(code);
-   //for (auto e : expressions) {
-   //}
+   auto expressions = regex::extract_debuggable_expressions(code);
+   for (auto e : expressions) {
+      auto res = EvaluateExpression(e);
+      // std::cout << "eval(\"" << e << "\") -> " << res << '\n';
 
-   for (size_t i = 0; i < line->bytes; i++) {
-      assert(line->bytes >= 1);
-      if ((i != line->bytes - 1 && InspectIsTokenCharacter(string[i]) && !InspectIsTokenCharacter(string[i + 1])) ||
-          string[i] == ']') {
-         int b = 0, j = i;
+      if (ctre::starts_with<"(A syntax error|No symbol|Attempt to|cannot resolve)">(res))
+         continue;
 
-         for (; j >= 0; j--) {
-            if (j && string[j] == '>' && string[j - 1] == '-') {
-               j--;
-            } else if (string[j] == ']') {
-               b++;
-            } else if (string[j] == '[' && b) {
-               b--;
-            } else if (InspectIsTokenCharacter(string[j]) || b || string[j] == '.') {
-            } else {
-               j++;
-               break;
-            }
-         }
-
-         char buffer[256];
-         if (i - j + 1 > 255 || j < 1)
-            continue;
-         StringFormat(buffer, sizeof(buffer), "%.*s", i - j + 1, string + j);
-
-         if (ctre::starts_with<"(true|false|if|for|else|while|int|char|switch|float)">(buffer))
-            continue;
-
-         bool match = false;
-
-         for (size_t k = 0; k < inspectResults.size(); k += 2) {
-            if (0 == strcmp(inspectResults[k], buffer)) {
-               match = true;
-            }
-         }
-
-         if (match)
-            continue;
-
-         auto res = EvaluateExpression(buffer);
-         // std::cout << "eval(\"" << buffer << "\") -> " << res << '\n';
-
-         if (ctre::starts_with<"(A syntax error|No symbol|Attempt to|cannot resolve)">(res))
-            continue;
-
-         if (0 == memcmp(res.c_str(), "= {", 3) && !strchr(res.c_str() + 3, '='))
-            continue;
-         inspectResults.push_back(strdup(buffer));
-         inspectResults.push_back(strdup(res.c_str()));
-      }
+      if (0 == memcmp(res.c_str(), "= {", 3) && !strchr(res.c_str() + 3, '='))
+         continue;
+      
+      inspectResults.emplace_back(std::string{e}, res);
    }
 
    if (!inspectResults.size()) {
-      inspectResults.push_back(strdup("No expressions to display."));
-      inspectResults.push_back(strdup(" "));
-      noInspectResults = true;
+      inspectResults.emplace_back("No expressions to display.", "");
    } else {
       noInspectResults = false;
    }
@@ -2205,11 +2164,11 @@ int InspectLineModeMessage(UIElement* element, UIMessage message, int di, void* 
       if ((m->textBytes == 1 && m->text[0] == '`') || m->code == UIKeycode::ESCAPE) {
          InspectLineModeExit(element);
       } else if (m->code >= UI_KEYCODE_DIGIT('1') && m->code <= UI_KEYCODE_DIGIT('9')) {
-         int index = ((int)m->code - (int)UI_KEYCODE_DIGIT('1')) * 2;
+         int index = ((int)m->code - (int)UI_KEYCODE_DIGIT('1'));
 
          if (index < (int)inspectResults.size()) {
             InspectLineModeExit(element);
-            WatchAddExpression2(inspectResults[index]);
+            WatchAddExpression2(inspectResults[index].expression.c_str());
          }
       } else if ((m->code == UIKeycode::UP && currentLine != 1) ||
                  (m->code == UIKeycode::DOWN && currentLine != (int)displayCode->num_lines())) {
@@ -2919,7 +2878,7 @@ void WatchAddExpression(WatchWindow* w, const char* string = nullptr) {
    }
 }
 
-void WatchAddExpression2(char* string) {
+void WatchAddExpression2(const char* string) {
    UIElement*   element = InterfaceWindowSwitchToAndFocus("Watch");
    WatchWindow* w       = (WatchWindow*)element->cp;
    w->selectedRow       = w->rows.size();
