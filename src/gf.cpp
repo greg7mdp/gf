@@ -3206,8 +3206,7 @@ void CommandWatchAddEntryForAddress(WatchWindow* _w) {
       assert(w != NULL);
    }
 
-   char address[64];
-   StringFormat(address, sizeof(address), "%s", res.c_str());
+   auto address = res;
    res = WatchEvaluate("gf_typeof", watch);
    if (res.empty() || strstr(res.c_str(), "??"))
       return;
@@ -4884,9 +4883,7 @@ void ProfShowSource(ProfFlameGraphReport* report) {
 }
 
 void ProfAddBreakpoint(ProfFlameGraphEntry* entry) {
-   char buffer[80];
-   StringFormat(buffer, sizeof(buffer), "b %s", entry->cName);
-   CommandSendToGDB(buffer);
+   CommandSendToGDB(std::format("b {}", entry->cName).c_str());
 }
 
 void ProfFillView(ProfFlameGraphReport* report) {
@@ -4988,9 +4985,8 @@ void* ProfFlameGraphRenderThread(void* _unused) {
             UIDrawBlock(painter, UIRectangle(r.l + 1, r.r - 1, r.t + 1, r.b - 1), color);
 
             if (r.width() > 40) {
-               char string[128];
-               StringFormat(string, sizeof(string), "%s %fms", entry->cName, entry->endTime - entry->startTime);
-               UIDrawString(painter, UIRectangle(r.l + 2, r.r, r.t, r.b), string, -1, profTextColor, UIAlign::left,
+               auto string = std::format("{} {:f}ms", entry->cName, entry->endTime - entry->startTime);
+               UIDrawString(painter, UIRectangle(r.l + 2, r.r, r.t, r.b), string.c_str(), -1, profTextColor, UIAlign::left,
                             NULL);
             }
          }
@@ -5076,10 +5072,9 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
             r.r = r.l + (int)(increment * zoomX);
             if (r.l > painter->clip.r)
                break;
-            char string[128];
-            StringFormat(string, sizeof(string), "%.4fms", i);
+            auto string = std::format("{:.4f}ms", i);
             UIDrawBlock(painter, UIRectangle(r.l, r.l + 1, r.t, r.b), profBorderLightColor);
-            UIDrawString(painter, r, string, -1, profTextColor, UIAlign::left, NULL);
+            UIDrawString(painter, r, string.c_str(), -1, profTextColor, UIAlign::left, NULL);
          }
       }
 
