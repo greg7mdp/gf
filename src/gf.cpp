@@ -1774,13 +1774,13 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
          buffer = std::format("    {} {}", ir.expression, ir.value);
       }
 
-      UIDrawString(painter, line, buffer.c_str(), -1, noInspectResults ? ui->theme.codeOperator : ui->theme.codeString,
+      UIDrawString(painter, line, buffer, noInspectResults ? ui->theme.codeOperator : ui->theme.codeString,
                    UIAlign::left, NULL);
       line = line + UIRectangle(0, lineHeight);
       ++index;
    }
 
-   UIDrawString(painter, line, instructions, -1, ui->theme.codeNumber, UIAlign::right, NULL);
+   UIDrawString(painter, line, instructions, ui->theme.codeNumber, UIAlign::right, NULL);
 }
 
 #define DISPLAY_CODE_COMMAND_FOR_ALL_BREAKPOINTS_ON_LINE(function, command)                          \
@@ -1874,7 +1874,7 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
       if (m->index == autoPrintResultLine) {
          UIRectangle rectangle =
             UIRectangle(m->x + ui->activeFont->glyphWidth, m->bounds.r, m->y, m->y + UIMeasureStringHeight());
-         UIDrawString(m->painter, rectangle, autoPrintResult, -1, ui->theme.codeComment, UIAlign::left, NULL);
+         UIDrawString(m->painter, rectangle, autoPrintResult, ui->theme.codeComment, UIAlign::left, NULL);
       }
 
       if (UICodeHitTest(code, element->window->cursor.x, element->window->cursor.y) == m->index &&
@@ -1883,10 +1883,10 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
           !element->window->textboxModifiedFlag) {
          UIDrawBorder(m->painter, m->bounds, element->window->ctrl ? ui->theme.selected : ui->theme.codeOperator,
                       UIRectangle(2));
-         UIDrawString(m->painter, m->bounds, element->window->ctrl ? "=> run until " : "=> skip to ", -1,
+         UIDrawString(m->painter, m->bounds, element->window->ctrl ? "=> run until " : "=> skip to ",
                       ui->theme.text, UIAlign::right, NULL);
       } else if (m->index == currentEndOfBlock) {
-         UIDrawString(m->painter, m->bounds, "[Shift+F10]", -1, ui->theme.codeComment, UIAlign::right, NULL);
+         UIDrawString(m->painter, m->bounds, "[Shift+F10]", ui->theme.codeComment, UIAlign::right, NULL);
       }
 
       if (m->index == ifConditionLine && ifConditionEvaluation) {
@@ -2401,10 +2401,10 @@ void BitmapViewerUpdate(std::string pointerString, std::string widthString, std:
       UIMDIChild* window     = UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Bitmap");
       window->messageUser    = BitmapViewerWindowMessage;
       window->cp             = bitmap;
-      bitmap->autoToggle     = UIButtonCreate(window, UIButton::SMALL | UIElement::NON_CLIENT, "Auto", -1);
+      bitmap->autoToggle     = UIButtonCreate(window, UIButton::SMALL | UIElement::NON_CLIENT, "Auto");
       bitmap->autoToggle->cp = (void*)BitmapViewerAutoUpdateCallback;
       bitmap->autoToggle->messageUser = DataViewerAutoUpdateButtonMessage;
-      UIButtonCreate(window, UIButton::SMALL | UIElement::NON_CLIENT, "Refresh", -1)->messageUser =
+      UIButtonCreate(window, UIButton::SMALL | UIElement::NON_CLIENT, "Refresh")->messageUser =
          BitmapViewerRefreshMessage;
       owner = window;
 
@@ -2412,7 +2412,7 @@ void BitmapViewerUpdate(std::string pointerString, std::string widthString, std:
       bitmap->display =
          UIImageDisplayCreate(panel, UIImageDisplay::INTERACTIVE | UIElement::V_FILL, bits, width, height, stride);
       bitmap->labelPanel           = UIPanelCreate(panel, UIPanel::COLOR_1 | UIElement::V_FILL);
-      bitmap->label                = UILabelCreate(bitmap->labelPanel, UIElement::H_FILL, nullptr, 0);
+      bitmap->label                = UILabelCreate(bitmap->labelPanel, UIElement::H_FILL, {});
       bitmap->display->messageUser = BitmapViewerDisplayMessage;
    }
 
@@ -2420,7 +2420,7 @@ void BitmapViewerUpdate(std::string pointerString, std::string widthString, std:
    bitmap->parsedWidth = width, bitmap->parsedHeight = height;
    UIImageDisplaySetContent(bitmap->display, bits, width, height, stride);
    if (error)
-      UILabelSetContent(bitmap->label, error, -1);
+      UILabelSetContent(bitmap->label, error);
    if (error)
       bitmap->labelPanel->flags &= ~UIElement::HIDE, bitmap->display->flags |= UIElement::HIDE;
    else
@@ -2551,7 +2551,7 @@ UIElement* ConsoleWindowCreate(UIElement* parent) {
    panel3->gap               = 5;
    trafficLight              = UISpacerCreate(panel3, 0, 30, 30);
    trafficLight->messageUser = TrafficLightMessage;
-   UIButton* buttonMenu      = UIButtonCreate(panel3, 0, "Menu", -1);
+   UIButton* buttonMenu      = UIButtonCreate(panel3, 0, "Menu");
    buttonMenu->invoke        = [buttonMenu]() { InterfaceShowMenu(buttonMenu); };
    textboxInput              = UITextboxCreate(panel3, UIElement::H_FILL);
    textboxInput->messageUser = TextboxInputMessage;
@@ -3044,7 +3044,7 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
 
    WatchLogger* logger = new WatchLogger;
 
-   UIButton* button = UIButtonCreate(child, UIButton::SMALL | UIElement::NON_CLIENT, "Resize columns", -1);
+   UIButton* button = UIButtonCreate(child, UIButton::SMALL | UIElement::NON_CLIENT, "Resize columns");
    button->invoke   = [logger]() { WatchLoggerResizeColumns(logger); };
 
    uintptr_t position = 0;
@@ -3390,9 +3390,9 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
             }
 
             if (focused) {
-               UIDrawString(painter, row, buffer, -1, ui->theme.textSelected, UIAlign::left, nullptr);
+               UIDrawString(painter, row, buffer, ui->theme.textSelected, UIAlign::left, nullptr);
             } else {
-               UIDrawStringHighlighted(painter, row, buffer, -1, 1, NULL);
+               UIDrawStringHighlighted(painter, row, buffer, 1, NULL);
             }
          }
       }
@@ -4004,11 +4004,11 @@ void CommandToggleFillDataTab() {
 UIElement* DataWindowCreate(UIElement* parent) {
    dataTab                  = UIPanelCreate(parent, UIPanel::EXPAND);
    UIPanel* panel5          = UIPanelCreate(dataTab, UIPanel::COLOR_1 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
-   buttonFillWindow         = UIButtonCreate(panel5, UIButton::SMALL, "Fill window", -1);
+   buttonFillWindow         = UIButtonCreate(panel5, UIButton::SMALL, "Fill window");
    buttonFillWindow->invoke = []() { CommandToggleFillDataTab(); };
 
    for (const auto& idw : interfaceDataViewers) {
-      UIButton* b = UIButtonCreate(panel5, UIButton::SMALL, idw.addButtonLabel, -1);
+      UIButton* b = UIButtonCreate(panel5, UIButton::SMALL, idw.addButtonLabel);
       b->invoke   = [&]() { idw.addButtonCallback(); };
    }
 
@@ -4073,7 +4073,7 @@ struct FilesWindow {
 bool FilesPanelPopulate(FilesWindow* window);
 
 mode_t FilesGetMode(FilesWindow* window, UIButton* button, size_t* oldLength) {
-   const char* name = button->label;
+   const char* name = button->label.data();
    *oldLength       = strlen(window->directory);
    strcat(window->directory, "/");
    strcat(window->directory, name);
@@ -4108,7 +4108,7 @@ int FilesButtonMessage(UIElement* element, UIMessage message, int di, void* dp) 
       if (i)
          UIDrawBlock(painter, element->bounds, i == 2 ? ui->theme.buttonPressed : ui->theme.buttonHovered);
       UIDrawString(painter, element->bounds + UIRectangle(ui_size::BUTTON_PADDING, 0, 0, 0), button->label,
-                   button->labelBytes, button->flags & UIButton::CHECKED ? ui->theme.codeNumber : ui->theme.codeDefault,
+                   button->flags & UIButton::CHECKED ? ui->theme.codeNumber : ui->theme.codeDefault,
                    UIAlign::left, NULL);
       return 1;
    }
@@ -4133,7 +4133,7 @@ bool FilesPanelPopulate(FilesWindow* window) {
 
    for (auto name : names) {
       if (name[0] != '.' || name[1] != 0) {
-         UIButton* button = UIButtonCreate(window->panel, 0, name, -1);
+         UIButton* button = UIButtonCreate(window->panel, 0, name);
          button->flags &= ~UIElement::TAB_STOP;
          button->cp          = window;
          button->messageUser = FilesButtonMessage;
@@ -4154,7 +4154,7 @@ bool FilesPanelPopulate(FilesWindow* window) {
    {
       char path[PATH_MAX];
       realpath(window->directory, path);
-      UILabelSetContent(window->path, path, -1);
+      UILabelSetContent(window->path, path);
    }
 
    return true;
@@ -4184,13 +4184,13 @@ UIElement* FilesWindowCreate(UIElement* parent) {
    window->panel->cp = window;
    UIPanel* row      = UIPanelCreate(container, UIPanel::COLOR_2 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
 
-   UIButton* button = UIButtonCreate(row, UIButton::SMALL, "-> cwd", -1);
+   UIButton* button = UIButtonCreate(row, UIButton::SMALL, "-> cwd");
    button->invoke   = [window]() { FilesNavigateToCWD(window); };
 
-   button         = UIButtonCreate(row, UIButton::SMALL, "-> active file", -1);
+   button         = UIButtonCreate(row, UIButton::SMALL, "-> active file");
    button->invoke = [window]() { FilesNavigateToActiveFile(window); };
 
-   window->path = UILabelCreate(row, UIElement::H_FILL, "", 0);
+   window->path = UILabelCreate(row, UIElement::H_FILL, "");
    FilesNavigateToCWD(window);
    return container;
 }
@@ -4261,7 +4261,7 @@ void RegistersWindowUpdate(const char*, UIElement* panel) {
       UIPanel* row = UIPanelCreate(panel, UIPanel::HORIZONTAL | UIElement::H_FILL);
       if (modified)
          row->messageUser = ModifiedRowMessage;
-      UILabelCreate(row, 0, stringStart, stringEnd - stringStart);
+      UILabelCreate(row, 0, {stringStart, static_cast<size_t>(stringEnd - stringStart)});
 
       bool isPC = false;
       if (nameEnd == nameStart + 3 && 0 == memcmp(nameStart, "rip", 3))
@@ -4300,10 +4300,10 @@ UIElement* CommandsWindowCreate(UIElement* parent) {
    UIPanel* panel =
       UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::SMALL_SPACING | UIPanel::EXPAND | UIPanel::SCROLL);
    if (!presetCommands.size())
-      UILabelCreate(panel, 0, "No preset commands found in config file!", -1);
+      UILabelCreate(panel, 0, "No preset commands found in config file!");
 
    for (const auto& cmd : presetCommands) {
-      UIButton* button = UIButtonCreate(panel, 0, cmd.key, -1);
+      UIButton* button = UIButtonCreate(panel, 0, cmd.key);
       button->invoke   = [command = std::format("gf-command {}", cmd.key)]() { CommandSendToGDB(command); };
    }
 
@@ -4517,25 +4517,25 @@ void ExecutableWindowSaveButton(void* _window) {
 UIElement* ExecutableWindowCreate(UIElement* parent) {
    ExecutableWindow* window = new ExecutableWindow;
    UIPanel*          panel  = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
-   UILabelCreate(panel, 0, "Path to executable:", -1);
+   UILabelCreate(panel, 0, "Path to executable:");
    window->path = UITextboxCreate(panel, 0);
    UITextboxReplace(window->path, executablePath, -1, false);
-   UILabelCreate(panel, 0, "Command line arguments:", -1);
+   UILabelCreate(panel, 0, "Command line arguments:");
    window->arguments = UITextboxCreate(panel, 0);
    UITextboxReplace(window->arguments, executableArguments, -1, false);
-   window->askDirectory        = UICheckboxCreate(panel, 0, "Ask GDB for working directory", -1);
+   window->askDirectory        = UICheckboxCreate(panel, 0, "Ask GDB for working directory");
    window->askDirectory->check = executableAskDirectory ? UICheckbox::CHECKED : UICheckbox::UNCHECKED;
    UIPanel* row                = UIPanelCreate(panel, UIPanel::HORIZONTAL);
 
-   UIButton* button = UIButtonCreate(row, 0, "Run", -1);
+   UIButton* button = UIButtonCreate(row, 0, "Run");
    button->invoke   = [window]() { ExecutableWindowRunButton(window); };
 
-   button         = UIButtonCreate(row, 0, "Start", -1);
+   button         = UIButtonCreate(row, 0, "Start");
    button->invoke = [window]() { ExecutableWindowStartButton(window); };
 
    UISpacerCreate(row, 0, 10, 0);
 
-   button         = UIButtonCreate(row, 0, "Save to .project.gf", -1);
+   button         = UIButtonCreate(row, 0, "Save to .project.gf");
    button->invoke = [window]() { ExecutableWindowSaveButton(window); };
    return panel;
 }
@@ -4986,7 +4986,7 @@ void* ProfFlameGraphRenderThread(void* _unused) {
 
             if (r.width() > 40) {
                auto string = std::format("{} {:f}ms", entry->cName, entry->endTime - entry->startTime);
-               UIDrawString(painter, UIRectangle(r.l + 2, r.r, r.t, r.b), string.c_str(), -1, profTextColor, UIAlign::left,
+               UIDrawString(painter, UIRectangle(r.l + 2, r.r, r.t, r.b), string, profTextColor, UIAlign::left,
                             NULL);
             }
          }
@@ -5074,7 +5074,7 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
                break;
             auto string = std::format("{:.4f}ms", i);
             UIDrawBlock(painter, UIRectangle(r.l, r.l + 1, r.t, r.b), profBorderLightColor);
-            UIDrawString(painter, r, string.c_str(), -1, profTextColor, UIAlign::left, NULL);
+            UIDrawString(painter, r, string, profTextColor, UIAlign::left, NULL);
          }
       }
 
@@ -5123,13 +5123,13 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
                       function.totalTime / report->totalTime * 100.0);
 
          int width      = 0;
-         int line1Width = UIMeasureStringWidth(line1, -1);
+         int line1Width = UIMeasureStringWidth(line1);
          if (width < line1Width)
             width = line1Width;
-         int line2Width = UIMeasureStringWidth(line2, -1);
+         int line2Width = UIMeasureStringWidth(line2);
          if (width < line2Width)
             width = line2Width;
-         int line3Width = UIMeasureStringWidth(line3, -1);
+         int line3Width = UIMeasureStringWidth(line3);
          if (width < line3Width)
             width = line3Width;
          int lineHeight = UIMeasureStringHeight();
@@ -5143,11 +5143,11 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
          UIRectangle rectangle = UIRectangle(x, x + width, y, y + height);
 
          ProfDrawTransparentOverlay(painter, rectangle + ui_rect_1i(-5), 0xFF000000);
-         UIDrawString(painter, UIRectangle(x, x + width, y + lineHeight * 0, y + lineHeight * 1), line1, -1, 0xFFFFFFFF,
+         UIDrawString(painter, UIRectangle(x, x + width, y + lineHeight * 0, y + lineHeight * 1), line1, 0xFFFFFFFF,
                       UIAlign::left, 0);
-         UIDrawString(painter, UIRectangle(x, x + width, y + lineHeight * 1, y + lineHeight * 2), line2, -1, 0xFFFFFFFF,
+         UIDrawString(painter, UIRectangle(x, x + width, y + lineHeight * 1, y + lineHeight * 2), line2, 0xFFFFFFFF,
                       UIAlign::left, 0);
-         UIDrawString(painter, UIRectangle(x, x + width, y + lineHeight * 2, y + lineHeight * 3), line3, -1, 0xFFFFFFFF,
+         UIDrawString(painter, UIRectangle(x, x + width, y + lineHeight * 2, y + lineHeight * 3), line3, 0xFFFFFFFF,
                       UIAlign::left, 0);
       }
 
@@ -5362,9 +5362,7 @@ int ProfReportWindowMessage(UIElement* element, UIMessage message, int di, void*
 
 void ProfSwitchView(ProfFlameGraphReport* report) {
    report->showingTable = !report->showingTable;
-   UI_FREE(report->switchViewButton->label);
-   report->switchViewButton->label =
-      UIStringCopy(report->showingTable ? "Graph view" : "Table view", (report->switchViewButton->labelBytes = -1));
+   report->switchViewButton->label = report->showingTable ? "Graph view" : "Table view";
    report->parent->Refresh();
 }
 
@@ -5466,7 +5464,7 @@ void ProfLoadProfileData(void* _window) {
       char string[256];
       StringFormat(string, sizeof(string), "Loading data... (estimated time: %d seconds)", rawEntryCount / 5000000 + 1);
       UIDrawBlock(&painter, painter.clip, ui->theme.panel1);
-      UIDrawString(&painter, painter.clip, string, -1, ui->theme.text, UIAlign::center, 0);
+      UIDrawString(&painter, painter.clip, string, ui->theme.text, UIAlign::center, 0);
       window->updateRegion = ui_rect_2s(window->width, window->height);
       window->EndPaint(nullptr);
       window->updateRegion = painter.clip;
@@ -5578,7 +5576,7 @@ void ProfLoadProfileData(void* _window) {
    }
 
    UIMDIChild* window = UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, ui_rect_2s(800, 600), "Flame graph");
-   UIButton*   switchViewButton = UIButtonCreate(window, UIButton::SMALL | UIElement::NON_CLIENT, "Table view", -1);
+   UIButton*   switchViewButton = UIButtonCreate(window, UIButton::SMALL | UIElement::NON_CLIENT, "Table view");
    UITable*    table            = UITableCreate(window, 0, "Name\tTime spent (ms)\tCall count\tAverage per call (ms)");
    ProfFlameGraphReport* report = new ProfFlameGraphReport(window, 0);
 
@@ -5746,7 +5744,7 @@ UIElement* ProfWindowCreate(UIElement* parent) {
    window->fontFlameGraph         = UIFontCreate(_UI_TO_STRING_2(UI_FONT_PATH), fontSizeFlameGraph);
    UIPanel* panel                 = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
    panel->cp                      = window;
-   UIButton* button               = UIButtonCreate(panel, UIElement::V_FILL, "Step over profiled", -1);
+   UIButton* button               = UIButtonCreate(panel, UIElement::V_FILL, "Step over profiled");
    button->invoke                 = [window]() { ProfStepOverProfiled(window); };
 
 #ifdef UI_FREETYPE
@@ -5783,7 +5781,7 @@ struct MemoryWindow : public UIElement {
 
    MemoryWindow(UIElement* parent)
       : UIElement(parent, 0, MemoryWindowMessage, "memory window")
-      , gotoButton(UIButtonCreate(this, UIButton::SMALL, "&", -1)) {
+      , gotoButton(UIButtonCreate(this, UIButton::SMALL, "&")) {
       gotoButton->invoke = [this]() { MemoryWindowGotoButtonInvoke(this); };
    }
 };
@@ -5804,11 +5802,11 @@ int MemoryWindowMessage(UIElement* element, UIMessage message, int di, void* dp)
 
       {
          StringFormat(buffer, sizeof(buffer), "Inspecting memory @%p", (void*)window->offset);
-         UIDrawString(painter, row, buffer, -1, ui->theme.codeString, UIAlign::left, 0);
+         UIDrawString(painter, row, buffer, ui->theme.codeString, UIAlign::left, 0);
          row.t += rowHeight;
          row.b += rowHeight;
          const char* header = "         0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F   0123456789ABCDEF";
-         UIDrawString(painter, row, header, -1, ui->theme.codeComment, UIAlign::left, 0);
+         UIDrawString(painter, row, header, ui->theme.codeComment, UIAlign::left, 0);
          row.t += rowHeight;
          row.b += rowHeight;
       }
@@ -5848,9 +5846,9 @@ int MemoryWindowMessage(UIElement* element, UIMessage message, int di, void* dp)
          int position = 0;
 
          StringFormat(buffer, sizeof(buffer), "%.8X ", (uint32_t)(address & 0xFFFFFFFF));
-         UIDrawString(painter, row, buffer, -1, ui->theme.codeComment, UIAlign::left, 0);
-         UIRectangle r          = row + UIRectangle(UIMeasureStringWidth(buffer, -1), 0, 0, 0);
-         int         glyphWidth = UIMeasureStringWidth("a", 1);
+         UIDrawString(painter, row, buffer, ui->theme.codeComment, UIAlign::left, 0);
+         UIRectangle r          = row + UIRectangle(UIMeasureStringWidth(buffer), 0, 0, 0);
+         int         glyphWidth = UIMeasureStringWidth("a");
 
          for (int i = 0; i < 16; i++) {
             if (address + i >= window->offset + window->loadedBytes.size() ||
@@ -5988,7 +5986,7 @@ struct ViewWindowMatrixGrid : public UIElement {
       , h(h) {
       hScroll          = UIScrollBarCreate(this, UIScrollBar::HORIZONTAL);
       vScroll          = UIScrollBarCreate(this, 0);
-      hScroll->maximum = w * UIMeasureStringWidth("A", 1) * itemCharacters;
+      hScroll->maximum = w * UIMeasureStringWidth("A") * itemCharacters;
       vScroll->maximum = h * UIMeasureStringHeight();
 
       if (type == 'c') {
@@ -6032,8 +6030,8 @@ int ViewWindowColorSwatchMessage(UIElement* element, UIMessage message, int di, 
       uint32_t    color   = ((ViewWindowColorSwatch*)element)->color;
       UIPainter*  painter = (UIPainter*)dp;
       const char* message = "Col: ";
-      UIDrawString(painter, element->bounds, message, -1, ui->theme.text, UIAlign::left, nullptr);
-      UIRectangle swatch = UIRectangle(element->bounds.l + UIMeasureStringWidth(message, -1), 0, element->bounds.t + 2,
+      UIDrawString(painter, element->bounds, message, ui->theme.text, UIAlign::left, nullptr);
+      UIRectangle swatch = UIRectangle(element->bounds.l + UIMeasureStringWidth(message), 0, element->bounds.t + 2,
                                        element->bounds.b - 2);
       swatch.r           = swatch.l + 50;
       UIDrawRectangle(painter, swatch, color, 0xFF000000, UIRectangle(1));
@@ -6078,7 +6076,7 @@ int ViewWindowMatrixGridMessage(UIElement* element, UIMessage message, int di, v
       // TODO Optimise for really large arrays.
       // TODO Calculate eigenvectors/values.
 
-      int        glyphWidth  = UIMeasureStringWidth("A", 1);
+      int        glyphWidth  = UIMeasureStringWidth("A");
       int        glyphHeight = UIMeasureStringHeight();
       UIPainter* painter     = (UIPainter*)dp;
 
@@ -6099,7 +6097,7 @@ int ViewWindowMatrixGridMessage(UIElement* element, UIMessage message, int di, v
                   UIRectangle(j * glyphWidth * 14, (j + 1) * glyphWidth * 14, i * glyphHeight, (i + 1) * glyphHeight);
                UIRectangle offset = UIRectangle(element->bounds.l - (int)grid->hScroll->position,
                                                 element->bounds.t - (int)grid->vScroll->position);
-               UIDrawString(painter, rectangle + offset, buffer, -1, ui->theme.text, UIAlign::right, nullptr);
+               UIDrawString(painter, rectangle + offset, buffer, ui->theme.text, UIAlign::right, nullptr);
             }
          }
       }
@@ -6131,7 +6129,7 @@ int ViewWindowStringLayout(ViewWindowString* display, UIPainter* painter, int of
    UIRectangle clientBounds = display->bounds;
    clientBounds.r -= ui_size::SCROLL_BAR * display->window->scale;
    int x = clientBounds.l, y = clientBounds.t - offset;
-   int glyphWidth = UIMeasureStringWidth("a", 1), glyphHeight = UIMeasureStringHeight();
+   int glyphWidth = UIMeasureStringWidth("a"), glyphHeight = UIMeasureStringHeight();
 
    for (int i = 0; i < display->length; i++) {
       if (x + glyphWidth > clientBounds.r) {
@@ -6228,7 +6226,7 @@ void ViewWindowView(void* cp) {
    // Destroy the previous panel contents.
    UIElement* panel = (UIElement*)cp;
    panel->DestroyDescendents();
-   UIButton* button = UIButtonCreate(panel, 0, "View (Ctrl+Shift+V)", -1);
+   UIButton* button = UIButtonCreate(panel, 0, "View (Ctrl+Shift+V)");
    button->invoke   = [panel]() { ViewWindowView(panel); };
 
    // Get information about the watch expression.
@@ -6240,7 +6238,7 @@ void ViewWindowView(void* cp) {
    resize_to_lf(res);
    StringFormat(type, sizeof(type), "%s", res.c_str());
    StringFormat(buffer, sizeof(buffer), "Type: %s", type);
-   UILabelCreate(panel, 0, buffer, -1);
+   UILabelCreate(panel, 0, buffer);
 
    res = WatchEvaluate("gf_valueof", watch);
    resize_to_lf(res);
@@ -6265,13 +6263,13 @@ void ViewWindowView(void* cp) {
 
       StringFormat(buffer, sizeof(buffer), " 8b: %d %u 0x%x '%c'", (int8_t)value, (uint8_t)value, (uint8_t)value,
                    (char)value);
-      UILabelCreate(panel, 0, buffer, -1);
+      UILabelCreate(panel, 0, buffer);
       StringFormat(buffer, sizeof(buffer), "16b: %d %u 0x%x", (int16_t)value, (uint16_t)value, (uint16_t)value);
-      UILabelCreate(panel, 0, buffer, -1);
+      UILabelCreate(panel, 0, buffer);
       StringFormat(buffer, sizeof(buffer), "32b: %d %u 0x%x", (int32_t)value, (uint32_t)value, (uint32_t)value);
-      UILabelCreate(panel, 0, buffer, -1);
+      UILabelCreate(panel, 0, buffer);
       StringFormat(buffer, sizeof(buffer), "64b: %ld %lu 0x%lx", (int64_t)value, (uint64_t)value, (uint64_t)value);
-      UILabelCreate(panel, 0, buffer, -1);
+      UILabelCreate(panel, 0, buffer);
 
       int p = StringFormat(buffer, sizeof(buffer), "Bin: ");
 
@@ -6281,7 +6279,7 @@ void ViewWindowView(void* cp) {
             buffer[p++] = ' ';
       }
 
-      UILabelCreate(panel, 0, buffer, p);
+      UILabelCreate(panel, 0, {buffer, static_cast<size_t>(p)});
 
       p = StringFormat(buffer, sizeof(buffer), "     ");
 
@@ -6291,7 +6289,7 @@ void ViewWindowView(void* cp) {
             buffer[p++] = ' ';
       }
 
-      UILabelCreate(panel, 0, buffer, p);
+      UILabelCreate(panel, 0, {buffer, static_cast<size_t>(p)});
 
       if (value <= 0xFFFFFFFF) {
          new ViewWindowColorSwatch(panel, (uint32_t)value);
@@ -6346,7 +6344,7 @@ void ViewWindowView(void* cp) {
          // printf("got '%s'\n", data);
          new ViewWindowString(panel, std::move(data), length);
          StringFormat(buffer, sizeof(buffer), "%d+1 bytes", length);
-         UILabelCreate(panel, UIElement::H_FILL, buffer, -1);
+         UILabelCreate(panel, UIElement::H_FILL, buffer);
       } else {
          goto unrecognised;
       }
@@ -6398,13 +6396,13 @@ void ViewWindowView(void* cp) {
 
          double determinant = ViewWindowMatrixCalculateDeterminant(matrix, w);
          StringFormat(buffer, sizeof(buffer), "Determinant: %f", determinant);
-         UILabelCreate(panel, 0, buffer, -1);
+         UILabelCreate(panel, 0, buffer);
       }
    } else {
    unrecognised:;
       // TODO Custom view.
       // TODO Table view for array of structures.
-      UILabelCreate(panel, 0, "No view available for type.", -1);
+      UILabelCreate(panel, 0, "No view available for type.");
    }
 
    // Relayout the panel.
@@ -6419,9 +6417,9 @@ void ViewWindowUpdate(const char* data, UIElement* element) {}
 
 UIElement* ViewWindowCreate(UIElement* parent) {
    UIPanel*  panel  = UIPanelCreate(parent, UIPanel::EXPAND | UIPanel::COLOR_1);
-   UIButton* button = UIButtonCreate(panel, 0, "View (Ctrl+Shift+V)", -1);
+   UIButton* button = UIButtonCreate(panel, 0, "View (Ctrl+Shift+V)");
    button->invoke   = [panel]() { ViewWindowView(panel); };
-   UILabelCreate(panel, 0, "Select a watch expression, then click View.", -1);
+   UILabelCreate(panel, 0, "Select a watch expression, then click View.");
    return panel;
 }
 
@@ -6450,9 +6448,9 @@ struct WaveformDisplay : public UIElement {
       , samplesOnScreen(0)
       , minimumZoom(0)
       , scrollBar(new UIScrollBar(this, UIElement::NON_CLIENT | UIScrollBar::HORIZONTAL))
-      , zoomOut(new UIButton(this, UIButton::SMALL, "-", -1))
-      , zoomIn(new UIButton(this, UIButton::SMALL, "+", -1))
-      , normalize(new UIButton(this, UIButton::SMALL, "Norm", -1))
+      , zoomOut(new UIButton(this, UIButton::SMALL, "-"))
+      , zoomIn(new UIButton(this, UIButton::SMALL, "+"))
+      , normalize(new UIButton(this, UIButton::SMALL, "Norm"))
       , dragLastX(0)
       , dragLastModification(0)
       , peak(0) {
@@ -6658,7 +6656,7 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
                strcat(buffer, buffer2);
             }
 
-            UIDrawString(painter, stringRectangle, buffer, -1, ui->theme.text, UIAlign::right, NULL);
+            UIDrawString(painter, stringRectangle, buffer, ui->theme.text, UIAlign::right, NULL);
 
             int32_t x1 = (int)((float)(mouseXSample + 1) / sampleCount * client.width()) + client.l;
             WaveformDisplayDrawVerticalLineWithTranslucency(painter, UIRectangle(x1, x1 + 1, client.t, client.b),
@@ -6906,16 +6904,16 @@ void WaveformViewerUpdate(const char* pointerString, const char* sampleCountStri
       UIMDIChild* window     = UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Waveform");
       window->messageUser    = WaveformViewerWindowMessage;
       window->cp             = viewer;
-      viewer->autoToggle     = UIButtonCreate(window, UIButton::SMALL | UIElement::NON_CLIENT, "Auto", -1);
+      viewer->autoToggle     = UIButtonCreate(window, UIButton::SMALL | UIElement::NON_CLIENT, "Auto");
       viewer->autoToggle->cp = (void*)WaveformViewerAutoUpdateCallback;
       viewer->autoToggle->messageUser = DataViewerAutoUpdateButtonMessage;
-      UIButtonCreate(window, UIButton::SMALL | UIElement::NON_CLIENT, "Refresh", -1)->messageUser =
+      UIButtonCreate(window, UIButton::SMALL | UIElement::NON_CLIENT, "Refresh")->messageUser =
          WaveformViewerRefreshMessage;
       owner = window;
 
       UIPanel* panel               = UIPanelCreate(owner, UIPanel::EXPAND);
       viewer->labelPanel           = UIPanelCreate(panel, UIPanel::COLOR_1 | UIElement::V_FILL);
-      viewer->label                = UILabelCreate(viewer->labelPanel, UIElement::H_FILL, nullptr, 0);
+      viewer->label                = UILabelCreate(viewer->labelPanel, UIElement::H_FILL, {});
       viewer->display              = WaveformDisplayCreate(panel, UIElement::V_FILL);
       viewer->display->messageUser = WaveformViewerDisplayMessage;
    }
@@ -6924,7 +6922,7 @@ void WaveformViewerUpdate(const char* pointerString, const char* sampleCountStri
    viewer->parsedSampleCount = sampleCount, viewer->parsedChannels = channels;
 
    if (error) {
-      UILabelSetContent(viewer->label, error, -1);
+      UILabelSetContent(viewer->label, error);
       viewer->labelPanel->flags &= ~UIElement::HIDE;
       viewer->display->flags |= UIElement::HIDE;
    } else {
