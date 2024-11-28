@@ -4583,10 +4583,10 @@ UIElement* ExecutableWindowCreate(UIElement* parent) {
    UIPanel*          panel  = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
    UILabelCreate(panel, 0, "Path to executable:");
    window->path = UITextboxCreate(panel, 0);
-   UITextboxReplace(window->path, executablePath, false);
+   UITextboxReplace(window->path, executablePath ?: "", false);
    UILabelCreate(panel, 0, "Command line arguments:");
    window->arguments = UITextboxCreate(panel, 0);
-   UITextboxReplace(window->arguments, executableArguments, false);
+   UITextboxReplace(window->arguments, executableArguments ?: "", false);
    window->askDirectory        = UICheckboxCreate(panel, 0, "Ask GDB for working directory");
    window->askDirectory->check = executableAskDirectory ? UICheckbox::CHECKED : UICheckbox::UNCHECKED;
    UIPanel* row                = UIPanelCreate(panel, UIPanel::HORIZONTAL);
