@@ -1600,7 +1600,7 @@ int _UIButtonMessage(UIElement* element, UIMessage message, int di, void* dp) {
    } else if (message == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
-      if ((m->textBytes == 1 && m->text[0] == ' ') || m->code == UIKeycode::ENTER) {
+      if ((m->text == " ") || m->code == UIKeycode::ENTER) {
          element->Message(UIMessage::CLICKED, 0, 0);
          element->Repaint(NULL);
          return 1;
@@ -1650,7 +1650,7 @@ int _UICheckboxMessage(UIElement* element, UIMessage message, int di, void* dp) 
    } else if (message == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
-      if (m->textBytes == 1 && m->text[0] == ' ') {
+      if (m->text == " ") {
          element->Message(UIMessage::CLICKED, 0, 0);
          element->Repaint(NULL);
       }
@@ -3307,8 +3307,8 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
       } else if (m->code == UI_KEYCODE_LETTER('A') && element->window->ctrl) {
          textbox->carets[1] = 0;
          textbox->carets[0] = textbox->bytes;
-      } else if (m->textBytes && !element->window->alt && !element->window->ctrl && m->text[0] >= 0x20) {
-         UITextboxReplace(textbox, m->text, m->textBytes, true);
+      } else if (m->text.size() && !element->window->alt && !element->window->ctrl && m->text[0] >= 0x20) {
+         UITextboxReplace(textbox, m->text.data(), m->text.size(), true);
       } else if ((m->code == UI_KEYCODE_LETTER('C') || m->code == UI_KEYCODE_LETTER('X') ||
                   m->code == UIKeycode::INSERT) &&
                  element->window->ctrl && !element->window->alt && !element->window->shift) {
@@ -3790,7 +3790,7 @@ int _UIDialogWrapperMessage(UIElement* element, UIMessage message, int di, void*
 
       char c0 = 0, c1 = 0;
 
-      if (typed->textBytes == 1 && typed->text[0] >= 'a' && typed->text[0] <= 'z') {
+      if (typed->text.size() == 1 && typed->text[0] >= 'a' && typed->text[0] <= 'z') {
          c0 = typed->text[0], c1 = typed->text[0] - 'a' + 'A';
       } else {
          return 0;
@@ -4807,17 +4807,17 @@ void UIAutomationKeyboardTypeSingle(intptr_t code, bool ctrl, bool shift, bool a
 void UIAutomationKeyboardType(const char* string) {
    UIWindow* window = ui->windows; // TODO Get the focused window.
 
-   UIKeyTyped m = {0};
+   UIKeyTyped m;
    char       c[2];
-   m.text      = c;
-   m.textBytes = 1;
-   c[1]        = 0;
+   
+   c[1]   = 0;
+   m.text = std::string_view{c, 1};
 
    for (int i = 0; string[i]; i++) {
+      c[0]          = string[i];
       window->ctrl  = false;
       window->alt   = false;
       window->shift = (c[0] >= 'A' && c[0] <= 'Z');
-      c[0]          = string[i];
       m.code        = (c[0] >= 'A' && c[0] <= 'Z')   ? UI_KEYCODE_LETTER(c[0])
                       : c[0] == '\n'                 ? UIKeycode::ENTER
                       : c[0] == '\t'                 ? UIKeycode::TAB
@@ -5401,10 +5401,10 @@ bool _UIProcessEvent(XEvent* event) {
          KeySym symbol = NoSymbol;
          Status status;
          // printf("%ld, %s\n", symbol, text);
-         UIKeyTyped m = {0};
-         m.textBytes  = Xutf8LookupString(window->xic, &event->xkey, text, sizeof(text) - 1, &symbol, &status);
-         m.text       = text;
-         m.code       = (UIKeycode)XLookupKeysym(&event->xkey, 0);
+         UIKeyTyped m;
+         auto       sz = Xutf8LookupString(window->xic, &event->xkey, text, sizeof(text) - 1, &symbol, &status);
+         m.text        = {text, static_cast<size_t>(sz)};
+         m.code        = (UIKeycode)XLookupKeysym(&event->xkey, 0);
 
          if (symbol == XK_Control_L || symbol == XK_Control_R) {
             window->ctrl     = true;
@@ -5460,9 +5460,9 @@ bool _UIProcessEvent(XEvent* event) {
          char       text[32];
          KeySym     symbol = NoSymbol;
          Status     status;
-         UIKeyTyped m = {0};
-         m.textBytes  = Xutf8LookupString(window->xic, &event->xkey, text, sizeof(text) - 1, &symbol, &status);
-         m.text       = text;
+         UIKeyTyped m;
+         auto sz = Xutf8LookupString(window->xic, &event->xkey, text, sizeof(text) - 1, &symbol, &status);
+         m.text       = { text, static_cast<size_t>(sz) };
          m.code       = (UIKeycode)XLookupKeysym(&event->xkey, 0);
          window->InputEvent(UIMessage::KEY_RELEASED, 0, &m);
       }
@@ -5812,10 +5812,9 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPAR
       m.code       = (UIKeycode)wParam;
       window->InputEvent(UIMessage::KEY_TYPED, 0, &m);
    } else if (message == WM_CHAR) {
-      UIKeyTyped m = {0};
+      UIKeyTyped m;
       char       c = wParam;
-      m.text       = &c;
-      m.textBytes  = 1;
+      m.text       = {&c, 1};
       window->InputEvent(UIMessage::KEY_TYPED, 0, &m);
    } else if (message == WM_PAINT) {
       PAINTSTRUCT      paint;

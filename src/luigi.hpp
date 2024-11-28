@@ -422,9 +422,8 @@ struct UIStringSelection {
 };
 
 struct UIKeyTyped {
-   char*     text      = nullptr;
-   int       textBytes = 0;
-   UIKeycode code      = static_cast<UIKeycode>(0);
+   std::string_view text;
+   UIKeycode        code = static_cast<UIKeycode>(0);
 };
 
 struct UITableGetItem {

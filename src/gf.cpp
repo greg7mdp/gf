@@ -2161,7 +2161,7 @@ int InspectLineModeMessage(UIElement* element, UIMessage message, int di, void* 
    } else if (message == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
-      if ((m->textBytes == 1 && m->text[0] == '`') || m->code == UIKeycode::ESCAPE) {
+      if ((m->text == "`") || m->code == UIKeycode::ESCAPE) {
          InspectLineModeExit(element);
       } else if (m->code >= UI_KEYCODE_DIGIT('1') && m->code <= UI_KEYCODE_DIGIT('9')) {
          int index = ((int)m->code - (int)UI_KEYCODE_DIGIT('1'));
@@ -2488,7 +2488,7 @@ int TextboxInputMessage(UIElement* element, UIMessage message, int di, void* dp)
       bool                lastKeyWasTab = tabCompleter._lastKeyWasTab;
       tabCompleter._lastKeyWasTab       = false;
 
-      if (m->textBytes && !element->window->ctrl && !element->window->alt && m->text[0] == '`' && !textbox->bytes) {
+      if (m->text.size() && !element->window->ctrl && !element->window->alt && m->text[0] == '`' && !textbox->bytes) {
          textbox->rejectNextKey = true;
       } else if (m->code == UIKeycode::ENTER && !element->window->shift) {
          if (!textbox->bytes) {
@@ -3407,7 +3407,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
             int                      x = (element->window->cursor.x - element->bounds.l) / ui->activeFont->glyphWidth;
 
             if (x >= watch->depth * 3 - 1 && x <= watch->depth * 3 + 1 && watch->hasFields) {
-               UIKeyTyped m = {0};
+               UIKeyTyped m;
                m.code       = watch->open ? UIKeycode::LEFT : UIKeycode::RIGHT;
                WatchWindowMessage(element, UIMessage::KEY_TYPED, 0, &m);
             }
@@ -3469,7 +3469,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
       result        = 1;
 
       if (w->waitingForFormatCharacter) {
-         w->rows[w->selectedRow]->format = (m->textBytes && isalpha(m->text[0])) ? m->text[0] : 0;
+         w->rows[w->selectedRow]->format = (!m->text.empty() && isalpha(m->text[0])) ? m->text[0] : 0;
          w->rows[w->selectedRow]->updateIndex--;
 
          if (w->rows[w->selectedRow]->isArray) {
@@ -3488,16 +3488,16 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
       } else if (m->code == UIKeycode::DEL && !w->textbox && w->selectedRow != w->rows.size() &&
                  !w->rows[w->selectedRow]->parent) {
          WatchDeleteExpression(w);
-      } else if (m->textBytes && m->text[0] == '/' && w->selectedRow != w->rows.size()) {
+      } else if (!m->text.empty() && m->text[0] == '/' && w->selectedRow != w->rows.size()) {
          w->waitingForFormatCharacter = true;
-      } else if (m->textBytes && m->text[0] == '`') {
+      } else if (!m->text.empty() && m->text[0] == '`') {
          result = 0;
-      } else if (w->mode == WATCH_NORMAL && m->textBytes && m->code != UIKeycode::TAB && !w->textbox &&
+      } else if (w->mode == WATCH_NORMAL && !m->text.empty() && m->code != UIKeycode::TAB && !w->textbox &&
                  !element->window->ctrl && !element->window->alt &&
                  (w->selectedRow == w->rows.size() || !w->rows[w->selectedRow]->parent)) {
          WatchCreateTextboxForRow(w, false);
          w->textbox->Message(message, di, dp);
-      } else if (w->mode == WATCH_NORMAL && m->textBytes && m->code == UI_KEYCODE_LETTER('V') && !w->textbox &&
+      } else if (w->mode == WATCH_NORMAL && !m->text.empty() && m->code == UI_KEYCODE_LETTER('V') && !w->textbox &&
                  element->window->ctrl && !element->window->alt && !element->window->shift &&
                  (w->selectedRow == w->rows.size() || !w->rows[w->selectedRow]->parent)) {
          WatchCreateTextboxForRow(w, false);
