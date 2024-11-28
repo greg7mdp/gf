@@ -60,7 +60,7 @@ std::vector<std::string_view> regex::extract_debuggable_expressions(std::string_
 
     // Parenthesized expressions: (x + y)
     // ----------------------------------
-    static constexpr auto parenthesized = ctll::fixed_string{R"(\(([^()]+)\))"};
+    static constexpr auto parenthesized = ctll::fixed_string{R"(\(([^(),]+)\))"};
 
     // Variable names and member access: foo, foo.bar, foo->bar, ns::foo, ns::foo->bar
     // -------------------------------------------------------------------------------
@@ -77,7 +77,7 @@ std::vector<std::string_view> regex::extract_debuggable_expressions(std::string_
 
     // Find all matches for each pattern
     // ---------------------------------
-    collect_matches<function_call, 0>(expressions, code);
+    // collect_matches<function_call, 0>(expressions, code); // don't execute function calls which may have side effects
     collect_matches<parenthesized, 1>(expressions, code);
     collect_matches<variables, 0>    (expressions, code);
     collect_matches<array_access, 0> (expressions, code);
