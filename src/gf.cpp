@@ -172,7 +172,7 @@ struct Context {
    bool                   programRunning = true; // true
 
    // make private
-   void SendToGdb(std::string_view sv) const {
+   void SendToGdb(string_view sv) const {
       char newline = '\n';
       write(pipeToGDB, sv.data(), sv.size());
       write(pipeToGDB, &newline, 1);
@@ -391,8 +391,8 @@ end
 
 bool       DisplaySetPosition(const char* file, int line, bool useGDBToGetFullPath);
 void       InterfaceShowMenu(UIButton* self);
-UIElement* InterfaceWindowSwitchToAndFocus(const char* name);
-void       WatchAddExpression2(const char* string);
+UIElement* InterfaceWindowSwitchToAndFocus(string_view name);
+void       WatchAddExpression2(string_view string);
 int        WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp);
 void       CommandInspectLine();
 
@@ -731,7 +731,7 @@ void DebuggerStartThread() {
 }
 
 // synchronous means we will wait for the debugger output
-std::optional<std::string> DebuggerSend(std::string_view string, bool echo, bool synchronous) {
+std::optional<std::string> DebuggerSend(string_view string, bool echo, bool synchronous) {
    std::optional<std::string> res;
    if (synchronous) {
       ctx.InterruptGdb();
@@ -765,11 +765,11 @@ std::optional<std::string> DebuggerSend(std::string_view string, bool echo, bool
    return res;
 }
 
-std::string EvaluateCommand(std::string_view command, bool echo = false) {
+std::string EvaluateCommand(string_view command, bool echo = false) {
    return *std::move(DebuggerSend(command, echo, true));
 }
 
-std::string EvaluateExpression(std::string_view expression, std::string_view format = {}) {
+std::string EvaluateExpression(string_view expression, string_view format = {}) {
    auto cmd = std::format("p{} {}", format, expression);
    auto res = EvaluateCommand(cmd);
    auto eq  = res.find_first_of('=');
@@ -1016,34 +1016,34 @@ void TabCompleterRun(TabCompleter* completer, UITextbox* textbox, bool lastKeyWa
 // Commands:
 // ------------------------------------------------------
 
-std::optional<std::string> CommandParseInternal(const char* command, bool synchronous) {
+std::optional<std::string> CommandParseInternal(string_view command, bool synchronous) {
    std::optional<std::string> res;
-   if (0 == strcmp(command, "gf-step")) {
+   if (command == "gf-step") {
       if (!ctx.programRunning)
          res = DebuggerSend(showingDisassembly ? "stepi" : "s", true, synchronous);
-   } else if (0 == strcmp(command, "gf-next")) {
+   } else if (command == "gf-next") {
       if (!ctx.programRunning)
          res = DebuggerSend(showingDisassembly ? "nexti" : "n", true, synchronous);
-   } else if (0 == strcmp(command, "gf-step-out-of-block")) {
+   } else if (command == "gf-step-out-of-block") {
       int line = SourceFindEndOfBlock();
 
       if (line != -1) {
          (void)DebuggerSend(std::format("until {}", line), true, synchronous);
       }
-   } else if (0 == strcmp(command, "gf-step-into-outer")) {
+   } else if (command == "gf-step-into-outer") {
       char *start, *end;
       bool  found = SourceFindOuterFunctionCall(&start, &end);
 
       if (found) {
-         res = DebuggerSend(std::format("advance {}", std::string_view(start, (int)(end - start))), true, synchronous);
+         res = DebuggerSend(std::format("advance {}", string_view(start, (int)(end - start))), true, synchronous);
       } else {
          return CommandParseInternal("gf-step", synchronous);
       }
-   } else if (0 == strcmp(command, "gf-restart-gdb")) {
+   } else if (command == "gf-restart-gdb") {
       ctx.firstUpdate = true;
       ctx.KillGdb();
       DebuggerStartThread();
-   } else if (0 == strcmp(command, "gf-get-pwd")) {
+   } else if (command == "gf-get-pwd") {
       auto        res    = EvaluateCommand("info source");
       const char* needle = "Compilation directory is ";
       const char* pwd    = strstr(res.c_str(), needle);
@@ -1064,11 +1064,11 @@ std::optional<std::string> CommandParseInternal(const char* command, bool synchr
       }
 
       UIDialogShow(windowMain, 0, "Couldn't get the working directory.\n%f%B", "OK");
-   } else if (strlen(command) > 13 && 0 == memcmp(command, "gf-switch-to ", 13)) {
-      InterfaceWindowSwitchToAndFocus(command + 13);
-   } else if (strlen(command) > 11 && 0 == memcmp(command, "gf-command ", 11)) {
+   } else if (command.starts_with("gf-switch-to ")) {
+      InterfaceWindowSwitchToAndFocus(command.substr(13));
+   } else if (command.starts_with("gf-command ")) {
       for (const auto& cmd : presetCommands) {
-         if (strcmp(command + 11, cmd.key))
+         if (command.substr(11) == cmd.key)
             continue;
          char* copy     = strdup(cmd.value);
          char* position = copy;
@@ -1098,12 +1098,12 @@ std::optional<std::string> CommandParseInternal(const char* command, bool synchr
          free(copy);
          break;
       }
-   } else if (0 == strcmp(command, "gf-inspect-line")) {
+   } else if (command == "gf-inspect-line") {
       CommandInspectLine();
-   } else if (0 == strcmp(command, "target remote :1234") && confirmCommandConnect &&
+   } else if (command == "target remote :1234" && confirmCommandConnect &&
               0 == strcmp("Cancel",
                           UIDialogShow(windowMain, 0, "Connect to remote target?\n%f%B%C", "Connect", "Cancel"))) {
-   } else if (0 == strcmp(command, "kill") && confirmCommandKill &&
+   } else if (command == "kill" && confirmCommandKill &&
               0 == strcmp("Cancel", UIDialogShow(windowMain, 0, "Kill debugging target?\n%f%B%C", "Kill", "Cancel"))) {
    } else {
       res = DebuggerSend(command, true, synchronous);
@@ -1112,7 +1112,7 @@ std::optional<std::string> CommandParseInternal(const char* command, bool synchr
    return res;
 }
 
-void CommandSendToGDB(const char* s) {
+void CommandSendToGDB(string_view s) {
    (void)CommandParseInternal(s, false);
 }
 
@@ -1201,9 +1201,9 @@ void CommandToggleBreakpoint() {
    CommandToggleBreakpoint(currentLine);
 }
 
-void CommandCustom(const char* command) {
+void CommandCustom(string_view command) {
 
-   if (0 == memcmp(command, "shell ", 6)) {
+   if (command.starts_with("shell ")) {
       // TODO Move this into CommandParseInternal?
 
       if (displayOutput)
@@ -2094,7 +2094,7 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
             } else if (text[i] == ')' && depth) {
                depth--;
             } else if (text[i] == ')' && !depth) {
-               auto res = EvaluateExpression(std::string_view{&text[expressionStart], i - expressionStart});
+               auto res = EvaluateExpression(string_view{&text[expressionStart], i - expressionStart});
 
                if (res == "= true") {
                   ifConditionEvaluation = 2;
@@ -2123,7 +2123,7 @@ void InspectCurrentLine() {
 
    UICodeLine* line   = &displayCode->lines[currentLine - 1];
    const char* string = displayCode->line(currentLine - 1);
-   auto code = std::string_view{string, size_t(line->bytes)};
+   auto code = string_view{string, size_t(line->bytes)};
 
    auto expressions = regex::extract_debuggable_expressions(code);
    for (auto e : expressions) {
@@ -2168,7 +2168,7 @@ int InspectLineModeMessage(UIElement* element, UIMessage message, int di, void* 
 
          if (index < (int)inspectResults.size()) {
             InspectLineModeExit(element);
-            WatchAddExpression2(inspectResults[index].expression.c_str());
+            WatchAddExpression2(inspectResults[index].expression);
          }
       } else if ((m->code == UIKeycode::UP && currentLine != 1) ||
                  (m->code == UIKeycode::DOWN && currentLine != (int)displayCode->num_lines())) {
@@ -2398,7 +2398,7 @@ void BitmapViewerUpdate(std::string pointerString, std::string widthString, std:
       bitmap->height  = std::move(heightString);
       bitmap->stride  = std::move(strideString);
 
-      UIMDIChild* window     = UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Bitmap", -1);
+      UIMDIChild* window     = UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Bitmap");
       window->messageUser    = BitmapViewerWindowMessage;
       window->cp             = bitmap;
       bitmap->autoToggle     = UIButtonCreate(window, UIButton::SMALL | UIElement::NON_CLIENT, "Auto", -1);
@@ -2502,7 +2502,7 @@ int TextboxInputMessage(UIElement* element, UIMessage message, int di, void* dp)
          auto buffer = std::format("{:.{}}", textbox->string, (int)textbox->bytes);
          if (commandLog)
             fprintf(commandLog, "%s\n", buffer.c_str());
-         CommandSendToGDB(buffer.c_str());
+         CommandSendToGDB(buffer);
 
          unique_ptr<char[]> string = std::make_unique<char[]>(textbox->bytes + 1);
          memcpy(string.get(), textbox->string, textbox->bytes);
@@ -2848,18 +2848,18 @@ void WatchInsertFieldRows(WatchWindow* w, const shared_ptr<Watch>& watch, size_t
    array.clear();
 }
 
-void WatchAddExpression(WatchWindow* w, const char* string = nullptr) {
-   if (!string && w->textbox && !w->textbox->bytes) {
+void WatchAddExpression(WatchWindow* w, string_view string = {}) {
+   if (string.empty() && w->textbox && !w->textbox->bytes) {
       WatchDestroyTextbox(w);
       return;
    }
 
    auto watch = make_shared<Watch>();
 
-   if (string)
+   if (!string.empty())
       watch->key = string;
    else
-      watch->key = std::string_view(w->textbox->string, w->textbox->bytes);
+      watch->key = string_view(w->textbox->string, w->textbox->bytes);
 
    WatchDeleteExpression(w); // Deletes textbox.
    w->rows.insert(w->rows.cbegin() + w->selectedRow, watch);
@@ -2875,7 +2875,7 @@ void WatchAddExpression(WatchWindow* w, const char* string = nullptr) {
    }
 }
 
-void WatchAddExpression2(const char* string) {
+void WatchAddExpression2(string_view string) {
    UIElement*   element = InterfaceWindowSwitchToAndFocus("Watch");
    WatchWindow* w       = (WatchWindow*)element->cp;
    w->selectedRow       = w->rows.size();
@@ -3032,7 +3032,7 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
    }
 
    UIMDIChild* child =
-      UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, UIRectangle(0), std::format("Log {}", res).c_str(), -1);
+      UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, UIRectangle(0), std::format("Log {}", res));
 
    res                = EvaluateCommand(std::format("watch * {}", res));
    const char* number = strstr(res.c_str(), "point ");
@@ -3135,7 +3135,7 @@ bool WatchLoggerUpdate(char* data) {
       for (uintptr_t i = 0; true; i++) {
          if (expressionsToEvaluate[i] == ';' || !expressionsToEvaluate[i]) {
 
-            auto res = EvaluateExpression(std::string_view(expressionsToEvaluate + start, i - start));
+            auto res = EvaluateExpression(string_view(expressionsToEvaluate + start, i - start));
             start    = i + 1;
             WatchLogEvaluated evaluated;
             const char*       start = strstr(res.c_str(), " = ");
@@ -3213,7 +3213,7 @@ void CommandWatchAddEntryForAddress(WatchWindow* _w) {
    resize_to_lf(res);
 
    auto buffer = std::format("({}*){}", res, address);
-   WatchAddExpression(w, buffer.c_str());
+   WatchAddExpression(w, buffer);
    WatchEnsureRowVisible(w, w->selectedRow);
    w->parent->Refresh();
    w->Refresh();
@@ -3689,7 +3689,7 @@ void WatchWindowUpdate(const char*, UIElement* element) {
          for (size_t j = 0; j < w->rows.size(); j++) {
             if (w->rows[j] == watch) {
                w->selectedRow = j;
-               WatchAddExpression(w, watch->key.c_str());
+               WatchAddExpression(w, watch->key);
                w->selectedRow = w->rows.size(), i--;
                break;
             }
@@ -4034,7 +4034,7 @@ int TextboxStructNameMessage(UIElement* element, UIMessage message, int di, void
 
       if (m->code == UIKeycode::ENTER) {
          auto res = EvaluateCommand(
-            std::format("ptype /o {}", std::string_view(window->textbox->string, window->textbox->bytes)));
+            std::format("ptype /o {}", string_view(window->textbox->string, window->textbox->bytes)));
          char* end = (char*)strstr(res.c_str(), "\n(gdb)");
          if (end)
             *end = 0;
@@ -4304,7 +4304,7 @@ UIElement* CommandsWindowCreate(UIElement* parent) {
 
    for (const auto& cmd : presetCommands) {
       UIButton* button = UIButtonCreate(panel, 0, cmd.key, -1);
-      button->invoke   = [b = std::format("gf-command {}", cmd.key)]() { CommandSendToGDB(b.c_str()); };
+      button->invoke   = [command = std::format("gf-command {}", cmd.key)]() { CommandSendToGDB(command); };
    }
 
    return panel;
@@ -4883,7 +4883,7 @@ void ProfShowSource(ProfFlameGraphReport* report) {
 }
 
 void ProfAddBreakpoint(ProfFlameGraphEntry* entry) {
-   CommandSendToGDB(std::format("b {}", entry->cName).c_str());
+   CommandSendToGDB(std::format("b {}", entry->cName));
 }
 
 void ProfFillView(ProfFlameGraphReport* report) {
@@ -5577,7 +5577,7 @@ void ProfLoadProfileData(void* _window) {
       }
    }
 
-   UIMDIChild* window = UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, ui_rect_2s(800, 600), "Flame graph", -1);
+   UIMDIChild* window = UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, ui_rect_2s(800, 600), "Flame graph");
    UIButton*   switchViewButton = UIButtonCreate(window, UIButton::SMALL | UIElement::NON_CLIENT, "Table view", -1);
    UITable*    table            = UITableCreate(window, 0, "Name\tTime spent (ms)\tCall count\tAverage per call (ms)");
    ProfFlameGraphReport* report = new ProfFlameGraphReport(window, 0);
@@ -6903,7 +6903,7 @@ void WaveformViewerUpdate(const char* pointerString, const char* sampleCountStri
       if (channelsString)
          StringFormat(viewer->channels, sizeof(viewer->channels), "%s", channelsString);
 
-      UIMDIChild* window     = UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Waveform", -1);
+      UIMDIChild* window     = UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Waveform");
       window->messageUser    = WaveformViewerWindowMessage;
       window->cp             = viewer;
       viewer->autoToggle     = UIButtonCreate(window, UIButton::SMALL | UIElement::NON_CLIENT, "Auto", -1);
@@ -7001,14 +7001,13 @@ void MsgReceivedData(str_unique_ptr input) {
       char path[PATH_MAX];
       StringFormat(path, sizeof(path), "%s/.config/gf2_watch.txt", getenv("HOME"));
       vector<char> data_vec = LoadFile(path, NULL);
-      char*        data     = data_vec.data();
+      const char*  data     = data_vec.data();
 
       while (data && restoreWatchWindow) {
-         char* end = strchr(data, '\n');
+         const char* end = strchr(data, '\n');
          if (!end)
             break;
-         *end = 0;
-         WatchAddExpression2(data);
+         WatchAddExpression2(string_view{data, static_cast<size_t>(end - data)});
          data = end + 1;
       }
 
@@ -7059,7 +7058,7 @@ void MsgReceivedControl(str_unique_ptr input) {
    }
 }
 
-auto gdb_invoker(const char* cmd) {
+auto gdb_invoker(string_view cmd) {
    return [cmd]() { CommandSendToGDB(cmd); };
 }
 
@@ -7205,12 +7204,12 @@ void InterfaceShowMenu(UIButton* self) {
    UIMenuShow(menu);
 }
 
-UIElement* InterfaceWindowSwitchToAndFocus(const char* name) {
+UIElement* InterfaceWindowSwitchToAndFocus(string_view name) {
    for (auto& iw : interfaceWindows) {
       InterfaceWindow* window = &iw;
       if (!window->element)
          continue;
-      if (strcmp(window->name, name))
+      if (name == window->name)
          continue;
 
       if ((window->element->flags & UIElement::HIDE) && window->element->parent->messageClass == _UITabPaneMessage) {

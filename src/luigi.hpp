@@ -900,13 +900,11 @@ struct UIMDIChild : public UIElement {
    enum { CLOSE_BUTTON = 1 << 0 };
 
    UIRectangle bounds;
-   char*       title;
-   ptrdiff_t   titleBytes;
+   std::string title;
    int         dragHitTest;
    UIRectangle dragOffset;
 
-   UIMDIChild(UIElement* parent, uint32_t flags, const UIRectangle& initialBounds, const char* title,
-              ptrdiff_t titleBytes);
+   UIMDIChild(UIElement* parent, uint32_t flags, const UIRectangle& initialBounds, std::string_view title);
 };
 
 struct UIImageDisplay : public UIElement {
@@ -948,8 +946,7 @@ UIElement* UIElementCreate(size_t bytes, UIElement* parent, uint32_t flags,
 
 UICheckbox*   UICheckboxCreate(UIElement* parent, uint32_t flags, const char* label, ptrdiff_t labelBytes);
 UIMDIClient*  UIMDIClientCreate(UIElement* parent, uint32_t flags);
-UIMDIChild*   UIMDIChildCreate(UIElement* parent, uint32_t flags, UIRectangle initialBounds, const char* title,
-                               ptrdiff_t titleBytes);
+UIMDIChild*   UIMDIChildCreate(UIElement* parent, uint32_t flags, UIRectangle initialBounds, std::string_view title);
 UIPanel*      UIPanelCreate(UIElement* parent, uint32_t flags);
 UIScrollBar*  UIScrollBarCreate(UIElement* parent, uint32_t flags);
 UISlider*     UISliderCreate(UIElement* parent, uint32_t flags);

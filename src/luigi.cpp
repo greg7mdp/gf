@@ -3433,8 +3433,8 @@ int _UIMDIChildMessage(UIElement* element, UIMessage message, int di, void* dp) 
    UIMDIChild* mdiChild = (UIMDIChild*)element;
 
    if (message == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, element->bounds, UI_DRAW_CONTROL_MDI_CHILD, mdiChild->title, mdiChild->titleBytes,
-                    0, element->window->scale);
+      UIDrawControl((UIPainter*)dp, element->bounds, UI_DRAW_CONTROL_MDI_CHILD, mdiChild->title.data(),
+                    mdiChild->title.size(), 0, element->window->scale);
    } else if (message == UIMessage::GET_WIDTH) {
       UIElement* child = element->children.empty() ? nullptr : element->children.back();
       int        width = 2 * ui_size::MDI_CHILD_BORDER;
@@ -3520,7 +3520,6 @@ int _UIMDIChildMessage(UIElement* element, UIMessage message, int di, void* dp) 
             (UIMDIChild*)(client->children.size() == 1 ? NULL : client->children[client->children.size() - 2]);
       }
    } else if (message == UIMessage::DEALLOCATE) {
-      UI_FREE(mdiChild->title);
    }
 
    return 0;
@@ -3570,14 +3569,12 @@ int _UIMDIClientMessage(UIElement* element, UIMessage message, int di, void* dp)
    return 0;
 }
 
-UIMDIChild::UIMDIChild(UIElement* parent, uint32_t flags, const UIRectangle& initialBounds, const char* title, ptrdiff_t titleBytes) :
-   UIElement(parent, flags, _UIMDIChildMessage, "MDIChild"),
-   bounds(initialBounds),
-   title(UIStringCopy(title, titleBytes)),
-   titleBytes(titleBytes),
-   dragHitTest(0),
-   dragOffset(0)
-{
+UIMDIChild::UIMDIChild(UIElement* parent, uint32_t flags, const UIRectangle& initialBounds, std::string_view title)
+   : UIElement(parent, flags, _UIMDIChildMessage, "MDIChild")
+   , bounds(initialBounds)
+   , title(title)
+   , dragHitTest(0)
+   , dragOffset(0) {
    UI_ASSERT(parent->messageClass == _UIMDIClientMessage);
    UIMDIClient* mdiClient = (UIMDIClient*)parent;
 
@@ -3589,9 +3586,8 @@ UIMDIChild::UIMDIChild(UIElement* parent, uint32_t flags, const UIRectangle& ini
    }
 }
 
-UIMDIChild* UIMDIChildCreate(UIElement* parent, uint32_t flags, UIRectangle initialBounds, const char* title,
-                             ptrdiff_t titleBytes) {
-   return new UIMDIChild(parent, flags, initialBounds, title, titleBytes);
+UIMDIChild* UIMDIChildCreate(UIElement* parent, uint32_t flags, UIRectangle initialBounds, std::string_view title) {
+   return new UIMDIChild(parent, flags, initialBounds, title);
 }
 
 UIMDIClient::UIMDIClient(UIElement* parent, uint32_t flags) :
