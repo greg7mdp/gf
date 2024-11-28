@@ -1007,7 +1007,7 @@ void TabCompleterRun(TabCompleter* completer, UITextbox* textbox, bool lastKeyWa
       if (addPrintPrefix)
          start += 2;
       UITextboxClear(textbox, false);
-      UITextboxReplace(textbox, start, end - start, false);
+      UITextboxReplace(textbox, {start, static_cast<size_t>(end - start)}, false);
       textbox->Refresh();
    }
 }
@@ -2455,7 +2455,7 @@ size_t                     commandHistoryIndex;
 void CommandPreviousCommand() {
    if (commandHistoryIndex < commandHistory.size()) {
       UITextboxClear(textboxInput, false);
-      UITextboxReplace(textboxInput, commandHistory[commandHistoryIndex].get(), -1, false);
+      UITextboxReplace(textboxInput, commandHistory[commandHistoryIndex].get(), false);
       if (commandHistoryIndex < commandHistory.size() - 1)
          commandHistoryIndex++;
       textboxInput->Refresh();
@@ -2467,7 +2467,7 @@ void CommandNextCommand() {
 
    if (commandHistoryIndex > 0) {
       commandHistoryIndex--;
-      UITextboxReplace(textboxInput, commandHistory[commandHistoryIndex].get(), -1, false);
+      UITextboxReplace(textboxInput, commandHistory[commandHistoryIndex].get(), false);
    }
 
    textboxInput->Refresh();
@@ -3181,7 +3181,7 @@ void WatchCreateTextboxForRow(WatchWindow* w, bool addExistingText) {
    w->textbox->Focus();
 
    if (addExistingText) {
-      UITextboxReplace(w->textbox, w->rows[w->selectedRow]->key.c_str(), -1, false);
+      UITextboxReplace(w->textbox, w->rows[w->selectedRow]->key, false);
    }
 }
 
@@ -4519,10 +4519,10 @@ UIElement* ExecutableWindowCreate(UIElement* parent) {
    UIPanel*          panel  = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
    UILabelCreate(panel, 0, "Path to executable:");
    window->path = UITextboxCreate(panel, 0);
-   UITextboxReplace(window->path, executablePath, -1, false);
+   UITextboxReplace(window->path, executablePath, false);
    UILabelCreate(panel, 0, "Command line arguments:");
    window->arguments = UITextboxCreate(panel, 0);
-   UITextboxReplace(window->arguments, executableArguments, -1, false);
+   UITextboxReplace(window->arguments, executableArguments, false);
    window->askDirectory        = UICheckboxCreate(panel, 0, "Ask GDB for working directory");
    window->askDirectory->check = executableAskDirectory ? UICheckbox::CHECKED : UICheckbox::UNCHECKED;
    UIPanel* row                = UIPanelCreate(panel, UIPanel::HORIZONTAL);

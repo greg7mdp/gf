@@ -977,7 +977,7 @@ void    UIMenuShow(UIMenu* menu);
 bool    UIMenusOpen();
 
 UITextbox* UITextboxCreate(UIElement* parent, uint32_t flags);
-void       UITextboxReplace(UITextbox* textbox, const char* text, ptrdiff_t bytes, bool sendChangedMessage);
+void       UITextboxReplace(UITextbox* textbox, std::string_view text, bool sendChangedMessage);
 void       UITextboxClear(UITextbox* textbox, bool sendChangedMessage);
 void       UITextboxMoveCaret(UITextbox* textbox, bool backward, bool word);
 char*      UITextboxToCString(UITextbox* textbox); // Free with UI_FREE.

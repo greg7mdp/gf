@@ -3139,9 +3139,8 @@ char* UITextboxToCString(UITextbox* textbox) {
    return buffer;
 }
 
-void UITextboxReplace(UITextbox* textbox, const char* text, ptrdiff_t bytes, bool sendChangedMessage) {
-   if (bytes == -1)
-      bytes = _UIStringLength(text);
+void UITextboxReplace(UITextbox* textbox, std::string_view text, bool sendChangedMessage) {
+   auto bytes = text.size();
    int deleteFrom = textbox->carets[0], deleteTo = textbox->carets[1];
    if (deleteFrom > deleteTo)
       std::swap(deleteFrom, deleteTo);
@@ -3164,7 +3163,7 @@ void UITextboxReplace(UITextbox* textbox, const char* text, ptrdiff_t bytes, boo
 void UITextboxClear(UITextbox* textbox, bool sendChangedMessage) {
    textbox->carets[1] = 0;
    textbox->carets[0] = textbox->bytes;
-   UITextboxReplace(textbox, "", 0, sendChangedMessage);
+   UITextboxReplace(textbox, "", sendChangedMessage);
 }
 
 void UITextboxMoveCaret(UITextbox* textbox, bool backward, bool word) {
@@ -3213,7 +3212,7 @@ void _UITextboxPasteText(void* cp, sel_target_t t) {
             text[i] = ' ';
       }
 
-      UITextboxReplace(textbox, text, bytes, true);
+      UITextboxReplace(textbox, {text, bytes}, true);
    }
 
    _UIClipboardReadTextEnd(textbox->window, text);
@@ -3285,7 +3284,7 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
             UITextboxMoveCaret(textbox, m->code == UIKeycode::BACKSPACE, element->window->ctrl);
          }
 
-         UITextboxReplace(textbox, NULL, 0, true);
+         UITextboxReplace(textbox, "", true);
       } else if (m->code == UIKeycode::LEFT || m->code == UIKeycode::RIGHT) {
          if (textbox->carets[0] == textbox->carets[1] || element->window->shift) {
             UITextboxMoveCaret(textbox, m->code == UIKeycode::LEFT, element->window->ctrl);
@@ -3308,14 +3307,14 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
          textbox->carets[1] = 0;
          textbox->carets[0] = textbox->bytes;
       } else if (m->text.size() && !element->window->alt && !element->window->ctrl && m->text[0] >= 0x20) {
-         UITextboxReplace(textbox, m->text.data(), m->text.size(), true);
+         UITextboxReplace(textbox, m->text, true);
       } else if ((m->code == UI_KEYCODE_LETTER('C') || m->code == UI_KEYCODE_LETTER('X') ||
                   m->code == UIKeycode::INSERT) &&
                  element->window->ctrl && !element->window->alt && !element->window->shift) {
          _UITextboxCopyText(textbox);
 
          if (m->code == UI_KEYCODE_LETTER('X')) {
-            UITextboxReplace(textbox, NULL, 0, true);
+            UITextboxReplace(textbox, "", true);
          }
       } else if ((m->code == UI_KEYCODE_LETTER('V') && element->window->ctrl && !element->window->alt &&
                   !element->window->shift) ||
@@ -3918,7 +3917,7 @@ const char* UIDialogShow(UIWindow* window, uint32_t flags, const char* format, .
             if (!focus)
                focus = textbox;
             if (*buffer)
-               UITextboxReplace(textbox, *buffer, _UIStringLength(*buffer), false);
+               UITextboxReplace(textbox, *buffer, false);
             textbox->cp          = buffer;
             textbox->messageUser = _UIDialogTextboxMessage;
          } else if (format[i] == 'f' /* horizontal fill */) {
