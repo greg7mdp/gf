@@ -422,9 +422,8 @@ struct UIStringSelection {
 };
 
 struct UIKeyTyped {
-   char*     text      = nullptr;
-   int       textBytes = 0;
-   UIKeycode code      = static_cast<UIKeycode>(0);
+   std::string_view text;
+   UIKeycode        code = static_cast<UIKeycode>(0);
 };
 
 struct UITableGetItem {
@@ -693,36 +692,29 @@ struct UIButton : public UIElement {
       CHECKED   = 1 << 15,
    };
 
-   char*                 label;
-   ptrdiff_t             labelBytes;
+   std::string           label;
    std::function<void()> invoke;
 
-   UIButton(UIElement* parent, uint32_t flags, const char* label, ptrdiff_t labelBytes);
+   UIButton(UIElement* parent, uint32_t flags, std::string_view label);
 };
 
 struct UICheckbox : public UIElement {
    enum { ALLOW_INDETERMINATE = 1 << 0 };
 
-   enum {
-      UNCHECKED = 0,
-      CHECKED = 1,
-      INDETERMINATE = 2
-   };
+   enum { UNCHECKED = 0, CHECKED = 1, INDETERMINATE = 2 };
 
-   uint8_t   check;
-   char*     label;
-   ptrdiff_t labelBytes;
-   std::function<void ()> invoke;
+   uint8_t               check;
+   std::string           label;
+   std::function<void()> invoke;
 
-   UICheckbox(UIElement* parent, uint32_t flags, const char* label, ptrdiff_t labelBytes);
-   void SetLabel(const char *string, ptrdiff_t stringBytes);
+   UICheckbox(UIElement* parent, uint32_t flags, std::string_view label);
+   void SetLabel(std::string_view label);
 };
 
 struct UILabel : public UIElement {
-   char*     label;
-   ptrdiff_t labelBytes;
+   std::string label;
 
-   UILabel(UIElement* parent, uint32_t flags, const char* label, ptrdiff_t labelBytes);
+   UILabel(UIElement* parent, uint32_t flags, std::string_view label);
 };
 
 struct UISpacer : public UIElement {
@@ -900,13 +892,11 @@ struct UIMDIChild : public UIElement {
    enum { CLOSE_BUTTON = 1 << 0 };
 
    UIRectangle bounds;
-   char*       title;
-   ptrdiff_t   titleBytes;
+   std::string title;
    int         dragHitTest;
    UIRectangle dragOffset;
 
-   UIMDIChild(UIElement* parent, uint32_t flags, const UIRectangle& initialBounds, const char* title,
-              ptrdiff_t titleBytes);
+   UIMDIChild(UIElement* parent, uint32_t flags, const UIRectangle& initialBounds, std::string_view title);
 };
 
 struct UIImageDisplay : public UIElement {
@@ -946,10 +936,9 @@ int  UIMessageLoop();
 UIElement* UIElementCreate(size_t bytes, UIElement* parent, uint32_t flags,
                            int (*messageClass)(UIElement*, UIMessage, int, void*), const char* cClassName);
 
-UICheckbox*   UICheckboxCreate(UIElement* parent, uint32_t flags, const char* label, ptrdiff_t labelBytes);
+UICheckbox*   UICheckboxCreate(UIElement* parent, uint32_t flags, std::string_view label);
 UIMDIClient*  UIMDIClientCreate(UIElement* parent, uint32_t flags);
-UIMDIChild*   UIMDIChildCreate(UIElement* parent, uint32_t flags, UIRectangle initialBounds, const char* title,
-                               ptrdiff_t titleBytes);
+UIMDIChild*   UIMDIChildCreate(UIElement* parent, uint32_t flags, UIRectangle initialBounds, std::string_view title);
 UIPanel*      UIPanelCreate(UIElement* parent, uint32_t flags);
 UIScrollBar*  UIScrollBarCreate(UIElement* parent, uint32_t flags);
 UISlider*     UISliderCreate(UIElement* parent, uint32_t flags);
@@ -961,10 +950,11 @@ UIWrapPanel*  UIWrapPanelCreate(UIElement* parent, uint32_t flags);
 
 UIGauge* UIGaugeCreate(UIElement* parent, uint32_t flags);
 
-UIButton* UIButtonCreate(UIElement* parent, uint32_t flags, const char* label, ptrdiff_t labelBytes);
-void      UIButtonSetLabel(UIButton* button, const char* string, ptrdiff_t stringBytes);
-UILabel*  UILabelCreate(UIElement* parent, uint32_t flags, const char* label, ptrdiff_t labelBytes);
-void      UILabelSetContent(UILabel* code, const char* content, ptrdiff_t byteCount);
+UIButton* UIButtonCreate(UIElement* parent, uint32_t flags, std::string_view label);
+void      UIButtonSetLabel(UIButton* button, std::string_view string);
+
+UILabel*  UILabelCreate(UIElement* parent, uint32_t flags, std::string_view label);
+void      UILabelSetContent(UILabel* code, std::string_view content);
 
 UIImageDisplay* UIImageDisplayCreate(UIElement* parent, uint32_t flags, uint32_t* bits, size_t width, size_t height,
                                      size_t stride);
@@ -1010,10 +1000,10 @@ void UICodeMoveCaret(UICode* code, bool backward, bool word);
 void UIDrawBlock(UIPainter* painter, UIRectangle rectangle, uint32_t color);
 void UIDrawCircle(UIPainter* painter, int centerX, int centerY, int radius, uint32_t fillColor, uint32_t outlineColor,
                   bool hollow);
-void UIDrawControl(UIPainter* painter, UIRectangle bounds, uint32_t mode /* UI_DRAW_CONTROL_* */, const char* label,
-                   ptrdiff_t labelBytes, double position, float scale);
-void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode, const char* label,
-                          ptrdiff_t labelBytes, double position, float scale);
+void UIDrawControl(UIPainter* painter, UIRectangle bounds, uint32_t mode /* UI_DRAW_CONTROL_* */,
+                   std::string_view label, double position, float scale);
+void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode, std::string_view label,
+                          double position, float scale);
 void UIDrawInvert(UIPainter* painter, UIRectangle rectangle);
 bool UIDrawLine(UIPainter* painter, int x0, int y0, int x1, int y1,
                 uint32_t color); // Returns false if the line was not visible.
@@ -1023,12 +1013,12 @@ void UIDrawGlyph(UIPainter* painter, int x, int y, int c, uint32_t color);
 void UIDrawRectangle(UIPainter* painter, UIRectangle r, uint32_t mainColor, uint32_t borderColor,
                      UIRectangle borderSize);
 void UIDrawBorder(UIPainter* painter, UIRectangle r, uint32_t borderColor, UIRectangle borderSize);
-void UIDrawString(UIPainter* painter, UIRectangle r, const char* string, ptrdiff_t bytes, uint32_t color, UIAlign align,
+void UIDrawString(UIPainter* painter, UIRectangle r, std::string_view string, uint32_t color, UIAlign align,
                   UIStringSelection* selection);
-int  UIDrawStringHighlighted(UIPainter* painter, UIRectangle r, const char* string, ptrdiff_t bytes, int tabSize,
+int  UIDrawStringHighlighted(UIPainter* painter, UIRectangle r, std::string_view string, int tabSize,
                              UIStringSelection* selection); // Returns final x position.
 
-int UIMeasureStringWidth(const char* string, ptrdiff_t bytes);
+int UIMeasureStringWidth(std::string_view string);
 int UIMeasureStringHeight();
 
 uint64_t UIAnimateClock(); // In ms.
