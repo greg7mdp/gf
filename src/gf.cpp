@@ -66,9 +66,9 @@ public:
 
    bool pop(std::optional<T>& value) {
       std::unique_lock<std::mutex> lock(mutex_);
-      cv_.wait(lock, [this] { return !queue_.empty() || quit_; });
+      bool res = cv_.wait_for(lock, std::chrono::seconds(1), [this] { return !queue_.empty() || quit_; });
 
-      if (quit_) {
+      if (!res || quit_) {       // !res means we hit the timeout
          value = std::optional<T>{};
          return false;
       }
@@ -795,7 +795,7 @@ void DebuggerStartThread() {
 }
 
 // synchronous means we will wait for the debugger output
-std::optional<std::string> DebuggerSend(string_view string, bool echo, bool synchronous) {
+std::optional<std::string> DebuggerSend(string_view command, bool echo, bool synchronous) {
    std::optional<std::string> res;
    if (synchronous) {
       ctx.InterruptGdb();
@@ -812,16 +812,18 @@ std::optional<std::string> DebuggerSend(string_view string, bool echo, bool sync
    // std::cout << "sending: " << string << '\n';
 
    if (echo && displayOutput) {
-      UICodeInsertContent(displayOutput, string, false);
+      UICodeInsertContent(displayOutput, command, false);
       displayOutput->Refresh();
    }
 
-   ctx.SendToGdb(string);
+   ctx.SendToGdb(command);
 
    if (synchronous) {
       bool quit = !ctx.evaluateResultQueue.pop(res);
-      if (!res)
+      if (!res) {
+         print("Hit timeout on command \"{}\"\n", command);
          res = std::string{}; // in synchronous mode we always return a (possibly empty) string
+      }
       ctx.programRunning = false;
       if (!quit && trafficLight)
          trafficLight->Repaint(nullptr);
