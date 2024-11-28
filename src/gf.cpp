@@ -109,6 +109,49 @@ static inline bool resize_to_lf(std::string& s, char c = '\n') {
    return false;
 }
 
+template <typename T>
+T sv_atoi_impl(string_view str, size_t offset = 0) {
+   auto sz = str.size();
+   assert(offset < sz);
+   size_t i = offset;
+
+   while (i < sz && std::isspace(static_cast<unsigned char>(str[i])))
+      ++i;
+   
+   if (i == sz)
+      return 0;
+
+   bool negative = false;
+   
+   if (str[i] == '+')
+      ++i;
+   else if (str[i] == '-') {
+      ++i;
+      negative = true;
+   }
+
+   T result = 0;
+   for (; i < sz && std::isdigit(static_cast<unsigned char>(str[i])); ++i) {
+      int digit = str[i] - '0';
+      result *= 10;
+      result -= digit; // calculate in negatives to support INT_MIN, LONG_MIN,..
+   }
+
+   return negative ? result : -result;
+}
+
+static inline int sv_atoi(string_view str, size_t offset = 0) {
+   return sv_atoi_impl<int>(str, offset);
+}
+
+[[maybe_unused]] static inline long sv_atol(string_view str, size_t offset = 0) {
+   return sv_atoi_impl<long>(str, offset);
+}
+
+[[maybe_unused]] static inline long long sv_atoll(string_view str, size_t offset = 0) {
+   return sv_atoi_impl<long long>(str, offset);
+}
+
 // ---------------------------------------------------------------------------------------------
 //                              Data structures
 // ---------------------------------------------------------------------------------------------
@@ -871,7 +914,7 @@ void DebuggerGetBreakpoints() {
 
       const char* next = position;
 
-      int number = atoi(position);
+      int number = sv_atoi(position);
 
       const char* enabledString = strstr(next + 1, " y ");
       bool        enabled       = enabledString && enabledString < strchr(next + 1, '\n');
@@ -910,7 +953,7 @@ void DebuggerGetBreakpoints() {
          hitCount += strlen(hitCountNeedle);
 
       if (hitCount && hitCount < next) {
-         breakpoint.hit = atoi(hitCount);
+         breakpoint.hit = sv_atoi(hitCount);
       }
 
       if (file && file < next) {
@@ -920,7 +963,7 @@ void DebuggerGetBreakpoints() {
             if (file[0] == '.' && file[1] == '/')
                file += 2;
             StringFormat(breakpoint.file, sizeof(breakpoint.file), "%.*s", (int)(end - file), file);
-            breakpoint.line = atoi(end + 1);
+            breakpoint.line = sv_atoi(end, 1);
          } else
             recognised = false;
       } else
@@ -1154,7 +1197,7 @@ void CommandSyncWithGvim() {
       line++;
    if (!line)
       return;
-   int  lineNumber = atoi(line);
+   int  lineNumber = sv_atoi(line);
    char buffer2[PATH_MAX];
 
    if (name[0] != '/' && name[0] != '~') {
@@ -1345,7 +1388,7 @@ void SettingsLoad(bool earlyPass) {
             }
 
             for (int i = 1; i <= 12; i++) {
-               if (codeStart[0] == 'f' && isdigit(codeStart[1]) && atoi(codeStart + 1) == i) {
+               if (codeStart[0] == 'f' && isdigit(codeStart[1]) && sv_atoi(codeStart, 1) == i) {
                   shortcut.code = UI_KEYCODE_FKEY(i);
                }
             }
@@ -1359,25 +1402,25 @@ void SettingsLoad(bool earlyPass) {
             if (0 == strcmp(state.key, "font_path")) {
                fontPath = state.value;
             } else if (0 == strcmp(state.key, "font_size")) {
-               fontSizeInterface = fontSizeCode = atoi(state.value);
+               fontSizeInterface = fontSizeCode = sv_atoi(state.value);
             } else if (0 == strcmp(state.key, "font_size_code")) {
-               fontSizeCode = atoi(state.value);
+               fontSizeCode = sv_atoi(state.value);
             } else if (0 == strcmp(state.key, "font_size_interface")) {
-               fontSizeInterface = atoi(state.value);
+               fontSizeInterface = sv_atoi(state.value);
             } else if (0 == strcmp(state.key, "scale")) {
                uiScale = atof(state.value);
             } else if (0 == strcmp(state.key, "layout")) {
                layoutString = state.value;
             } else if (0 == strcmp(state.key, "maximize")) {
-               maximize = atoi(state.value);
+               maximize = sv_atoi(state.value);
             } else if (0 == strcmp(state.key, "restore_watch_window")) {
-               restoreWatchWindow = atoi(state.value);
+               restoreWatchWindow = sv_atoi(state.value);
             } else if (0 == strcmp(state.key, "selectable_source")) {
-               selectableSource = atoi(state.value);
+               selectableSource = sv_atoi(state.value);
             } else if (0 == strcmp(state.key, "window_width")) {
-               window_width = atoi(state.value);
+               window_width = sv_atoi(state.value);
             } else if (0 == strcmp(state.key, "window_height")) {
-               window_height = atoi(state.value);
+               window_height = sv_atoi(state.value);
             }
          } else if (0 == strcmp(state.section, "gdb") && !earlyPass) {
             if (0 == strcmp(state.key, "argument")) {
@@ -1431,7 +1474,7 @@ void SettingsLoad(bool earlyPass) {
             } else if (0 == strcmp(state.key, "path")) {
                ctx.gdbPath    = state.value;
                ctx.gdbArgv[0] = state.value;
-            } else if (0 == strcmp(state.key, "log_all_output") && atoi(state.value)) {
+            } else if (0 == strcmp(state.key, "log_all_output") && sv_atoi(state.value)) {
                for (const auto& iw : interfaceWindows) {
                   const InterfaceWindow* window = &iw;
 
@@ -1445,11 +1488,11 @@ void SettingsLoad(bool earlyPass) {
                                   "but your layout does not have a 'Log' window.\n");
                }
             } else if (0 == strcmp(state.key, "confirm_command_kill")) {
-               confirmCommandKill = atoi(state.value);
+               confirmCommandKill = sv_atoi(state.value);
             } else if (0 == strcmp(state.key, "confirm_command_connect")) {
-               confirmCommandConnect = atoi(state.value);
+               confirmCommandConnect = sv_atoi(state.value);
             } else if (0 == strcmp(state.key, "backtrace_count_limit")) {
-               backtraceCountLimit = atoi(state.value);
+               backtraceCountLimit = sv_atoi(state.value);
             }
          } else if (0 == strcmp(state.section, "commands") && earlyPass && state.keyBytes && state.valueBytes) {
             presetCommands.push_back(state);
@@ -1478,7 +1521,7 @@ void SettingsLoad(bool earlyPass) {
             } else if (0 == strcmp(state.key, "arguments")) {
                executableArguments = state.value;
             } else if (0 == strcmp(state.key, "ask_directory")) {
-               executableAskDirectory = atoi(state.value);
+               executableAskDirectory = sv_atoi(state.value);
             }
          } else if (earlyPass && *state.section && *state.key && *state.value) {
             for (const auto& iw : interfaceWindows) {
@@ -1608,7 +1651,7 @@ void DisplaySetPositionFromStack() {
       char* line = strchr(location, ':');
       if (line)
          *line = 0;
-      DisplaySetPosition(location, line ? atoi(line + 1) : -1, true);
+      DisplaySetPosition(location, line ? sv_atoi(line + 1) : -1, true);
    }
 }
 
@@ -1767,7 +1810,7 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
    size_t index = 0;
    for (const auto& ir : inspectResults) {
       if (noInspectResults) {
-         buffer = ir.expression.c_str();
+         buffer = ir.expression;
       } else if (index < 9) {
          buffer = std::format("[{}] {} {}", index + 1, ir.expression, ir.value);
       } else {
@@ -2298,12 +2341,12 @@ const char* BitmapViewerGetBits(std::string pointerString, std::string widthStri
    if (widthResult.empty()) {
       return "Could not evaluate width.";
    }
-   int  width        = atoi(widthResult.c_str() + 1);
+   int  width        = sv_atoi(widthResult, 1);
    auto heightResult = EvaluateExpression(heightString);
    if (heightResult.empty()) {
       return "Could not evaluate height.";
    }
-   int  height        = atoi(heightResult.c_str() + 1);
+   int  height        = sv_atoi(heightResult, 1);
    int  stride        = width * 4;
    auto pointerResult = EvaluateExpression(pointerString, "/x");
    if (pointerResult.empty()) {
@@ -2322,7 +2365,7 @@ const char* BitmapViewerGetBits(std::string pointerString, std::string widthStri
       if (strideResult.empty()) {
          return "Could not evaluate stride.";
       }
-      stride = atoi(strideResult.c_str() + 1);
+      stride = sv_atoi(strideResult, 1);
    }
 
    uint32_t* bits = (uint32_t*)malloc(stride * height * 4); // TODO Is this multiply by 4 necessary?! And the one below.
@@ -2769,7 +2812,7 @@ void WatchAddFields(WatchWindow* w, const shared_ptr<Watch>& watch) {
    auto res = WatchEvaluate("gf_fields", watch);
 
    if (res.contains("(array)") || res.contains("(d_arr)")) {
-      int count = atoi(res.c_str() + 7);
+      int count = sv_atoi(res, 7);
 
       count = std::clamp(count, 0, Watch::WATCH_ARRAY_MAX_FIELDS);
 
@@ -2917,7 +2960,7 @@ void WatchLoggerTraceSelectFrame(UIElement* element, int index, WatchLogger* log
 
    if (colon) {
       *colon = 0;
-      DisplaySetPosition(location, atoi(colon + 1), false);
+      DisplaySetPosition(location, sv_atoi(colon, 1), false);
       element->Refresh();
    }
 }
@@ -3070,7 +3113,7 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
    UITable*     table = UITableCreate(panel, UIElement::H_FILL | UIElement::V_FILL, logger->columns);
    UITable* trace = UITableCreate(panel, UIElement::H_FILL | UIElement::V_FILL, "Index\tFunction\tLocation\tAddress");
 
-   logger->id                    = atoi(number + 6);
+   logger->id                    = sv_atoi(number, 6);
    logger->table                 = table;
    logger->trace                 = trace;
    logger->selectedEntry         = -1;
@@ -3096,7 +3139,7 @@ bool WatchLoggerUpdate(char* data) {
    char* stringAddressStart = strstr(data, ": * ");
    if (!stringAddressStart)
       return false;
-   int   id    = atoi(stringWatchpoint + 11);
+   int   id    = sv_atoi(stringWatchpoint, 11);
    char* value = strstr(data, "\nNew value = ");
    if (!value)
       return false;
@@ -3702,7 +3745,7 @@ void WatchWindowUpdate(const char*, UIElement* element) {
       auto                     res   = WatchEvaluate("gf_fields", watch);
       if (res.empty() || !res.contains("(d_arr)"))
          continue;
-      int count = atoi(res.c_str() + 7);
+      int count = sv_atoi(res, 7);
 
       count        = std::clamp(count, 0, Watch::WATCH_ARRAY_MAX_FIELDS);
       int oldCount = watch->fields.size();
@@ -4431,7 +4474,7 @@ void ThreadWindowUpdate(const char*, UIElement* _table) {
       Thread thread = {};
       if (position[1] == '*')
          thread.active = true;
-      thread.id = atoi(position + 2);
+      thread.id = sv_atoi(position, 2);
       position  = strchr(position + 1, '"');
       if (!position)
          break;
@@ -5438,7 +5481,7 @@ void ProfLoadProfileData(void* _window) {
 
    auto        res              = EvaluateExpression("gfProfilingTicksPerMs");
    const char* ticksPerMsString = strstr(res.c_str(), "= ");
-   data->ticksPerMs             = ticksPerMsString ? atoi(ticksPerMsString + 2) : 0;
+   data->ticksPerMs             = ticksPerMsString ? sv_atoi(ticksPerMsString, 2) : 0;
 
    if (!ticksPerMsString || !data->ticksPerMs) {
       UIDialogShow(windowMain, 0, "Profile data could not be loaded (1).\nConsult the guide.\n%f%b", "OK");
@@ -5446,7 +5489,7 @@ void ProfLoadProfileData(void* _window) {
    }
 
    auto pos           = EvaluateExpression("gfProfilingBufferPosition");
-   int  rawEntryCount = atoi(strstr(pos.c_str(), "= ") + 2);
+   int  rawEntryCount = sv_atoi(strstr(pos.c_str(), "= "), 2);
    printf("Reading %d profiling entries...\n", rawEntryCount);
 
    if (rawEntryCount == 0) {
@@ -5559,7 +5602,7 @@ void ProfLoadProfileData(void* _window) {
          sourceFile.cPath[length] = 0;
          StringFormat(buffer, sizeof(buffer), "py print(gdb.lookup_global_symbol('%s').line)", function.cName);
          res                 = EvaluateCommand(buffer);
-         function.lineNumber = atoi(res.c_str());
+         function.lineNumber = sv_atoi(res);
 
          for (size_t i = 0; i < sourceFiles.size(); i++) {
             if (0 == strcmp(sourceFiles[i].cPath, sourceFile.cPath)) {
@@ -6318,7 +6361,7 @@ void ViewWindowView(void* cp) {
       auto res = EvaluateExpression(std::format("(size_t)strlen((const char *)({})", address));
       printf("'%s' -> '%s'\n", buffer, res.c_str());
       const char* lengthString = res.c_str() ? strstr(res.c_str(), "= ") : nullptr;
-      size_t      length       = lengthString ? atoi(lengthString + 2) : 0;
+      size_t      length       = lengthString ? sv_atoi(lengthString, 2) : 0;
       // TODO Preventing errors when calling strlen from crashing the target?
 
       if (!length) {
@@ -6756,12 +6799,12 @@ const char* WaveformViewerGetSamples(const char* pointerString, const char* samp
    if (sampleCountResult.empty()) {
       return "Could not evaluate sample count.";
    }
-   int  sampleCount    = atoi(sampleCountResult.c_str() + 1);
+   int  sampleCount    = sv_atoi(sampleCountResult, 1);
    auto channelsResult = EvaluateExpression(channelsString);
    if (channelsResult.empty()) {
       return "Could not evaluate channels.";
    }
-   int channels = atoi(channelsResult.c_str() + 1 + 1);
+   int channels = sv_atoi(channelsResult, 1 + 1);
    if (channels < 1 || channels > 8) {
       return "Channels must be between 1 and 8.";
    }
@@ -7050,7 +7093,7 @@ void MsgReceivedControl(str_unique_ptr input) {
    if (start[0] == 'f' && start[1] == ' ') {
       DisplaySetPosition(start + 2, 1, false);
    } else if (start[0] == 'l' && start[1] == ' ') {
-      DisplaySetPosition(nullptr, atoi(start + 2), false);
+      DisplaySetPosition(nullptr, sv_atoi(start, 2), false);
    } else if (start[0] == 'c' && start[1] == ' ') {
       (void)CommandParseInternal(start + 2, false);
    }
@@ -7332,7 +7375,7 @@ void InterfaceLayoutCreate(UIElement* parent) {
       if (*token == 'v')
          flags |= UIElement::VERTICAL;
       InterfaceLayoutNextToken("(");
-      UIElement* container = UISplitPaneCreate(parent, flags, atoi(InterfaceLayoutNextToken("#")) * 0.01f);
+      UIElement* container = UISplitPaneCreate(parent, flags, sv_atoi(InterfaceLayoutNextToken("#")) * 0.01f);
       InterfaceLayoutNextToken(",");
       InterfaceLayoutCreate(container);
       InterfaceLayoutNextToken(",");
