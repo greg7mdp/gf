@@ -152,6 +152,27 @@ static inline int sv_atoi(string_view str, size_t offset = 0) {
    return sv_atoi_impl<long long>(str, offset);
 }
 
+void print(const std::string_view str) {
+    std::cout << str;
+}
+
+// Variadic template for print with format arguments
+template<typename... Args>
+void print(std::format_string<Args...> fmt, Args&&... args) {
+    std::cout << std::format(fmt, std::forward<Args>(args)...);
+}
+
+template<typename... Args>
+void print(std::ostream& stream, std::format_string<Args...> fmt, Args&&... args) {
+    stream << std::format(fmt, std::forward<Args>(args)...);
+}
+
+template<typename... Args>
+void print(FILE* f, std::format_string<Args...> fmt, Args&&... args) {
+   std::string formatted = std::format(fmt, std::forward<Args>(args)...);
+   print(f, "{}", formatted);
+}
+
 // ---------------------------------------------------------------------------------------------
 //                              Data structures
 // ---------------------------------------------------------------------------------------------
@@ -230,7 +251,7 @@ struct Context {
    }
 
    void KillGdbThread() {
-      fprintf(stderr, "killing gdb thread.\n");
+      print(std::cerr, "killing gdb thread.\n");
       killGdbThread = true;
       gdbThread.join();
       killGdbThread = false;
@@ -238,7 +259,7 @@ struct Context {
 
    void KillGdb() {
       KillGdbThread();
-      fprintf(stderr, "killing gdb process %d.\n", gdbPID);
+      print(std::cerr, "killing gdb process {}.\n", gdbPID);
       kill(gdbPID, SIGKILL);
    }
 
@@ -664,7 +685,7 @@ void Context::DebuggerThread() {
    pipe(inputPipe);
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__APPLE__)
-   fprintf(stderr, "Using fork\n");
+   print(std::cerr, "Using fork\n");
    gdbPID = fork();
 
    if (gdbPID == 0) {
@@ -673,15 +694,15 @@ void Context::DebuggerThread() {
       dup2(outputPipe[1], 1);   // outputPipe[1] == stdout
       dup2(outputPipe[1], 2);   // outputPipe[1] == stderr
       execvp(gdbPath, gdbArgv); // execute gdb with arguments gdbArgv
-      fprintf(stderr, "Error: Couldn't execute gdb.\n");
+      print(std::cerr, "Error: Couldn't execute gdb.\n");
       exit(EXIT_FAILURE);
 
    } else if (gdbPID < 0) {
-      fprintf(stderr, "Error: Couldn't fork.\n");
+      print(std::cerr, "Error: Couldn't fork.\n");
       exit(EXIT_FAILURE);
    }
 #else
-   fprintf(stderr, "Using spawn\n");
+   print(std::cerr, "Using spawn\n");
    posix_spawn_file_actions_t actions = {};
    posix_spawn_file_actions_init(&actions);
    posix_spawn_file_actions_adddup2(&actions, inputPipe[0], 0);  // inputPipe[0]  == stdin
@@ -1312,7 +1333,7 @@ void SettingsAddTrustedFolder() {
    FILE* f = fopen(globalConfigPath, "wb");
 
    if (!f) {
-      fprintf(stderr, "Error: Could not modify the global config file!\n");
+      print(std::cerr, "Error: Could not modify the global config file!\n");
    } else {
       if (insert)
          fwrite(config.data(), 1, insert, f);
@@ -1337,10 +1358,10 @@ void SettingsLoad(bool earlyPass) {
       state.buffer        = config_vec[0] ? strdup(config_vec.data()) : nullptr;
 
       if (earlyPass && i && !currentFolderIsTrusted && state.buffer) {
-         fprintf(stderr, "Would you like to load the config file .project.gf from your current directory?\n");
-         fprintf(stderr, "You have not loaded this config file before.\n");
-         fprintf(stderr, "(Y) - Yes, and add it to the list of trusted files\n");
-         fprintf(stderr, "(N) - No\n");
+         print(std::cerr, "Would you like to load the config file .project.gf from your current directory?\n");
+         print(std::cerr, "You have not loaded this config file before.\n");
+         print(std::cerr, "(Y) - Yes, and add it to the list of trusted files\n");
+         print(std::cerr, "(N) - No\n");
          char c = 'n';
          fread(&c, 1, 1, stdin);
 
@@ -1394,7 +1415,7 @@ void SettingsLoad(bool earlyPass) {
             }
 
             if ((int)shortcut.code == 0) {
-               fprintf(stderr, "Warning: Could not register shortcut for '%s'.\n", state.key);
+               print(std::cerr, "Warning: Could not register shortcut for '{}'.\n", state.key);
             } else {
                UIWindowRegisterShortcut(windowMain, std::move(shortcut));
             }
@@ -1484,7 +1505,7 @@ void SettingsLoad(bool earlyPass) {
                }
 
                if (!ctx.logWindow) {
-                  fprintf(stderr, "Warning: gdb.log_all_output was enabled, "
+                  print(std::cerr, "Warning: gdb.log_all_output was enabled, "
                                   "but your layout does not have a 'Log' window.\n");
                }
             } else if (0 == strcmp(state.key, "confirm_command_kill")) {
@@ -1665,21 +1686,21 @@ void DisassemblyLoad() {
    const char* end = strstr(res.c_str(), "End of assembler dump.");
 
    if (!end) {
-      printf("Disassembly failed. GDB output:\n%s\n", res.c_str());
+      print("Disassembly failed. GDB output:\n{}\n", res);
       return;
    }
 
    const char* start = strstr(res.c_str(), ":\n");
 
    if (!start) {
-      printf("Disassembly failed. GDB output:\n%s\n", res.c_str());
+      print("Disassembly failed. GDB output:\n{}\n", res);
       return;
    }
 
    start += 2;
 
    if (start >= end) {
-      printf("Disassembly failed. GDB output:\n%s\n", res.c_str());
+      print("Disassembly failed. GDB output:\n{}\n", res);
       return;
    }
 
@@ -2383,7 +2404,7 @@ const char* BitmapViewerGetBits(std::string pointerString, std::string widthStri
       unlink(bitmapPath);
    }
 
-   if (!f || strstr(res.c_str(), "access")) {
+   if (!f || res.contains("access")) {
       return "Could not read the image bits!";
    }
 
@@ -2404,7 +2425,7 @@ int BitmapViewerDisplayMessage(UIElement* element, UIMessage message, int di, vo
 
          UIImageDisplay* display = (UIImageDisplay*)element;
          FILE*           f       = fopen(path, "wb");
-         fprintf(f, "P6\n%d %d\n255\n", display->width, display->height);
+         print(f, "P6\n{} {}\n255\n", display->width, display->height);
 
          for (int i = 0; i < display->width * display->height; i++) {
             uint8_t pixel[3] = {(uint8_t)(display->bits[i] >> 16), (uint8_t)(display->bits[i] >> 8),
@@ -2544,7 +2565,7 @@ int TextboxInputMessage(UIElement* element, UIMessage message, int di, void* dp)
 
          auto buffer = std::format("{:.{}}", textbox->string, (int)textbox->bytes);
          if (commandLog)
-            fprintf(commandLog, "%s\n", buffer.c_str());
+            print(commandLog, "{}\n", buffer);
          CommandSendToGDB(buffer);
 
          unique_ptr<char[]> string = std::make_unique<char[]>(textbox->bytes + 1);
@@ -3309,16 +3330,16 @@ void CommandWatchViewSourceAtAddress() {
 }
 
 void CommandWatchSaveAsRecurse(FILE* file, const shared_ptr<Watch>& watch, int indent, int indexInParentArray) {
-   fprintf(file, "%.*s", indent, "\t\t\t\t\t\t\t\t\t\t\t\t\t\t");
+   print(file, "{:.{}}", "\t\t\t\t\t\t\t\t\t\t\t\t\t\t", indent);
 
    if (indexInParentArray == -1) {
-      fprintf(file, "%s = ", watch->key.c_str());
+      print(file, "{} = ", watch->key);
    } else {
-      fprintf(file, "[%d] = ", indexInParentArray);
+      print(file, "[{}] = ", indexInParentArray);
    }
 
    if (watch->open) {
-      fprintf(file, "\n");
+      print(file, "\n");
 
       for (size_t i = 0; i < watch->fields.size(); i++) {
          CommandWatchSaveAsRecurse(file, watch->fields[i], indent + 1, watch->isArray ? i : -1);
@@ -3327,7 +3348,7 @@ void CommandWatchSaveAsRecurse(FILE* file, const shared_ptr<Watch>& watch, int i
       auto res = WatchEvaluate("gf_valueof", watch);
       if (!res.empty()) {
          resize_to_lf(res);
-         fprintf(file, "%s\n", res.c_str());
+         print(file, "{}\n", res);
       }
    }
 }
@@ -4359,14 +4380,14 @@ UIElement* CommandsWindowCreate(UIElement* parent) {
 
 void* LogWindowThread(void* context) {
    if (!logPipePath) {
-      fprintf(stderr, "Warning: The log pipe path has not been set in the configuration file!\n");
+      print(std::cerr, "Warning: The log pipe path has not been set in the configuration file!\n");
       return nullptr;
    }
 
    int file = open(logPipePath, O_RDONLY | O_NONBLOCK);
 
    if (file == -1) {
-      fprintf(stderr, "Warning: Could not open the log pipe!\n");
+      print(std::cerr, "Warning: Could not open the log pipe!\n");
       return nullptr;
    }
 
@@ -4549,9 +4570,9 @@ void ExecutableWindowSaveButton(void* _window) {
    }
 
    f = fopen(localConfigPath, "wb");
-   fprintf(f, "[executable]\npath=%.*s\narguments=%.*s\nask_directory=%c\n", (int)window->path->bytes,
-           window->path->string, (int)window->arguments->bytes, window->arguments->string,
-           window->askDirectory->check == UICheckbox::CHECKED ? '1' : '0');
+   print(f, "[executable]\npath={:.{}}\narguments={:.{}}\nask_directory={}\n", window->path->string,
+         (int)window->path->bytes, window->arguments->string, (int)window->arguments->bytes,
+         window->askDirectory->check == UICheckbox::CHECKED ? '1' : '0');
    fclose(f);
    SettingsAddTrustedFolder();
    UIDialogShow(windowMain, 0, "Saved executable settings!\n%f%B", "OK");
@@ -7336,7 +7357,7 @@ const char* InterfaceLayoutNextToken(const char* expected = nullptr) {
 
       *out = 0;
    } else {
-      fprintf(stderr, "Error: Invalid character in layout string '%c'.\n", first);
+      print(std::cerr, "Error: Invalid character in layout string '{}'.\n", first);
       exit(1);
    }
 
@@ -7350,11 +7371,11 @@ const char* InterfaceLayoutNextToken(const char* expected = nullptr) {
          }
 
          if (!valid) {
-            fprintf(stderr, "Error: Expected a number in layout string; got '%s'.\n", buffer);
+            print(std::cerr, "Error: Expected a number in layout string; got '{}'.\n", buffer);
             exit(1);
          }
       } else if (strcmp(expected, buffer)) {
-         fprintf(stderr, "Error: Expected '%s' in layout string; got '%s'.\n", expected, buffer);
+         print(std::cerr, "Error: Expected '{}' in layout string; got '{}'.\n", expected, buffer);
          exit(1);
       }
    }
@@ -7397,7 +7418,7 @@ void InterfaceLayoutCreate(UIElement* parent) {
          } else if (0 == strcmp(token, ")")) {
             break;
          } else {
-            fprintf(stderr, "Error: Invalid layout string! Expected ',' or ')' in tab container list; got '%s'.\n",
+            print(std::cerr, "Error: Invalid layout string! Expected ',' or ')' in tab container list; got '{}'.\n",
                     token);
             exit(1);
          }
@@ -7416,7 +7437,7 @@ void InterfaceLayoutCreate(UIElement* parent) {
       }
 
       if (!found) {
-         fprintf(stderr, "Error: Invalid layout string! The window '%s' was not found.\n", token);
+         print(std::cerr, "Error: Invalid layout string! The window '{}' was not found.\n", token);
          exit(1);
       }
    }
@@ -7424,8 +7445,8 @@ void InterfaceLayoutCreate(UIElement* parent) {
 
 unique_ptr<UI> GfMain(int argc, char** argv) {
    if (argc == 2 && (0 == strcmp(argv[1], "-?") || 0 == strcmp(argv[1], "-h") || 0 == strcmp(argv[1], "--help"))) {
-      fprintf(stderr,
-              "Usage: %s [GDB args]\n\n"
+      print(std::cerr,
+              "Usage: {} [GDB args]\n\n"
               "GDB args: Pass any GDB arguments here, they will be forwarded to GDB.\n\n"
               "For more information, view the README at https://github.com/nakst/gf/blob/master/README.md.\n",
               argv[0]);
@@ -7438,7 +7459,7 @@ unique_ptr<UI> GfMain(int argc, char** argv) {
       ctx.KillGdb();
       exit(0);
    });
-   std::signal(SIGPIPE, [](int) { fprintf(stderr, "SIGPIPE Received - ignored.\n"); });
+   std::signal(SIGPIPE, [](int) { print(std::cerr, "SIGPIPE Received - ignored.\n"); });
 
    // process command arguments and create updated version to pass to gdb
    // -------------------------------------------------------------------
@@ -7480,7 +7501,7 @@ unique_ptr<UI> GfMain(int argc, char** argv) {
          if (newline)
             *newline = 0;
          fontPath = buffer;
-         fprintf(stderr, "Using font %s\n", fontPath);
+         print(std::cerr, "Using font {}\n", fontPath);
       }
    }
 #endif
@@ -7503,7 +7524,7 @@ unique_ptr<UI> GfMain(int argc, char** argv) {
    UISwitcherSwitchTo(switcherMain, switcherMain->children[0]);
 
    if (*InterfaceLayoutNextToken()) {
-      fprintf(stderr, "Warning: Layout string has additional text after the end of the top-level entry.\n");
+      print(std::cerr, "Warning: Layout string has additional text after the end of the top-level entry.\n");
    }
 
    SettingsLoad(false);
@@ -7526,12 +7547,12 @@ int main(int argc, char** argv) {
 
       if (f) {
          for (const auto& exp : firstWatchWindow->baseExpressions) {
-            fprintf(f, "%s\n", exp->key.c_str());
+            print(f, "{}\n", exp->key);
          }
 
          fclose(f);
       } else {
-         fprintf(stderr, "Warning: Could not save the contents of the watch window; '%s' was not accessible.\n",
+         print(std::cerr, "Warning: Could not save the contents of the watch window; '{}' was not accessible.\n",
                  globalConfigPath);
       }
    }
