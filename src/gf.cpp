@@ -746,7 +746,7 @@ void Context::DebuggerThread() {
 
          // wait till we get the prompt again so we know we received the complete output
          // ----------------------------------------------------------------------------
-         if (!strstr(catBuffer.c_str(), "(gdb) "))
+         if (!catBuffer.contains("(gdb) "))
             continue;
 
          // printf("================ got (%d) {%s}, er=%s\n", evaluateMode, catBuffer, evaluateResult ?
@@ -1658,7 +1658,7 @@ void DisplaySetPositionFromStack() {
 void DisassemblyLoad() {
    auto res = EvaluateCommand(disassemblyCommand);
 
-   if (!strstr(res.c_str(), "Dump of assembler code for function")) {
+   if (!res.contains("Dump of assembler code for function")) {
       res = EvaluateCommand("disas $pc,+1000");
    }
 
@@ -3251,7 +3251,7 @@ void CommandWatchAddEntryForAddress(WatchWindow* _w) {
 
    auto address = res;
    res = WatchEvaluate("gf_typeof", watch);
-   if (res.empty() || strstr(res.c_str(), "??"))
+   if (res.empty() || res.contains("??"))
       return;
    resize_to_lf(res);
 
@@ -3281,7 +3281,7 @@ void CommandWatchViewSourceAtAddress(WatchWindow* _w) {
    auto res = EvaluateCommand(std::format("info line * 0x{:x}", value));
    position = (char*)res.c_str();
 
-   if (strstr(res.c_str(), "No line number")) {
+   if (res.contains("No line number")) {
       resize_to_lf(res);
       UIDialogShow(windowMain, 0, "%s\n%f%B", res.c_str(), "OK");
       return;
@@ -4254,8 +4254,8 @@ UIElement* RegistersWindowCreate(UIElement* parent) {
 void RegistersWindowUpdate(const char*, UIElement* panel) {
    auto res = EvaluateCommand("info registers");
 
-   if (res.empty() || strstr(res.c_str(), "The program has no registers now.") ||
-       strstr(res.c_str(), "The current thread has terminated")) {
+   if (res.empty() || res.contains("The program has no registers now.") ||
+       res.contains("The current thread has terminated")) {
       return;
    }
 
@@ -5591,7 +5591,7 @@ void ProfLoadProfileData(void* _window) {
       StringFormat(buffer, sizeof(buffer), "py print(gdb.lookup_global_symbol('%s').symtab.filename)", function.cName);
       auto res = EvaluateCommand(buffer);
 
-      if (!strstr(res.c_str(), "Traceback (most recent call last):")) {
+      if (!res.contains("Traceback (most recent call last):")) {
          resize_to_lf(res);
          ProfSourceFileEntry sourceFile  = {};
          const char*         cSourceFile = res.c_str();
@@ -5863,7 +5863,7 @@ int MemoryWindowMessage(UIElement* element, UIMessage message, int di, void* dp)
 
             bool error = true;
 
-            if (!strstr(res.c_str(), "Cannot access memory")) {
+            if (!res.contains("Cannot access memory")) {
                const char* position = strchr(res.c_str(), ':');
 
                if (position) {
@@ -6296,13 +6296,8 @@ void ViewWindowView(void* cp) {
        0 == strcmp(type, "unsigned long") || 0 == strcmp(type, "unsigned long long") || 0 == strcmp(type, "char") ||
        0 == strcmp(type, "short") || 0 == strcmp(type, "int") || 0 == strcmp(type, "long") ||
        0 == strcmp(type, "long long")) {
-      uint64_t value;
 
-      if ((res)[0] == '-') {
-         value = -strtoul(res.c_str() + 1, nullptr, 10);
-      } else {
-         value = strtoul(res.c_str(), nullptr, 10);
-      }
+      int64_t value = sv_atoll(res);
 
       StringFormat(buffer, sizeof(buffer), " 8b: %d %u 0x%x '%c'", (int8_t)value, (uint8_t)value, (uint8_t)value,
                    (char)value);
@@ -6838,7 +6833,7 @@ const char* WaveformViewerGetSamples(const char* pointerString, const char* samp
       unlink(transferPath);
    }
 
-   if (!f || strstr(res.c_str(), "access")) {
+   if (!f || res.contains("access")) {
       return "Could not read the waveform samples!";
    }
 
