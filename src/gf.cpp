@@ -1086,7 +1086,7 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
                async = nullptr; // Trim the '&' character, but run synchronously anyway.
             res = CommandParseInternal(position, !async);
             if (displayOutput && res)
-               UICodeInsertContent(displayOutput, res->c_str(), -1, false);
+               UICodeInsertContent(displayOutput, *res, false);
             if (end)
                position = end + 1;
             else
@@ -1216,7 +1216,7 @@ void CommandCustom(string_view command) {
       vector<char> copy(bytes + 1);
       uintptr_t    j = 0;
 
-      for (uintptr_t i = 0; i <= bytes;) {
+      for (size_t i = 0; i <= bytes;) {
          if ((uint8_t)output[i] == 0xE2 && (uint8_t)output[i + 1] == 0x80 &&
              ((uint8_t)output[i + 2] == 0x98 || (uint8_t)output[i + 2] == 0x99)) {
             copy[j++] = '\'';
@@ -1227,7 +1227,7 @@ void CommandCustom(string_view command) {
       }
 
       if (displayOutput) {
-         UICodeInsertContent(displayOutput, copy.data(), j, false);
+         UICodeInsertContent(displayOutput, {copy.data(), j}, false);
          UICodeInsertContent(displayOutput,
                              std::format("(exit code: {}; time: {}s)\n", result, (int)(time(nullptr) - start)), false);
          displayOutput->Refresh();
@@ -1581,7 +1581,7 @@ bool DisplaySetPosition(const char* file, int line, bool useGDBToGetFullPath) {
          UICodeInsertContent(displayCode,
                              std::format("The file '{}' (from '{}') could not be loaded.", file, originalFile), true);
       } else {
-         UICodeInsertContent(displayCode, buffer2.data(), bytes, true);
+         UICodeInsertContent(displayCode, {buffer2.data(), bytes}, true);
       }
 
       changed            = true;
@@ -1647,7 +1647,7 @@ void DisassemblyLoad() {
       pointer[1] = ' ';
    }
 
-   UICodeInsertContent(displayCode, start, end - start, true);
+   UICodeInsertContent(displayCode, {start, static_cast<size_t>(end - start)}, true);
 }
 
 void DisassemblyUpdateLine() {
@@ -1694,7 +1694,7 @@ void CommandToggleDisassembly() {
    displayCode->flags ^= UICode::NO_MARGIN;
 
    if (showingDisassembly) {
-      UICodeInsertContent(displayCode, "Disassembly could not be loaded.\nPress Ctrl+D to return to source view.", -1,
+      UICodeInsertContent(displayCode, "Disassembly could not be loaded.\nPress Ctrl+D to return to source view.",
                           true);
       displayCode->tabSize = 8;
       DisassemblyLoad();
@@ -4038,7 +4038,7 @@ int TextboxStructNameMessage(UIElement* element, UIMessage message, int di, void
          char* end = (char*)strstr(res.c_str(), "\n(gdb)");
          if (end)
             *end = 0;
-         UICodeInsertContent(window->display, res.c_str(), -1, true);
+         UICodeInsertContent(window->display, res, true);
          UITextboxClear(window->textbox, false);
          window->display->Refresh();
          element->Refresh();
@@ -4056,7 +4056,7 @@ UIElement* StructWindowCreate(UIElement* parent) {
    window->textbox->messageUser = TextboxStructNameMessage;
    window->textbox->cp          = window;
    window->display              = UICodeCreate(panel, UIElement::V_FILL | UICode::NO_MARGIN | UICode::SELECTABLE);
-   UICodeInsertContent(window->display, "Type the name of a struct to view its layout.", -1, false);
+   UICodeInsertContent(window->display, "Type the name of a struct to view its layout.", false);
    return panel;
 }
 
@@ -4352,7 +4352,7 @@ void* LogWindowThread(void* context) {
 }
 
 void LogReceived(char* buffer) {
-   UICodeInsertContent(ctx.logWindow, buffer, -1, false);
+   UICodeInsertContent(ctx.logWindow, buffer, false);
    (*(UIElement**)buffer)->Refresh();
    free(buffer);
 }
@@ -4619,13 +4619,13 @@ int TextboxSearchCommandMessage(UIElement* element, UIMessage message, int di, v
       for (const auto& cmd : window->commands) {
          if (strstr(cmd.descriptionLower, query)) {
             StringFormat(buffer, sizeof(buffer), "%s: %s", cmd.name, cmd.description);
-            UICodeInsertContent(window->display, buffer, -1, firstMatch);
+            UICodeInsertContent(window->display, buffer, firstMatch);
             firstMatch = false;
          }
       }
 
       if (firstMatch) {
-         UICodeInsertContent(window->display, "(no matches)", -1, firstMatch);
+         UICodeInsertContent(window->display, "(no matches)", firstMatch);
       }
 
       window->display->vScroll->position = 0;
@@ -4642,7 +4642,7 @@ UIElement* CommandSearchWindowCreate(UIElement* parent) {
    window->textbox->messageUser = TextboxSearchCommandMessage;
    window->textbox->cp          = window;
    window->display              = UICodeCreate(panel, UIElement::V_FILL | UICode::NO_MARGIN | UICode::SELECTABLE);
-   UICodeInsertContent(window->display, "Type here to search \nGDB command descriptions.", -1, true);
+   UICodeInsertContent(window->display, "Type here to search \nGDB command descriptions.", true);
    return panel;
 }
 
@@ -7033,7 +7033,7 @@ void MsgReceivedData(str_unique_ptr input) {
    DataViewersUpdateAll();
 
    if (displayOutput) {
-      UICodeInsertContent(displayOutput, input.get(), -1, false);
+      UICodeInsertContent(displayOutput, input.get(), false);
       displayOutput->Refresh();
    }
 
@@ -7185,7 +7185,7 @@ __attribute__((constructor)) void InterfaceAddBuiltinWindowsAndCommands() {
    // received buffer contains debugger output to add to log window
    msgReceivedLog = ReceiveMessageRegister([](str_unique_ptr buffer) {
       assert(ctx.logWindow);
-      UICodeInsertContent(ctx.logWindow, buffer.get(), -1, false);
+      UICodeInsertContent(ctx.logWindow, buffer.get(), false);
       ctx.logWindow->Refresh();
    });
 }

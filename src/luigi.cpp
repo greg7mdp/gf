@@ -2670,6 +2670,10 @@ void UICodeFocusLine(UICode* code, int index) {
 }
 
 void UICodeInsertContent(UICode* code, std::string_view new_content, bool replace) {
+   constexpr size_t max_size = 1000000000;
+   if (new_content.size() > max_size)
+      new_content = new_content.substr(0, max_size);
+   
    code->useVerticalMotionColumn = false;
 
    UIFont* previousFont = UIFontActivate(code->font);
@@ -2720,17 +2724,6 @@ void UICodeInsertContent(UICode* code, std::string_view new_content, bool replac
 
    UIFontActivate(previousFont);
    code->Repaint(NULL);
-}
-
-void UICodeInsertContent(UICode* code, const char* content, ptrdiff_t byteCount, bool replace) {
-   if (byteCount == -1) {
-      byteCount = _UIStringLength(content);
-   }
-
-   if (byteCount > 1000000000) {
-      byteCount = 1000000000;
-   }
-   UICodeInsertContent(code, std::string_view{content, (size_t)byteCount}, replace);
 }
 
 UICode::UICode(UIElement* parent, uint32_t flags) :
@@ -4645,7 +4638,7 @@ void UIInspectorLog(const char* cFormat, ...) {
    va_start(arguments, cFormat);
    char buffer[4096];
    vsnprintf(buffer, sizeof(buffer), cFormat, arguments);
-   UICodeInsertContent(ui->inspectorLog, buffer, -1, false);
+   UICodeInsertContent(ui->inspectorLog, buffer, false);
    va_end(arguments);
    &ui->inspectorLog->e->Refresh();
 }
