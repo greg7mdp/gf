@@ -972,7 +972,7 @@ typedef void (*UIDialogUserCallback)(UIElement*);
 const char* UIDialogShow(UIWindow* window, uint32_t flags, const char* format, ...);
 
 UIMenu* UIMenuCreate(UIElement* parent, uint32_t flags);
-void    UIMenuAddItem(UIMenu* menu, uint32_t flags, const char* label, ptrdiff_t labelBytes, std::function<void ()> invoke);
+void    UIMenuAddItem(UIMenu* menu, uint32_t flags, std::string_view label, std::function<void ()> invoke);
 void    UIMenuShow(UIMenu* menu);
 bool    UIMenusOpen();
 

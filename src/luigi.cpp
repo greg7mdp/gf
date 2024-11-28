@@ -2612,7 +2612,7 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
                         code->selection[0].offset == code->selection[1].offset)
                           ? UIElement::DISABLED
                           : 0,
-                       "Copy", -1, [=]() { _UICodeCopyText(code, sel_target_t::clipboard); });
+                       "Copy", [=]() { _UICodeCopyText(code, sel_target_t::clipboard); });
          UIMenuShow(menu);
       }
    } else if (message == UIMessage::UPDATE) {
@@ -3341,11 +3341,11 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
       }
 
       UIMenu* menu = UIMenuCreate(element->window, UIMenu::NO_SCROLL);
-      UIMenuAddItem(menu, textbox->carets[0] == textbox->carets[1] ? UIElement::DISABLED : 0, "Copy", -1,
+      UIMenuAddItem(menu, textbox->carets[0] == textbox->carets[1] ? UIElement::DISABLED : 0, "Copy",
                     [=]() { _UITextboxCopyText(textbox); });
       size_t pasteBytes;
       char*  paste = _UIClipboardReadTextStart(textbox->window, &pasteBytes, sel_target_t::clipboard);
-      UIMenuAddItem(menu, !paste || !pasteBytes ? UIElement::DISABLED : 0, "Paste", -1,
+      UIMenuAddItem(menu, !paste || !pasteBytes ? UIElement::DISABLED : 0, "Paste",
                     [=]() { _UITextboxPasteText(textbox, sel_target_t::clipboard); });
       _UIClipboardReadTextEnd(textbox->window, paste);
       UIMenuShow(menu);
@@ -4074,7 +4074,7 @@ int _UIMenuMessage(UIElement* element, UIMessage message, int di, void* dp) {
    return 0;
 }
 
-void UIMenuAddItem(UIMenu* menu, uint32_t flags, const char* label, ptrdiff_t labelBytes, std::function<void ()> invoke) {
+void UIMenuAddItem(UIMenu* menu, uint32_t flags, std::string_view label, std::function<void ()> invoke) {
    UIButton* button      = UIButtonCreate(menu, flags | UIButton::MENU_ITEM, label);
    button->invoke        = std::move(invoke);
    button->messageUser = _UIMenuItemMessage;

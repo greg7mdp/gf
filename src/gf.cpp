@@ -1830,11 +1830,11 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
       for (const auto& bp : breakpoints) {
          if (bp.line == -result && 0 == strcmp(bp.fileFull, currentFileFull)) {
             UIMenu* menu = UIMenuCreate(element->window, UIMenu::NO_SCROLL);
-            UIMenuAddItem(menu, 0, "Delete", -1, [=]() { CommandDeleteAllBreakpointsOnLine(-result); });
+            UIMenuAddItem(menu, 0, "Delete", [=]() { CommandDeleteAllBreakpointsOnLine(-result); });
             if (atLeastOneBreakpointEnabled)
-               UIMenuAddItem(menu, 0, "Disable", -1, [=]() { CommandDisableAllBreakpointsOnLine(-result); });
+               UIMenuAddItem(menu, 0, "Disable", [=]() { CommandDisableAllBreakpointsOnLine(-result); });
             else
-               UIMenuAddItem(menu, 0, "Enable", -1, [=]() { CommandEnableAllBreakpointsOnLine(-result); });
+               UIMenuAddItem(menu, 0, "Enable", [=]() { CommandEnableAllBreakpointsOnLine(-result); });
             UIMenuShow(menu);
          }
       }
@@ -2352,7 +2352,7 @@ int BitmapViewerDisplayMessage(UIElement* element, UIMessage message, int di, vo
    if (message == UIMessage::RIGHT_UP) {
       UIMenu* menu = UIMenuCreate(element->window, UIMenu::NO_SCROLL);
 
-      UIMenuAddItem(menu, 0, "Save to file...", -1, [element]() {
+      UIMenuAddItem(menu, 0, "Save to file...", [element]() {
          static char* path = NULL;
          const char*  result =
             UIDialogShow(windowMain, 0, "Save to file       \nPath:\n%t\n%f%B%C", &path, "Save", "Cancel");
@@ -3426,21 +3426,21 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
             UIMenu* menu = UIMenuCreate(element->window, UIMenu::NO_SCROLL);
 
             if (w->mode == WATCH_NORMAL && !w->rows[index]->parent) {
-               UIMenuAddItem(menu, 0, "Edit expression", -1, [w]() { WatchCreateTextboxForRow(w, true); });
+               UIMenuAddItem(menu, 0, "Edit expression", [w]() { WatchCreateTextboxForRow(w, true); });
 
-               UIMenuAddItem(menu, 0, "Delete", -1, [w]() {
+               UIMenuAddItem(menu, 0, "Delete", [w]() {
                   WatchDeleteExpression(w);
                   w->parent->Refresh();
                   w->Refresh();
                });
             }
 
-            UIMenuAddItem(menu, 0, "Copy value to clipboard\tCtrl+C", -1,
+            UIMenuAddItem(menu, 0, "Copy value to clipboard\tCtrl+C",
                           [w]() { CommandWatchCopyValueToClipboard(w); });
 
-            UIMenuAddItem(menu, 0, "Log writes to address...", -1, [w]() { WatchChangeLoggerCreate(w); });
+            UIMenuAddItem(menu, 0, "Log writes to address...", [w]() { WatchChangeLoggerCreate(w); });
 
-            UIMenuAddItem(menu, 0, "Break on writes to address", -1, [w]() {
+            UIMenuAddItem(menu, 0, "Break on writes to address", [w]() {
                if (w->selectedRow == w->rows.size())
                   return;
                auto res = WatchGetAddress(w->rows[w->selectedRow]);
@@ -3452,12 +3452,12 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
             });
 
             if (firstWatchWindow) {
-               UIMenuAddItem(menu, 0, "Add entry for address\tCtrl+E", -1,
+               UIMenuAddItem(menu, 0, "Add entry for address\tCtrl+E",
                              [w]() { CommandWatchAddEntryForAddress(w); });
             }
 
-            UIMenuAddItem(menu, 0, "View source at address\tCtrl+G", -1, [w]() { CommandWatchViewSourceAtAddress(w); });
-            UIMenuAddItem(menu, 0, "Save as...", -1, [w]() { CommandWatchSaveAs(w); });
+            UIMenuAddItem(menu, 0, "View source at address\tCtrl+G", [w]() { CommandWatchViewSourceAtAddress(w); });
+            UIMenuAddItem(menu, 0, "Save as...", [w]() { CommandWatchSaveAs(w); });
 
             UIMenuShow(menu);
          }
@@ -3880,19 +3880,19 @@ int TableBreakpointsMessage(UIElement* element, UIMessage message, int di, void*
             }
 
          addMenuItems:
-            UIMenuAddItem(menu, 0, "Delete", -1, [data]() { CommandDeleteSelectedBreakpoints(data); });
+            UIMenuAddItem(menu, 0, "Delete", [data]() { CommandDeleteSelectedBreakpoints(data); });
 
             if (atLeastOneBreakpointDisabled)
-               UIMenuAddItem(menu, 0, "Enable", -1, [data]() { CommandEnableSelectedBreakpoints(data); });
+               UIMenuAddItem(menu, 0, "Enable", [data]() { CommandEnableSelectedBreakpoints(data); });
             else
-               UIMenuAddItem(menu, 0, "Disable", -1, [data]() { CommandDisableSelectedBreakpoints(data); });
+               UIMenuAddItem(menu, 0, "Disable", [data]() { CommandDisableSelectedBreakpoints(data); });
          } else {
-            UIMenuAddItem(menu, 0, "Delete", -1, [index]() { CommandDeleteBreakpoint(index); });
+            UIMenuAddItem(menu, 0, "Delete", [index]() { CommandDeleteBreakpoint(index); });
 
             if (breakpoints[index].enabled)
-               UIMenuAddItem(menu, 0, "Disable", -1, [index]() { CommandDisableBreakpoint(index); });
+               UIMenuAddItem(menu, 0, "Disable", [index]() { CommandDisableBreakpoint(index); });
             else
-               UIMenuAddItem(menu, 0, "Enable", -1, [index]() { CommandEnableBreakpoint(index); });
+               UIMenuAddItem(menu, 0, "Enable", [index]() { CommandEnableBreakpoint(index); });
          }
 
          UIMenuShow(menu);
@@ -5234,9 +5234,9 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
       } else if (!report->dragStarted && message == UIMessage::RIGHT_UP && report->hover) {
          report->menuItem = report->hover;
          UIMenu* menu     = UIMenuCreate(element->window, UIMenu::NO_SCROLL);
-         UIMenuAddItem(menu, 0, "Show source", -1, [report]() { ProfShowSource(report); });
-         UIMenuAddItem(menu, 0, "Add breakpoint", -1, [report]() { ProfAddBreakpoint(report->hover); });
-         UIMenuAddItem(menu, 0, "Fill view", -1, [report]() { ProfFillView(report); });
+         UIMenuAddItem(menu, 0, "Show source", [report]() { ProfShowSource(report); });
+         UIMenuAddItem(menu, 0, "Add breakpoint", [report]() { ProfAddBreakpoint(report->hover); });
+         UIMenuAddItem(menu, 0, "Fill view", [report]() { ProfFillView(report); });
          UIMenuShow(menu);
       } else if (!report->dragStarted && message == UIMessage::MIDDLE_UP && report->hover) {
          report->menuItem = report->hover;
@@ -6878,7 +6878,7 @@ int WaveformViewerDisplayMessage(UIElement* element, UIMessage message, int di, 
    if (message == UIMessage::RIGHT_UP) {
       WaveformDisplay* display = (WaveformDisplay*)element;
       UIMenu*          menu    = UIMenuCreate(element->window, UIMenu::NO_SCROLL);
-      UIMenuAddItem(menu, 0, "Save to .wav...", -1, [display]() { WaveformViewerSaveToFile(display); });
+      UIMenuAddItem(menu, 0, "Save to .wav...", [display]() { WaveformViewerSaveToFile(display); });
       UIMenuShow(menu);
    }
 
@@ -7196,7 +7196,7 @@ void InterfaceShowMenu(UIButton* self) {
    for (const auto& ic : interfaceCommands) {
       if (!ic.label)
          continue;
-      UIMenuAddItem(menu, 0, ic.label, -1, ic.shortcut.invoke);
+      UIMenuAddItem(menu, 0, ic.label, ic.shortcut.invoke);
    }
 
    UIMenuShow(menu);
