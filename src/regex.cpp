@@ -56,7 +56,7 @@ std::vector<std::string_view> regex::extract_debuggable_expressions(std::string_
 
     // Function calls with parameters: foo(arg1, arg2) or ns::foo(arg1, arg2)
     // ----------------------------------------------------------------------
-    static constexpr auto function_call = fs_concat<namespaced_id, call_params>();
+    [[maybe_unused]] static constexpr auto function_call = fs_concat<namespaced_id, call_params>();
 
     // Parenthesized expressions: (x + y)
     // ----------------------------------

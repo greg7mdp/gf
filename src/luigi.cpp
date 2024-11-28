@@ -644,6 +644,9 @@ int UIMeasureStringHeight() {
 
 void UIDrawString(UIPainter* painter, UIRectangle r, std::string_view string, uint32_t color, UIAlign align,
                   UIStringSelection* selection) {
+   if (string.empty() || !string[0])
+      printf("uho\n");
+   
    UIRectangle oldClip = painter->clip;
    painter->clip       = intersection(r, oldClip);
 
@@ -792,7 +795,7 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
          for (; tab < labelBytes && label[tab] != '\t'; tab++)
             ;
 
-         UIDrawString(painter, innerBounds, label.substr(tab), textColor, UIAlign::left, NULL);
+         UIDrawString(painter, innerBounds, label.substr(0, tab), textColor, UIAlign::left, NULL);
 
          if (labelBytes > tab) {
             UIDrawString(painter, innerBounds, {label.data() + tab + 1, static_cast<size_t>(labelBytes - tab - 1)},
@@ -3007,8 +3010,9 @@ int _UITableMessage(UIElement* element, UIMessage message, int di, void* dp) {
             cell.r = cell.l + table->columnWidths[j];
             if ((size_t)bytes > m.bufferBytes && bytes > 0)
                bytes = m.bufferBytes;
-            UIDrawControl(painter, cell, UI_DRAW_CONTROL_TABLE_CELL | rowFlags, buffer, 0,
-                          element->window->scale);
+            if (bytes > 0)
+               UIDrawControl(painter, cell, UI_DRAW_CONTROL_TABLE_CELL | rowFlags, {buffer, static_cast<size_t>(bytes)}, 0,
+                             element->window->scale);
             cell.l += table->columnWidths[j] + ui_size::TABLE_COLUMN_GAP * table->window->scale;
          }
 
@@ -3140,7 +3144,7 @@ void UITextboxReplace(UITextbox* textbox, std::string_view text, bool sendChange
 
    std::memmove(&textbox->string[deleteFrom], &textbox->string[deleteTo], textbox->bytes - deleteTo);
    textbox->bytes -= deleteTo - deleteFrom;
-   textbox->string = (char*)UI_REALLOC(textbox->string, textbox->bytes + bytes);
+   textbox->string = (char*)UI_REALLOC(textbox->string, textbox->bytes + bytes + 1);
    std::memmove(&textbox->string[deleteFrom + bytes], &textbox->string[deleteFrom], textbox->bytes - deleteFrom);
    std::memmove(&textbox->string[deleteFrom], &text[0], bytes);
    textbox->bytes += bytes;
@@ -3352,7 +3356,7 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
 
 UITextbox::UITextbox(UIElement* parent, uint32_t flags) :
    UIElement( parent, flags | UIElement::TAB_STOP, _UITextboxMessage, "Textbox"),
-   string(nullptr),
+   string((char*)UI_CALLOC(1)),
    bytes(0),
    carets({0, 0}),
    scroll(0),
