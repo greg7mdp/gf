@@ -795,6 +795,7 @@ void DebuggerStartThread() {
    ctx.gdbThread = std::thread([]() { ctx.DebuggerThread(); });
 }
 
+// can be called by: SourceWindowUpdate -> EvaluateExpresion -> EvaluateCommand
 // synchronous means we will wait for the debugger output
 std::optional<std::string> DebuggerSend(string_view command, bool echo, bool synchronous) {
    std::optional<std::string> res;
@@ -2025,7 +2026,7 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
 
    if (changedSourceLine && currentLine < (int)displayCode->num_lines() && currentLine > 0) {
       // If there is an auto-print expression from the previous line, evaluate it.
-
+#if 0
       if (autoPrintExpression[0]) {
          auto        res    = EvaluateCommand(std::format("p {}", autoPrintExpression));
          const char* result = strchr(res.c_str(), '=');
@@ -2042,7 +2043,7 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
 
          autoPrintExpression[0] = 0;
       }
-
+#endif
       // Parse the new source line.
 
       UICodeLine* line     = &displayCode->lines[currentLine - 1];
@@ -2161,6 +2162,7 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
             } else if (text[i] == ')' && depth) {
                depth--;
             } else if (text[i] == ')' && !depth) {
+#if 0
                auto res = EvaluateExpression(string_view{&text[expressionStart], i - expressionStart});
 
                if (res == "= true") {
@@ -2172,6 +2174,7 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
                   ifConditionFrom = expressionStart, ifConditionTo = i;
                   ifConditionLine = currentLine;
                }
+#endif
                break;
             }
          }
@@ -2823,7 +2826,12 @@ bool WatchHasFields(const shared_ptr<Watch>& watch) {
    if (res.contains("(array)") || res.contains("(d_arr)")) {
       return true;
    }
-   return res.contains('\n') && !res.starts_with("(gdb)\n");
+
+   if (auto pos = res.find_first_of('\n'); pos != string::npos) {
+      res.resize(pos);
+      return !res.contains("(gdb)\n");
+   }
+   return false;
 }
 
 void WatchAddFields(WatchWindow* w, const shared_ptr<Watch>& watch) {
@@ -2866,9 +2874,11 @@ void WatchAddFields(WatchWindow* w, const shared_ptr<Watch>& watch) {
 
       while (true) {
          char* end = strchr(position, '\n');
-         if (!end || strstr(position, "(gdb)"))
+         if (!end)
             break;
-         *end          = 0;
+         *end = 0;
+         if (strstr(position, "(gdb)"))
+            break;
          auto field    = make_shared<Watch>();
          field->depth  = (uint8_t)(watch->depth + 1);
          field->key    = position;

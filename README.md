@@ -31,6 +31,13 @@ example:
 cmake -Bbuild -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=clang++-18 -DCMAKE_EXPORT_COMPILE_COMMANDS=1  -GNinja .
 ```
 
+
+## Recommended
+
+Install a newer version of `gdb` (I'm using `gdb 15.2`) and make sure it is found first in your `PATH`. Old versions sometimes crash when evaluating C++ expressions. 
+
+The gdb prompt including the version can be found on the top of the `Log` window.
+
 ## Run
 
 ```bash
