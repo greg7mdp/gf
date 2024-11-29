@@ -771,8 +771,7 @@ void Context::DebuggerThread() {
          if (!catBuffer.contains("(gdb) "))
             continue;
 
-         // printf("================ got (%d) {%s}, er=%s\n", evaluateMode, catBuffer, evaluateResult ?
-         // evaluateResult : "");
+         // print("================ got ({}) catBuffer=\"{}\"\n", evaluateMode, catBuffer);
 
          // Notify the main thread we have data.
          // ------------------------------------
@@ -2162,6 +2161,7 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
             } else if (text[i] == ')' && depth) {
                depth--;
             } else if (text[i] == ')' && !depth) {
+               (void)expressionStart;
 #if 0
                auto res = EvaluateExpression(string_view{&text[expressionStart], i - expressionStart});
 
@@ -2828,6 +2828,8 @@ bool WatchHasFields(const shared_ptr<Watch>& watch) {
    }
 
    if (auto pos = res.find_first_of('\n'); pos != string::npos) {
+      // trim string to first `\n` and return true if remaining isn't gdb prompt
+      // -----------------------------------------------------------------------
       res.resize(pos);
       return !res.contains("(gdb)\n");
    }
@@ -2873,6 +2875,8 @@ void WatchAddFields(WatchWindow* w, const shared_ptr<Watch>& watch) {
       char* position = start;
 
       while (true) {
+         // add all fields from `res`. fields are separated by `\n` characters.
+         // -------------------------------------------------------------------
          char* end = strchr(position, '\n');
          if (!end)
             break;
@@ -5118,7 +5122,7 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
             profRenderThreadCount = 1;
          if (profRenderThreadCount > PROF_MAX_RENDER_THREAD_COUNT)
             profRenderThreadCount = PROF_MAX_RENDER_THREAD_COUNT;
-         printf("Using %d render threads.\n", profRenderThreadCount);
+         print("Using {} render threads.\n", profRenderThreadCount);
 
          sem_init(&profRenderEndSemaphore, 0, 0);
 
@@ -5536,7 +5540,7 @@ void ProfLoadProfileData(void* _window) {
 
    auto pos           = EvaluateExpression("gfProfilingBufferPosition");
    int  rawEntryCount = sv_atoi(strstr(pos.c_str(), "= "), 2);
-   printf("Reading %d profiling entries...\n", rawEntryCount);
+   print("Reading {} profiling entries...\n", rawEntryCount);
 
    if (rawEntryCount == 0) {
       return;
@@ -5579,7 +5583,7 @@ void ProfLoadProfileData(void* _window) {
    fclose(f);
    unlink(path);
 
-   printf("Got raw profile data.\n");
+   print("Got raw profile data.\n");
 
    unordered_map<void*, ProfFunctionEntry> functions   = {};
    vector<ProfSourceFileEntry>             sourceFiles = {};
@@ -5772,7 +5776,7 @@ void ProfLoadProfileData(void* _window) {
       function.totalTime += entry.endTime - entry.startTime;
    }
 
-   printf("Found %ld functions over %zu source files.\n", report->functions.size(), report->sourceFiles.size());
+   print("Found {} functions over {} source files.\n", report->functions.size(), report->sourceFiles.size());
 
    report->vScroll->maximum = (maxDepth + 2) * 30;
 
@@ -6332,7 +6336,7 @@ void ViewWindowView(void* cp) {
    res = WatchEvaluate("gf_valueof", watch);
    resize_to_lf(res);
    watch->format = oldFormat;
-   // printf("valueof: {%s}\n", ctx.evaluateResult);
+   // print("valueof: {}\n", ctx.evaluateResult);
 
    // Create the specific display for the given type.
    if (0 == strcmp(type, "uint8_t") || 0 == strcmp(type, "uint16_t") || 0 == strcmp(type, "uint32_t") ||
@@ -6380,12 +6384,12 @@ void ViewWindowView(void* cp) {
       }
    } else if ((0 == memcmp(type, "char [", 6) && !strstr(type, "][")) || 0 == strcmp(type, "const char *") ||
               0 == strcmp(type, "char *")) {
-      printf("string '%s'\n", res.c_str());
+      print("string '{}'\n", res);
       char address[64];
 
       if ((res)[0] != '(') {
          res = WatchEvaluate("gf_addressof", watch);
-         printf("addressof '%s'\n", res.c_str());
+         print("addressof '{}'\n", res);
          resize_to_lf(res, ' ');
          resize_to_lf(res);
          StringFormat(address, sizeof(address), "%s", res.c_str());
@@ -6400,7 +6404,7 @@ void ViewWindowView(void* cp) {
       char tempPath[PATH_MAX];
       realpath(".temp.gf", tempPath);
       auto res = EvaluateExpression(std::format("(size_t)strlen((const char *)({})", address));
-      printf("'%s' -> '%s'\n", buffer, res.c_str());
+      print("'{}' -> '{}'\n", buffer, res);
       const char* lengthString = res.c_str() ? strstr(res.c_str(), "= ") : nullptr;
       size_t      length       = lengthString ? sv_atoi(lengthString, 2) : 0;
       // TODO Preventing errors when calling strlen from crashing the target?
@@ -6417,7 +6421,7 @@ void ViewWindowView(void* cp) {
 
       StringFormat(buffer, sizeof(buffer), "dump binary memory %s (%s) (%s+%d)", tempPath, address, address, length);
       res = EvaluateCommand(buffer);
-      printf("'%s' -> '%s'\n", buffer, res.c_str());
+      print("'{}' -> '{}'\n", buffer, res);
       FILE* f = fopen(tempPath, "rb");
 
       if (f) {
@@ -6425,7 +6429,7 @@ void ViewWindowView(void* cp) {
          fclose(f);
          unlink(tempPath);
          data[length] = 0;
-         // printf("got '%s'\n", data);
+         // print("got '{}'\n", data);
          new ViewWindowString(panel, std::move(data), length);
          StringFormat(buffer, sizeof(buffer), "%d+1 bytes", length);
          UILabelCreate(panel, UIElement::H_FILL, buffer);
