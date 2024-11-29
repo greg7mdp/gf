@@ -3631,6 +3631,14 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
       WatchEnsureRowVisible(w, w->selectedRow);
       element->parent->Refresh();
       element->Refresh();
+   } else if (message == UIMessage::MIDDLE_DOWN) {
+      if (w->mode == WATCH_NORMAL && !w->textbox && !element->window->ctrl && !element->window->alt &&
+          (w->selectedRow == w->rows.size() || !w->rows[w->selectedRow]->parent)) {
+         WatchCreateTextboxForRow(w, false);
+         UITextboxPasteText(w->textbox, sel_target_t::primary);
+         element->Repaint(NULL);
+      }
+      return 1;
    }
 
    if (w->selectedRow > WatchLastRow(w)) {
