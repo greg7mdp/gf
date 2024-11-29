@@ -231,28 +231,30 @@ char* UIStringCopy(const char* in, ptrdiff_t inBytes) {
    return buffer;
 }
 
-int _UIByteToColumn(const char* string, int byte, int bytes, int tabSize) {
-   int ti = 0, i = 0;
+int _UIByteToColumn(std::string_view string, size_t byte, size_t tabSize) {
+   size_t ti = 0, i = 0;
+   size_t bytes = string.size();
 
    while (i < byte && i < bytes) {
       ti++;
-      _ui_skip_tab(ti, string + i, bytes - i, tabSize);
-      _ui_advance_char(i, string + i, byte);
+      _ui_skip_tab(ti, &string[i], bytes - i, tabSize);
+      _ui_advance_char(i, &string[i], byte);
    }
 
    return ti;
 }
 
-int _UIColumnToByte(const char* string, int column, int bytes, int tabSize) {
-   int byte = 0, ti = 0;
+int _UIColumnToByte(std::string_view string, size_t column, size_t tabSize) {
+   size_t byte = 0, ti = 0;
+   size_t bytes = string.size();
 
    while (byte < bytes) {
       ti++;
-      _ui_skip_tab(ti, string + byte, bytes - byte, tabSize);
+      _ui_skip_tab(ti, &string[byte], bytes - byte, tabSize);
       if (column < ti)
          break;
 
-      _ui_advance_char(byte, string + byte, bytes);
+      _ui_advance_char(byte, &string[byte], bytes);
    }
 
    return byte;
@@ -2125,11 +2127,11 @@ UIScrollBar* UIScrollBarCreate(UIElement* parent, uint32_t flags) {
 // --------------------------------------------------
 
 int _UICodeColumnToByte(UICode* code, int line, int column) {
-   return _UIColumnToByte(code->line(line), column, code->lines[line].bytes, code->tabSize);
+   return _UIColumnToByte(code->line_sv(line), column, code->tabSize);
 }
 
 int _UICodeByteToColumn(UICode* code, int line, int byte) {
-   return _UIByteToColumn(code->line(line), byte, code->lines[line].bytes, code->tabSize);
+   return _UIByteToColumn(code->line_sv(line), byte, code->tabSize);
 }
 
 void UICodePositionToByte(UICode* code, int x, int y, size_t* line, size_t* byte) {
@@ -3117,12 +3119,12 @@ UITable* UITableCreate(UIElement* parent, uint32_t flags, const char* columns) {
 // Textboxes.
 // --------------------------------------------------
 
-int _UITextboxByteToColumn(const char* string, int byte, ptrdiff_t bytes) {
-   return _UIByteToColumn(string, byte, bytes, 4);
+int _UITextboxByteToColumn(std::string_view string, int byte) {
+   return _UIByteToColumn(string, byte, 4);
 }
 
-int _UITextboxColumnToByte(const char* string, int column, ptrdiff_t bytes) {
-   return _UIColumnToByte(string, column, bytes, 4);
+int _UITextboxColumnToByte(std::string_view string, int column) {
+   return _UIColumnToByte(string, column, 4);
 }
 
 char* UITextboxToCString(UITextbox* textbox) {
@@ -3227,7 +3229,7 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
                     element->window->scale);
 
       int         scaledMargin = ui_size::TEXTBOX_MARGIN * element->window->scale;
-      int         totalWidth   = UIMeasureStringWidth({textbox->string, static_cast<size_t>(textbox->bytes)}) + scaledMargin * 2;
+      int         totalWidth   = UIMeasureStringWidth(textbox->text()) + scaledMargin * 2;
       UIRectangle textBounds   = element->bounds + ui_rect_1i(scaledMargin);
 
       if (textbox->scroll > totalWidth - textBounds.width()) {
@@ -3238,7 +3240,7 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
          textbox->scroll = 0;
       }
 
-      int caretX = UIMeasureStringWidth({textbox->string, static_cast<size_t>(textbox->carets[0])}) - textbox->scroll;
+      int caretX = UIMeasureStringWidth(textbox->text().substr(0, textbox->carets[0])) - textbox->scroll;
 
       if (caretX < 0) {
          textbox->scroll = caretX + textbox->scroll;
@@ -3247,23 +3249,24 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
       }
 
       UIStringSelection selection = {};
-      selection.carets[0]         = _UITextboxByteToColumn(textbox->string, textbox->carets[0], textbox->bytes);
-      selection.carets[1]         = _UITextboxByteToColumn(textbox->string, textbox->carets[1], textbox->bytes);
+      selection.carets[0]         = _UITextboxByteToColumn(textbox->text(), textbox->carets[0]);
+      selection.carets[1]         = _UITextboxByteToColumn(textbox->text(), textbox->carets[1]);
       selection.colorBackground   = ui->theme.selected;
       selection.colorText         = ui->theme.textSelected;
       textBounds.l -= textbox->scroll;
 
-      UIDrawString((UIPainter*)dp, textBounds, {textbox->string, static_cast<size_t>(textbox->bytes)},
-                   (element->flags & UIElement::DISABLED) ? ui->theme.textDisabled : ui->theme.text, UIAlign::left,
-                   element->window->focused == element ? &selection : NULL);
+      auto text = textbox->text();
+      if (!text.empty())
+         UIDrawString((UIPainter*)dp, textBounds, text,
+                      (element->flags & UIElement::DISABLED) ? ui->theme.textDisabled : ui->theme.text, UIAlign::left,
+                      element->window->focused == element ? &selection : NULL);
    } else if (message == UIMessage::GET_CURSOR) {
       return (int)UICursor::text;
    } else if (message == UIMessage::LEFT_DOWN) {
       int column = (element->window->cursor.x - element->bounds.l + textbox->scroll -
                     ui_size::TEXTBOX_MARGIN * element->window->scale + ui->activeFont->glyphWidth / 2) /
                    ui->activeFont->glyphWidth;
-      textbox->carets[0] = textbox->carets[1] =
-         column <= 0 ? 0 : _UITextboxColumnToByte(textbox->string, column, textbox->bytes);
+      textbox->carets[0] = textbox->carets[1] = column <= 0 ? 0 : _UITextboxColumnToByte(textbox->text(), column);
       element->Focus();
    } else if (message == UIMessage::UPDATE) {
       element->Repaint(NULL);

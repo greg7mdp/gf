@@ -1033,8 +1033,8 @@ struct TabCompleter {
 };
 
 void TabCompleterRun(TabCompleter* completer, UITextbox* textbox, bool lastKeyWasTab, bool addPrintPrefix) {
-   auto buffer = std::format("complete {}{:.{}}", addPrintPrefix ? "p " : "",
-                             textbox->string, lastKeyWasTab ? completer->lastTabBytes : (int)textbox->bytes);
+   auto buffer = std::format("complete {}{}", addPrintPrefix ? "p " : "",
+                             textbox->text().substr(0, lastKeyWasTab ? completer->lastTabBytes : (int)textbox->bytes));
    for (int i = 0; buffer[i]; i++)
       if (buffer[i] == '\\')
          buffer[i] = ' ';
@@ -2565,7 +2565,7 @@ int TextboxInputMessage(UIElement* element, UIMessage message, int di, void* dp)
             return 1;
          }
 
-         auto buffer = std::format("{:.{}}", textbox->string, (int)textbox->bytes);
+         auto buffer = std::format("{}", textbox->text());
          if (commandLog)
             print(commandLog, "{}\n", buffer);
          CommandSendToGDB(buffer);
@@ -2925,7 +2925,7 @@ void WatchAddExpression(WatchWindow* w, string_view string = {}) {
    if (!string.empty())
       watch->key = string;
    else
-      watch->key = string_view(w->textbox->string, w->textbox->bytes);
+      watch->key = w->textbox->text();
 
    WatchDeleteExpression(w); // Deletes textbox.
    w->rows.insert(w->rows.cbegin() + w->selectedRow, watch);
@@ -4099,8 +4099,7 @@ int TextboxStructNameMessage(UIElement* element, UIMessage message, int di, void
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
       if (m->code == UIKeycode::ENTER) {
-         auto res = EvaluateCommand(
-            std::format("ptype /o {}", string_view(window->textbox->string, window->textbox->bytes)));
+         auto  res = EvaluateCommand(std::format("ptype /o {}", window->textbox->text()));
          char* end = (char*)strstr(res.c_str(), "\n(gdb)");
          if (end)
             *end = 0;
@@ -4530,14 +4529,14 @@ struct ExecutableWindow {
 };
 
 void ExecutableWindowStartOrRun(ExecutableWindow* window, bool pause) {
-   auto res = EvaluateCommand(std::format("file \"{:.{}}\"", window->path->string, window->path->bytes));
+   auto res = EvaluateCommand(std::format("file \"{}\"", window->path->text()));
 
    if (res.contains("No such file or directory.")) {
       UIDialogShow(windowMain, 0, "The executable path is invalid.\n%f%B", "OK");
       return;
    }
 
-   (void)EvaluateCommand(std::format("start {:.{}}", window->arguments->string, window->arguments->bytes));
+   (void)EvaluateCommand(std::format("start {}", window->arguments->text()));
 
    if (window->askDirectory->check == UICheckbox::CHECKED) {
       CommandParseInternal("gf-get-pwd", true);
@@ -4572,9 +4571,8 @@ void ExecutableWindowSaveButton(void* _window) {
    }
 
    f = fopen(localConfigPath, "wb");
-   print(f, "[executable]\npath={:.{}}\narguments={:.{}}\nask_directory={}\n", window->path->string,
-         (int)window->path->bytes, window->arguments->string, (int)window->arguments->bytes,
-         window->askDirectory->check == UICheckbox::CHECKED ? '1' : '0');
+   print(f, "[executable]\npath={}\narguments={}\nask_directory={}\n", window->path->text(),
+         window->arguments->text(), window->askDirectory->check == UICheckbox::CHECKED ? '1' : '0');
    fclose(f);
    SettingsAddTrustedFolder();
    UIDialogShow(windowMain, 0, "Saved executable settings!\n%f%B", "OK");

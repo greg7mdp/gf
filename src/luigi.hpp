@@ -817,6 +817,7 @@ struct UICode : public UIElement {
    UICode(UIElement* parent, uint32_t flags);
    
    const char* line(size_t line) const { return &content[lines[line].offset]; }
+   std::string_view line_sv(size_t line) const { return std::string_view{&content[lines[line].offset], lines[line].bytes}; }
    size_t      num_lines() const { return lines.size(); }
    size_t      size() const {return content.size(); }
    void        clear() {
@@ -863,6 +864,7 @@ struct UITextbox : public UIElement {
    bool               rejectNextKey;
 
    UITextbox(UIElement* parent, uint32_t flags);
+   std::string_view text() const { return string && bytes > 0 ? std::string_view{string, static_cast<size_t>(bytes)} : std::string_view{}; }
 };
 
 struct UIMenu : public UIElement {
@@ -1067,11 +1069,11 @@ ptrdiff_t   Utf8StringLength(const char* cString, ptrdiff_t bytes);
 inline constexpr size_t _UNICODE_MAX_CODEPOINT = 0x10FFFF;
 inline constexpr int max_glyphs             = _UNICODE_MAX_CODEPOINT + 1;
 
-inline void _ui_advance_char(int& index, const char* text, int count) {
+inline void _ui_advance_char(size_t& index, const char* text, size_t count) {
    index += Utf8GetCharBytes(text, count - index);
 }
 
-inline void _ui_skip_tab(int ti, const char* text, int bytesLeft, int tabSize) {
+inline void _ui_skip_tab(int ti, const char* text, int bytesLeft, size_t tabSize) {
    int c = Utf8GetCodePoint(text, bytesLeft, NULL);
    if (c == 't')
       while (ti % tabSize)
