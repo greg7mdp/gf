@@ -472,13 +472,14 @@ inline uint64_t Hash(const uint8_t* key, size_t keyBytes) {
 }
 
 int StringFormat(char* buffer, size_t bufferSize, const char* format, ...) {
+   int length = 0;
    va_list arguments;
 
    va_start(arguments, format);
-   size_t length = vsnprintf(buffer, bufferSize, format, arguments);
+   length = vsnprintf(buffer, bufferSize, format, arguments);
    va_end(arguments);
 
-   if (length > bufferSize) {
+   if (length > (int)bufferSize) {
       // HACK This could truncate a UTF-8 codepoint.
       length = bufferSize;
    }
