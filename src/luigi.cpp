@@ -3186,7 +3186,7 @@ void UITextboxMoveCaret(UITextbox* textbox, bool backward, bool word) {
    textbox->Repaint(NULL);
 }
 
-void _UITextboxCopyText(void* cp) {
+void UITextboxCopyText(void* cp) {
    UITextbox* textbox = (UITextbox*)cp;
 
    int to   = textbox->carets[0] > textbox->carets[1] ? textbox->carets[0] : textbox->carets[1];
@@ -3200,7 +3200,7 @@ void _UITextboxCopyText(void* cp) {
    }
 }
 
-void _UITextboxPasteText(void* cp, sel_target_t t) {
+void UITextboxPasteText(void* cp, sel_target_t t) {
    UITextbox* textbox = (UITextbox*)cp;
    size_t     bytes;
    char*      text = _UIClipboardReadTextStart(textbox->window, &bytes, t);
@@ -3311,7 +3311,7 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
       } else if ((m->code == UI_KEYCODE_LETTER('C') || m->code == UI_KEYCODE_LETTER('X') ||
                   m->code == UIKeycode::INSERT) &&
                  element->window->ctrl && !element->window->alt && !element->window->shift) {
-         _UITextboxCopyText(textbox);
+         UITextboxCopyText(textbox);
 
          if (m->code == UI_KEYCODE_LETTER('X')) {
             UITextboxReplace(textbox, "", true);
@@ -3320,7 +3320,7 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
                   !element->window->shift) ||
                  (m->code == UIKeycode::INSERT && !element->window->ctrl && !element->window->alt &&
                   element->window->shift)) {
-         _UITextboxPasteText(textbox, sel_target_t::clipboard);
+         UITextboxPasteText(textbox, sel_target_t::clipboard);
       } else {
          handled = false;
       }
@@ -3341,15 +3341,15 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
 
       UIMenu* menu = UIMenuCreate(element->window, UIMenu::NO_SCROLL);
       UIMenuAddItem(menu, textbox->carets[0] == textbox->carets[1] ? UIElement::DISABLED : 0, "Copy",
-                    [=]() { _UITextboxCopyText(textbox); });
+                    [=]() { UITextboxCopyText(textbox); });
       size_t pasteBytes;
       char*  paste = _UIClipboardReadTextStart(textbox->window, &pasteBytes, sel_target_t::clipboard);
       UIMenuAddItem(menu, !paste || !pasteBytes ? UIElement::DISABLED : 0, "Paste",
-                    [=]() { _UITextboxPasteText(textbox, sel_target_t::clipboard); });
+                    [=]() { UITextboxPasteText(textbox, sel_target_t::clipboard); });
       _UIClipboardReadTextEnd(textbox->window, paste);
       UIMenuShow(menu);
    } else if (message == UIMessage::MIDDLE_DOWN) {
-      _UITextboxPasteText(textbox, sel_target_t::primary);
+      UITextboxPasteText(textbox, sel_target_t::primary);
       element->Repaint(NULL);
       return 1;
    }

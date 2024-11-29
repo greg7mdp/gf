@@ -933,6 +933,8 @@ struct UISwitcher : public UIElement {
 
 unique_ptr<UI> UIInitialise(const UIConfig& cfg);
 
+enum class sel_target_t { primary, clipboard };
+
 int  UIMessageLoop();
 
 UIElement* UIElementCreate(size_t bytes, UIElement* parent, uint32_t flags,
@@ -983,6 +985,8 @@ void       UITextboxReplace(UITextbox* textbox, std::string_view text, bool send
 void       UITextboxClear(UITextbox* textbox, bool sendChangedMessage);
 void       UITextboxMoveCaret(UITextbox* textbox, bool backward, bool word);
 char*      UITextboxToCString(UITextbox* textbox); // Free with UI_FREE.
+void UITextboxCopyText(void* cp);
+void UITextboxPasteText(void* cp, sel_target_t t);
 
 UITable* UITableCreate(UIElement* parent, uint32_t flags,
                        const char* columns /* separate with \t, terminate with \0 */);
@@ -1192,8 +1196,6 @@ struct UI {
    int code_margin() { return activeFont->glyphWidth * 5; }
    int code_margin_gap() { return activeFont->glyphWidth * 1; }
 };
-
-enum class sel_target_t { primary, clipboard };
 
 // ----------------------------------------
 //      Forward declarations.
