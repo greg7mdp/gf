@@ -3695,13 +3695,19 @@ void WatchWindowUpdate(const char*, UIElement* element) {
 
          char*         buffer      = strdup(res.c_str());
          char*         s           = buffer;
+         char*         end;
          vector<char*> expressions = {};
 
-         for (char* end = strchr(s, '\n'); end != nullptr; s = end + 1) {
+         // we get a list of variables separated by `\n` characters, followed by the prompt
+         // extract all the variable names into `expressions`.
+         // we could use a regex here
+         // -------------------------------------------------------------------------------
+         while ((end = strchr(s, '\n')) != NULL) {
             *end = '\0';
             if (strstr(s, "(gdb)"))
                break;
             expressions.push_back(s);
+            s = end + 1;
          }
 
          if (expressions.size() > 0) {
