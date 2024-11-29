@@ -1850,18 +1850,26 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
    UIDrawString(painter, line, instructions, ui->theme.codeNumber, UIAlign::right, NULL);
 }
 
-#define DISPLAY_CODE_COMMAND_FOR_ALL_BREAKPOINTS_ON_LINE(function, command)                          \
-   void function(int line) {                                                                         \
-      for (size_t i = 0; i < breakpoints.size(); i++) {                                              \
-         if (breakpoints[i].line == line && 0 == strcmp(breakpoints[i].fileFull, currentFileFull)) { \
-            command(i);                                                                              \
-         }                                                                                           \
-      }                                                                                              \
+template <class F>
+void for_all_breakpoints_on_line(int line, F&& f) {
+   for (size_t i = 0; i < breakpoints.size(); i++) {
+      if (breakpoints[i].line == line && 0 == strcmp(breakpoints[i].fileFull, currentFileFull)) {
+         std::forward<F>(f)(i);
+      }
    }
+}
 
-DISPLAY_CODE_COMMAND_FOR_ALL_BREAKPOINTS_ON_LINE(CommandDeleteAllBreakpointsOnLine, CommandDeleteBreakpoint);
-DISPLAY_CODE_COMMAND_FOR_ALL_BREAKPOINTS_ON_LINE(CommandDisableAllBreakpointsOnLine, CommandDisableBreakpoint);
-DISPLAY_CODE_COMMAND_FOR_ALL_BREAKPOINTS_ON_LINE(CommandEnableAllBreakpointsOnLine, CommandEnableBreakpoint);
+void CommandDeleteAllBreakpointsOnLine(int line) {
+   for_all_breakpoints_on_line(line, [](int line) { CommandDeleteBreakpoint(line); });
+}
+
+void CommandDisableAllBreakpointsOnLine(int line) {
+   for_all_breakpoints_on_line(line, [](int line) { CommandDisableBreakpoint(line); });
+}
+
+void CommandEnableAllBreakpointsOnLine(int line) {
+   for_all_breakpoints_on_line(line, [](int line) { CommandEnableBreakpoint(line); });
+}
 
 int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
    UICode* code = (UICode*)element;
@@ -3907,21 +3915,28 @@ struct BreakpointTableData {
    int         anchor = 0;
 };
 
-#define BREAKPOINT_WINDOW_COMMAND_FOR_EACH_SELECTED(function, action)                \
-   void function(BreakpointTableData* data) {                                        \
-      for (auto selected : data->selected) {                                         \
-         for (const auto& breakpoint : breakpoints) {                                \
-            if (breakpoint.number == selected) {                                     \
-               (void)DebuggerSend(std::format(action " {}", selected), true, false); \
-               break;                                                                \
-            }                                                                        \
-         }                                                                           \
-      }                                                                              \
+void for_all_selected_breakpoints(BreakpointTableData* data, string_view action) {
+   for (auto selected : data->selected) {
+      for (const auto& breakpoint : breakpoints) {
+         if (breakpoint.number == selected) {
+            (void)DebuggerSend(std::format("{} {}", action, selected), true, false);
+            break;
+         }
+      }
    }
+}
 
-BREAKPOINT_WINDOW_COMMAND_FOR_EACH_SELECTED(CommandDeleteSelectedBreakpoints, "delete");
-BREAKPOINT_WINDOW_COMMAND_FOR_EACH_SELECTED(CommandDisableSelectedBreakpoints, "disable");
-BREAKPOINT_WINDOW_COMMAND_FOR_EACH_SELECTED(CommandEnableSelectedBreakpoints, "enable");
+void CommandDeleteSelectedBreakpoints(BreakpointTableData* data) {
+   for_all_selected_breakpoints(data, "delete");
+}
+
+void CommandDisableSelectedBreakpoints(BreakpointTableData* data) {
+   for_all_selected_breakpoints(data, "disable");
+}
+
+void CommandEnableSelectedBreakpoints(BreakpointTableData* data) {
+   for_all_selected_breakpoints(data, "enable");
+}
 
 int TableBreakpointsMessage(UIElement* element, UIMessage message, int di, void* dp) {
    BreakpointTableData* data = (BreakpointTableData*)element->cp;
