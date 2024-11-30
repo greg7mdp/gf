@@ -7330,7 +7330,7 @@ UIElement* InterfaceWindowSwitchToAndFocus(string_view name) {
       InterfaceWindow* window = &iw;
       if (!window->element)
          continue;
-      if (name == window->name)
+      if (name != window->name)
          continue;
 
       if ((window->element->flags & UIElement::HIDE) && window->element->parent->messageClass == _UITabPaneMessage) {
