@@ -21,8 +21,8 @@ cmake --build build
 Some useful `cmake` options:
 
 - `CMAKE_BUILD_TYPE`:  `Release`, `Debug`, `RelWithDebInfo`
-- `CMAKE_CXX_COMPILER`: specify a specific installed C++ compiler, for example `clang++-18` or `g++-12`
-- `CMAKE_EXPORT_COMPILE_COMMANDS`: useful for clangd
+- `CMAKE_CXX_COMPILER`: specify a specific installed C++ compiler, must be `clang++-18` or `g++-13` or higher.
+- `CMAKE_EXPORT_COMPILE_COMMANDS`: useful for `clangd`
 
 
 example:
