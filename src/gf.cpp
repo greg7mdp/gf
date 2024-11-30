@@ -193,13 +193,13 @@ struct InterfaceCommand {
 };
 
 struct InterfaceWindow {
-   const char* name = nullptr;
-   UIElement* (*create)(UIElement* parent);
-   void (*update)(const char* data, UIElement* element);
-   void (*focus)(UIElement* element);
-   UIElement* element = nullptr;
-   bool       queuedUpdate, alwaysUpdate;
-   void (*config)(const char* key, const char* value);
+   UIElement* (*create)(UIElement* parent)              = nullptr;
+   void (*update)(const char* data, UIElement* element) = nullptr;
+   void (*focus)(UIElement* element)                    = nullptr;
+   UIElement* element                                   = nullptr;
+   bool       queuedUpdate                              = false;
+   bool       alwaysUpdate                              = false;
+   void (*config)(const char* key, const char* value)   = nullptr;
 };
 
 struct InterfaceDataViewer {
@@ -246,6 +246,10 @@ struct Context {
    SPSCQueue<std::string> evaluateResultQueue;
    bool                   programRunning = true; // true
 
+   std::unordered_map<std::string, InterfaceWindow> interfaceWindows;
+   vector<InterfaceCommand>                         interfaceCommands;
+   vector<InterfaceDataViewer>                      interfaceDataViewers;
+
    Context();
 
    // make private
@@ -277,6 +281,13 @@ struct Context {
    }
 
    void DebuggerThread();
+   void SettingsLoad(bool earlyPass);
+   void InterfaceAddBuiltinWindowsAndCommands();
+   void RegisterExtensions();
+   void InterfaceShowMenu(UIButton* self);
+   void InterfaceLayoutCreate(UIElement* parent);
+   UIElement* InterfaceWindowSwitchToAndFocus(string_view name);
+   unique_ptr<UI> GfMain(int argc, char** argv);
 };
 
 Context ctx;
@@ -294,9 +305,6 @@ char                        localConfigPath[PATH_MAX];
 const char*                 executablePath         = nullptr;
 const char*                 executableArguments    = nullptr;
 bool                        executableAskDirectory = true;
-vector<InterfaceWindow>     interfaceWindows;
-vector<InterfaceCommand>    interfaceCommands;
-vector<InterfaceDataViewer> interfaceDataViewers;
 vector<ReceiveMessageType>  receiveMessageTypes;
 char* layoutString = (char*)"v(75,h(80,Source,v(50,t(Exe,Breakpoints,Commands,Struct),t(Stack,Files,Thread,CmdSearch)))"
                             ",h(65,Console,t(Watch,Locals,Registers,Data)))";
@@ -467,8 +475,6 @@ end
 // Forward declarations:
 
 bool       DisplaySetPosition(const char* file, int line, bool useGDBToGetFullPath);
-void       InterfaceShowMenu(UIButton* self);
-UIElement* InterfaceWindowSwitchToAndFocus(string_view name);
 void       WatchAddExpression2(string_view string);
 int        WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp);
 void       CommandInspectLine();
@@ -1148,7 +1154,7 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
 
       UIDialogShow(windowMain, 0, "Couldn't get the working directory.\n%f%B", "OK");
    } else if (command.starts_with("gf-switch-to ")) {
-      InterfaceWindowSwitchToAndFocus(command.substr(13));
+      ctx.InterfaceWindowSwitchToAndFocus(command.substr(13));
    } else if (command.starts_with("gf-command ")) {
       for (const auto& cmd : presetCommands) {
          if (command.substr(11) == cmd.key)
@@ -1367,7 +1373,7 @@ void SettingsAddTrustedFolder() {
    }
 }
 
-void SettingsLoad(bool earlyPass) {
+void Context::SettingsLoad(bool earlyPass) {
    bool        currentFolderIsTrusted = false;
    static bool cwdConfigNotTrusted    = false;
 
@@ -1515,14 +1521,10 @@ void SettingsLoad(bool earlyPass) {
                ctx.gdbPath    = state.value;
                ctx.gdbArgv[0] = state.value;
             } else if (0 == strcmp(state.key, "log_all_output") && sv_atoi(state.value)) {
-               for (const auto& iw : interfaceWindows) {
-                  const InterfaceWindow* window = &iw;
-
-                  if (0 == strcmp(window->name, "Log")) {
-                     ctx.logWindow = static_cast<UICode*>(window->element);
-                  }
+               if (auto it = interfaceWindows.find("Log"); it != interfaceWindows.end()) {
+                  const auto& [name, window] = *it;
+                  ctx.logWindow = static_cast<UICode*>(window.element);
                }
-
                if (!ctx.logWindow) {
                   print(std::cerr, "Warning: gdb.log_all_output was enabled, "
                                   "but your layout does not have a 'Log' window.\n");
@@ -1564,10 +1566,10 @@ void SettingsLoad(bool earlyPass) {
                executableAskDirectory = sv_atoi(state.value);
             }
          } else if (earlyPass && *state.section && *state.key && *state.value) {
-            for (const auto& iw : interfaceWindows) {
-               if (0 == strcmp(state.section, iw.name) && iw.config) {
-                  iw.config(state.key, state.value);
-                  break;
+            if (auto it = interfaceWindows.find(state.section); it != interfaceWindows.end()) {
+               const auto& [name, window] = *it;
+               if (window.config) {
+                  window.config(state.key, state.value);
                }
             }
          }
@@ -2646,7 +2648,7 @@ UIElement* ConsoleWindowCreate(UIElement* parent) {
    trafficLight              = UISpacerCreate(panel3, 0, 30, 30);
    trafficLight->messageUser = TrafficLightMessage;
    UIButton* buttonMenu      = UIButtonCreate(panel3, 0, "Menu");
-   buttonMenu->invoke        = [buttonMenu]() { InterfaceShowMenu(buttonMenu); };
+   buttonMenu->invoke        = [buttonMenu]() { ctx.InterfaceShowMenu(buttonMenu); };
    textboxInput              = UITextboxCreate(panel3, UIElement::H_FILL);
    textboxInput->messageUser = TextboxInputMessage;
    textboxInput->Focus();
@@ -2980,7 +2982,7 @@ void WatchAddExpression(WatchWindow* w, string_view string = {}) {
 }
 
 void WatchAddExpression2(string_view string) {
-   UIElement*   element = InterfaceWindowSwitchToAndFocus("Watch");
+   UIElement*   element = ctx.InterfaceWindowSwitchToAndFocus("Watch");
    WatchWindow* w       = (WatchWindow*)element->cp;
    w->selectedRow       = w->rows.size();
    WatchAddExpression(w, string);
@@ -3305,7 +3307,7 @@ void CommandWatchAddEntryForAddress(WatchWindow* _w) {
       return;
 
    if (w->mode != WATCH_NORMAL) {
-      InterfaceWindowSwitchToAndFocus("Watch");
+      ctx.InterfaceWindowSwitchToAndFocus("Watch");
       w = WatchGetFocused();
       assert(w != NULL);
    }
@@ -3855,7 +3857,7 @@ void WatchWindowFocus(UIElement* element) {
 }
 
 void CommandAddWatch() {
-   UIElement* element = InterfaceWindowSwitchToAndFocus("Watch");
+   UIElement* element = ctx.InterfaceWindowSwitchToAndFocus("Watch");
    if (!element)
       return;
    WatchWindow* w = (WatchWindow*)element->cp;
@@ -4137,7 +4139,7 @@ UIElement* DataWindowCreate(UIElement* parent) {
    buttonFillWindow         = UIButtonCreate(panel5, UIButton::SMALL, "Fill window");
    buttonFillWindow->invoke = []() { CommandToggleFillDataTab(); };
 
-   for (const auto& idw : interfaceDataViewers) {
+   for (const auto& idw : ctx.interfaceDataViewers) {
       UIButton* b = UIButtonCreate(panel5, UIButton::SMALL, idw.addButtonLabel);
       b->invoke   = [&]() { idw.addButtonCallback(); };
    }
@@ -5860,7 +5862,7 @@ void ProfWindowUpdate(const char* data, UIElement* element) {
    if (window->inStepOverProfiled) {
       (void)EvaluateCommand("call GfProfilingStop()");
       ProfLoadProfileData(window);
-      InterfaceWindowSwitchToAndFocus("Data");
+      ctx.InterfaceWindowSwitchToAndFocus("Data");
       dataWindow->Refresh();
       window->inStepOverProfiled = false;
    }
@@ -6335,7 +6337,7 @@ int ViewWindowStringMessage(UIElement* element, UIMessage message, int di, void*
 
 void ViewWindowView(void* cp) {
    // Get the selected watch expression.
-   UIElement* watchElement = InterfaceWindowSwitchToAndFocus("Watch");
+   UIElement* watchElement = ctx.InterfaceWindowSwitchToAndFocus("Watch");
    if (!watchElement)
       return;
    WatchWindow* w = (WatchWindow*)watchElement->cp;
@@ -6347,7 +6349,7 @@ void ViewWindowView(void* cp) {
    if (!watch)
       return;
    if (!cp)
-      cp = InterfaceWindowSwitchToAndFocus("View");
+      cp = ctx.InterfaceWindowSwitchToAndFocus("View");
    if (!cp)
       return;
 
@@ -7081,11 +7083,11 @@ void WaveformAddDialog() {
 // Registration:
 // ----------------------------------------------------------
 
-void RegisterExtensions() {
-   interfaceWindows.push_back(
-      {.name = "Prof", .create = ProfWindowCreate, .update = ProfWindowUpdate, .alwaysUpdate = true});
-   interfaceWindows.push_back({"Memory", MemoryWindowCreate, MemoryWindowUpdate});
-   interfaceWindows.push_back({"View", ViewWindowCreate, ViewWindowUpdate});
+void Context::RegisterExtensions() {
+   interfaceWindows["Prof"]   = {.create = ProfWindowCreate, .update = ProfWindowUpdate, .alwaysUpdate = true};
+   interfaceWindows["Memory"] = {MemoryWindowCreate, MemoryWindowUpdate};
+   interfaceWindows["View"]   = {ViewWindowCreate, ViewWindowUpdate};
+
    interfaceDataViewers.push_back({"Add waveform...", WaveformAddDialog});
    interfaceCommands.push_back({
       .label = nullptr,
@@ -7143,7 +7145,7 @@ void MsgReceivedData(str_unique_ptr input) {
    DebuggerGetStack();
    DebuggerGetBreakpoints();
 
-   for (auto& iw : interfaceWindows) {
+   for (auto& [name, iw] : ctx.interfaceWindows) {
       InterfaceWindow* window = &iw;
       if (!window->update || !window->element)
          continue;
@@ -7183,22 +7185,22 @@ auto gdb_invoker(string_view cmd) {
    return [cmd]() { CommandSendToGDB(cmd); };
 }
 
-void InterfaceAddBuiltinWindowsAndCommands() {
-   interfaceWindows.push_back({"Stack", StackWindowCreate, StackWindowUpdate});
-   interfaceWindows.push_back({"Source", SourceWindowCreate, SourceWindowUpdate});
-   interfaceWindows.push_back({"Breakpoints", BreakpointsWindowCreate, BreakpointsWindowUpdate});
-   interfaceWindows.push_back({"Registers", RegistersWindowCreate, RegistersWindowUpdate});
-   interfaceWindows.push_back({"Watch", WatchWindowCreate, WatchWindowUpdate, WatchWindowFocus});
-   interfaceWindows.push_back({"Locals", LocalsWindowCreate, WatchWindowUpdate, WatchWindowFocus});
-   interfaceWindows.push_back({"Commands", CommandsWindowCreate, nullptr});
-   interfaceWindows.push_back({"Data", DataWindowCreate, nullptr});
-   interfaceWindows.push_back({"Struct", StructWindowCreate, nullptr});
-   interfaceWindows.push_back({"Files", FilesWindowCreate, nullptr});
-   interfaceWindows.push_back({"Console", ConsoleWindowCreate, nullptr});
-   interfaceWindows.push_back({"Log", LogWindowCreate, nullptr});
-   interfaceWindows.push_back({"Thread", ThreadWindowCreate, ThreadWindowUpdate});
-   interfaceWindows.push_back({"Exe", ExecutableWindowCreate, nullptr});
-   interfaceWindows.push_back({"CmdSearch", CommandSearchWindowCreate, nullptr});
+void Context::InterfaceAddBuiltinWindowsAndCommands() {
+   interfaceWindows["Stack"]       = {StackWindowCreate, StackWindowUpdate};
+   interfaceWindows["Source"]      = {SourceWindowCreate, SourceWindowUpdate};
+   interfaceWindows["Breakpoints"] = {BreakpointsWindowCreate, BreakpointsWindowUpdate};
+   interfaceWindows["Registers"]   = {RegistersWindowCreate, RegistersWindowUpdate};
+   interfaceWindows["Watch"]       = {WatchWindowCreate, WatchWindowUpdate, WatchWindowFocus};
+   interfaceWindows["Locals"]      = {LocalsWindowCreate, WatchWindowUpdate, WatchWindowFocus};
+   interfaceWindows["Commands"]    = {CommandsWindowCreate, nullptr};
+   interfaceWindows["Data"]        = {DataWindowCreate, nullptr};
+   interfaceWindows["Struct"]      = {StructWindowCreate, nullptr};
+   interfaceWindows["Files"]       = {FilesWindowCreate, nullptr};
+   interfaceWindows["Console"]     = {ConsoleWindowCreate, nullptr};
+   interfaceWindows["Log"]         = {LogWindowCreate, nullptr};
+   interfaceWindows["Thread"]      = {ThreadWindowCreate, ThreadWindowUpdate};
+   interfaceWindows["Exe"]         = {ExecutableWindowCreate, nullptr};
+   interfaceWindows["CmdSearch"]   = {CommandSearchWindowCreate, nullptr};
 
    interfaceDataViewers.push_back({"Add bitmap...", BitmapAddDialog});
 
@@ -7313,7 +7315,7 @@ void InterfaceAddBuiltinWindowsAndCommands() {
    });
 }
 
-void InterfaceShowMenu(UIButton* self) {
+void Context::InterfaceShowMenu(UIButton* self) {
    UIMenu* menu = UIMenuCreate((UIElement*)self, UIMenu::PLACE_ABOVE | UIMenu::NO_SCROLL);
 
    for (const auto& ic : interfaceCommands) {
@@ -7325,19 +7327,18 @@ void InterfaceShowMenu(UIButton* self) {
    UIMenuShow(menu);
 }
 
-UIElement* InterfaceWindowSwitchToAndFocus(string_view name) {
-   for (auto& iw : interfaceWindows) {
-      InterfaceWindow* window = &iw;
-      if (!window->element)
+UIElement* Context::InterfaceWindowSwitchToAndFocus(string_view target_name) {
+   for (auto& [name, w] : interfaceWindows) {
+      if (!w.element)
          continue;
-      if (name != window->name)
+      if (target_name != name)
          continue;
 
-      if ((window->element->flags & UIElement::HIDE) && window->element->parent->messageClass == _UITabPaneMessage) {
-         UITabPane* tabPane = (UITabPane*)window->element->parent;
+      if ((w.element->flags & UIElement::HIDE) && w.element->parent->messageClass == _UITabPaneMessage) {
+         UITabPane* tabPane = (UITabPane*)w.element->parent;
 
          for (uint32_t i = 0; i < tabPane->children.size(); i++) {
-            if (tabPane->children[i] == window->element) {
+            if (tabPane->children[i] == w.element) {
                tabPane->active = i;
                break;
             }
@@ -7346,16 +7347,16 @@ UIElement* InterfaceWindowSwitchToAndFocus(string_view name) {
          tabPane->Refresh();
       }
 
-      if (window->focus) {
-         window->focus(window->element);
-      } else if (window->element->flags & UIElement::TAB_STOP) {
-         window->element->Focus();
+      if (w.focus) {
+         w.focus(w.element);
+      } else if (w.element->flags & UIElement::TAB_STOP) {
+         w.element->Focus();
       }
 
-      return window->element;
+      return w.element;
    }
 
-   UIDialogShow(windowMain, 0, "Couldn't find the window '%s'.\n%f%B", name, "OK");
+   UIDialogShow(windowMain, 0, "Couldn't find the window '%s'.\n%f%B", target_name, "OK");
    return nullptr;
 }
 
@@ -7378,13 +7379,11 @@ int InterfaceTabPaneMessage(UIElement* element, UIMessage message, int di, void*
    if (message == UIMessage::LAYOUT) {
       element->messageClass(element, message, di, dp);
 
-      for (auto& iw : interfaceWindows) {
-         InterfaceWindow* window = &iw;
-
-         if (window->element && (~window->element->flags & UIElement::HIDE) && window->queuedUpdate) {
-            window->queuedUpdate = false;
-            window->update("", window->element);
-            window->element->Move(window->element->bounds, false);
+      for (auto& [name, w] : ctx.interfaceWindows) {
+         if (w.element && (~w.element->flags & UIElement::HIDE) && w.queuedUpdate) {
+            w.queuedUpdate = false;
+            w.update("", w.element);
+            w.element->Move(w.element->bounds, false);
          }
       }
 
@@ -7447,7 +7446,7 @@ const char* InterfaceLayoutNextToken(const char* expected = nullptr) {
    return buffer;
 }
 
-void InterfaceLayoutCreate(UIElement* parent) {
+void Context::InterfaceLayoutCreate(UIElement* parent) {
    const char* token = InterfaceLayoutNextToken();
 
    if (0 == strcmp("h", token) || 0 == strcmp("v", token)) {
@@ -7488,26 +7487,17 @@ void InterfaceLayoutCreate(UIElement* parent) {
          }
       }
    } else {
-      bool found = false;
-
-      for (auto& iw : interfaceWindows) {
-         InterfaceWindow* w = &iw;
-
-         if (0 == strcmp(token, w->name)) {
-            w->element = w->create(parent);
-            found      = true;
-            break;
-         }
-      }
-
-      if (!found) {
+      if (auto it = interfaceWindows.find(token); it != interfaceWindows.end()) {
+         auto& [name, w] = *it;
+         w.element = w.create(parent);
+      } else {
          print(std::cerr, "Error: Invalid layout string! The window '{}' was not found.\n", token);
          exit(1);
       }
    }
 }
 
-unique_ptr<UI> GfMain(int argc, char** argv) {
+unique_ptr<UI> Context::GfMain(int argc, char** argv) {
    if (argc == 2 && (0 == strcmp(argv[1], "-?") || 0 == strcmp(argv[1], "-h") || 0 == strcmp(argv[1], "--help"))) {
       print(std::cerr,
               "Usage: {} [GDB args]\n\n"
@@ -7544,7 +7534,7 @@ unique_ptr<UI> GfMain(int argc, char** argv) {
    StringFormat(globalConfigPath, sizeof(globalConfigPath), "%s/.config/gf2_config.ini", getenv("HOME"));
    StringFormat(localConfigPath, sizeof(localConfigPath), "%s/.project.gf", localConfigDirectory);
 
-   SettingsLoad(true);
+   ctx.SettingsLoad(true);
    auto ui_ptr = UIInitialise(ui_config);
    ui->theme   = uiThemeDark;
 
@@ -7591,7 +7581,7 @@ unique_ptr<UI> GfMain(int argc, char** argv) {
       print(std::cerr, "Warning: Layout string has additional text after the end of the top-level entry.\n");
    }
 
-   SettingsLoad(false);
+   ctx.SettingsLoad(false);
    DebuggerStartThread();
    CommandSyncWithGvim();
    return ui_ptr;
@@ -7603,7 +7593,7 @@ Context::Context() {
 }
 
 int main(int argc, char** argv) {
-   auto ui_ptr = GfMain(argc, argv);
+   auto ui_ptr = ctx.GfMain(argc, argv);
    if (!ui_ptr)
       return 1;
 
