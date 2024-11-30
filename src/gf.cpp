@@ -840,6 +840,7 @@ std::optional<std::string> DebuggerSend(string_view command, bool echo, bool syn
       if (!quit && trafficLight)
          trafficLight->Repaint(nullptr);
    }
+   // print("{} ==> {}\n", command, res ? *res : "???"s);
    return res;
 }
 
@@ -1681,7 +1682,7 @@ bool DisplaySetPosition(const char* file, int line, bool useGDBToGetFullPath) {
 }
 
 void DisplaySetPositionFromStack() {
-   if (stack.size() > stackSelected) {
+   if (stackSelected < stack.size()) {
       char location[sizeof(previousLocation)];
       strcpy(previousLocation, stack[stackSelected].location);
       strcpy(location, stack[stackSelected].location);
@@ -3867,11 +3868,15 @@ void CommandAddWatch() {
 // ---------------------------------------------------/
 
 void StackSetFrame(UIElement* element, int index) {
-   if (index >= 0 && index < ((UITable*)element)->itemCount && stackSelected != (size_t)index) {
-      (void)DebuggerSend(std::format("frame {}", index), false, false);
-      stackSelected = index;
+   if (index >= 0 && index < ((UITable*)element)->itemCount) {
       stackChanged  = true;
-      element->Repaint(nullptr);
+      if (stackSelected != (size_t)index) {
+         (void)DebuggerSend(std::format("frame {}", index), false, false);
+         stackSelected = index;
+         element->Repaint(nullptr);
+      } else {
+         DisplaySetPositionFromStack();
+      }
    }
 }
 
