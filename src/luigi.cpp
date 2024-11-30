@@ -2,6 +2,7 @@
 
 #include <tuple>
 #include <ranges>
+#include <algorithm>
 
 using namespace std::ranges;
 
@@ -2137,10 +2138,8 @@ int _UICodeByteToColumn(UICode* code, int line, int byte) {
 void UICodePositionToByte(UICode* code, int x, int y, size_t* line, size_t* byte) {
    UIFont* previousFont = UIFontActivate(code->font);
    int     lineHeight   = UIMeasureStringHeight();
-   *line                = (y - code->bounds.t + code->vScroll->position) / lineHeight;
-   if (*line < 0)
-      *line = 0;
-   else if (*line >= code->num_lines())
+   *line                = (size_t)std::max(0., (y - code->bounds.t + code->vScroll->position) / lineHeight);
+   if (*line >= code->num_lines())
       *line = code->num_lines() - 1;
    int column =
       (x - code->bounds.l + code->hScroll->position + ui->activeFont->glyphWidth / 2) / ui->activeFont->glyphWidth;
@@ -2540,7 +2539,7 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
 
          if (element->window->shift) {
             if (m->code == UIKeycode::UP) {
-               if (code->selection[3].line - 1 >= 0) {
+               if ((int)code->selection[3].line - 1 >= 0) {
                   _UICodeSetVerticalMotionColumn(code, false);
                   code->selection[3].line--;
                   _UICodeSetVerticalMotionColumn(code, true);
@@ -2555,8 +2554,8 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
                _UICodeSetVerticalMotionColumn(code, false);
                int pageHeight = (element->bounds.t - code->hScroll->bounds.t) / lineHeight * 4 / 5;
                code->selection[3].line += m->code == UIKeycode::PAGE_UP ? pageHeight : -pageHeight;
-               if (code->selection[3].line < 0)
-                  code->selection[3].line = 0;
+               //if (code->selection[3].line < 0)
+               //   code->selection[3].line = 0;
                if (code->selection[3].line >= code->num_lines())
                   code->selection[3].line = code->num_lines() - 1;
                _UICodeSetVerticalMotionColumn(code, true);
@@ -2632,7 +2631,7 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
 void UICodeMoveCaret(UICode* code, bool backward, bool word) {
    while (true) {
       if (backward) {
-         if (code->selection[3].offset - 1 < 0) {
+         if ((int)code->selection[3].offset - 1 < 0) {
             if (code->selection[3].line > 0) {
                code->selection[3].line--;
                code->selection[3].offset = code->lines[code->selection[3].line].bytes;
