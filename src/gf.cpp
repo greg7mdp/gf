@@ -2792,7 +2792,7 @@ void WatchDeleteExpression(WatchWindow* w, bool fieldsOnly = false) {
       watch.reset();
 }
 
-std::string WatchEvaluate(const char* function, const shared_ptr<Watch>& watch) {
+std::string WatchEvaluate(std::string_view function, const shared_ptr<Watch>& watch) {
    char      buffer[4096];
    uintptr_t position = 0;
 
@@ -2832,7 +2832,7 @@ std::string WatchEvaluate(const char* function, const shared_ptr<Watch>& watch) 
 
    position += std_format_to_n(buffer + position, sizeof(buffer) - position, "]");
 
-   if (0 == strcmp(function, "gf_valueof")) {
+   if (function == "gf_valueof") {
       position += std_format_to_n(buffer + position, sizeof(buffer) - position, ",'{:c}'", watch->format ?: ' ');
    }
 
