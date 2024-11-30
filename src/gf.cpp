@@ -246,6 +246,8 @@ struct Context {
    SPSCQueue<std::string> evaluateResultQueue;
    bool                   programRunning = true; // true
 
+   Context();
+
    // make private
    void SendToGdb(string_view sv) const {
       char newline = '\n';
@@ -7079,7 +7081,7 @@ void WaveformAddDialog() {
 // Registration:
 // ----------------------------------------------------------
 
-__attribute__((constructor)) void ExtensionsRegister() {
+void RegisterExtensions() {
    interfaceWindows.push_back(
       {.name = "Prof", .create = ProfWindowCreate, .update = ProfWindowUpdate, .alwaysUpdate = true});
    interfaceWindows.push_back({"Memory", MemoryWindowCreate, MemoryWindowUpdate});
@@ -7181,7 +7183,7 @@ auto gdb_invoker(string_view cmd) {
    return [cmd]() { CommandSendToGDB(cmd); };
 }
 
-__attribute__((constructor)) void InterfaceAddBuiltinWindowsAndCommands() {
+void InterfaceAddBuiltinWindowsAndCommands() {
    interfaceWindows.push_back({"Stack", StackWindowCreate, StackWindowUpdate});
    interfaceWindows.push_back({"Source", SourceWindowCreate, SourceWindowUpdate});
    interfaceWindows.push_back({"Breakpoints", BreakpointsWindowCreate, BreakpointsWindowUpdate});
@@ -7593,6 +7595,11 @@ unique_ptr<UI> GfMain(int argc, char** argv) {
    DebuggerStartThread();
    CommandSyncWithGvim();
    return ui_ptr;
+}
+
+Context::Context() {
+   InterfaceAddBuiltinWindowsAndCommands();
+   RegisterExtensions();
 }
 
 int main(int argc, char** argv) {
