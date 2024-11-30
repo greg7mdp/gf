@@ -170,7 +170,18 @@ void print(std::ostream& stream, std::format_string<Args...> fmt, Args&&... args
 template<typename... Args>
 void print(FILE* f, std::format_string<Args...> fmt, Args&&... args) {
    std::string formatted = std::format(fmt, std::forward<Args>(args)...);
-   print(f, "{}", formatted);
+   fprintf(f, "%s", formatted.c_str());
+}
+
+template<class OutputIt, class... Args>
+int std_format_to_n(OutputIt buffer, std::iter_difference_t<OutputIt> n,
+                    std::format_string<Args...> fmt, Args&&... args) {
+   auto max_chars = n-1;
+   auto res = std::format_to_n(buffer, max_chars, fmt, std::forward<Args>(args)...);
+   auto written =  std::min(res.size, max_chars);
+   buffer[written] = '\0'; // adds terminator to buffer
+   // fprintf(stderr, "%s\n", buffer);
+   return written;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -833,7 +844,9 @@ std::optional<std::string> DebuggerSend(string_view command, bool echo, bool syn
 }
 
 std::string EvaluateCommand(string_view command, bool echo = false) {
-   return *std::move(DebuggerSend(command, echo, true));
+   auto res =  *std::move(DebuggerSend(command, echo, true));
+   // print("{} ==> {}\n", command, res);
+   return res;
 }
 
 std::string EvaluateExpression(string_view expression, string_view format = {}) {
@@ -899,7 +912,7 @@ void DebuggerGetStack() {
       position                 = strchr(position, ' ');
       if (!position || position >= next)
          break;
-      StringFormat(entry.function, sizeof(entry.function), "%.*s", (int)(position - functionName), functionName);
+      std_format_to_n(entry.function, sizeof(entry.function), "{:.{}}", functionName, position - functionName);
 
       const char* file = strstr(position, " at ");
 
@@ -908,7 +921,7 @@ void DebuggerGetStack() {
          const char* end = file;
          while (*end != '\n' && end < next)
             end++;
-         StringFormat(entry.location, sizeof(entry.location), "%.*s", (int)(end - file), file);
+         std_format_to_n(entry.location, sizeof(entry.location), "{:.{}}", file, end - file);
       }
 
       stack.push_back(entry);
@@ -967,7 +980,7 @@ void DebuggerGetBreakpoints() {
       if (condition && condition < next) {
          const char* end = strchr(condition, '\n');
          condition += 13;
-         StringFormat(breakpoint.condition, sizeof(breakpoint.condition), "%.*s", (int)(end - condition), condition);
+         std_format_to_n(breakpoint.condition, sizeof(breakpoint.condition), "{:.{}}", condition, end - condition);
          breakpoint.conditionHash = Hash((const uint8_t*)condition, end - condition);
       }
 
@@ -986,7 +999,7 @@ void DebuggerGetBreakpoints() {
          if (end && isdigit(end[1])) {
             if (file[0] == '.' && file[1] == '/')
                file += 2;
-            StringFormat(breakpoint.file, sizeof(breakpoint.file), "%.*s", (int)(end - file), file);
+            std_format_to_n(breakpoint.file, sizeof(breakpoint.file), "{:.{}}", file, end - file);
             breakpoint.line = sv_atoi(end, 1);
          } else
             recognised = false;
@@ -1202,8 +1215,8 @@ static void CommandEnableBreakpoint(int index) {
 
 void CommandSyncWithGvim() {
    char buffer[1024];
-   StringFormat(buffer, sizeof(buffer), "vim --servername %s --remote-expr \"execute(\\\"ls\\\")\" | grep %%",
-                vimServerName);
+   std_format_to_n(buffer, sizeof(buffer), "vim --servername {} --remote-expr \"execute(\\\"ls\\\")\" | grep %%",
+                    vimServerName);
    FILE* file = popen(buffer, "r");
    if (!file)
       return;
@@ -1226,8 +1239,8 @@ void CommandSyncWithGvim() {
 
    if (name[0] != '/' && name[0] != '~') {
       char buffer[1024];
-      StringFormat(buffer, sizeof(buffer), "vim --servername %s --remote-expr \"execute(\\\"pwd\\\")\" | grep '/'",
-                   vimServerName);
+      std_format_to_n(buffer, sizeof(buffer), "vim --servername {} --remote-expr \"execute(\\\"pwd\\\")\" | grep '/'",
+                       vimServerName);
       FILE* file = popen(buffer, "r");
       if (!file)
          return;
@@ -1236,7 +1249,7 @@ void CommandSyncWithGvim() {
       if (!strchr(buffer, '\n'))
          return;
       *strchr(buffer, '\n') = 0;
-      StringFormat(buffer2, sizeof(buffer2), "%s/%s", buffer, name);
+      std_format_to_n(buffer2, sizeof(buffer2), "{}/{}", buffer, name);
    } else {
       strcpy(buffer2, name);
    }
@@ -1487,8 +1500,8 @@ void SettingsLoad(bool earlyPass) {
                      argumentEnd = i;
                   }
 
-                  StringFormat(buffer, sizeof(buffer), "%.*s", argumentEnd - argumentStart,
-                               &state.value[argumentStart]);
+                  std_format_to_n(buffer, sizeof(buffer), "{:.{}}", &state.value[argumentStart],
+                                   argumentEnd - argumentStart);
 
                   ctx.gdbArgc++;
                   ctx.gdbArgv                  = (char**)realloc(ctx.gdbArgv, sizeof(char*) * (ctx.gdbArgc + 1));
@@ -1599,7 +1612,7 @@ bool DisplaySetPosition(const char* file, int line, bool useGDBToGetFullPath) {
    const char* originalFile = file;
 
    if (file && file[0] == '~') {
-      StringFormat(buffer, sizeof(buffer), "%s/%s", getenv("HOME"), 1 + file);
+      std_format_to_n(buffer, sizeof(buffer), "{}/{}", getenv("HOME"), 1 + file);
       file = buffer;
    } else if (file && file[0] != '/' && useGDBToGetFullPath) {
       auto        res = EvaluateCommand("info source");
@@ -1610,7 +1623,7 @@ bool DisplaySetPosition(const char* file, int line, bool useGDBToGetFullPath) {
          const char* end = strchr(f, '\n');
 
          if (end) {
-            StringFormat(buffer, sizeof(buffer), "%.*s", (int)(end - f), f);
+            std_format_to_n(buffer, sizeof(buffer), "{:.{}}", f, end - f);
             file = buffer;
          }
       }
@@ -1636,7 +1649,7 @@ bool DisplaySetPosition(const char* file, int line, bool useGDBToGetFullPath) {
 
    if (reloadFile) {
       currentLine = 0;
-      StringFormat(currentFile, 4096, "%s", file);
+      std_format_to_n(currentFile, 4096, "{}", file);
       realpath(currentFile, currentFileFull);
 
       XStoreName(ui->display, windowMain->xwindow, currentFileFull);
@@ -2040,7 +2053,7 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
 
          if (result) {
             autoPrintResultLine = autoPrintExpressionLine;
-            StringFormat(autoPrintResult, sizeof(autoPrintResult), "%s", result);
+            std_format_to_n(autoPrintResult, sizeof(autoPrintResult), "{}", result);
             char* end = strchr(autoPrintResult, '\n');
             if (end)
                *end = 0;
@@ -2121,8 +2134,8 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
       }
 
       if (position != bytes && text[position] == '=') {
-         StringFormat(autoPrintExpression, sizeof(autoPrintExpression), "%.*s", (int)(expressionEnd - expressionStart),
-                      text + expressionStart);
+         std_format_to_n(autoPrintExpression, sizeof(autoPrintExpression), "{:.{}}", text + expressionStart,
+                          expressionEnd - expressionStart);
       }
 
       autoPrintExpressionLine = currentLine;
@@ -2388,7 +2401,7 @@ const char* BitmapViewerGetBits(std::string pointerString, std::string widthStri
       return "Could not evaluate pointer.";
    }
    char _pointerResult[1024];
-   StringFormat(_pointerResult, sizeof(_pointerResult), "%s", pointerResult.c_str());
+   std_format_to_n(_pointerResult, sizeof(_pointerResult), "{}", pointerResult);
    auto pr = strstr(_pointerResult, " 0x");
    if (!pr) {
       return "Pointer to image bits does not look like an address!";
@@ -2783,7 +2796,7 @@ std::string WatchEvaluate(const char* function, const shared_ptr<Watch>& watch) 
    char      buffer[4096];
    uintptr_t position = 0;
 
-   position += StringFormat(buffer + position, sizeof(buffer) - position, "py %s([", function);
+   position += std_format_to_n(buffer + position, sizeof(buffer) - position, "py {}([", function);
 
    Watch* stack[32];
    int    stackCount = 0;
@@ -2802,29 +2815,28 @@ std::string WatchEvaluate(const char* function, const shared_ptr<Watch>& watch) 
       stackCount--;
 
       if (!first) {
-         position += StringFormat(buffer + position, sizeof(buffer) - position, ",");
+         position += std_format_to_n(buffer + position, sizeof(buffer) - position, ",");
       } else {
          first = false;
       }
 
       auto w = stack[stackCount];
       if (!w->key.empty()) {
-         position += StringFormat(buffer + position, sizeof(buffer) - position, "'%s'", w->key.c_str());
+         position += std_format_to_n(buffer + position, sizeof(buffer) - position, "'{}'", w->key);
       } else if (w->parent && w->parent->isDynamicArray) {
-         position += StringFormat(buffer + position, sizeof(buffer) - position, "'[%lu]'", w->arrayIndex);
+         position += std_format_to_n(buffer + position, sizeof(buffer) - position, "'[{}]'", w->arrayIndex);
       } else {
-         position += StringFormat(buffer + position, sizeof(buffer) - position, "%lu", w->arrayIndex);
+         position += std_format_to_n(buffer + position, sizeof(buffer) - position, "{}", w->arrayIndex);
       }
    }
 
-   position += StringFormat(buffer + position, sizeof(buffer) - position, "]");
+   position += std_format_to_n(buffer + position, sizeof(buffer) - position, "]");
 
    if (0 == strcmp(function, "gf_valueof")) {
-      position += StringFormat(buffer + position, sizeof(buffer) - position, ",'%c'", watch->format ?: ' ');
+      position += std_format_to_n(buffer + position, sizeof(buffer) - position, ",'{:c}'", watch->format ?: ' ');
    }
 
-   position += StringFormat(buffer + position, sizeof(buffer) - position, ")");
-
+   position += std_format_to_n(buffer + position, sizeof(buffer) - position, ")");
    return EvaluateCommand(buffer);
 }
 
@@ -3020,12 +3032,12 @@ int WatchLoggerTableMessage(UIElement* element, UIMessage message, int di, void*
       m->isSelected         = m->index == logger->selectedEntry;
 
       if (m->column == 0) {
-         return StringFormat(m->buffer, m->bufferBytes, "%s", entry->value.c_str());
+         return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->value);
       } else if (m->column == 1) {
-         return StringFormat(m->buffer, m->bufferBytes, "%s", entry->where.c_str());
+         return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->where);
       } else {
          if (m->column - 2 < (int)entry->evaluated.size()) {
-            return StringFormat(m->buffer, m->bufferBytes, "%s", entry->evaluated[m->column - 2].result.c_str());
+            return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->evaluated[m->column - 2].result);
          } else {
             return 0;
          }
@@ -3054,13 +3066,13 @@ int WatchLoggerTraceMessage(UIElement* element, UIMessage message, int di, void*
       StackEntry*     entry = &logger->entries[logger->selectedEntry].trace[m->index];
 
       if (m->column == 0) {
-         return StringFormat(m->buffer, m->bufferBytes, "%d", entry->id);
+         return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->id);
       } else if (m->column == 1) {
-         return StringFormat(m->buffer, m->bufferBytes, "%s", entry->function);
+         return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->function);
       } else if (m->column == 2) {
-         return StringFormat(m->buffer, m->bufferBytes, "%s", entry->location);
+         return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->location);
       } else if (m->column == 3) {
-         return StringFormat(m->buffer, m->bufferBytes, "0x%lX", entry->address);
+         return std_format_to_n(m->buffer, m->bufferBytes, "0x{:X}", entry->address);
       }
    } else if (message == UIMessage::LEFT_DOWN || message == UIMessage::MOUSE_DRAG) {
       int index = UITableHitTest((UITable*)element, element->window->cursor.x, element->window->cursor.y);
@@ -3137,15 +3149,15 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
    button->invoke   = [logger]() { WatchLoggerResizeColumns(logger); };
 
    uintptr_t position = 0;
-   position += StringFormat(logger->columns + position, sizeof(logger->columns) - position, "New value\tWhere");
+   position += std_format_to_n(logger->columns + position, sizeof(logger->columns) - position, "New value\tWhere");
 
    if (expressionsToEvaluate) {
       uintptr_t start = 0;
 
       for (uintptr_t i = 0; true; i++) {
          if (expressionsToEvaluate[i] == ';' || !expressionsToEvaluate[i]) {
-            position += StringFormat(logger->columns + position, sizeof(logger->columns) - position, "\t%.*s",
-                                     i - start, expressionsToEvaluate + start);
+            position += std_format_to_n(logger->columns + position, sizeof(logger->columns) - position, "\t{:.{}}",
+                                         expressionsToEvaluate + start, i - start);
             start = i + 1;
          }
 
@@ -3463,19 +3475,19 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
             char keyIndex[64];
 
             if (watch->key.empty()) {
-               StringFormat(keyIndex, sizeof(keyIndex), "[%lu]", watch->arrayIndex);
+               std_format_to_n(keyIndex, sizeof(keyIndex), "[{}]", watch->arrayIndex);
             }
 
             if (focused && w->waitingForFormatCharacter) {
-               StringFormat(buffer, sizeof(buffer), "Enter format character: (e.g. 'x' for hex)");
+               std_format_to_n(buffer, sizeof(buffer), "Enter format character: (e.g. 'x' for hex)");
             } else {
-               StringFormat(buffer, sizeof(buffer), "%.*s%s%s%s%s", watch->depth * 3,
-                            "                                           ",
-                            watch->open        ? "v "
-                            : watch->hasFields ? "> "
-                                               : "",
-                            !watch->key.empty() ? watch->key.c_str() : keyIndex, watch->open ? "" : " = ",
-                            watch->open ? "" : watch->value.c_str());
+               std_format_to_n(buffer, sizeof(buffer), "{:.{}}{}{}{}{}", "                                           ",
+                                watch->depth * 3,
+                                watch->open        ? "v "
+                                : watch->hasFields ? "> "
+                                                   : "",
+                                !watch->key.empty() ? watch->key.c_str() : keyIndex, watch->open ? "" : " = ",
+                                watch->open ? "" : watch->value.c_str());
             }
 
             if (focused) {
@@ -3870,13 +3882,13 @@ int TableStackMessage(UIElement* element, UIMessage message, int di, void* dp) {
       StackEntry* entry = &stack[m->index];
 
       if (m->column == 0) {
-         return StringFormat(m->buffer, m->bufferBytes, "%d", entry->id);
+         return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->id);
       } else if (m->column == 1) {
-         return StringFormat(m->buffer, m->bufferBytes, "%s", entry->function);
+         return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->function);
       } else if (m->column == 2) {
-         return StringFormat(m->buffer, m->bufferBytes, "%s", entry->location);
+         return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->location);
       } else if (m->column == 3) {
-         return StringFormat(m->buffer, m->bufferBytes, "0x%lX", entry->address);
+         return std_format_to_n(m->buffer, m->bufferBytes, "0x{:X}", entry->address);
       }
    } else if (message == UIMessage::LEFT_DOWN || message == UIMessage::MOUSE_DRAG) {
       StackSetFrame(element, UITableHitTest((UITable*)element, element->window->cursor.x, element->window->cursor.y));
