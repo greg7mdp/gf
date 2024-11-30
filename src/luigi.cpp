@@ -648,7 +648,7 @@ int UIMeasureStringHeight() {
 void UIDrawString(UIPainter* painter, UIRectangle r, std::string_view string, uint32_t color, UIAlign align,
                   UIStringSelection* selection) {
    if (string.empty() || !string[0])
-      printf("uho\n");
+      return;
    
    UIRectangle oldClip = painter->clip;
    painter->clip       = intersection(r, oldClip);

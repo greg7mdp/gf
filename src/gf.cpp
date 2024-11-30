@@ -3875,6 +3875,7 @@ void StackSetFrame(UIElement* element, int index) {
          stackSelected = index;
          element->Repaint(nullptr);
       } else {
+         currentLine = -1; // force the update in DisplayPosition as we may have scrolled away
          DisplaySetPositionFromStack();
       }
    }
