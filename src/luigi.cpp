@@ -2928,10 +2928,7 @@ void UITableResizeColumns(UITable* table) {
 
    position = 0;
 
-   char           buffer[256];
-   UITableGetItem m = {0};
-   m.buffer         = buffer;
-   m.bufferBytes    = sizeof(buffer);
+   UITableGetItem m(256);
 
    while (true) {
       int end = position;
@@ -2943,7 +2940,7 @@ void UITableResizeColumns(UITable* table) {
       for (int i = 0; i < table->itemCount; i++) {
          m.index   = i;
          int bytes = table->Message(UIMessage::TABLE_GET_ITEM, 0, &m);
-         int width = UIMeasureStringWidth({buffer, static_cast<size_t>(bytes)});
+         int width = UIMeasureStringWidth(m.buff(bytes));
 
          if (width > longest) {
             longest = width;
@@ -2970,12 +2967,9 @@ int _UITableMessage(UIElement* element, UIMessage message, int di, void* dp) {
       bounds.r            = table->vScroll->bounds.l;
       UIDrawControl(painter, element->bounds, UI_DRAW_CONTROL_TABLE_BACKGROUND | element->state(), {}, 0,
                     element->window->scale);
-      char           buffer[256];
       UIRectangle    row       = bounds;
       int            rowHeight = ui_size::TABLE_ROW * element->window->scale;
-      UITableGetItem m         = {0};
-      m.buffer                 = buffer;
-      m.bufferBytes            = sizeof(buffer);
+      UITableGetItem m(256);
       row.t += ui_size::TABLE_HEADER * table->window->scale;
       row.t -= (int64_t)table->vScroll->position % rowHeight;
       int         hovered = UITableHitTest(table, element->window->cursor.x, element->window->cursor.y);
@@ -3009,10 +3003,10 @@ int _UITableMessage(UIElement* element, UIMessage message, int di, void* dp) {
             }
 
             cell.r = cell.l + table->columnWidths[j];
-            if ((size_t)bytes > m.bufferBytes && bytes > 0)
-               bytes = m.bufferBytes;
+            if ((size_t)bytes > m.buff_size() && bytes > 0)
+               bytes = m.buff_size();
             if (bytes > 0)
-               UIDrawControl(painter, cell, UI_DRAW_CONTROL_TABLE_CELL | rowFlags, {buffer, static_cast<size_t>(bytes)}, 0,
+               UIDrawControl(painter, cell, UI_DRAW_CONTROL_TABLE_CELL | rowFlags, m.buff(bytes), 0,
                              element->window->scale);
             cell.l += table->columnWidths[j] + ui_size::TABLE_COLUMN_GAP * table->window->scale;
          }
@@ -4687,13 +4681,12 @@ int _UIInspectorTableMessage(UIElement* element, UIMessage message, int di, void
          return 0;
 
       if (m->column == 0) {
-         return snprintf(m->buffer, m->bufferBytes, "%.*s%s", depth * 2, "                ", element->cClassName);
+         return m->format_to("{:.{}}{}", "                ", depth * 2, element->cClassName);
       } else if (m->column == 1) {
          const auto& b = element->bounds;
-         return snprintf(m->buffer, m->bufferBytes, "%d:%d, %d:%d", b.l, b.r, b.t, b.b);
+         return m->format_to("{}:{}, {}:{}", b.l, b.r, b.t, b.b);
       } else if (m->column == 2) {
-         return snprintf(m->buffer, m->bufferBytes, "%d%c", element->id,
-                         element->window->focused == element ? '*' : ' ');
+         return m->format_to("{}{:c}", element->id, element->window->focused == element ? '*' : ' ');
       }
    } else if (message == UIMessage::MOUSE_MOVE) {
       int        index   = UITableHitTest(ui->inspectorTable, element->window->cursor.x, element->window->cursor.y);
@@ -4852,15 +4845,13 @@ bool UIAutomationCheckTableItemMatches(UITable* table, int row, int column, cons
       return false;
    if (column < 0 || column >= table->columnCount)
       return false;
-   char*          buffer = (char*)UI_MALLOC(bytes + 1);
-   UITableGetItem m      = {0};
-   m.buffer              = buffer;
-   m.bufferBytes         = bytes + 1;
+   UITableGetItem m(bytes + 1);
    m.column              = column;
    m.index               = row;
    int length            = &table->e->Message(UIMessage::TABLE_GET_ITEM, 0, &m);
    if (length != bytes)
       return false;
+   auto buffer = m.buff(length);
    for (int i = 0; input[i]; i++)
       if (buffer[i] != input[i])
          return false;

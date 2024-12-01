@@ -177,17 +177,6 @@ void print(FILE* f, std::format_string<Args...> fmt, Args&&... args) {
    fprintf(f, "%s", formatted.c_str());
 }
 
-template <class OutputIt, class... Args>
-int std_format_to_n(OutputIt buffer, std::iter_difference_t<OutputIt> n, std::format_string<Args...> fmt,
-                    Args&&... args) {
-   auto max_chars  = n - 1;
-   auto res        = std::format_to_n(buffer, max_chars, fmt, std::forward<Args>(args)...);
-   auto written    = std::min(res.size, max_chars);
-   buffer[written] = '\0'; // adds terminator to buffer
-   // fprintf(stderr, "%s\n", buffer);
-   return written;
-}
-
 // ---------------------------------------------------------------------------------------------
 //                              Data structures
 // ---------------------------------------------------------------------------------------------
@@ -3025,12 +3014,12 @@ int WatchLoggerTableMessage(UIElement* element, UIMessage message, int di, void*
       m->isSelected         = m->index == logger->selectedEntry;
 
       if (m->column == 0) {
-         return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->value);
+         return m->format_to("{}", entry->value);
       } else if (m->column == 1) {
-         return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->where);
+         return m->format_to("{}", entry->where);
       } else {
          if (m->column - 2 < (int)entry->evaluated.size()) {
-            return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->evaluated[m->column - 2].result);
+            return m->format_to("{}", entry->evaluated[m->column - 2].result);
          } else {
             return 0;
          }
@@ -3059,13 +3048,13 @@ int WatchLoggerTraceMessage(UIElement* element, UIMessage message, int di, void*
       StackEntry*     entry = &logger->entries[logger->selectedEntry].trace[m->index];
 
       if (m->column == 0) {
-         return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->id);
+         return m->format_to("{}", entry->id);
       } else if (m->column == 1) {
-         return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->function);
+         return m->format_to("{}", entry->function);
       } else if (m->column == 2) {
-         return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->location);
+         return m->format_to("{}", entry->location);
       } else if (m->column == 3) {
-         return std_format_to_n(m->buffer, m->bufferBytes, "0x{:X}", entry->address);
+         return m->format_to("0x{:X}", entry->address);
       }
    } else if (message == UIMessage::LEFT_DOWN || message == UIMessage::MOUSE_DRAG) {
       int index = UITableHitTest((UITable*)element, element->window->cursor.x, element->window->cursor.y);
@@ -3878,13 +3867,13 @@ int TableStackMessage(UIElement* element, UIMessage message, int di, void* dp) {
       StackEntry* entry = &stack[m->index];
 
       if (m->column == 0) {
-         return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->id);
+         return m->format_to("{}", entry->id);
       } else if (m->column == 1) {
-         return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->function);
+         return m->format_to("{}", entry->function);
       } else if (m->column == 2) {
-         return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->location);
+         return m->format_to("{}", entry->location);
       } else if (m->column == 3) {
-         return std_format_to_n(m->buffer, m->bufferBytes, "0x{:X}", entry->address);
+         return m->format_to("0x{:X}", entry->address);
       }
    } else if (message == UIMessage::LEFT_DOWN || message == UIMessage::MOUSE_DRAG) {
       StackSetFrame(element, UITableHitTest((UITable*)element, element->window->cursor.x, element->window->cursor.y));
@@ -3955,19 +3944,19 @@ int TableBreakpointsMessage(UIElement* element, UIMessage message, int di, void*
       m->isSelected         = rng::find(data->selected, entry->number) != rng::end(data->selected);
 
       if (m->column == 0) {
-         return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->file);
+         return m->format_to("{}", entry->file);
       } else if (m->column == 1) {
          if (entry->watchpoint)
-            return std_format_to_n(m->buffer, m->bufferBytes, "watch {}", entry->number);
+            return m->format_to("watch {}", entry->number);
          else
-            return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->line);
+            return m->format_to("{}", entry->line);
       } else if (m->column == 2) {
-         return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->enabled ? "yes" : "no");
+         return m->format_to("{}", entry->enabled ? "yes" : "no");
       } else if (m->column == 3) {
-         return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->condition);
+         return m->format_to("{}", entry->condition);
       } else if (m->column == 4) {
          if (entry->hit > 0) {
-            return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->hit);
+            return m->format_to("{}", entry->hit);
          }
       }
    } else if (message == UIMessage::RIGHT_DOWN) {
@@ -4503,9 +4492,9 @@ int ThreadTableMessage(UIElement* element, UIMessage message, int di, void* dp) 
       m->isSelected     = window->threads[m->index].active;
 
       if (m->column == 0) {
-         return std_format_to_n(m->buffer, m->bufferBytes, "{}", window->threads[m->index].id);
+         return m->format_to("{}", window->threads[m->index].id);
       } else if (m->column == 1) {
-         return std_format_to_n(m->buffer, m->bufferBytes, "{}", window->threads[m->index].frame);
+         return m->format_to("{}", window->threads[m->index].frame);
       }
    } else if (message == UIMessage::LEFT_DOWN) {
       int index = UITableHitTest((UITable*)element, element->window->cursor.x, element->window->cursor.y);
@@ -5506,15 +5495,15 @@ int ProfTableMessage(UIElement* element, UIMessage message, int di, void* dp) {
       ProfFunctionEntry* entry = &report->sortedFunctions[m->index];
 
       if (m->column == 0) {
-         return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->cName);
+         return m->format_to("{}", entry->cName);
       } else if (m->column == 1) {
-         return std_format_to_n(m->buffer, m->bufferBytes, "{:f}", entry->totalTime);
+         return m->format_to("{:f}", entry->totalTime);
       } else if (m->column == 2) {
-         return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->callCount);
+         return m->format_to("{}", entry->callCount);
       } else if (m->column == 3) {
-         return std_format_to_n(m->buffer, m->bufferBytes, "{:f}", entry->totalTime / entry->callCount);
+         return m->format_to("{:f}", entry->totalTime / entry->callCount);
       } else if (m->column == 4) {
-         return std_format_to_n(m->buffer, m->bufferBytes, "{:f}", entry->totalTime / report->totalTime * 100);
+         return m->format_to("{:f}", entry->totalTime / report->totalTime * 100);
       }
    } else if (message == UIMessage::LEFT_DOWN) {
       int index = UITableHeaderHitTest(table, element->window->cursor.x, element->window->cursor.y);

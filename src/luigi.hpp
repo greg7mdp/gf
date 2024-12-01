@@ -19,6 +19,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <format>
 #include <unordered_map>
 
 using std::unique_ptr;
@@ -150,6 +151,20 @@ enum class UIKeycode : int {
 inline UIKeycode UI_KEYCODE_LETTER(char x) { return (UIKeycode)((int)UIKeycode::A + (x - 'A')); }
 inline UIKeycode UI_KEYCODE_DIGIT(char x) { return (UIKeycode)((int)UIKeycode::ZERO + (x - '0')); }
 inline UIKeycode UI_KEYCODE_FKEY(char x) { return (UIKeycode)((int)UIKeycode::F1 + (x - 1)); }
+
+// ---------------------------------------------------------------------------------------------
+//                              Utilities
+// ---------------------------------------------------------------------------------------------
+template <class OutputIt, class... Args>
+int std_format_to_n(OutputIt buffer, std::iter_difference_t<OutputIt> n, std::format_string<Args...> fmt,
+                    Args&&... args) {
+   auto max_chars  = n - 1;
+   auto res        = std::format_to_n(buffer, max_chars, fmt, std::forward<Args>(args)...);
+   auto written    = std::min(res.size, max_chars);
+   buffer[written] = '\0'; // adds terminator to buffer
+   // fprintf(stderr, "%s\n", buffer);
+   return written;
+}
 
 // --------------------------------------------------
 // Definitions.
@@ -427,11 +442,22 @@ struct UIKeyTyped {
 };
 
 struct UITableGetItem {
-   char*  buffer      = nullptr;
-   size_t bufferBytes = 0;
+   std::string buffer;
    int    index       = 0;
    int    column      = 0;
    bool   isSelected  = false;
+
+   UITableGetItem(size_t buffer_size) {
+      buffer.resize(buffer_size);
+   }
+
+   template <class... Args>
+   int format_to(std::format_string<Args...> fmt, Args&&... args) {
+      return std_format_to_n(&buffer[0], buffer.size(), fmt, std::forward<Args>(args)...);
+   }
+
+   std::string_view buff(int num_chars) { return std::string_view(&buffer[0], (size_t)num_chars); }
+   size_t           buff_size() const { return buffer.size(); }
 };
 
 struct UICodeDecorateLine {
