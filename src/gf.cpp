@@ -208,11 +208,14 @@ struct InterfaceDataViewer {
 };
 
 struct INIState {
-   char*  buffer  = nullptr;
-   char*  section = nullptr;
-   char*  key     = nullptr;
-   char*  value   = nullptr;
-   size_t bytes = 0, sectionBytes = 0, keyBytes = 0, valueBytes = 0;
+   char*  buffer       = nullptr;
+   char*  section      = nullptr;
+   char*  key          = nullptr;
+   char*  value        = nullptr;
+   size_t bytes        = 0;
+   size_t sectionBytes = 0;
+   size_t keyBytes     = 0;
+   size_t valueBytes   = 0;
 };
 
 using str_unique_ptr = std::unique_ptr<char, decltype([](char* s) { free(s); })>;
@@ -294,7 +297,7 @@ Context ctx;
 
 // --------------------------------------------------------------------------------------------
 FILE*                      commandLog = nullptr;
-char                       emptyString;
+char                       emptyString = 0;
 const char*                vimServerName   = "GVIM";
 const char*                logPipePath     = nullptr;
 const char*                controlPipePath = nullptr;
@@ -513,7 +516,6 @@ vector<char> LoadFile(const char* path, size_t* _bytes) {
    return buffer;
 }
 
-bool INIParse(INIState* s) {
 #define INI_READ(destination, counter, c1, c2)              \
    s->destination = s->buffer, s->counter = 0;              \
    while (s->bytes && *s->buffer != c1 && *s->buffer != c2) \
@@ -521,6 +523,7 @@ bool INIParse(INIState* s) {
    if (s->bytes && *s->buffer == c1)                        \
       s->buffer++, s->bytes--;
 
+bool INIParse(INIState* s) {
    while (s->bytes) {
       char c = *s->buffer;
 
