@@ -68,7 +68,7 @@ public:
       std::unique_lock<std::mutex> lock(mutex_);
       bool res = cv_.wait_for(lock, std::chrono::seconds(1), [this] { return !queue_.empty() || quit_; });
 
-      if (!res || quit_) {       // !res means we hit the timeout
+      if (!res || quit_) { // !res means we hit the timeout
          value = std::optional<T>{};
          return false;
       }
@@ -117,12 +117,12 @@ T sv_atoi_impl(string_view str, size_t offset = 0) {
 
    while (i < sz && std::isspace(static_cast<unsigned char>(str[i])))
       ++i;
-   
+
    if (i == sz)
       return 0;
 
    bool negative = false;
-   
+
    if (str[i] == '+')
       ++i;
    else if (str[i] == '-') {
@@ -153,32 +153,32 @@ static inline int sv_atoi(string_view str, size_t offset = 0) {
 }
 
 void print(const std::string_view str) {
-    std::cout << str;
+   std::cout << str;
 }
 
 // Variadic template for print with format arguments
-template<typename... Args>
+template <typename... Args>
 void print(std::format_string<Args...> fmt, Args&&... args) {
-    std::cout << std::format(fmt, std::forward<Args>(args)...);
+   std::cout << std::format(fmt, std::forward<Args>(args)...);
 }
 
-template<typename... Args>
+template <typename... Args>
 void print(std::ostream& stream, std::format_string<Args...> fmt, Args&&... args) {
-    stream << std::format(fmt, std::forward<Args>(args)...);
+   stream << std::format(fmt, std::forward<Args>(args)...);
 }
 
-template<typename... Args>
+template <typename... Args>
 void print(FILE* f, std::format_string<Args...> fmt, Args&&... args) {
    std::string formatted = std::format(fmt, std::forward<Args>(args)...);
    fprintf(f, "%s", formatted.c_str());
 }
 
-template<class OutputIt, class... Args>
-int std_format_to_n(OutputIt buffer, std::iter_difference_t<OutputIt> n,
-                    std::format_string<Args...> fmt, Args&&... args) {
-   auto max_chars = n-1;
-   auto res = std::format_to_n(buffer, max_chars, fmt, std::forward<Args>(args)...);
-   auto written =  std::min(res.size, max_chars);
+template <class OutputIt, class... Args>
+int std_format_to_n(OutputIt buffer, std::iter_difference_t<OutputIt> n, std::format_string<Args...> fmt,
+                    Args&&... args) {
+   auto max_chars  = n - 1;
+   auto res        = std::format_to_n(buffer, max_chars, fmt, std::forward<Args>(args)...);
+   auto written    = std::min(res.size, max_chars);
    buffer[written] = '\0'; // adds terminator to buffer
    // fprintf(stderr, "%s\n", buffer);
    return written;
@@ -280,32 +280,32 @@ struct Context {
       kill(gdbPID, SIGKILL);
    }
 
-   void DebuggerThread();
-   void SettingsLoad(bool earlyPass);
-   void InterfaceAddBuiltinWindowsAndCommands();
-   void RegisterExtensions();
-   void InterfaceShowMenu(UIButton* self);
-   void InterfaceLayoutCreate(UIElement* parent);
-   UIElement* InterfaceWindowSwitchToAndFocus(string_view name);
+   void           DebuggerThread();
+   void           SettingsLoad(bool earlyPass);
+   void           InterfaceAddBuiltinWindowsAndCommands();
+   void           RegisterExtensions();
+   void           InterfaceShowMenu(UIButton* self);
+   void           InterfaceLayoutCreate(UIElement* parent);
+   UIElement*     InterfaceWindowSwitchToAndFocus(string_view name);
    unique_ptr<UI> GfMain(int argc, char** argv);
 };
 
 Context ctx;
 
 // --------------------------------------------------------------------------------------------
-FILE*                       commandLog = nullptr;
-char                        emptyString;
-const char*                 vimServerName   = "GVIM";
-const char*                 logPipePath     = nullptr;
-const char*                 controlPipePath = nullptr;
-vector<INIState>            presetCommands;
-char                        globalConfigPath[PATH_MAX];
-char                        localConfigDirectory[PATH_MAX];
-char                        localConfigPath[PATH_MAX];
-const char*                 executablePath         = nullptr;
-const char*                 executableArguments    = nullptr;
-bool                        executableAskDirectory = true;
-vector<ReceiveMessageType>  receiveMessageTypes;
+FILE*                      commandLog = nullptr;
+char                       emptyString;
+const char*                vimServerName   = "GVIM";
+const char*                logPipePath     = nullptr;
+const char*                controlPipePath = nullptr;
+vector<INIState>           presetCommands;
+char                       globalConfigPath[PATH_MAX];
+char                       localConfigDirectory[PATH_MAX];
+char                       localConfigPath[PATH_MAX];
+const char*                executablePath         = nullptr;
+const char*                executableArguments    = nullptr;
+bool                       executableAskDirectory = true;
+vector<ReceiveMessageType> receiveMessageTypes;
 char* layoutString = (char*)"v(75,h(80,Source,v(50,t(Exe,Breakpoints,Commands,Struct),t(Stack,Files,Thread,CmdSearch)))"
                             ",h(65,Console,t(Watch,Locals,Registers,Data)))";
 const char*  fontPath          = nullptr;
@@ -474,10 +474,10 @@ end
 
 // Forward declarations:
 
-bool       DisplaySetPosition(const char* file, int line, bool useGDBToGetFullPath);
-void       WatchAddExpression2(string_view string);
-int        WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp);
-void       CommandInspectLine();
+bool DisplaySetPosition(const char* file, int line, bool useGDBToGetFullPath);
+void WatchAddExpression2(string_view string);
+int  WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp);
+void CommandInspectLine();
 
 // ------------------------------------------------------
 // Utilities:
@@ -488,22 +488,6 @@ inline uint64_t Hash(const uint8_t* key, size_t keyBytes) {
    for (uintptr_t i = 0; i < keyBytes; i++)
       hash = (hash ^ key[i]) * 0x100000001B3;
    return hash;
-}
-
-int StringFormat(char* buffer, size_t bufferSize, const char* format, ...) {
-   int length = 0;
-   va_list arguments;
-
-   va_start(arguments, format);
-   length = vsnprintf(buffer, bufferSize, format, arguments);
-   va_end(arguments);
-
-   if (length > (int)bufferSize) {
-      // HACK This could truncate a UTF-8 codepoint.
-      length = bufferSize;
-   }
-
-   return length;
 }
 
 vector<char> LoadFile(const char* path, size_t* _bytes) {
@@ -634,7 +618,7 @@ bool SourceFindOuterFunctionCall(char** start, char** end) {
 
    // Look forwards for the end of the call ");".
 
-   size_t num_chars = displayCode->size() ;
+   size_t num_chars = displayCode->size();
    while (offset < num_chars - 1) {
       if (displayCode->content[offset] == ')' && displayCode->content[offset + 1] == ';') {
          found = true;
@@ -853,7 +837,7 @@ std::optional<std::string> DebuggerSend(string_view command, bool echo, bool syn
 }
 
 std::string EvaluateCommand(string_view command, bool echo = false) {
-   auto res =  *std::move(DebuggerSend(command, echo, true));
+   auto res = *std::move(DebuggerSend(command, echo, true));
    // print("{} ==> {}\n", command, res);
    return res;
 }
@@ -1225,7 +1209,7 @@ static void CommandEnableBreakpoint(int index) {
 void CommandSyncWithGvim() {
    char buffer[1024];
    std_format_to_n(buffer, sizeof(buffer), "vim --servername {} --remote-expr \"execute(\\\"ls\\\")\" | grep %%",
-                    vimServerName);
+                   vimServerName);
    FILE* file = popen(buffer, "r");
    if (!file)
       return;
@@ -1249,7 +1233,7 @@ void CommandSyncWithGvim() {
    if (name[0] != '/' && name[0] != '~') {
       char buffer[1024];
       std_format_to_n(buffer, sizeof(buffer), "vim --servername {} --remote-expr \"execute(\\\"pwd\\\")\" | grep '/'",
-                       vimServerName);
+                      vimServerName);
       FILE* file = popen(buffer, "r");
       if (!file)
          return;
@@ -1510,7 +1494,7 @@ void Context::SettingsLoad(bool earlyPass) {
                   }
 
                   std_format_to_n(buffer, sizeof(buffer), "{:.{}}", &state.value[argumentStart],
-                                   argumentEnd - argumentStart);
+                                  argumentEnd - argumentStart);
 
                   ctx.gdbArgc++;
                   ctx.gdbArgv                  = (char**)realloc(ctx.gdbArgv, sizeof(char*) * (ctx.gdbArgc + 1));
@@ -1523,11 +1507,11 @@ void Context::SettingsLoad(bool earlyPass) {
             } else if (0 == strcmp(state.key, "log_all_output") && sv_atoi(state.value)) {
                if (auto it = interfaceWindows.find("Log"); it != interfaceWindows.end()) {
                   const auto& [name, window] = *it;
-                  ctx.logWindow = static_cast<UICode*>(window.element);
+                  ctx.logWindow              = static_cast<UICode*>(window.element);
                }
                if (!ctx.logWindow) {
                   print(std::cerr, "Warning: gdb.log_all_output was enabled, "
-                                  "but your layout does not have a 'Log' window.\n");
+                                   "but your layout does not have a 'Log' window.\n");
                }
             } else if (0 == strcmp(state.key, "confirm_command_kill")) {
                confirmCommandKill = sv_atoi(state.value);
@@ -1602,11 +1586,11 @@ struct InspectResult {
 };
 
 vector<InspectResult> inspectResults;
-bool          noInspectResults;
-bool          inInspectLineMode;
-int           inspectModeRestoreLine;
-UIRectangle   displayCurrentLineBounds;
-const char*   disassemblyCommand = "disas /s";
+bool                  noInspectResults;
+bool                  inInspectLineMode;
+int                   inspectModeRestoreLine;
+UIRectangle           displayCurrentLineBounds;
+const char*           disassemblyCommand = "disas /s";
 
 bool DisplaySetPosition(const char* file, int line, bool useGDBToGetFullPath) {
    if (showingDisassembly) {
@@ -1976,8 +1960,8 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
           !element->window->textboxModifiedFlag) {
          UIDrawBorder(m->painter, m->bounds, element->window->ctrl ? ui->theme.selected : ui->theme.codeOperator,
                       UIRectangle(2));
-         UIDrawString(m->painter, m->bounds, element->window->ctrl ? "=> run until " : "=> skip to ",
-                      ui->theme.text, UIAlign::right, NULL);
+         UIDrawString(m->painter, m->bounds, element->window->ctrl ? "=> run until " : "=> skip to ", ui->theme.text,
+                      UIAlign::right, NULL);
       } else if (m->index == currentEndOfBlock) {
          UIDrawString(m->painter, m->bounds, "[Shift+F10]", ui->theme.codeComment, UIAlign::right, NULL);
       }
@@ -2140,7 +2124,7 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
 
       if (position != bytes && text[position] == '=') {
          std_format_to_n(autoPrintExpression, sizeof(autoPrintExpression), "{:.{}}", text + expressionStart,
-                          expressionEnd - expressionStart);
+                         expressionEnd - expressionStart);
       }
 
       autoPrintExpressionLine = currentLine;
@@ -2219,7 +2203,7 @@ void InspectCurrentLine() {
 
    UICodeLine* line   = &displayCode->lines[currentLine - 1];
    const char* string = displayCode->line(currentLine - 1);
-   auto code = string_view{string, size_t(line->bytes)};
+   auto        code   = string_view{string, size_t(line->bytes)};
 
    auto expressions = regex::extract_debuggable_expressions(code);
    for (auto e : expressions) {
@@ -2231,7 +2215,7 @@ void InspectCurrentLine() {
 
       if (0 == memcmp(res.c_str(), "= {", 3) && !strchr(res.c_str() + 3, '='))
          continue;
-      
+
       inspectResults.emplace_back(std::string{e}, res);
    }
 
@@ -3162,7 +3146,7 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
       for (uintptr_t i = 0; true; i++) {
          if (expressionsToEvaluate[i] == ';' || !expressionsToEvaluate[i]) {
             position += std_format_to_n(logger->columns + position, sizeof(logger->columns) - position, "\t{:.{}}",
-                                         expressionsToEvaluate + start, i - start);
+                                        expressionsToEvaluate + start, i - start);
             start = i + 1;
          }
 
@@ -3313,7 +3297,7 @@ void CommandWatchAddEntryForAddress(WatchWindow* _w) {
    }
 
    auto address = res;
-   res = WatchEvaluate("gf_typeof", watch);
+   res          = WatchEvaluate("gf_typeof", watch);
    if (res.empty() || res.contains("??"))
       return;
    resize_to_lf(res);
@@ -3341,8 +3325,8 @@ void CommandWatchViewSourceAtAddress(WatchWindow* _w) {
    if (!(*position))
       return;
    uint64_t value = strtoul(position, nullptr, 0);
-   auto res = EvaluateCommand(std::format("info line * 0x{:x}", value));
-   position = (char*)res.c_str();
+   auto     res   = EvaluateCommand(std::format("info line * 0x{:x}", value));
+   position       = (char*)res.c_str();
 
    if (res.contains("No line number")) {
       resize_to_lf(res);
@@ -3487,12 +3471,12 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
                std_format_to_n(buffer, sizeof(buffer), "Enter format character: (e.g. 'x' for hex)");
             } else {
                std_format_to_n(buffer, sizeof(buffer), "{:.{}}{}{}{}{}", "                                           ",
-                                watch->depth * 3,
-                                watch->open        ? "v "
-                                : watch->hasFields ? "> "
-                                                   : "",
-                                !watch->key.empty() ? watch->key.c_str() : keyIndex, watch->open ? "" : " = ",
-                                watch->open ? "" : watch->value.c_str());
+                               watch->depth * 3,
+                               watch->open        ? "v "
+                               : watch->hasFields ? "> "
+                                                  : "",
+                               !watch->key.empty() ? watch->key.c_str() : keyIndex, watch->open ? "" : " = ",
+                               watch->open ? "" : watch->value.c_str());
             }
 
             if (focused) {
@@ -3514,7 +3498,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
 
             if (x >= watch->depth * 3 - 1 && x <= watch->depth * 3 + 1 && watch->hasFields) {
                UIKeyTyped m;
-               m.code       = watch->open ? UIKeycode::LEFT : UIKeycode::RIGHT;
+               m.code = watch->open ? UIKeycode::LEFT : UIKeycode::RIGHT;
                WatchWindowMessage(element, UIMessage::KEY_TYPED, 0, &m);
             }
          }
@@ -3541,8 +3525,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
                });
             }
 
-            UIMenuAddItem(menu, 0, "Copy value to clipboard\tCtrl+C",
-                          [w]() { CommandWatchCopyValueToClipboard(w); });
+            UIMenuAddItem(menu, 0, "Copy value to clipboard\tCtrl+C", [w]() { CommandWatchCopyValueToClipboard(w); });
 
             UIMenuAddItem(menu, 0, "Log writes to address...", [w]() { WatchChangeLoggerCreate(w); });
 
@@ -3558,8 +3541,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
             });
 
             if (firstWatchWindow) {
-               UIMenuAddItem(menu, 0, "Add entry for address\tCtrl+E",
-                             [w]() { CommandWatchAddEntryForAddress(w); });
+               UIMenuAddItem(menu, 0, "Add entry for address\tCtrl+E", [w]() { CommandWatchAddEntryForAddress(w); });
             }
 
             UIMenuAddItem(menu, 0, "View source at address\tCtrl+G", [w]() { CommandWatchViewSourceAtAddress(w); });
@@ -3741,8 +3723,8 @@ void WatchWindowUpdate(const char*, UIElement* element) {
       if (newFrame) {
          w->lastLocalList = res;
 
-         char*         buffer      = strdup(res.c_str());
-         char*         s           = buffer;
+         char*         buffer = strdup(res.c_str());
+         char*         s      = buffer;
          char*         end;
          vector<char*> expressions = {};
 
@@ -3873,7 +3855,7 @@ void CommandAddWatch() {
 
 void StackSetFrame(UIElement* element, int index) {
    if (index >= 0 && index < ((UITable*)element)->itemCount) {
-      stackChanged  = true;
+      stackChanged = true;
       if (stackSelected != (size_t)index) {
          (void)DebuggerSend(std::format("frame {}", index), false, false);
          stackSelected = index;
@@ -3969,19 +3951,19 @@ int TableBreakpointsMessage(UIElement* element, UIMessage message, int di, void*
       m->isSelected         = rng::find(data->selected, entry->number) != rng::end(data->selected);
 
       if (m->column == 0) {
-         return StringFormat(m->buffer, m->bufferBytes, "%s", entry->file);
+         return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->file);
       } else if (m->column == 1) {
          if (entry->watchpoint)
-            return StringFormat(m->buffer, m->bufferBytes, "watch %d", entry->number);
+            return std_format_to_n(m->buffer, m->bufferBytes, "watch {}", entry->number);
          else
-            return StringFormat(m->buffer, m->bufferBytes, "%d", entry->line);
+            return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->line);
       } else if (m->column == 2) {
-         return StringFormat(m->buffer, m->bufferBytes, "%s", entry->enabled ? "yes" : "no");
+         return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->enabled ? "yes" : "no");
       } else if (m->column == 3) {
-         return StringFormat(m->buffer, m->bufferBytes, "%s", entry->condition);
+         return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->condition);
       } else if (m->column == 4) {
          if (entry->hit > 0) {
-            return StringFormat(m->buffer, m->bufferBytes, "%d", entry->hit);
+            return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->hit);
          }
       }
    } else if (message == UIMessage::RIGHT_DOWN) {
@@ -4239,8 +4221,8 @@ int FilesButtonMessage(UIElement* element, UIMessage message, int di, void* dp) 
       if (i)
          UIDrawBlock(painter, element->bounds, i == 2 ? ui->theme.buttonPressed : ui->theme.buttonHovered);
       UIDrawString(painter, element->bounds + UIRectangle(ui_size::BUTTON_PADDING, 0, 0, 0), button->label,
-                   button->flags & UIButton::CHECKED ? ui->theme.codeNumber : ui->theme.codeDefault,
-                   UIAlign::left, NULL);
+                   button->flags & UIButton::CHECKED ? ui->theme.codeNumber : ui->theme.codeDefault, UIAlign::left,
+                   NULL);
       return 1;
    }
 
@@ -4297,7 +4279,7 @@ void FilesNavigateToCWD(FilesWindow* window) {
 }
 
 void FilesNavigateToActiveFile(FilesWindow* window) {
-   StringFormat(window->directory, sizeof(window->directory), "%s", currentFileFull);
+   std_format_to_n(window->directory, sizeof(window->directory), "{}", currentFileFull);
    int p = strlen(window->directory);
    while (p--)
       if (window->directory[p] == '/') {
@@ -4376,7 +4358,7 @@ void RegistersWindowUpdate(const char*, UIElement* panel) {
       const char* stringEnd   = format2End;
 
       RegisterData data;
-      StringFormat(data.string, sizeof(data.string), "%.*s", (int)(stringEnd - stringStart), stringStart);
+      std_format_to_n(data.string, sizeof(data.string), "{:.{}}", stringStart, stringEnd - stringStart);
       bool modified = false;
 
       if (registerData.size() > newRegisterData.size()) {
@@ -4409,12 +4391,12 @@ void RegistersWindowUpdate(const char*, UIElement* panel) {
             anyChanges          = true;
          } else {
             int position = strlen(autoPrintResult);
-            StringFormat(autoPrintResult + position, sizeof(autoPrintResult) - position, ", ");
+            std_format_to_n(autoPrintResult + position, sizeof(autoPrintResult) - position, ", ");
          }
 
          int position = strlen(autoPrintResult);
-         StringFormat(autoPrintResult + position, sizeof(autoPrintResult) - position, "%.*s=%.*s",
-                      (int)(nameEnd - nameStart), nameStart, (int)(format1End - format1Start), format1Start);
+         std_format_to_n(autoPrintResult + position, sizeof(autoPrintResult) - position, "{:.{}}={:.{}}", nameStart,
+                         nameEnd - nameStart, format1Start, format1End - format1Start);
       }
    }
 
@@ -4517,9 +4499,9 @@ int ThreadTableMessage(UIElement* element, UIMessage message, int di, void* dp) 
       m->isSelected     = window->threads[m->index].active;
 
       if (m->column == 0) {
-         return StringFormat(m->buffer, m->bufferBytes, "%d", window->threads[m->index].id);
+         return std_format_to_n(m->buffer, m->bufferBytes, "{}", window->threads[m->index].id);
       } else if (m->column == 1) {
-         return StringFormat(m->buffer, m->bufferBytes, "%s", window->threads[m->index].frame);
+         return std_format_to_n(m->buffer, m->bufferBytes, "{}", window->threads[m->index].frame);
       }
    } else if (message == UIMessage::LEFT_DOWN) {
       int index = UITableHitTest((UITable*)element, element->window->cursor.x, element->window->cursor.y);
@@ -4637,8 +4619,8 @@ void ExecutableWindowSaveButton(void* _window) {
    }
 
    f = fopen(localConfigPath, "wb");
-   print(f, "[executable]\npath={}\narguments={}\nask_directory={}\n", window->path->text(),
-         window->arguments->text(), window->askDirectory->check == UICheckbox::CHECKED ? '1' : '0');
+   print(f, "[executable]\npath={}\narguments={}\nask_directory={}\n", window->path->text(), window->arguments->text(),
+         window->askDirectory->check == UICheckbox::CHECKED ? '1' : '0');
    fclose(f);
    SettingsAddTrustedFolder();
    UIDialogShow(windowMain, 0, "Saved executable settings!\n%f%B", "OK");
@@ -4741,14 +4723,14 @@ int TextboxSearchCommandMessage(UIElement* element, UIMessage message, int di, v
       char buffer[4096];
       bool firstMatch = true;
 
-      StringFormat(query, sizeof(query), "%.*s", (int)window->textbox->bytes, window->textbox->string);
+      std_format_to_n(query, sizeof(query), "{}", window->textbox->text());
       for (int i = 0; query[i]; i++) {
          query[i] = query[i] >= 'A' && query[i] <= 'Z' ? query[i] + 'a' - 'A' : query[i];
       }
 
       for (const auto& cmd : window->commands) {
          if (strstr(cmd.descriptionLower, query)) {
-            StringFormat(buffer, sizeof(buffer), "%s: %s", cmd.name, cmd.description);
+            std_format_to_n(buffer, sizeof(buffer), "{}: {}", cmd.name, cmd.description);
             UICodeInsertContent(window->display, buffer, firstMatch);
             firstMatch = false;
          }
@@ -5116,8 +5098,7 @@ void* ProfFlameGraphRenderThread(void* _unused) {
 
             if (r.width() > 40) {
                auto string = std::format("{} {:f}ms", entry->cName, entry->endTime - entry->startTime);
-               UIDrawString(painter, UIRectangle(r.l + 2, r.r, r.t, r.b), string, profTextColor, UIAlign::left,
-                            NULL);
+               UIDrawString(painter, UIRectangle(r.l + 2, r.r, r.t, r.b), string, profTextColor, UIAlign::left, NULL);
             }
          }
 
@@ -5243,14 +5224,15 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
          const ProfFunctionEntry& function = report->functions[report->hover->thisFunction];
 
          char line1[256], line2[256], line3[256];
-         StringFormat(line1, sizeof(line1), "[%s] %s:%d", report->hover->cName,
-                      function.sourceFileIndex != -1 ? report->sourceFiles[function.sourceFileIndex].cPath : "??",
-                      function.lineNumber);
-         StringFormat(line2, sizeof(line2), "This call: %fms %.1f%%", report->hover->endTime - report->hover->startTime,
-                      (report->hover->endTime - report->hover->startTime) / report->totalTime * 100.0);
-         StringFormat(line3, sizeof(line3), "Total: %fms in %d calls (%fms avg) %.1f%%", function.totalTime,
-                      function.callCount, function.totalTime / function.callCount,
-                      function.totalTime / report->totalTime * 100.0);
+         std_format_to_n(line1, sizeof(line1), "[{}] {}:{}", report->hover->cName,
+                         function.sourceFileIndex != -1 ? report->sourceFiles[function.sourceFileIndex].cPath : "??",
+                         function.lineNumber);
+         std_format_to_n(line2, sizeof(line2), "This call: {:f}ms {:.1f}%%",
+                         report->hover->endTime - report->hover->startTime,
+                         (report->hover->endTime - report->hover->startTime) / report->totalTime * 100.0);
+         std_format_to_n(line3, sizeof(line3), "Total: {:f}ms in {} calls ({:f}ms avg) {:.1f}%%", function.totalTime,
+                         function.callCount, function.totalTime / function.callCount,
+                         function.totalTime / report->totalTime * 100.0);
 
          int width      = 0;
          int line1Width = UIMeasureStringWidth(line1);
@@ -5491,7 +5473,7 @@ int ProfReportWindowMessage(UIElement* element, UIMessage message, int di, void*
 }
 
 void ProfSwitchView(ProfFlameGraphReport* report) {
-   report->showingTable = !report->showingTable;
+   report->showingTable            = !report->showingTable;
    report->switchViewButton->label = report->showingTable ? "Graph view" : "Table view";
    report->parent->Refresh();
 }
@@ -5520,15 +5502,15 @@ int ProfTableMessage(UIElement* element, UIMessage message, int di, void* dp) {
       ProfFunctionEntry* entry = &report->sortedFunctions[m->index];
 
       if (m->column == 0) {
-         return StringFormat(m->buffer, m->bufferBytes, "%s", entry->cName);
+         return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->cName);
       } else if (m->column == 1) {
-         return StringFormat(m->buffer, m->bufferBytes, "%f", entry->totalTime);
+         return std_format_to_n(m->buffer, m->bufferBytes, "{:f}", entry->totalTime);
       } else if (m->column == 2) {
-         return StringFormat(m->buffer, m->bufferBytes, "%d", entry->callCount);
+         return std_format_to_n(m->buffer, m->bufferBytes, "{}", entry->callCount);
       } else if (m->column == 3) {
-         return StringFormat(m->buffer, m->bufferBytes, "%f", entry->totalTime / entry->callCount);
+         return std_format_to_n(m->buffer, m->bufferBytes, "{:f}", entry->totalTime / entry->callCount);
       } else if (m->column == 4) {
-         return StringFormat(m->buffer, m->bufferBytes, "%f", entry->totalTime / report->totalTime * 100);
+         return std_format_to_n(m->buffer, m->bufferBytes, "{:f}", entry->totalTime / report->totalTime * 100);
       }
    } else if (message == UIMessage::LEFT_DOWN) {
       int index = UITableHeaderHitTest(table, element->window->cursor.x, element->window->cursor.y);
@@ -5592,7 +5574,8 @@ void ProfLoadProfileData(void* _window) {
       painter.height    = window->height;
       painter.clip      = ui_rect_2s(window->width, window->height);
       char string[256];
-      StringFormat(string, sizeof(string), "Loading data... (estimated time: %d seconds)", rawEntryCount / 5000000 + 1);
+      std_format_to_n(string, sizeof(string), "Loading data... (estimated time: {} seconds)",
+                      rawEntryCount / 5000000 + 1);
       UIDrawBlock(&painter, painter.clip, ui->theme.panel1);
       UIDrawString(&painter, painter.clip, string, ui->theme.text, UIAlign::center, 0);
       window->updateRegion = ui_rect_2s(window->width, window->height);
@@ -5605,8 +5588,8 @@ void ProfLoadProfileData(void* _window) {
    char path[PATH_MAX];
    realpath(".profile.gf", path);
    char buffer[PATH_MAX * 2];
-   StringFormat(buffer, sizeof(buffer),
-                "dump binary memory %s (gfProfilingBuffer) (gfProfilingBuffer+gfProfilingBufferPosition)", path);
+   std_format_to_n(buffer, sizeof(buffer),
+                   "dump binary memory {} (gfProfilingBuffer) (gfProfilingBuffer+gfProfilingBufferPosition)", path);
    (void)EvaluateCommand(buffer);
    FILE* f = fopen(path, "rb");
 
@@ -5644,7 +5627,7 @@ void ProfLoadProfileData(void* _window) {
 
       function.sourceFileIndex = -1;
 
-      StringFormat(buffer, sizeof(buffer), "(void *) %ld", rawEntries[i].thisFunction);
+      std_format_to_n(buffer, sizeof(buffer), "(void *) {:p}", rawEntries[i].thisFunction);
       auto cName = EvaluateExpression(buffer);
       if (cName.empty())
          continue;
@@ -5675,7 +5658,8 @@ void ProfLoadProfileData(void* _window) {
          }
       }
 
-      StringFormat(buffer, sizeof(buffer), "py print(gdb.lookup_global_symbol('%s').symtab.filename)", function.cName);
+      std_format_to_n(buffer, sizeof(buffer), "py print(gdb.lookup_global_symbol('{}').symtab.filename)",
+                      function.cName);
       auto res = EvaluateCommand(buffer);
 
       if (!res.contains("Traceback (most recent call last):")) {
@@ -5687,7 +5671,7 @@ void ProfLoadProfileData(void* _window) {
             length = sizeof(sourceFile.cPath) - 1;
          memcpy(sourceFile.cPath, cSourceFile, length);
          sourceFile.cPath[length] = 0;
-         StringFormat(buffer, sizeof(buffer), "py print(gdb.lookup_global_symbol('%s').line)", function.cName);
+         std_format_to_n(buffer, sizeof(buffer), "py print(gdb.lookup_global_symbol('{}').line)", function.cName);
          res                 = EvaluateCommand(buffer);
          function.lineNumber = sv_atoi(res);
 
@@ -5931,7 +5915,7 @@ int MemoryWindowMessage(UIElement* element, UIMessage message, int di, void* dp)
       row.b                 = row.t + rowHeight;
 
       {
-         StringFormat(buffer, sizeof(buffer), "Inspecting memory @%p", (void*)window->offset);
+         std_format_to_n(buffer, sizeof(buffer), "Inspecting memory @{:p}", (void*)window->offset);
          UIDrawString(painter, row, buffer, ui->theme.codeString, UIAlign::left, 0);
          row.t += rowHeight;
          row.b += rowHeight;
@@ -5945,7 +5929,7 @@ int MemoryWindowMessage(UIElement* element, UIMessage message, int di, void* dp)
          window->loadedBytes.clear();
 
          for (size_t i = 0; i < (size_t)rowCount * 16 / 8; i++) {
-            StringFormat(buffer, sizeof(buffer), "x/8xb 0x%lx", window->offset + i * 8);
+            std_format_to_n(buffer, sizeof(buffer), "x/8xb 0x{:x}", window->offset + i * 8);
             auto res = EvaluateCommand(buffer);
 
             bool error = true;
@@ -5975,7 +5959,7 @@ int MemoryWindowMessage(UIElement* element, UIMessage message, int di, void* dp)
       while (row.t < painter->clip.b) {
          int position = 0;
 
-         StringFormat(buffer, sizeof(buffer), "%.8X ", (uint32_t)(address & 0xFFFFFFFF));
+         std_format_to_n(buffer, sizeof(buffer), "{:8X} ", (uint32_t)(address & 0xFFFFFFFF));
          UIDrawString(painter, row, buffer, ui->theme.codeComment, UIAlign::left, 0);
          UIRectangle r          = row + UIRectangle(UIMeasureStringWidth(buffer), 0, 0, 0);
          int         glyphWidth = UIMeasureStringWidth("a");
@@ -6035,7 +6019,7 @@ void MemoryWindowGotoButtonInvoke(void* cp) {
    if (0 == strcmp("Goto", UIDialogShow(windowMain, 0, "Enter address expression:\n%t\n%f%b%b", &expression, "Goto",
                                         "Cancel"))) {
       char buffer[4096];
-      StringFormat(buffer, sizeof(buffer), "py gf_valueof(['%s'],' ')", expression);
+      std_format_to_n(buffer, sizeof(buffer), "py gf_valueof(['{}'],' ')", expression);
       auto        res    = EvaluateCommand(buffer);
       const char* result = res.c_str();
 
@@ -6222,7 +6206,7 @@ int ViewWindowMatrixGridMessage(UIElement* element, UIMessage message, int di, v
                double f = grid->grid_type == grid_type_t::double_t ? ((double*)grid->data())[i * grid->w + j]
                                                                    : (double)((float*)grid->data())[i * grid->w + j];
                char   buffer[64];
-               StringFormat(buffer, sizeof(buffer), "%f", f);
+               std_format_to_n(buffer, sizeof(buffer), "{:f}", f);
                UIRectangle rectangle =
                   UIRectangle(j * glyphWidth * 14, (j + 1) * glyphWidth * 14, i * glyphHeight, (i + 1) * glyphHeight);
                UIRectangle offset = UIRectangle(element->bounds.l - (int)grid->hScroll->position,
@@ -6366,8 +6350,8 @@ void ViewWindowView(void* cp) {
 
    auto res = WatchEvaluate("gf_typeof", watch);
    resize_to_lf(res);
-   StringFormat(type, sizeof(type), "%s", res.c_str());
-   StringFormat(buffer, sizeof(buffer), "Type: %s", type);
+   std_format_to_n(type, sizeof(type), "{}", res);
+   std_format_to_n(buffer, sizeof(buffer), "Type: {}", type);
    UILabelCreate(panel, 0, buffer);
 
    res = WatchEvaluate("gf_valueof", watch);
@@ -6386,17 +6370,17 @@ void ViewWindowView(void* cp) {
 
       int64_t value = sv_atoll(res);
 
-      StringFormat(buffer, sizeof(buffer), " 8b: %d %u 0x%x '%c'", (int8_t)value, (uint8_t)value, (uint8_t)value,
-                   (char)value);
+      std_format_to_n(buffer, sizeof(buffer), " 8b: {} {} 0x{:x} '{:c}'", (int8_t)value, (uint8_t)value, (uint8_t)value,
+                      (char)value);
       UILabelCreate(panel, 0, buffer);
-      StringFormat(buffer, sizeof(buffer), "16b: %d %u 0x%x", (int16_t)value, (uint16_t)value, (uint16_t)value);
+      std_format_to_n(buffer, sizeof(buffer), "16b: {} {} 0x{:x}", (int16_t)value, (uint16_t)value, (uint16_t)value);
       UILabelCreate(panel, 0, buffer);
-      StringFormat(buffer, sizeof(buffer), "32b: %d %u 0x%x", (int32_t)value, (uint32_t)value, (uint32_t)value);
+      std_format_to_n(buffer, sizeof(buffer), "32b: {} {} 0x{:x}", (int32_t)value, (uint32_t)value, (uint32_t)value);
       UILabelCreate(panel, 0, buffer);
-      StringFormat(buffer, sizeof(buffer), "64b: %ld %lu 0x%lx", (int64_t)value, (uint64_t)value, (uint64_t)value);
+      std_format_to_n(buffer, sizeof(buffer), "64b: %{} {} 0x{:x}", (int64_t)value, (uint64_t)value, (uint64_t)value);
       UILabelCreate(panel, 0, buffer);
 
-      int p = StringFormat(buffer, sizeof(buffer), "Bin: ");
+      int p = std_format_to_n(buffer, sizeof(buffer), "Bin: ");
 
       for (int64_t i = 63; i >= 32; i--) {
          buffer[p++] = (value & ((uint64_t)1 << i)) ? '1' : '0';
@@ -6406,7 +6390,7 @@ void ViewWindowView(void* cp) {
 
       UILabelCreate(panel, 0, {buffer, static_cast<size_t>(p)});
 
-      p = StringFormat(buffer, sizeof(buffer), "     ");
+      p = std_format_to_n(buffer, sizeof(buffer), "     ");
 
       for (int64_t i = 31; i >= 0; i--) {
          buffer[p++] = (value & ((uint64_t)1 << i)) ? '1' : '0';
@@ -6429,13 +6413,13 @@ void ViewWindowView(void* cp) {
          print("addressof '{}'\n", res);
          resize_to_lf(res, ' ');
          resize_to_lf(res);
-         StringFormat(address, sizeof(address), "%s", res.c_str());
+         std_format_to_n(address, sizeof(address), "{}", res);
       } else {
          char* end = (char*)strchr(res.c_str() + 1, ' ');
          if (!end)
             goto unrecognised;
          *end = 0;
-         StringFormat(address, sizeof(address), "%s", res.c_str() + 1);
+         std_format_to_n(address, sizeof(address), "{}", res.substr(1));
       }
 
       char tempPath[PATH_MAX];
@@ -6456,7 +6440,7 @@ void ViewWindowView(void* cp) {
          goto unrecognised;
       }
 
-      StringFormat(buffer, sizeof(buffer), "dump binary memory %s (%s) (%s+%d)", tempPath, address, address, length);
+      std_format_to_n(buffer, sizeof(buffer), "dump binary memory {} ({}) ({}+{})", tempPath, address, address, length);
       res = EvaluateCommand(buffer);
       print("'{}' -> '{}'\n", buffer, res);
       FILE* f = fopen(tempPath, "rb");
@@ -6468,7 +6452,7 @@ void ViewWindowView(void* cp) {
          data[length] = 0;
          // print("got '{}'\n", data);
          new ViewWindowString(panel, std::move(data), length);
-         StringFormat(buffer, sizeof(buffer), "%d+1 bytes", length);
+         std_format_to_n(buffer, sizeof(buffer), "{}+1 bytes", length);
          UILabelCreate(panel, UIElement::H_FILL, buffer);
       } else {
          goto unrecognised;
@@ -6494,8 +6478,8 @@ void ViewWindowView(void* cp) {
       char tempPath[PATH_MAX];
       realpath(".temp.gf", tempPath);
       char buffer[PATH_MAX * 2];
-      StringFormat(buffer, sizeof(buffer), "dump binary memory %s (%s) (%s+%d)", tempPath, res.c_str(), res.c_str(),
-                   w * h * itemSize);
+      std_format_to_n(buffer, sizeof(buffer), "dump binary memory {} ({}) ({}+{})", tempPath, res, res,
+                      w * h * itemSize);
       res     = EvaluateCommand(buffer);
       FILE* f = fopen(tempPath, "rb");
 
@@ -6520,7 +6504,7 @@ void ViewWindowView(void* cp) {
          }
 
          double determinant = ViewWindowMatrixCalculateDeterminant(matrix, w);
-         StringFormat(buffer, sizeof(buffer), "Determinant: %f", determinant);
+         std_format_to_n(buffer, sizeof(buffer), "Determinant: {:f}", determinant);
          UILabelCreate(panel, 0, buffer);
       }
    } else {
@@ -6770,12 +6754,13 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
                UIRectangle(client.l + stringOffset, client.r - stringOffset, client.t + stringOffset,
                            client.t + stringOffset + UIMeasureStringHeight());
             char buffer[100];
-            snprintf(buffer, sizeof(buffer), "%d: ", (int)(mouseXSample + display->scrollBar->position));
+            std_format_to_n(buffer, sizeof(buffer), "{}: ", (int)(mouseXSample + display->scrollBar->position));
 
             for (size_t channel = 0; channel < display->channels; channel++) {
                char  buffer2[30];
                float sample = samples[channel + display->channels * mouseXSample];
-               snprintf(buffer2, sizeof(buffer2), "%s%s%.5f", channel ? ", " : "", sample >= 0.0f ? "+" : "", sample);
+               std_format_to_n(buffer2, sizeof(buffer2), "{}{}{:.5f}", channel ? ", " : "", sample >= 0.0f ? "+" : "",
+                               sample);
                if (strlen(buffer) + strlen(buffer2) > sizeof(buffer) - 1)
                   break;
                strcat(buffer, buffer2);
@@ -6895,7 +6880,7 @@ const char* WaveformViewerGetSamples(const char* pointerString, const char* samp
       return "Could not evaluate pointer.";
    }
    char _pointerResult[1024];
-   StringFormat(_pointerResult, sizeof(_pointerResult), "%s", pointerResult.c_str());
+   std_format_to_n(_pointerResult, sizeof(_pointerResult), "{}", pointerResult);
    pointerResult = strstr(_pointerResult, " 0x");
    if (pointerResult.empty()) {
       return "Pointer to sample data does not look like an address!";
@@ -6908,8 +6893,8 @@ const char* WaveformViewerGetSamples(const char* pointerString, const char* samp
    realpath(".transfer.gf", transferPath);
 
    char buffer[PATH_MAX * 2];
-   StringFormat(buffer, sizeof(buffer), "dump binary memory %s (%s) (%s+%d)", transferPath, pointerResult.c_str() + 1,
-                pointerResult.c_str() + 1, byteCount);
+   std_format_to_n(buffer, sizeof(buffer), "dump binary memory {} ({}) ({}+{})", transferPath,
+                   pointerResult.c_str() + 1, pointerResult.c_str() + 1, byteCount);
    auto res = EvaluateCommand(buffer);
 
    FILE* f = fopen(transferPath, "rb");
@@ -6994,7 +6979,7 @@ void WaveformViewerSaveToFile(WaveformDisplay* display) {
 
    if (0 == strcmp(result, "Save and open")) {
       char buffer[4000];
-      snprintf(buffer, sizeof(buffer), "xdg-open \"%s\"", path);
+      std_format_to_n(buffer, sizeof(buffer), "xdg-open \"{}\"", path);
       system(buffer);
    }
 }
@@ -7020,11 +7005,11 @@ void WaveformViewerUpdate(const char* pointerString, const char* sampleCountStri
    if (!owner) {
       WaveformViewer* viewer = new WaveformViewer;
       if (pointerString)
-         StringFormat(viewer->pointer, sizeof(viewer->pointer), "%s", pointerString);
+         std_format_to_n(viewer->pointer, sizeof(viewer->pointer), "{}", pointerString);
       if (sampleCountString)
-         StringFormat(viewer->sampleCount, sizeof(viewer->sampleCount), "%s", sampleCountString);
+         std_format_to_n(viewer->sampleCount, sizeof(viewer->sampleCount), "{}", sampleCountString);
       if (channelsString)
-         StringFormat(viewer->channels, sizeof(viewer->channels), "%s", channelsString);
+         std_format_to_n(viewer->channels, sizeof(viewer->channels), "{}", channelsString);
 
       UIMDIChild* window     = UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Waveform");
       window->messageUser    = WaveformViewerWindowMessage;
@@ -7122,7 +7107,7 @@ void MsgReceivedData(str_unique_ptr input) {
       (void)EvaluateCommand(pythonCode);
 
       char path[PATH_MAX];
-      StringFormat(path, sizeof(path), "%s/.config/gf2_watch.txt", getenv("HOME"));
+      std_format_to_n(path, sizeof(path), "{}/.config/gf2_watch.txt", getenv("HOME"));
       vector<char> data_vec = LoadFile(path, NULL);
       const char*  data     = data_vec.data();
 
@@ -7482,14 +7467,14 @@ void Context::InterfaceLayoutCreate(UIElement* parent) {
             break;
          } else {
             print(std::cerr, "Error: Invalid layout string! Expected ',' or ')' in tab container list; got '{}'.\n",
-                    token);
+                  token);
             exit(1);
          }
       }
    } else {
       if (auto it = interfaceWindows.find(token); it != interfaceWindows.end()) {
          auto& [name, w] = *it;
-         w.element = w.create(parent);
+         w.element       = w.create(parent);
       } else {
          print(std::cerr, "Error: Invalid layout string! The window '{}' was not found.\n", token);
          exit(1);
@@ -7500,10 +7485,10 @@ void Context::InterfaceLayoutCreate(UIElement* parent) {
 unique_ptr<UI> Context::GfMain(int argc, char** argv) {
    if (argc == 2 && (0 == strcmp(argv[1], "-?") || 0 == strcmp(argv[1], "-h") || 0 == strcmp(argv[1], "--help"))) {
       print(std::cerr,
-              "Usage: {} [GDB args]\n\n"
-              "GDB args: Pass any GDB arguments here, they will be forwarded to GDB.\n\n"
-              "For more information, view the README at https://github.com/nakst/gf/blob/master/README.md.\n",
-              argv[0]);
+            "Usage: {} [GDB args]\n\n"
+            "GDB args: Pass any GDB arguments here, they will be forwarded to GDB.\n\n"
+            "For more information, view the README at https://github.com/nakst/gf/blob/master/README.md.\n",
+            argv[0]);
       return {};
    }
 
@@ -7531,8 +7516,8 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
    // load settings and initialize ui
    // -------------------------------
    getcwd(localConfigDirectory, sizeof(localConfigDirectory));
-   StringFormat(globalConfigPath, sizeof(globalConfigPath), "%s/.config/gf2_config.ini", getenv("HOME"));
-   StringFormat(localConfigPath, sizeof(localConfigPath), "%s/.project.gf", localConfigDirectory);
+   std_format_to_n(globalConfigPath, sizeof(globalConfigPath), "{}/.config/gf2_config.ini", getenv("HOME"));
+   std_format_to_n(localConfigPath, sizeof(localConfigPath), "{}/.project.gf", localConfigDirectory);
 
    ctx.SettingsLoad(true);
    auto ui_ptr = UIInitialise(ui_config);
@@ -7601,7 +7586,7 @@ int main(int argc, char** argv) {
    ctx.KillGdb();
 
    if (restoreWatchWindow && firstWatchWindow) {
-      StringFormat(globalConfigPath, sizeof(globalConfigPath), "%s/.config/gf2_watch.txt", getenv("HOME"));
+      std_format_to_n(globalConfigPath, sizeof(globalConfigPath), "{}/.config/gf2_watch.txt", getenv("HOME"));
       FILE* f = fopen(globalConfigPath, "wb");
 
       if (f) {
@@ -7612,7 +7597,7 @@ int main(int argc, char** argv) {
          fclose(f);
       } else {
          print(std::cerr, "Warning: Could not save the contents of the watch window; '{}' was not accessible.\n",
-                 globalConfigPath);
+               globalConfigPath);
       }
    }
 
