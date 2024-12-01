@@ -152,6 +152,10 @@ static inline int sv_atoi(string_view str, size_t offset = 0) {
    return sv_atoi_impl<long long>(str, offset);
 }
 
+[[maybe_unused]] static inline uint64_t sv_atoul(string_view str, size_t offset = 0) {
+   return sv_atoi_impl<uint64_t>(str, offset);
+}
+
 void print(const std::string_view str) {
    std::cout << str;
 }
@@ -1727,8 +1731,7 @@ void DisassemblyUpdateLine() {
    const char* address = strstr(res.c_str(), "0x");
 
    if (address) {
-      char*    addressEnd;
-      uint64_t a = strtoul(address, &addressEnd, 0);
+      uint64_t a = strtoul(address, nullptr, 0);
 
       for (int i = 0; i < 2; i++) {
          // Look for the line in the disassembly.
@@ -1737,7 +1740,7 @@ void DisassemblyUpdateLine() {
 
          size_t num_lines = displayCode->num_lines();
          for (size_t i = 0; i < num_lines; i++) {
-            uint64_t b = strtoul(displayCode->line(i) + 3, &addressEnd, 0);
+            uint64_t b = sv_atoul(displayCode->line(i), 3);
 
             if (a == b) {
                UICodeFocusLine(displayCode, i + 1);
@@ -2058,9 +2061,9 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
 #endif
       // Parse the new source line.
 
-      UICodeLine* line     = &displayCode->lines[currentLine - 1];
-      const char* text     = displayCode->line(currentLine - 1);
-      size_t      bytes    = line->bytes;
+      std::string_view text_sv = displayCode->line(currentLine - 1);
+      size_t      bytes    = text_sv.size();
+      const char* text = &text_sv[0];
       uintptr_t   position = 0;
 
       while (position < bytes) {
@@ -2204,9 +2207,7 @@ bool InspectIsTokenCharacter(char c) {
 void InspectCurrentLine() {
    inspectResults.clear();
 
-   UICodeLine* line   = &displayCode->lines[currentLine - 1];
-   const char* string = displayCode->line(currentLine - 1);
-   auto        code   = string_view{string, size_t(line->bytes)};
+   auto code = displayCode->line(currentLine - 1);
 
    auto expressions = regex::extract_debuggable_expressions(code);
    for (auto e : expressions) {

@@ -816,8 +816,7 @@ struct UICode : public UIElement {
 
    UICode(UIElement* parent, uint32_t flags);
    
-   const char* line(size_t line) const { return &content[lines[line].offset]; }
-   std::string_view line_sv(size_t line) const { return std::string_view{&content[lines[line].offset], lines[line].bytes}; }
+   std::string_view line(size_t line) const { return std::string_view{&content[lines[line].offset], lines[line].bytes}; }
    size_t      num_lines() const { return lines.size(); }
    size_t      size() const {return content.size(); }
    void        clear() {

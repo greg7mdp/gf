@@ -2128,11 +2128,11 @@ UIScrollBar* UIScrollBarCreate(UIElement* parent, uint32_t flags) {
 // --------------------------------------------------
 
 int _UICodeColumnToByte(UICode* code, int line, int column) {
-   return _UIColumnToByte(code->line_sv(line), column, code->tabSize);
+   return _UIColumnToByte(code->line(line), column, code->tabSize);
 }
 
 int _UICodeByteToColumn(UICode* code, int line, int byte) {
-   return _UIByteToColumn(code->line_sv(line), byte, code->tabSize);
+   return _UIByteToColumn(code->line(line), byte, code->tabSize);
 }
 
 void UICodePositionToByte(UICode* code, int x, int y, size_t* line, size_t* byte) {
@@ -2429,11 +2429,11 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
             i == code->selection[0].line ? _UICodeByteToColumn(code, i, code->selection[0].offset) : 0;
          selection.carets[1] = i == code->selection[1].line ? _UICodeByteToColumn(code, i, code->selection[1].offset)
                                                             : code->lines[i].bytes;
-         int x               = UIDrawStringHighlighted(
-            painter, lineBounds, { code->line(i), code->lines[i].bytes }, code->tabSize,
-            element->window->focused == element && i >= code->selection[0].line && i <= code->selection[1].line
-                             ? &selection
-                             : NULL);
+
+         bool selected =
+            element->window->focused == element && i >= code->selection[0].line && i <= code->selection[1].line;
+         int x =
+            UIDrawStringHighlighted(painter, lineBounds, code->line(i), code->tabSize, selected ? &selection : nullptr);
          int y = (lineBounds.t + lineBounds.b - UIMeasureStringHeight()) / 2;
 
          if (element->window->focused == element && i >= code->selection[0].line && i < code->selection[1].line) {
