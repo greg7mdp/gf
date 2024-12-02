@@ -2650,7 +2650,7 @@ void UICodeMoveCaret(UICode* code, bool backward, bool word) {
             } else
                break;
          } else
-            _ui_move_caret_forward(code->selection[3].offset,  &code->content[0], code->size(),
+            _ui_move_caret_forward(code->selection[3].offset,  std::string_view(&code->content[0], code->size()),
                                    code->lines[code->selection[3].line].offset + code->selection[3].offset);
       }
 
@@ -2658,7 +2658,7 @@ void UICodeMoveCaret(UICode* code, bool backward, bool word) {
          break;
 
       if (code->selection[3].offset != 0 && code->selection[3].offset != code->lines[code->selection[3].line].bytes) {
-         if (_ui_move_caret_by_word(&code->content[0], code->size(),
+         if (_ui_move_caret_by_word(std::string_view{&code->content[0], code->size()},
                                     code->lines[code->selection[3].line].offset + code->selection[3].offset))
             break;
       }
@@ -3121,30 +3121,21 @@ int _UITextboxColumnToByte(std::string_view string, int column) {
    return _UIColumnToByte(string, column, 4);
 }
 
-char* UITextboxToCString(UITextbox* textbox) {
-   char* buffer = (char*)UI_MALLOC(textbox->bytes + 1);
-
-   for (intptr_t i = 0; i < textbox->bytes; i++) {
-      buffer[i] = textbox->string[i];
-   }
-
-   buffer[textbox->bytes] = 0;
-   return buffer;
-}
-
 void UITextboxReplace(UITextbox* textbox, std::string_view text, bool sendChangedMessage) {
-   auto bytes = text.size();
-   int deleteFrom = textbox->carets[0], deleteTo = textbox->carets[1];
+   auto sz = textbox->buffer.size();
+   size_t deleteFrom = textbox->carets[0], deleteTo = textbox->carets[1];
+   assert(deleteFrom <= sz && deleteTo <= sz);
    if (deleteFrom > deleteTo)
       std::swap(deleteFrom, deleteTo);
 
-   std::memmove(&textbox->string[deleteFrom], &textbox->string[deleteTo], textbox->bytes - deleteTo);
-   textbox->bytes -= deleteTo - deleteFrom;
-   textbox->string = (char*)UI_REALLOC(textbox->string, textbox->bytes + bytes + 1);
-   std::memmove(&textbox->string[deleteFrom + bytes], &textbox->string[deleteFrom], textbox->bytes - deleteFrom);
-   std::memmove(&textbox->string[deleteFrom], &text[0], bytes);
-   textbox->bytes += bytes;
-   textbox->carets[0] = deleteFrom + bytes;
+   // first remove the selection
+   // --------------------------
+   textbox->buffer.erase(deleteFrom, deleteTo - deleteFrom);
+
+   // then insert new text
+   // --------------------
+   textbox->buffer.insert(deleteFrom, text);
+   textbox->carets[0] = deleteFrom + text.size();
    textbox->carets[1] = textbox->carets[0];
 
    if (sendChangedMessage)
@@ -3155,25 +3146,26 @@ void UITextboxReplace(UITextbox* textbox, std::string_view text, bool sendChange
 
 void UITextboxClear(UITextbox* textbox, bool sendChangedMessage) {
    textbox->carets[1] = 0;
-   textbox->carets[0] = textbox->bytes;
+   textbox->carets[0] = textbox->text().size();
    UITextboxReplace(textbox, "", sendChangedMessage);
 }
 
 void UITextboxMoveCaret(UITextbox* textbox, bool backward, bool word) {
    while (true) {
+      std::string_view text = textbox->text();
       if (textbox->carets[0] > 0 && backward) {
-         _ui_move_caret_backwards(textbox->carets[0], textbox->string, textbox->carets[0], 0);
-      } else if (textbox->carets[0] < textbox->bytes && !backward) {
-         _ui_move_caret_forward(textbox->carets[0], textbox->string, textbox->bytes, textbox->carets[0]);
+         _ui_move_caret_backwards(textbox->carets[0], text.data(), textbox->carets[0], 0);
+      } else if (textbox->carets[0] < (int)text.size() && !backward) {
+         _ui_move_caret_forward(textbox->carets[0], text, textbox->carets[0]);
       } else {
          return;
       }
 
       if (!word) {
          return;
-      } else if (textbox->carets[0] != textbox->bytes && textbox->carets[0] != 0) {
-         if (_ui_move_caret_by_word(textbox->string, textbox->bytes, textbox->carets[0]))
-             break;
+      } else if (textbox->carets[0] != (int)text.size() && textbox->carets[0] != 0) {
+         if (_ui_move_caret_by_word(text, textbox->carets[0]))
+            break;
       }
    }
 
@@ -3183,14 +3175,15 @@ void UITextboxMoveCaret(UITextbox* textbox, bool backward, bool word) {
 void UITextboxCopyText(void* cp) {
    UITextbox* textbox = (UITextbox*)cp;
 
-   int to   = textbox->carets[0] > textbox->carets[1] ? textbox->carets[0] : textbox->carets[1];
-   int from = textbox->carets[0] < textbox->carets[1] ? textbox->carets[0] : textbox->carets[1];
+   int from = std::min(textbox->carets[0], textbox->carets[1]);
+   int to   = std::max(textbox->carets[0], textbox->carets[1]);
 
    if (from != to) {
+      auto text = textbox->text();
       std::string pasteText;
-      pasteText.resize(to - from + 1);
+      pasteText.resize(to - from);
       for (int i = from; i < to; i++)
-         pasteText[i - from] = textbox->string[i];
+         pasteText[i - from] = text[i];
       _UIClipboardWriteText(textbox->window, std::move(pasteText), sel_target_t::clipboard);
    }
 }
@@ -3262,7 +3255,7 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
    } else if (message == UIMessage::UPDATE) {
       element->Repaint(NULL);
    } else if (message == UIMessage::DEALLOCATE) {
-      UI_FREE(textbox->string);
+      ;
    } else if (message == UIMessage::KEY_TYPED) {
       UIKeyTyped* m       = (UIKeyTyped*)dp;
       bool        handled = true;
@@ -3288,7 +3281,7 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
          if (m->code == UIKeycode::HOME) {
             textbox->carets[0] = 0;
          } else {
-            textbox->carets[0] = textbox->bytes;
+            textbox->carets[0] = textbox->text().size();
          }
 
          if (!element->window->shift) {
@@ -3296,7 +3289,7 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
          }
       } else if (m->code == UI_KEYCODE_LETTER('A') && element->window->ctrl) {
          textbox->carets[1] = 0;
-         textbox->carets[0] = textbox->bytes;
+         textbox->carets[0] = textbox->text().size();
       } else if (m->text.size() && !element->window->alt && !element->window->ctrl && m->text[0] >= 0x20) {
          UITextboxReplace(textbox, m->text, true);
       } else if ((m->code == UI_KEYCODE_LETTER('C') || m->code == UI_KEYCODE_LETTER('X') ||
@@ -3348,8 +3341,6 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
 
 UITextbox::UITextbox(UIElement* parent, uint32_t flags) :
    UIElement( parent, flags | UIElement::TAB_STOP, _UITextboxMessage, "Textbox"),
-   string((char*)UI_CALLOC(1)),
-   bytes(0),
    carets({0, 0}),
    scroll(0),
    rejectNextKey(false)
@@ -3836,18 +3827,20 @@ int _UIDialogDefaultButtonMessage(UIElement* element, UIMessage message, int di,
 
 int _UIDialogTextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
    UITextbox* textbox = (UITextbox*)element;
+   std::string_view text = textbox->text();
 
    if (message == UIMessage::VALUE_CHANGED) {
+      auto sz = text.size();
       char** buffer             = (char**)element->cp;
-      *buffer                   = (char*)UI_REALLOC(*buffer, textbox->bytes + 1);
-      (*buffer)[textbox->bytes] = 0;
+      *buffer                   = (char*)UI_REALLOC(*buffer, sz + 1);
+      (*buffer)[sz] = 0;
 
-      for (ptrdiff_t i = 0; i < textbox->bytes; i++) {
-         (*buffer)[i] = textbox->string[i];
+      for (size_t i = 0; i < sz; i++) {
+         (*buffer)[i] = text[i];
       }
    } else if (message == UIMessage::UPDATE && di == UIUpdate::FOCUSED && element->window->focused == element) {
       textbox->carets[1] = 0;
-      textbox->carets[0] = textbox->bytes;
+      textbox->carets[0] = text.size();
       element->Repaint(NULL);
    }
 

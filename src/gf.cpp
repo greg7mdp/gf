@@ -1036,8 +1036,9 @@ struct TabCompleter {
 };
 
 void TabCompleterRun(TabCompleter* completer, UITextbox* textbox, bool lastKeyWasTab, bool addPrintPrefix) {
+   auto text   = textbox->text();
    auto buffer = std::format("complete {}{}", addPrintPrefix ? "p " : "",
-                             textbox->text().substr(0, lastKeyWasTab ? completer->lastTabBytes : (int)textbox->bytes));
+                             text.substr(0, lastKeyWasTab ? (size_t)completer->lastTabBytes : text.size()));
    for (int i = 0; buffer[i]; i++)
       if (buffer[i] == '\\')
          buffer[i] = ' ';
@@ -1050,10 +1051,10 @@ void TabCompleterRun(TabCompleter* completer, UITextbox* textbox, bool lastKeyWa
 
    if (!lastKeyWasTab) {
       completer->consecutiveTabCount = 0;
-      completer->lastTabBytes        = textbox->bytes;
+      completer->lastTabBytes        = text.size();
    }
 
-   while (start && end && memcmp(start + (addPrintPrefix ? 2 : 0), textbox->string, completer->lastTabBytes)) {
+   while (start && end && memcmp(start + (addPrintPrefix ? 2 : 0), text.data(), completer->lastTabBytes)) {
       start = end + 1;
       end   = strchr(start, '\n');
    }
@@ -2560,11 +2561,14 @@ int TextboxInputMessage(UIElement* element, UIMessage message, int di, void* dp)
       static TabCompleter tabCompleter  = {};
       bool                lastKeyWasTab = tabCompleter._lastKeyWasTab;
       tabCompleter._lastKeyWasTab       = false;
-
-      if (m->text.size() && !element->window->ctrl && !element->window->alt && m->text[0] == '`' && !textbox->bytes) {
+      
+      std::string_view text = textbox->text();
+      auto sz = text.size();
+      
+      if (m->text.size() && !element->window->ctrl && !element->window->alt && m->text[0] == '`' && !sz) {
          textbox->rejectNextKey = true;
       } else if (m->code == UIKeycode::ENTER && !element->window->shift) {
-         if (!textbox->bytes) {
+         if (!sz) {
             if (commandHistory.size()) {
                CommandSendToGDB(commandHistory[0].get());
             }
@@ -2577,9 +2581,10 @@ int TextboxInputMessage(UIElement* element, UIMessage message, int di, void* dp)
             print(commandLog, "{}\n", buffer);
          CommandSendToGDB(buffer);
 
-         unique_ptr<char[]> string = std::make_unique<char[]>(textbox->bytes + 1);
-         memcpy(string.get(), textbox->string, textbox->bytes);
-         string[textbox->bytes] = 0;
+
+         unique_ptr<char[]> string = std::make_unique<char[]>(sz + 1);
+         memcpy(string.get(), text.data(), sz);
+         string[sz] = 0;
          commandHistory.insert(commandHistory.cbegin(), std::move(string));
          commandHistoryIndex = 0;
 
@@ -2591,7 +2596,7 @@ int TextboxInputMessage(UIElement* element, UIMessage message, int di, void* dp)
          textbox->Refresh();
 
          return 1;
-      } else if (m->code == UIKeycode::TAB && textbox->bytes && !element->window->shift) {
+      } else if (m->code == UIKeycode::TAB && sz && !element->window->shift) {
          TabCompleterRun(&tabCompleter, textbox, lastKeyWasTab, false);
          return 1;
       } else if (m->code == UIKeycode::UP) {
@@ -2716,7 +2721,7 @@ int WatchTextboxMessage(UIElement* element, UIMessage message, int di, void* dp)
       bool                lastKeyWasTab = tabCompleter._lastKeyWasTab;
       tabCompleter._lastKeyWasTab       = false;
 
-      if (m->code == UIKeycode::TAB && textbox->bytes && !element->window->shift) {
+      if (m->code == UIKeycode::TAB && textbox->text().size() && !element->window->shift) {
          TabCompleterRun(&tabCompleter, textbox, lastKeyWasTab, true);
          return 1;
       }
@@ -2932,7 +2937,7 @@ void WatchInsertFieldRows(WatchWindow* w, const shared_ptr<Watch>& watch, size_t
 }
 
 void WatchAddExpression(WatchWindow* w, string_view string = {}) {
-   if (string.empty() && w->textbox && !w->textbox->bytes) {
+   if (string.empty() && w->textbox && w->textbox->text().empty()) {
       WatchDestroyTextbox(w);
       return;
    }

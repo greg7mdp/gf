@@ -882,14 +882,13 @@ struct UITable : public UIElement {
 };
 
 struct UITextbox : public UIElement {
-   char*              string;
-   ptrdiff_t          bytes;
+   std::string        buffer;
    std::array<int, 2> carets{};
    int                scroll;
    bool               rejectNextKey;
 
    UITextbox(UIElement* parent, uint32_t flags);
-   std::string_view text() const { return string && bytes > 0 ? std::string_view{string, static_cast<size_t>(bytes)} : std::string_view{}; }
+   std::string_view text() const { return std::string_view(buffer); }
 };
 
 struct UIMenu : public UIElement {
@@ -1009,9 +1008,8 @@ UITextbox* UITextboxCreate(UIElement* parent, uint32_t flags);
 void       UITextboxReplace(UITextbox* textbox, std::string_view text, bool sendChangedMessage);
 void       UITextboxClear(UITextbox* textbox, bool sendChangedMessage);
 void       UITextboxMoveCaret(UITextbox* textbox, bool backward, bool word);
-char*      UITextboxToCString(UITextbox* textbox); // Free with UI_FREE.
-void UITextboxCopyText(void* cp);
-void UITextboxPasteText(void* cp, sel_target_t t);
+void       UITextboxCopyText(void* cp);
+void       UITextboxPasteText(void* cp, sel_target_t t);
 
 UITable* UITableCreate(UIElement* parent, uint32_t flags,
                        const char* columns /* separate with \t, terminate with \0 */);
@@ -1116,14 +1114,14 @@ inline void _ui_move_caret_backwards(T& caret, const char* text, size_t offset, 
 }
 
 template <class T>
-inline void _ui_move_caret_forward(T& caret, const char* text, ptrdiff_t bytes, size_t offset) {
-   caret += Utf8GetCharBytes(text + caret, bytes - offset);
+inline void _ui_move_caret_forward(T& caret, std::string_view text, size_t offset) {
+   caret += Utf8GetCharBytes(&text[caret], text.size() - offset);
 }
 
-inline bool _ui_move_caret_by_word(const char* text, ptrdiff_t bytes, size_t offset) {
-   const char* prev = Utf8GetPreviousChar(text, text + offset);
-   int         c1   = Utf8GetCodePoint(prev, bytes - (prev - text), NULL);
-   int         c2   = Utf8GetCodePoint(text + offset, bytes - offset, NULL);
+inline bool _ui_move_caret_by_word(std::string_view text, size_t offset) {
+   const char* prev = Utf8GetPreviousChar(&text[0], &text[offset]);
+   int         c1   = Utf8GetCodePoint(prev, text.size() - (prev - &text[0]), NULL);
+   int         c2   = Utf8GetCodePoint(&text[offset], text.size() - offset, NULL);
    return _UICharIsAlphaOrDigitOrUnderscore(c1) != _UICharIsAlphaOrDigitOrUnderscore(c2);
 }
 
@@ -1147,11 +1145,11 @@ inline void _ui_move_caret_backwards(T& caret, const char* text, size_t offset, 
 }
 
 template <class T>
-inline void _ui_move_caret_forward(T& caret, const char* text, ptrdiff_t bytes, size_t offset) {
+inline void _ui_move_caret_forward(T& caret, std::string_view text, size_t offset) {
    ++caret;
 }
 
-inline bool _ui_move_caret_by_word(const char* text, ptrdiff_t bytes, size_t offset) {
+inline bool _ui_move_caret_by_word(std::string_view text, size_t offset) {
    char c1 = (text)[offset - 1];
    char c2 = (text)[offset];
    return (_UICharIsAlphaOrDigitOrUnderscore(c1) != _UICharIsAlphaOrDigitOrUnderscore(c2));
