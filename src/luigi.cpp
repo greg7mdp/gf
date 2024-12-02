@@ -2308,10 +2308,11 @@ void _UICodeCopyText(void* cp, sel_target_t t) {
    int to   = code->lines[code->selection[1].line].offset + code->selection[1].offset;
 
    if (from != to) {
-      char* pasteText = (char*)UI_CALLOC(to - from + 2);
+      std::string pasteText;
+      pasteText.resize(to - from);
       for (int i = from; i < to; i++)
          pasteText[i - from] = code->content[i];
-      _UIClipboardWriteText(code->window, pasteText, t);
+      _UIClipboardWriteText(code->window, std::move(pasteText), t);
    }
 }
 
@@ -3186,28 +3187,25 @@ void UITextboxCopyText(void* cp) {
    int from = textbox->carets[0] < textbox->carets[1] ? textbox->carets[0] : textbox->carets[1];
 
    if (from != to) {
-      char* pasteText = (char*)UI_CALLOC(to - from + 1);
+      std::string pasteText;
+      pasteText.resize(to - from + 1);
       for (int i = from; i < to; i++)
          pasteText[i - from] = textbox->string[i];
-      _UIClipboardWriteText(textbox->window, pasteText, sel_target_t::clipboard);
+      _UIClipboardWriteText(textbox->window, std::move(pasteText), sel_target_t::clipboard);
    }
 }
 
 void UITextboxPasteText(void* cp, sel_target_t t) {
-   UITextbox* textbox = (UITextbox*)cp;
-   size_t     bytes;
-   char*      text = _UIClipboardReadTextStart(textbox->window, &bytes, t);
+   UITextbox*  textbox = (UITextbox*)cp;
+   std::string text = _UIClipboardReadText(textbox->window, t);
 
-   if (text) {
-      for (size_t i = 0; i < bytes; i++) {
-         if (text[i] == '\n')
-            text[i] = ' ';
-      }
+   if (!text.empty()) {
+      for (auto& c : text)
+         if (c == '\n')
+            c = ' ';
 
-      UITextboxReplace(textbox, {text, bytes}, true);
+      UITextboxReplace(textbox, text, true);
    }
-
-   _UIClipboardReadTextEnd(textbox->window, text);
 }
 
 int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
@@ -3335,11 +3333,9 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
       UIMenu* menu = UIMenuCreate(element->window, UIMenu::NO_SCROLL);
       UIMenuAddItem(menu, textbox->carets[0] == textbox->carets[1] ? UIElement::DISABLED : 0, "Copy",
                     [=]() { UITextboxCopyText(textbox); });
-      size_t pasteBytes;
-      char*  paste = _UIClipboardReadTextStart(textbox->window, &pasteBytes, sel_target_t::clipboard);
-      UIMenuAddItem(menu, !paste || !pasteBytes ? UIElement::DISABLED : 0, "Paste",
+      const auto& paste = _UIClipboardReadText(textbox->window, sel_target_t::clipboard);
+      UIMenuAddItem(menu, paste.empty() ? UIElement::DISABLED : 0, "Paste",
                     [=]() { UITextboxPasteText(textbox, sel_target_t::clipboard); });
-      _UIClipboardReadTextEnd(textbox->window, paste);
       UIMenuShow(menu);
    } else if (message == UIMessage::MIDDLE_DOWN) {
       UITextboxPasteText(textbox, sel_target_t::primary);
@@ -5030,27 +5026,23 @@ UIWindow* _UIFindWindow(Window window) {
    return NULL;
 }
 
-void _UIClipboardWriteText(UIWindow* window, char* text, sel_target_t t) {
-   UI_FREE(ui->pasteText);
-   ui->pasteText = text;
+void _UIClipboardWriteText(UIWindow* window, std::string text, sel_target_t t) {
+   ui->pasteText = std::move(text);
    Atom atom = (t == sel_target_t::clipboard) ? ui->clipboardID :  ui->primaryID;
    XSetSelectionOwner(ui->display, atom, window->xwindow, 0);
 }
 
-char* _UIClipboardReadTextStart(UIWindow* window, size_t* bytes, sel_target_t t) {
+std::string _UIClipboardReadText(UIWindow* window, sel_target_t t) {
    Atom atom = (t == sel_target_t::clipboard) ? ui->clipboardID :  ui->primaryID;
 
    Window clipboardOwner = XGetSelectionOwner(ui->display, atom);
 
    if (clipboardOwner == None) {
-      return NULL;
+      return {};
    }
 
    if (_UIFindWindow(clipboardOwner)) {
-      *bytes     = strlen(ui->pasteText);
-      char* copy = (char*)UI_MALLOC(*bytes);
-      memcpy(copy, ui->pasteText, *bytes);
-      return copy;
+      return ui->pasteText;
    }
 
    XConvertSelection(ui->display, atom, XA_STRING, ui->xSelectionDataID, window->xwindow, CurrentTime);
@@ -5074,24 +5066,26 @@ char* _UIClipboardReadTextStart(UIWindow* window, size_t* bytes, sel_target_t t)
                          ui->copyEvent.xselection.property, 0L, ~0L, 0, AnyPropertyType, &target, &format, &size,
                          &itemAmount, (unsigned char**)&data);
 
-      // We have to allocate for incremental transfers but we don't have to allocate for non-incremental transfers.
-      // I'm allocating for both here to make _UIClipboardReadTextEnd work the same for both
+      // non incremental transfer
+      // ------------------------
       if (target != ui->incrID) {
-         *bytes     = size;
-         char* copy = (char*)UI_MALLOC(*bytes);
-         memcpy(copy, data, *bytes);
+         std::string res;
+         res.resize(size);
+         memcpy(res.data(), data, size);
          XFree(data);
          XDeleteProperty(ui->copyEvent.xselection.display, ui->copyEvent.xselection.requestor,
                          ui->copyEvent.xselection.property);
-         return copy;
+         return res;
       }
 
+      // incremental transfer
+      // --------------------
       XFree(data);
       XDeleteProperty(ui->display, ui->copyEvent.xselection.requestor, ui->copyEvent.xselection.property);
       XSync(ui->display, 0);
 
-      *bytes         = 0;
-      char* fullData = NULL;
+      size = 0;
+      std::string res;
 
       while (true) {
          // TODO Timeout.
@@ -5107,12 +5101,11 @@ char* _UIClipboardReadTextStart(UIWindow* window, size_t* bytes, sel_target_t t)
                                   AnyPropertyType, &target, &format, &chunkSize, &itemAmount, (unsigned char**)&data);
 
                if (chunkSize == 0) {
-                  return fullData;
+                  return res;
                } else {
-                  ptrdiff_t currentOffset = *bytes;
-                  *bytes += chunkSize;
-                  fullData = (char*)UI_REALLOC(fullData, *bytes);
-                  memcpy(fullData + currentOffset, data, chunkSize);
+                  res.resize(size + chunkSize);
+                  memcpy(res.data() + size, data, chunkSize);
+                  size += chunkSize;
                }
 
                XFree(data);
@@ -5121,13 +5114,7 @@ char* _UIClipboardReadTextStart(UIWindow* window, size_t* bytes, sel_target_t t)
       }
    } else {
       // TODO What should happen in this case? Is the next event always going to be the selection event?
-      return NULL;
-   }
-}
-
-void _UIClipboardReadTextEnd(UIWindow* window, char* text) {
-   if (text) {
-      UI_FREE(text);
+      return {};
    }
 }
 
@@ -5602,7 +5589,7 @@ bool _UIProcessEvent(XEvent* event) {
          if (requestEvent.target == XA_STRING || requestEvent.target == ui->textID || requestEvent.target == utf8ID) {
             changePropertyResult =
                XChangeProperty(requestEvent.display, requestEvent.requestor, requestEvent.property, type, 8,
-                               PropModeReplace, (const unsigned char*)ui->pasteText, strlen(ui->pasteText));
+                               PropModeReplace, (const unsigned char *)ui->pasteText.c_str(), ui->pasteText.size());
          } else if (requestEvent.target == ui->targetID) {
             changePropertyResult = XChangeProperty(requestEvent.display, requestEvent.requestor, requestEvent.property,
                                                    XA_ATOM, 32, PropModeReplace, (unsigned char*)&utf8ID, 1);

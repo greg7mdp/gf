@@ -1193,7 +1193,7 @@ struct UI {
    Atom      dndDropID = 0, dndSelectionID = 0, dndFinishedID = 0, dndAwareID = 0;
    Atom      clipboardID = 0, xSelectionDataID = 0, textID = 0, targetID = 0, incrID = 0;
    cursors_t cursors{};
-   char*     pasteText = nullptr;
+   std::string  pasteText;
    XEvent    copyEvent;
 #endif
 
@@ -1226,12 +1226,11 @@ struct UI {
 //      Forward declarations.
 // ----------------------------------------
 
-void  _UIClipboardWriteText(UIWindow* window, char* text, sel_target_t t);
-char* _UIClipboardReadTextStart(UIWindow* window, size_t* bytes, sel_target_t t);
-void  _UIClipboardReadTextEnd(UIWindow* window, char* text);
-bool  _UIMessageLoopSingle(int* result);
-void  _UIInspectorRefresh();
-void  _UIUpdate();
+void        _UIClipboardWriteText(UIWindow* window, std::string text, sel_target_t t);
+std::string _UIClipboardReadText(UIWindow* window, sel_target_t t);
+bool        _UIMessageLoopSingle(int* result);
+void        _UIInspectorRefresh();
+void        _UIUpdate();
 
 #if defined(UI_LINUX)
 inline UI_CLOCK_T _UIClock() {
