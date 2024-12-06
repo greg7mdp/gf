@@ -382,7 +382,7 @@ struct UITheme {
 struct UIPainter {
    UIRectangle clip = UIRectangle(0);
    uint32_t*   bits = nullptr;
-   int         width = 0, height = 0;
+   uint32_t    width = 0, height = 0;
 #ifdef UI_DEBUG
    int fillCount = 0;
 #endif
@@ -642,8 +642,8 @@ struct UIWindow : public UIElement {
    std::vector<UIShortcut> shortcuts;
    float                   scale;
    std::vector<uint32_t>   bits;
-   int                     width;
-   int                     height;
+   uint32_t                width;
+   uint32_t                height;
    UIWindow*               next;
    UIElement*              hovered;
    UIElement*              pressed;
@@ -744,7 +744,7 @@ struct UILabel : public UIElement {
 };
 
 struct UISpacer : public UIElement {
-   int       width, height;
+   size_t   width, height;
 
    UISpacer(UIElement* parent, uint32_t flags, int width, int height);
 };
@@ -810,17 +810,20 @@ inline void  UIKeyInputVScroll(EL* el, UIKeyTyped* m, int rowHeight, int pageHei
    el->Refresh();
 }
 
-struct UICodeLine {
-   size_t offset, bytes;
-};
-
 struct UICode : public UIElement {
-   enum { NO_MARGIN = 1 << 0, SELECTABLE = 1 << 1 };
-
+private:
    struct code_pos {
       size_t line   = 0;
       size_t offset = 0;
    };
+
+   struct code_line {
+      size_t offset;
+      size_t bytes;
+   };
+
+public:
+   enum { NO_MARGIN = 1 << 0, SELECTABLE = 1 << 1 };
 
    UIScrollBar*            vScroll;
    UIScrollBar*            hScroll;
@@ -829,7 +832,7 @@ struct UICode : public UIElement {
    bool                    moveScrollToFocusNextLayout;
    bool                    leftDownInMargin;
    std::vector<char>       content;
-   std::vector<UICodeLine> lines;
+   std::vector<code_line>  lines;
    int                     tabSize;
    size_t                  columns;
    UI_CLOCK_T              lastAnimateTime;
@@ -841,15 +844,25 @@ struct UICode : public UIElement {
    bool moveScrollToCaretNextLayout;
 
    UICode(UIElement* parent, uint32_t flags);
+
+   std::string_view line(size_t line) const {
+      return std::string_view{&content[lines[line].offset], lines[line].bytes};
+   }
    
-   std::string_view line(size_t line) const { return std::string_view{&content[lines[line].offset], lines[line].bytes}; }
-   size_t      num_lines() const { return lines.size(); }
-   size_t      size() const {return content.size(); }
-   void        clear() {
+   size_t num_lines() const { return lines.size(); }
+   size_t size() const { return content.size(); }
+
+   void clear() {
       content.clear();
       lines.clear();
       columns   = 0;
       selection = {};
+   }
+
+   void set_line(size_t idx, size_t offset, size_t bytes) {
+      if (bytes > columns)
+         columns = bytes;
+      lines[idx] = code_line{.offset = offset, .bytes = bytes};
    }
 };
 
@@ -908,7 +921,7 @@ struct UIMenu : public UIElement {
       NO_SCROLL   = 1 << 1
    };
 
-   int          pointX;
+   int          pointX; // keep as int for X11 APIs
    int          pointY;
    UIScrollBar* vScroll;
    UIWindow*    parentWindow;

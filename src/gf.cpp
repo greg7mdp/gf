@@ -1805,17 +1805,12 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
 
    int xOffset = 0;
 
-   {
-      UICodeLine* line = &displayCode->lines[currentLine - 1];
-
-      for (size_t i = 0; i < line->bytes; i++) {
-         if (displayCode->content[line->offset + i] == '\t') {
-            xOffset += 4 * ui->activeFont->glyphWidth;
-         } else if (displayCode->content[line->offset + i] == ' ') {
-            xOffset += 1 * ui->activeFont->glyphWidth;
-         } else {
-            break;
-         }
+   std::string_view cur_line = displayCode->line(currentLine - 1);
+   for (auto c : cur_line) {
+      if (c == '\t' || c == ' ') {
+         xOffset += (c == '\t' ? 4 : 1) * ui->activeFont->glyphWidth;
+      } else {
+         break;
       }
    }
 

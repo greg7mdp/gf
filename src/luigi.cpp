@@ -2711,13 +2711,7 @@ void UICodeInsertContent(UICode* code, std::string_view new_content, bool replac
 
    for (size_t i = 0; i <= sz && lineIndex < lineCount; i++) {
       if (new_content[i] == '\n' || i == sz) {
-         UICodeLine line = {
-            .offset     = offset + orig_size,
-            .bytes      = i - offset
-         };
-         if (line.bytes > code->columns)
-            code->columns = line.bytes;
-         code->lines[orig_lines + lineIndex] = line;
+         code->set_line(orig_lines + lineIndex, orig_size + offset, i - offset);
          lineIndex++;
          offset = i + 1;
       }
@@ -5200,9 +5194,9 @@ void UIMenuShow(UIMenu* menu) {
       int       wx, wy;
       UIWindow* parentWindow = menu->parentWindow;
       XTranslateCoordinates(ui->display, parentWindow->xwindow, DefaultRootWindow(ui->display), 0, 0, &wx, &wy, &child);
-      if (menu->pointX + width > wx + parentWindow->width)
+      if (menu->pointX + width > wx + (int)parentWindow->width)
          menu->pointX = wx + parentWindow->width - width;
-      if (menu->pointY + height > wy + parentWindow->height)
+      if (menu->pointY + height > wy + (int)parentWindow->height)
          menu->pointY = wy + parentWindow->height - height;
       if (menu->pointX < wx)
          menu->pointX = wx;
@@ -5282,7 +5276,7 @@ bool _UIProcessEvent(XEvent* event) {
       if (!window)
          return false;
 
-      if (window->width != event->xconfigure.width || window->height != event->xconfigure.height) {
+      if ((int)window->width != event->xconfigure.width || (int)window->height != event->xconfigure.height) {
          window->width                 = event->xconfigure.width;
          window->height                = event->xconfigure.height;
          window->bits.resize(window->width * window->height);
