@@ -3852,7 +3852,7 @@ void CommandAddWatch() {
 // ---------------------------------------------------/
 
 void StackSetFrame(UIElement* element, int index) {
-   if (index >= 0 && index < ((UITable*)element)->itemCount) {
+   if (index >= 0 && index < (int)((UITable*)element)->itemCount) {
       stackChanged = true;
       if (stackSelected != (size_t)index) {
          (void)DebuggerSend(std::format("frame {}", index), false, false);

@@ -871,14 +871,25 @@ struct UISlider : public UIElement {
 };
 
 struct UITable : public UIElement {
-   UIScrollBar*     vScroll;
-   UIScrollBar*     hScroll;
-   int              itemCount;
-   char*            columns = nullptr; // list of column headers separated by '\t' characters
-   std::vector<int> columnWidths;
-   int              columnHighlight;
+   UIScrollBar*        vScroll;
+   UIScrollBar*        hScroll;
+   size_t              itemCount;
+   std::string         columns;       // list of column headers separated by '\t' characters
+   std::vector<size_t> columnWidths;
+   int                 columnHighlight;
 
    UITable(UIElement* parent, uint32_t flags, const char* columns);
+
+   int column_end(size_t start) const {
+      size_t end = start;
+      for (; columns[end] != '\t' && columns[end]; ++end)
+         ;
+      return end;
+   }
+
+   std::string_view column(size_t start, size_t end) const {
+      return std::string_view{columns.c_str() + start, end - start};
+   }
 };
 
 struct UITextbox : public UIElement {

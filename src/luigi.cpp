@@ -2858,7 +2858,7 @@ int UITableHitTest(UITable* table, int x, int y) {
 
    int rowHeight = ui_size::TABLE_ROW * table->window->scale;
 
-   if (y < 0 || y >= rowHeight * table->itemCount) {
+   if (y < 0 || y >= (int)(rowHeight * table->itemCount)) {
       return -1;
    }
 
@@ -2874,9 +2874,7 @@ int UITableHeaderHitTest(UITable* table, int x, int y) {
    int position = 0, index = 0;
 
    while (true) {
-      int end = position;
-      for (; table->columns[end] != '\t' && table->columns[end]; end++)
-         ;
+      int end = table->column_end(position);
       header.r = header.l + table->columnWidths[index];
       if (header.contains(x, y))
          return index;
@@ -2909,13 +2907,11 @@ bool UITableEnsureVisible(UITable* table, int index) {
 }
 
 void UITableResizeColumns(UITable* table) {
-   int position = 0;
-   int count    = 0;
+   size_t position = 0;
+   size_t count    = 0;
 
    while (true) {
-      int end = position;
-      for (; table->columns[end] != '\t' && table->columns[end]; end++)
-         ;
+      size_t end = table->column_end(position);
       count++;
       if (table->columns[end] == '\t')
          position = end + 1;
@@ -2930,13 +2926,10 @@ void UITableResizeColumns(UITable* table) {
    UITableGetItem m(256);
 
    while (true) {
-      int end = position;
-      for (; table->columns[end] != '\t' && table->columns[end]; end++)
-         ;
+      size_t end = table->column_end(position);
+      int longest = UIMeasureStringWidth(table->column(position, end));
 
-      int longest = UIMeasureStringWidth({table->columns + position, static_cast<size_t>(end - position)});
-
-      for (int i = 0; i < table->itemCount; i++) {
+      for (size_t i = 0; i < (size_t)table->itemCount; i++) {
          m.index   = i;
          int bytes = table->Message(UIMessage::TABLE_GET_ITEM, 0, &m);
          int width = UIMeasureStringWidth(m.buff(bytes));
@@ -2977,7 +2970,7 @@ int _UITableMessage(UIElement* element, UIMessage message, int di, void* dp) {
          intersection(oldClip, UIRectangle(bounds.l, bounds.r,
                                            bounds.t + (int)(ui_size::TABLE_HEADER * element->window->scale), bounds.b));
 
-      for (int i = table->vScroll->position / rowHeight; i < table->itemCount; i++) {
+      for (int i = table->vScroll->position / rowHeight; i < (int)table->itemCount; i++) {
          if (row.t > painter->clip.b) {
             break;
          }
@@ -3022,20 +3015,18 @@ int _UITableMessage(UIElement* element, UIMessage message, int di, void* dp) {
       header.b           = header.t + ui_size::TABLE_HEADER * table->window->scale;
       header.l += ui_size::TABLE_COLUMN_GAP * table->window->scale;
 
-      int position = 0;
+      size_t position = 0;
       int index    = 0;
 
       if (!table->columnWidths.empty()) {
          while (true) {
-            int end = position;
-            for (; table->columns[end] != '\t' && table->columns[end]; end++)
-               ;
+            size_t end = table->column_end(position);
 
             header.r = header.l + table->columnWidths[index];
             UIDrawControl(painter, header,
                           UI_DRAW_CONTROL_TABLE_HEADER |
                              (index == table->columnHighlight ? UI_DRAW_CONTROL_STATE_SELECTED : 0),
-                          {table->columns + position, static_cast<size_t>(end - position)}, 0, element->window->scale);
+                          table->column(position, end), 0, element->window->scale);
             header.l += table->columnWidths[index] + ui_size::TABLE_COLUMN_GAP * table->window->scale;
 
             if (table->columns[end] == '\t') {
@@ -3085,7 +3076,6 @@ int _UITableMessage(UIElement* element, UIMessage message, int di, void* dp) {
          return 1;
       }
    } else if (message == UIMessage::DEALLOCATE) {
-      UI_FREE(table->columns);
    }
 
    return 0;
