@@ -2866,7 +2866,7 @@ int UITableHitTest(UITable* table, int x, int y) {
 }
 
 int UITableHeaderHitTest(UITable* table, int x, int y) {
-   if (!table->columnCount)
+   if (table->columnWidths.empty())
       return -1;
    UIRectangle header = table->bounds;
    header.b           = header.t + ui_size::TABLE_HEADER * table->window->scale;
@@ -2923,9 +2923,7 @@ void UITableResizeColumns(UITable* table) {
          break;
    }
 
-   UI_FREE(table->columnWidths);
-   table->columnWidths = (int*)UI_MALLOC(count * sizeof(int));
-   table->columnCount  = count;
+   table->columnWidths.resize(count);
 
    position = 0;
 
@@ -2997,7 +2995,7 @@ int _UITableMessage(UIElement* element, UIMessage message, int di, void* dp) {
          UIRectangle cell = row;
          cell.l += ui_size::TABLE_COLUMN_GAP * table->window->scale - (int64_t)table->hScroll->position;
 
-         for (int j = 0; j < table->columnCount; j++) {
+         for (size_t j = 0; j < table->columnWidths.size(); j++) {
             if (j) {
                m.column = j;
                bytes    = element->Message(UIMessage::TABLE_GET_ITEM, 0, &m);
@@ -3027,7 +3025,7 @@ int _UITableMessage(UIElement* element, UIMessage message, int di, void* dp) {
       int position = 0;
       int index    = 0;
 
-      if (table->columnCount) {
+      if (!table->columnWidths.empty()) {
          while (true) {
             int end = position;
             for (; table->columns[end] != '\t' && table->columns[end]; end++)
@@ -3054,8 +3052,8 @@ int _UITableMessage(UIElement* element, UIMessage message, int di, void* dp) {
 
       table->vScroll->maximum = table->itemCount * ui_size::TABLE_ROW * element->window->scale;
       table->hScroll->maximum = columnGap;
-      for (int i = 0; i < table->columnCount; i++) {
-         table->hScroll->maximum += table->columnWidths[i] + columnGap;
+      for (auto width : table->columnWidths) {
+         table->hScroll->maximum += width + columnGap;
       }
 
       int vSpace = table->vScroll->page =
@@ -3088,7 +3086,6 @@ int _UITableMessage(UIElement* element, UIMessage message, int di, void* dp) {
       }
    } else if (message == UIMessage::DEALLOCATE) {
       UI_FREE(table->columns);
-      UI_FREE(table->columnWidths);
    }
 
    return 0;
@@ -3100,8 +3097,6 @@ UITable::UITable(UIElement* parent, uint32_t flags, const char* columns) :
    hScroll(new UIScrollBar(this, UIScrollBar::HORIZONTAL)),
    itemCount(0),
    columns(UIStringCopy(columns, -1)),
-   columnWidths(nullptr),
-   columnCount(0),
    columnHighlight(-1)
 {}
 

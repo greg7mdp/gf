@@ -871,12 +871,12 @@ struct UISlider : public UIElement {
 };
 
 struct UITable : public UIElement {
-   UIScrollBar* vScroll;
-   UIScrollBar* hScroll;
-   int          itemCount;
-   char*        columns      = nullptr;
-   int*         columnWidths = nullptr;
-   int          columnCount, columnHighlight;
+   UIScrollBar*     vScroll;
+   UIScrollBar*     hScroll;
+   int              itemCount;
+   char*            columns = nullptr; // list of column headers separated by '\t' characters
+   std::vector<int> columnWidths;
+   int              columnHighlight;
 
    UITable(UIElement* parent, uint32_t flags, const char* columns);
 };
