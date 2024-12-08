@@ -19,6 +19,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <iostream>
 #include <format>
 #include <unordered_map>
 
@@ -156,6 +157,12 @@ int std_format_to_n(OutputIt buffer, std::iter_difference_t<OutputIt> n, std::fo
    buffer[written] = '\0'; // adds terminator to buffer
    // fprintf(stderr, "%s\n", buffer);
    return written;
+}
+
+template< class... Args >
+void std_print(std::format_string<Args...> fmt, Args&&... args ) {
+   std::ostreambuf_iterator<char> out(std::cout);
+   std::format_to(out, fmt, std::forward<Args>(args)...);
 }
 
 // --------------------------------------------------
@@ -619,7 +626,7 @@ private:
 };
 
 struct UIConfig {
-   bool rfu;
+   bool rfu = false;
 };
 
 struct UIWindow : public UIElement {

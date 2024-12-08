@@ -1,0 +1,11 @@
+file(GLOB cpp "*.cpp")
+
+get_filename_component(dirname ${CMAKE_CURRENT_SOURCE_DIR} NAME)
+string(REPLACE " " "_" dirname ${dirname})
+
+foreach(f IN LISTS cpp)
+    get_filename_component(target ${f} NAME_WE)
+    add_executable("${target}" "${f}")
+    target_link_libraries(${target} luigi Threads::Threads)
+    set_target_properties("${target}" PROPERTIES OUTPUT_NAME "${target}" FOLDER "${dirname}")
+endforeach()

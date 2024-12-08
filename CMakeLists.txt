@@ -92,3 +92,9 @@ if (ENABLE_SANITIZERS OR ENABLE_ADDRESS_SANITIZER)
     target_link_options(   ${PROJECT_NAME} PUBLIC ${clang_san_options} )
 
 endif()
+
+
+## ------------------------------------------------------------------------------------
+##                                    Subdirectories
+## ------------------------------------------------------------------------------------
+add_subdirectory(examples)
