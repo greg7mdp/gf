@@ -41,6 +41,8 @@ using std::make_shared;
    #undef UNICODE
    #include <windows.h>
    #include <shellapi.h>
+   #undef min
+   #undef max
 
    #define UI_ASSERT(x)                                                                  \
       do {                                                                               \
@@ -470,10 +472,10 @@ inline float ui_color_alpha_f(uint32_t x) { return ((x >> 24) & 0xFF) / 255.0f; 
 inline float ui_color_red_f(uint32_t x)   { return ((x >> 16) & 0xFF) / 255.0f; }
 inline float ui_color_green_f(uint32_t x) { return ((x >> 8)  & 0xFF) / 255.0f; }
 inline float ui_color_blue_f(uint32_t x)  { return ((x >> 0)  & 0xFF) / 255.0f; }
-inline float ui_color_alpha(uint32_t x)   { return ((x >> 24) & 0xFF); }
-inline float ui_color_red(uint32_t x)     { return ((x >> 16) & 0xFF); }
-inline float ui_color_green(uint32_t x)   { return ((x >> 8)  & 0xFF); }
-inline float ui_color_blue(uint32_t x)    { return ((x >> 0)  & 0xFF); }
+inline float ui_color_alpha(uint32_t x)   { return static_cast<float>(((x >> 24) & 0xFF)); }
+inline float ui_color_red(uint32_t x)     { return static_cast<float>(((x >> 16) & 0xFF)); }
+inline float ui_color_green(uint32_t x)   { return static_cast<float>(((x >> 8)  & 0xFF)); }
+inline float ui_color_blue(uint32_t x)    { return static_cast<float>(((x >> 0)  & 0xFF)); }
 
 inline uint32_t ui_color_from_rgb(float r, float g, float b) {
    return (((uint32_t)(r * 255.0f) << 16) | ((uint32_t)(g * 255.0f) << 8) | ((uint32_t)(b * 255.0f) << 0));
@@ -892,7 +894,7 @@ struct UITable : public UIElement {
 
    UITable(UIElement* parent, uint32_t flags, const char* columns);
 
-   int column_end(size_t start) const {
+   size_t column_end(size_t start) const {
       size_t end = start;
       for (; columns[end] != '\t' && columns[end]; ++end)
          ;

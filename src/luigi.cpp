@@ -12,7 +12,8 @@
 #include <ranges>
 #include <algorithm>
 
-using namespace std::ranges;
+namespace views = std::views;
+namespace rng   = std::ranges;
 
 // --------------------------------------------------
 // Global variables.
@@ -105,20 +106,21 @@ uint32_t UIElement::state() const {
       #error "Unicode support requires Freetype"
    #endif
 
-int         Utf8GetCodePoint(const char* cString, ptrdiff_t bytesLength, ptrdiff_t* bytesConsumed);
+int         Utf8GetCodePoint(const char* cString, size_t bytesLength, size_t* bytesConsumed);
 const char* Utf8GetPreviousChar(const char* string, const char* offset);
-ptrdiff_t   Utf8GetCharBytes(const char* cString, ptrdiff_t bytes);
-ptrdiff_t   Utf8StringLength(const char* cString, ptrdiff_t bytes);
+size_t      Utf8GetCharBytes(const char* cString, size_t bytes);
+size_t      Utf8StringLength(const char* cString, size_t bytes);
 
 inline constexpr size_t _UNICODE_MAX_CODEPOINT = 0x10FFFF;
 inline constexpr int max_glyphs             = _UNICODE_MAX_CODEPOINT + 1;
 
 inline void _ui_advance_char(size_t& index, const char* text, size_t count) {
+   assert(count >= index);
    index += Utf8GetCharBytes(text, count - index);
 }
 
-inline void _ui_skip_tab(int ti, const char* text, int bytesLeft, size_t tabSize) {
-   int c = Utf8GetCodePoint(text, bytesLeft, NULL);
+inline void _ui_skip_tab(int ti, const char* text, size_t bytesLeft, size_t tabSize) {
+   int c = Utf8GetCodePoint(text, bytesLeft, nullptr);
    if (c == 't')
       while (ti % tabSize)
          ++ti;
@@ -136,9 +138,10 @@ inline void _ui_move_caret_forward(T& caret, std::string_view text, size_t offse
 }
 
 inline bool _ui_move_caret_by_word(std::string_view text, size_t offset) {
+   assert(offset <= text.size());
    const char* prev = Utf8GetPreviousChar(&text[0], &text[offset]);
-   int         c1   = Utf8GetCodePoint(prev, text.size() - (prev - &text[0]), NULL);
-   int         c2   = Utf8GetCodePoint(&text[offset], text.size() - offset, NULL);
+   int         c1   = Utf8GetCodePoint(prev, text.size() - (prev - &text[0]), nullptr);
+   int         c2   = Utf8GetCodePoint(&text[offset], text.size() - offset, nullptr);
    return _UICharIsAlphaOrDigitOrUnderscore(c1) != _UICharIsAlphaOrDigitOrUnderscore(c2);
 }
 
@@ -146,23 +149,24 @@ inline bool _ui_move_caret_by_word(std::string_view text, size_t offset) {
 
 inline constexpr int max_glyphs = 128;
 
-inline void _ui_advance_char(int& index, const char* text, int count) {
+inline void _ui_advance_char(size_t& index, [[maybe_unused]] const char* text, [[maybe_unused]] size_t count) {
    ++index;
 }
 
-inline void _ui_skip_tab(int ti, const char* text, int bytesLeft, int tabSize) {
+inline void _ui_skip_tab(size_t ti, const char* text, [[maybe_unused]] size_t bytesLeft, size_t tabSize) {
    if (*(text) == '\t')
       while (ti % tabSize)
          ++ti;
 }
 
 template <class T>
-inline void _ui_move_caret_backwards(T& caret, const char* text, size_t offset, size_t offset2) {
+inline void _ui_move_caret_backwards(T& caret, [[maybe_unused]] const char* text, [[maybe_unused]] size_t offset,
+                                     [[maybe_unused]] size_t offset2) {
    --caret;
 }
 
 template <class T>
-inline void _ui_move_caret_forward(T& caret, std::string_view text, size_t offset) {
+inline void _ui_move_caret_forward(T& caret, [[maybe_unused]] std::string_view text, [[maybe_unused]] size_t offset) {
    ++caret;
 }
 
@@ -184,8 +188,8 @@ UIRectangle fit(const UIRectangle& parent, UIRectangle child, bool allowScalingU
    }
 
    float childAspectRatio   = (float)childWidth / childHeight;
-   int   childMaximumWidth  = parentHeight * childAspectRatio;
-   int   childMaximumHeight = parentWidth / childAspectRatio;
+   int   childMaximumWidth  = static_cast<int>(parentHeight * childAspectRatio);
+   int   childMaximumHeight = static_cast<int>(parentWidth / childAspectRatio);
 
    if (childMaximumWidth > parentWidth) {
       return center(parent, ui_rect_2s(parentWidth, childMaximumHeight));
@@ -216,7 +220,7 @@ float _UIFloorFloat(float x) {
       convert.i &= ~mask; // Mask out the fractional bits.
    } else if (exponent < 0) {
       // Negative exponent.
-      return sign ? -1.0 : 0.0;
+      return sign ? -1.0f : 0.0f;
    }
 
    return convert.f;
@@ -326,7 +330,7 @@ int _UIByteToColumn(std::string_view string, size_t byte, size_t tabSize) {
       _ui_advance_char(i, &string[i], byte);
    }
 
-   return ti;
+   return (int)ti;
 }
 
 int _UIColumnToByte(std::string_view string, size_t column, size_t tabSize) {
@@ -342,20 +346,20 @@ int _UIColumnToByte(std::string_view string, size_t column, size_t tabSize) {
       _ui_advance_char(byte, &string[byte], bytes);
    }
 
-   return byte;
+   return (int)byte;
 }
 
 #ifdef UI_UNICODE
 
-int Utf8GetCodePoint(const char* cString, ptrdiff_t bytesLength, ptrdiff_t* bytesConsumed) {
+int Utf8GetCodePoint(const char* cString, size_t bytesLength, size_t* bytesConsumed) {
    UI_ASSERT(bytesLength > 0 && "Attempted to get UTF-8 code point from an empty string");
 
-   if (bytesConsumed == NULL) {
-      ptrdiff_t bytesConsumed;
+   if (bytesConsumed == nullptr) {
+      size_t bytesConsumed;
       return Utf8GetCodePoint(cString, bytesLength, &bytesConsumed);
    }
 
-   ptrdiff_t numExtraBytes;
+   size_t numExtraBytes;
    uint8_t   first = cString[0];
 
    *bytesConsumed = 1;
@@ -376,7 +380,7 @@ int Utf8GetCodePoint(const char* cString, ptrdiff_t bytesLength, ptrdiff_t* byte
    }
 
    int codePoint = ((int)first & (0x3F >> numExtraBytes)) << (6 * numExtraBytes);
-   for (ptrdiff_t idx = 1; idx < numExtraBytes + 1; idx++) {
+   for (size_t idx = 1; idx < numExtraBytes + 1; idx++) {
       char byte = cString[idx];
       if ((byte & 0xC0) != 0x80) {
          return -1;
@@ -405,31 +409,23 @@ const char* Utf8GetPreviousChar(const char* string, const char* offset) {
    return prev;
 }
 
-ptrdiff_t Utf8GetCharBytes(const char* cString, ptrdiff_t bytes) {
+size_t Utf8GetCharBytes(const char* cString, size_t bytes) {
    if (!cString) {
       return 0;
    }
-   if (bytes == -1) {
-      bytes = _UIStringLength(cString);
-   }
-
-   ptrdiff_t bytesConsumed;
+   size_t bytesConsumed;
    Utf8GetCodePoint(cString, bytes, &bytesConsumed);
    return bytesConsumed;
 }
 
-ptrdiff_t Utf8StringLength(const char* cString, ptrdiff_t bytes) {
+size_t Utf8StringLength(const char* cString, size_t bytes) {
    if (!cString) {
       return 0;
    }
-   if (bytes == -1) {
-      bytes = _UIStringLength(cString);
-   }
-
-   ptrdiff_t length    = 0;
-   ptrdiff_t byteIndex = 0;
+   size_t length    = 0;
+   size_t byteIndex = 0;
    while (byteIndex < bytes) {
-      ptrdiff_t bytesConsumed;
+      size_t bytesConsumed;
       Utf8GetCodePoint(cString + byteIndex, bytes - byteIndex, &bytesConsumed);
       byteIndex += bytesConsumed;
       length++;
@@ -759,9 +755,9 @@ void UIDrawString(UIPainter* painter, UIRectangle r, std::string_view string, ui
       }
    }
 
-   int bytes = (int)string.size();
+   size_t bytes = string.size();
    while (j < bytes) {
-      ptrdiff_t bytesConsumed = 1;
+      size_t bytesConsumed = 1;
 #ifdef UI_UNICODE
       int c = Utf8GetCodePoint(string.data(), bytes - j, &bytesConsumed);
       UI_ASSERT(bytesConsumed > 0);
@@ -1855,6 +1851,7 @@ int _UISplitPaneMessage(UIElement* element, UIMessage message, int di, void* dp)
    bool         vertical  = splitPane->flags & UIElement::VERTICAL;
 
    if (message == UIMessage::LAYOUT) {
+      assert(element->children.size() >= 3);
       UIElement* splitter = element->children[0];
       UIElement* left     = element->children[1];
       UIElement* right    = element->children[2];
@@ -2283,7 +2280,7 @@ int UIDrawStringHighlighted(UIPainter* painter, UIRectangle lineBounds, std::str
    uint32_t last = 0;
    int      j    = 0;
 
-   int bytes = (int)string.size();
+   size_t bytes = string.size();
    while (bytes) {
 #ifdef UI_UNICODE
       ptrdiff_t bytesConsumed;
@@ -2951,14 +2948,15 @@ int UITableHeaderHitTest(UITable* table, int x, int y) {
    int position = 0, index = 0;
 
    while (true) {
-      int end = table->column_end(position);
+      size_t end = table->column_end(position);
       header.r = header.l + table->columnWidths[index];
       if (header.contains(x, y))
          return index;
       header.l += table->columnWidths[index] + ui_size::TABLE_COLUMN_GAP * table->window->scale;
       if (table->columns[end] != '\t')
          break;
-      position = end + 1, index++;
+      position = end + 1;
+      index++;
    }
 
    return -1;
@@ -3388,7 +3386,7 @@ int _UITextboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
       UIMenu* menu = UIMenuCreate(element->window, UIMenu::NO_SCROLL);
       UIMenuAddItem(menu, textbox->carets[0] == textbox->carets[1] ? UIElement::DISABLED : 0, "Copy",
                     [=]() { UITextboxCopyText(textbox); });
-      const auto& paste = _UIClipboardReadText(textbox->window, sel_target_t::clipboard);
+      std::string paste = _UIClipboardReadText(textbox->window, sel_target_t::clipboard);
       UIMenuAddItem(menu, paste.empty() ? UIElement::DISABLED : 0, "Paste",
                     [=]() { UITextboxPasteText(textbox, sel_target_t::clipboard); });
       UIMenuShow(menu);
@@ -5839,8 +5837,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPAR
       window->shift = GetKeyState(VK_SHIFT) & 0x8000;
       window->alt   = GetKeyState(VK_MENU) & 0x8000;
 
-      UIKeyTyped m = {0};
-      m.code       = (UIKeycode)wParam;
+      UIKeyTyped m { .code = (UIKeycode)wParam} ;
       window->InputEvent(UIMessage::KEY_TYPED, 0, &m);
    } else if (message == WM_CHAR) {
       UIKeyTyped m;
@@ -6047,36 +6044,37 @@ void* _UIHeapReAlloc(void* pointer, size_t size) {
    }
 }
 
-void _UIClipboardWriteText(UIWindow* window, char* text, sel_target_t) {
+void _UIClipboardWriteText(UIWindow* window, std::string text, sel_target_t) {
    if (OpenClipboard(window->hwnd)) {
       EmptyClipboard();
-      HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, _UIStringLength(text) + 1);
+      HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, text.size() + 1);
       char*   copy   = (char*)GlobalLock(memory);
-      for (uintptr_t i = 0; text[i]; i++)
-         copy[i] = text[i];
+      std::memcpy(copy, text.c_str(), text.size());
       GlobalUnlock(copy);
       SetClipboardData(CF_TEXT, memory);
       CloseClipboard();
    }
 }
 
-char* _UIClipboardReadTextStart(UIWindow* window, size_t* bytes, sel_target_t ) {
+std::string _UIClipboardReadText(UIWindow* window, sel_target_t) {
+   std::string res;
+
    if (!OpenClipboard(window->hwnd)) {
-      return NULL;
+      return res;
    }
 
    HANDLE memory = GetClipboardData(CF_TEXT);
 
    if (!memory) {
       CloseClipboard();
-      return NULL;
+      return res;
    }
 
    char* buffer = (char*)GlobalLock(memory);
 
    if (!buffer) {
       CloseClipboard();
-      return NULL;
+      return res;
    }
 
    size_t byteCount = GlobalSize(memory);
@@ -6084,25 +6082,17 @@ char* _UIClipboardReadTextStart(UIWindow* window, size_t* bytes, sel_target_t ) 
    if (byteCount < 1) {
       GlobalUnlock(memory);
       CloseClipboard();
-      return NULL;
+      return res;
    }
 
-   char* copy = (char*)UI_MALLOC(byteCount + 1);
+   res.resize(byteCount);
    for (uintptr_t i = 0; i < byteCount; i++)
-      copy[i] = buffer[i];
-   copy[byteCount] = 0; // Just in case.
+      res[i] = buffer[i];
 
    GlobalUnlock(memory);
    CloseClipboard();
 
-   if (bytes)
-      *bytes = _UIStringLength(copy);
-   return copy;
-}
-
-void _UIClipboardReadTextEnd(UIWindow* window, char* text) {
-   UI_FREE(text);
+   return res;
 }
 
 #endif // UI_WINDOWS
-

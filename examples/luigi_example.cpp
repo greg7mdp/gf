@@ -117,11 +117,7 @@ int MyCheckboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
 }
 
 
-#ifdef UI_LINUX
 int main(int argc, char** argv) {
-#else
-int WinMain(HINSTANCE instance, HINSTANCE previousInstance, LPSTR commandLine, int showCommand) {
-#endif
    UIConfig cfg;
    auto     ui = UIInitialise(cfg);
 
