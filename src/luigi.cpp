@@ -2770,14 +2770,13 @@ void UICodeInsertContent(UICode* code, std::string_view new_content, bool replac
    if (replace) 
       code->clear();
 
+   if (new_content.empty())
+      return;
+
    size_t sz        = new_content.size();
    size_t orig_size = code->content.size();
 
    code->content.resize(orig_size + sz);
-
-   if (new_content.empty()) {
-      return;
-   }
 
    size_t lineCount = new_content.back() != '\n';
 
@@ -3164,7 +3163,7 @@ UITable::UITable(UIElement* parent, uint32_t flags, const char* columns) :
    vScroll(new UIScrollBar(this, 0)),
    hScroll(new UIScrollBar(this, UIScrollBar::HORIZONTAL)),
    itemCount(0),
-   columns(UIStringCopy(columns, -1)),
+   columns(columns),
    columnHighlight(-1)
 {}
 

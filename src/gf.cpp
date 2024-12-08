@@ -901,7 +901,8 @@ void DebuggerGetStack() {
       position                 = strchr(position, ' ');
       if (!position || position >= next)
          break;
-      std_format_to_n(entry.function, sizeof(entry.function), "{:.{}}", functionName, position - functionName);
+      std_format_to_n(entry.function, sizeof(entry.function), "{}",
+                      std::string_view{functionName, (size_t)(position - functionName)});
 
       const char* file = strstr(position, " at ");
 
@@ -910,7 +911,7 @@ void DebuggerGetStack() {
          const char* end = file;
          while (*end != '\n' && end < next)
             end++;
-         std_format_to_n(entry.location, sizeof(entry.location), "{:.{}}", file, end - file);
+         std_format_to_n(entry.location, sizeof(entry.location), "{}", std::string_view{file, (size_t)(end - file)});
       }
 
       stack.push_back(entry);
@@ -969,7 +970,8 @@ void DebuggerGetBreakpoints() {
       if (condition && condition < next) {
          const char* end = strchr(condition, '\n');
          condition += 13;
-         std_format_to_n(breakpoint.condition, sizeof(breakpoint.condition), "{:.{}}", condition, end - condition);
+         std_format_to_n(breakpoint.condition, sizeof(breakpoint.condition), "{}",
+                         std::string_view{condition, (size_t)(end - condition)});
          breakpoint.conditionHash = Hash((const uint8_t*)condition, end - condition);
       }
 
@@ -988,7 +990,8 @@ void DebuggerGetBreakpoints() {
          if (end && isdigit(end[1])) {
             if (file[0] == '.' && file[1] == '/')
                file += 2;
-            std_format_to_n(breakpoint.file, sizeof(breakpoint.file), "{:.{}}", file, end - file);
+            std_format_to_n(breakpoint.file, sizeof(breakpoint.file), "{}",
+                            std::string_view{file, (size_t)(end - file)});
             breakpoint.line = sv_atoi(end, 1);
          } else
             recognised = false;
@@ -1490,8 +1493,8 @@ void Context::SettingsLoad(bool earlyPass) {
                      argumentEnd = i;
                   }
 
-                  std_format_to_n(buffer, sizeof(buffer), "{:.{}}", &state.value[argumentStart],
-                                  argumentEnd - argumentStart);
+                  std_format_to_n(buffer, sizeof(buffer), "{}",
+                                  std::string_view{&state.value[argumentStart], (size_t)(argumentEnd - argumentStart)});
 
                   ctx.gdbArgc++;
                   ctx.gdbArgv                  = (char**)realloc(ctx.gdbArgv, sizeof(char*) * (ctx.gdbArgc + 1));
@@ -1609,7 +1612,7 @@ bool DisplaySetPosition(const char* file, int line, bool useGDBToGetFullPath) {
          const char* end = strchr(f, '\n');
 
          if (end) {
-            std_format_to_n(buffer, sizeof(buffer), "{:.{}}", f, end - f);
+            std_format_to_n(buffer, sizeof(buffer), "{}", std::string_view{f, (size_t)(end - f)});
             file = buffer;
          }
       }
@@ -2114,8 +2117,8 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
       }
 
       if (position != bytes && text[position] == '=') {
-         std_format_to_n(autoPrintExpression, sizeof(autoPrintExpression), "{:.{}}", text + expressionStart,
-                         expressionEnd - expressionStart);
+         std_format_to_n(autoPrintExpression, sizeof(autoPrintExpression), "{}",
+                         std::string_view{text + expressionStart, expressionEnd - expressionStart});
       }
 
       autoPrintExpressionLine = currentLine;
@@ -3138,8 +3141,8 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
 
       for (uintptr_t i = 0; true; i++) {
          if (expressionsToEvaluate[i] == ';' || !expressionsToEvaluate[i]) {
-            position += std_format_to_n(logger->columns + position, sizeof(logger->columns) - position, "\t{:.{}}",
-                                        expressionsToEvaluate + start, i - start);
+            position += std_format_to_n(logger->columns + position, sizeof(logger->columns) - position, "\t{}",
+                                        std::string_view{expressionsToEvaluate + start, (size_t)(i - start)});
             start = i + 1;
          }
 
@@ -4351,7 +4354,8 @@ void RegistersWindowUpdate(const char*, UIElement* panel) {
       const char* stringEnd   = format2End;
 
       RegisterData data;
-      std_format_to_n(data.string, sizeof(data.string), "{:.{}}", stringStart, stringEnd - stringStart);
+      std_format_to_n(data.string, sizeof(data.string), "{}",
+                      std::string_view{stringStart, (size_t)(stringEnd - stringStart)});
       bool modified = false;
 
       if (registerData.size() > newRegisterData.size()) {
@@ -4388,8 +4392,9 @@ void RegistersWindowUpdate(const char*, UIElement* panel) {
          }
 
          int position = strlen(autoPrintResult);
-         std_format_to_n(autoPrintResult + position, sizeof(autoPrintResult) - position, "{:.{}}={:.{}}", nameStart,
-                         nameEnd - nameStart, format1Start, format1End - format1Start);
+         std_format_to_n(autoPrintResult + position, sizeof(autoPrintResult) - position, "{}={}",
+                         std::string_view{nameStart, (size_t)(nameEnd - nameStart)},
+                         std::string_view{format1Start, (size_t)(format1End - format1Start)});
       }
    }
 
