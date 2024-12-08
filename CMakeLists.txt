@@ -27,12 +27,14 @@ endif()
 ##                                  Compiler options
 ## ------------------------------------------------------------------------------------
 if(NOT MSVC)
-   add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-pedantic;-Wall;-Wextra;-Wdisabled-optimization;-Winit-self;
+   add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-Wall;-Wextra;-Wdisabled-optimization;-Winit-self;
    -Wmissing-include-dirs;-Wswitch-default;
    -Wno-unused;-Wno-unused-parameter;-Wno-missing-field-initializers;-Wno-deprecated-anon-enum-enum-conversion;
    -Wno-deprecated-enum-enum-conversion;-Wno-gnu-conditional-omitted-operand>")
    if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
       add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-Wlogical-op;-Wstrict-null-sentinel>")
+   else()
+      add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-pedantic>")
    endif()
 else()
    add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:/W4;/Zc:__cplusplus>")

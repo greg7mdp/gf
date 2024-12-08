@@ -5054,7 +5054,7 @@ UIWindow* UIWindowCreate(UIWindow* owner, uint32_t flags, const char* cTitle, in
    window->image = XCreateImage(ui->display, ui->visual, 24, ZPixmap, 0, NULL, 10, 10, 32, 0);
 
    window->xic = XCreateIC(ui->xim, XNInputStyle, XIMPreeditNothing | XIMStatusNothing, XNClientWindow, window->xwindow,
-                           XNFocusWindow, window->xwindow, NULL);
+                           XNFocusWindow, window->xwindow, nullptr);
 
    int dndVersion = 4;
    XChangeProperty(ui->display, window->xwindow, ui->dndAwareID, XA_ATOM, 32 /* bits */, PropModeReplace,
