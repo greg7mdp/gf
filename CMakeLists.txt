@@ -14,41 +14,79 @@ set( CXX_STANDARD_REQUIRED ON)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
-## ----------------- Required packages
+## ------------------------------------------------------------------------------------
+##                                  Required packages
+## ------------------------------------------------------------------------------------
 if (UNIX)
     find_package(Freetype REQUIRED)
     find_package(X11 REQUIRED)
     find_package(Threads REQUIRED)
-endif (UNIX)
+endif()
 
-## ----------------- gf
-#set(cpp_files "src/luigi.cpp" "examples/luigi_example.cpp")
-file(GLOB_RECURSE cpp_files "src/*.cpp")
-file(GLOB_RECURSE header_files "src/*.hpp")
+## ------------------------------------------------------------------------------------
+##                                  Compiler options
+## ------------------------------------------------------------------------------------
+if(NOT MSVC)
+   add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-pedantic;-Wall;-Wextra;-Wdisabled-optimization;-Winit-self;
+   -Wmissing-include-dirs;-Wswitch-default;
+   -Wno-unused;-Wno-unused-parameter;-Wno-missing-field-initializers;-Wno-deprecated-anon-enum-enum-conversion;
+   -Wno-deprecated-enum-enum-conversion;-Wno-gnu-conditional-omitted-operand>")
+   if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+      add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-Wlogical-op;-Wstrict-null-sentinel>")
+   endif()
+else()
+   add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:/W4;/Zc:__cplusplus>")
+endif()
 
-add_executable(${PROJECT_NAME} WIN32 ${cpp_files} ${header_files})
-set_property(TARGET ${PROJECT_NAME} PROPERTY PUBLIC_HEADER ${header_files})
+## ------------------------------------------------------------------------------------
+##                                    luigi
+## ------------------------------------------------------------------------------------
+add_library(luigi STATIC src/luigi.cpp)
+set_property(TARGET luigi PROPERTY PUBLIC_HEADER src/luigi.hpp)
 
-## dmalloc: link with `-ldmalloc` and run command: `dmalloc -l logfile -i 100 high`
+if (NOT MSVC)
+    target_link_libraries(luigi ${FREETYPE_LIBRARIES} ${X11_LIBRARIES})
+    target_include_directories(luigi PUBLIC ${FREETYPE_INCLUDE_DIRS} ${X11_INCLUDE_DIR})
+    
+    target_compile_options(luigi PRIVATE -DUI_SSE2 -DUI_UNICODE)
+    target_compile_options(luigi PUBLIC  -DUI_LINUX -DUI_FREETYPE -DUI_FREETYPE_SUBPIXEL)
+else()
+    target_compile_options(luigi PRIVATE -DUI_SSE2)
+    target_compile_options(luigi PUBLIC -DUI_WINDOWS)
+endif()
 
-if (UNIX)
-    target_link_libraries(${PROJECT_NAME} ${FREETYPE_LIBRARIES} ${X11_LIBRARIES} Threads::Threads)
-    target_include_directories(${PROJECT_NAME} PRIVATE ${FREETYPE_INCLUDE_DIRS} ${X11_INCLUDE_DIR} deps/include )
-    target_compile_options(${PROJECT_NAME} PRIVATE -DUI_LINUX -DUI_FONT_PATH -DUI_SSE2 -DUI_FREETYPE -DUI_FREETYPE_SUBPIXEL -DUI_UNICODE)
+## ------------------------------------------------------------------------------------
+##                                    gf
+## ------------------------------------------------------------------------------------
+if (NOT MSVC)
+    add_executable(${PROJECT_NAME} WIN32 src/gf.cpp src/regex.cpp)
 
-    target_compile_options(${PROJECT_NAME} PRIVATE 
-                           -Wall -Wextra -Wno-unused-parameter
-                           -Wno-missing-field-initializers
-                           -Wno-deprecated-anon-enum-enum-conversion -Wno-deprecated-enum-enum-conversion)
+    ## dmalloc: link with `-ldmalloc` and run command: `dmalloc -l logfile -i 100 high`
+    
+    target_include_directories(${PROJECT_NAME} PRIVATE deps/include )
+    target_link_libraries(${PROJECT_NAME} luigi Threads::Threads)
+endif ()
 
-    #set(clang_san_options -g -fsanitize=address -fno-omit-frame-pointer)
-    #set(clang_san_options -g -fsanitize=memory -fsanitize-memory-track-origins -fsanitize-recover=memory -fPIE -pie -fno-omit-frame-pointer -fsanitize-ignorelist=${CMAKE_SOURCE_DIR}/san_ignore_list.txt)
+
+## ------------------------------------------------------------------------------------
+##                                    Sanitizers
+## ------------------------------------------------------------------------------------
+option(ENABLE_SANITIZERS         "Build with sanitizers enabled"         ${PROJECT_NAME})
+option(ENABLE_ADDRESS_SANITIZER  "Build with address sanitizers enabled" ${PROJECT_NAME})
+
+if (ENABLE_SANITIZERS OR ENABLE_ADDRESS_SANITIZER)
+    if (ENABLE_ADDRESS_SANITIZER)
+        set(clang_san_options -g -fsanitize=address -fno-omit-frame-pointer)
+    else()
+        set(clang_san_options -g -fsanitize=undefined -fno-sanitize-recover=all -fsanitize=float-divide-by-zero
+                                 -fsanitize=float-cast-overflow -fno-sanitize=null -fno-sanitize=alignment -fPIE
+                                 -fno-omit-frame-pointer -fsanitize-ignorelist=${CMAKE_SOURCE_DIR}/san_ignore_list.txt)
+    endif()
+    
+    target_compile_options(luigi PUBLIC ${clang_san_options} )
+    target_link_options(   luigi PUBLIC ${clang_san_options} )
 
     target_compile_options(${PROJECT_NAME} PUBLIC ${clang_san_options} )
     target_link_options(   ${PROJECT_NAME} PUBLIC ${clang_san_options} )
 
-endif (UNIX)
-
-if (MSVC)
-    target_compile_options(${PROJECT_NAME} PRIVATE -DUI_WINDOWS -DUI_SSE2)
-endif (MSVC)
+endif()

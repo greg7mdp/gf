@@ -1,5 +1,13 @@
 #include "luigi.hpp"
 
+#ifdef UI_SSE2
+   #include <xmmintrin.h>
+   #ifdef UI_WINDOWS
+      #include <intrin.h>
+   #endif
+#endif
+
+
 #include <tuple>
 #include <ranges>
 #include <algorithm>
@@ -91,6 +99,82 @@ uint32_t UIElement::state() const {
 // --------------------------------------------------
 // Helper functions.
 // --------------------------------------------------
+#ifdef UI_UNICODE
+
+   #ifndef UI_FREETYPE
+      #error "Unicode support requires Freetype"
+   #endif
+
+int         Utf8GetCodePoint(const char* cString, ptrdiff_t bytesLength, ptrdiff_t* bytesConsumed);
+const char* Utf8GetPreviousChar(const char* string, const char* offset);
+ptrdiff_t   Utf8GetCharBytes(const char* cString, ptrdiff_t bytes);
+ptrdiff_t   Utf8StringLength(const char* cString, ptrdiff_t bytes);
+
+inline constexpr size_t _UNICODE_MAX_CODEPOINT = 0x10FFFF;
+inline constexpr int max_glyphs             = _UNICODE_MAX_CODEPOINT + 1;
+
+inline void _ui_advance_char(size_t& index, const char* text, size_t count) {
+   index += Utf8GetCharBytes(text, count - index);
+}
+
+inline void _ui_skip_tab(int ti, const char* text, int bytesLeft, size_t tabSize) {
+   int c = Utf8GetCodePoint(text, bytesLeft, NULL);
+   if (c == 't')
+      while (ti % tabSize)
+         ++ti;
+}
+
+template <class T>
+inline void _ui_move_caret_backwards(T& caret, const char* text, size_t offset, size_t offset2) {
+   const char* prev = Utf8GetPreviousChar(text, text + offset);
+   caret            = prev - text - offset2;
+}
+
+template <class T>
+inline void _ui_move_caret_forward(T& caret, std::string_view text, size_t offset) {
+   caret += Utf8GetCharBytes(&text[caret], text.size() - offset);
+}
+
+inline bool _ui_move_caret_by_word(std::string_view text, size_t offset) {
+   const char* prev = Utf8GetPreviousChar(&text[0], &text[offset]);
+   int         c1   = Utf8GetCodePoint(prev, text.size() - (prev - &text[0]), NULL);
+   int         c2   = Utf8GetCodePoint(&text[offset], text.size() - offset, NULL);
+   return _UICharIsAlphaOrDigitOrUnderscore(c1) != _UICharIsAlphaOrDigitOrUnderscore(c2);
+}
+
+#else
+
+inline constexpr int max_glyphs = 128;
+
+inline void _ui_advance_char(int& index, const char* text, int count) {
+   ++index;
+}
+
+inline void _ui_skip_tab(int ti, const char* text, int bytesLeft, int tabSize) {
+   if (*(text) == '\t')
+      while (ti % tabSize)
+         ++ti;
+}
+
+template <class T>
+inline void _ui_move_caret_backwards(T& caret, const char* text, size_t offset, size_t offset2) {
+   --caret;
+}
+
+template <class T>
+inline void _ui_move_caret_forward(T& caret, std::string_view text, size_t offset) {
+   ++caret;
+}
+
+inline bool _ui_move_caret_by_word(std::string_view text, size_t offset) {
+   char c1 = (text)[offset - 1];
+   char c2 = (text)[offset];
+   return (_UICharIsAlphaOrDigitOrUnderscore(c1) != _UICharIsAlphaOrDigitOrUnderscore(c2));
+}
+
+#endif // UI_UNICODE
+
+
 UIRectangle fit(const UIRectangle& parent, UIRectangle child, bool allowScalingUp) {
    auto [childWidth, childHeight] = child.dims();
    auto [parentWidth, parentHeight] = parent.dims();

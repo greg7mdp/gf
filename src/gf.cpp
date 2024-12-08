@@ -302,7 +302,7 @@ const char*                executablePath         = nullptr;
 const char*                executableArguments    = nullptr;
 bool                       executableAskDirectory = true;
 vector<ReceiveMessageType> receiveMessageTypes;
-char* layoutString = (char*)"v(75,h(80,Source,v(50,t(Exe,Breakpoints,Commands,Struct),t(Stack,Files,Thread,CmdSearch)))"
+const char* layoutString = "v(75,h(80,Source,v(50,t(Exe,Breakpoints,Commands,Struct),t(Stack,Files,Thread,CmdSearch)))"
                             ",h(65,Console,t(Watch,Locals,Registers,Data)))";
 const char*  fontPath          = nullptr;
 int          fontSizeCode      = 13;
