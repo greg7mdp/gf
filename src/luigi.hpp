@@ -468,10 +468,10 @@ struct UICodeDecorateLine {
    UIPainter*  painter = nullptr;
 };
 
-inline float ui_color_alpha_f(uint32_t x) { return ((x >> 24) & 0xFF) / 255.0f; }
-inline float ui_color_red_f(uint32_t x)   { return ((x >> 16) & 0xFF) / 255.0f; }
-inline float ui_color_green_f(uint32_t x) { return ((x >> 8)  & 0xFF) / 255.0f; }
-inline float ui_color_blue_f(uint32_t x)  { return ((x >> 0)  & 0xFF) / 255.0f; }
+inline float ui_color_alpha_f(uint32_t x) { return static_cast<float>(((x >> 24) & 0xFF)) / 255.0f; }
+inline float ui_color_red_f(uint32_t x)   { return static_cast<float>(((x >> 16) & 0xFF)) / 255.0f; }
+inline float ui_color_green_f(uint32_t x) { return static_cast<float>(((x >> 8)  & 0xFF)) / 255.0f; }
+inline float ui_color_blue_f(uint32_t x)  { return static_cast<float>(((x >> 0)  & 0xFF)) / 255.0f; }
 inline float ui_color_alpha(uint32_t x)   { return static_cast<float>(((x >> 24) & 0xFF)); }
 inline float ui_color_red(uint32_t x)     { return static_cast<float>(((x >> 16) & 0xFF)); }
 inline float ui_color_green(uint32_t x)   { return static_cast<float>(((x >> 8)  & 0xFF)); }
@@ -623,6 +623,8 @@ struct UIElement {
    UIElement*  FindByPoint(int x, int y);
    UIRectangle ScreenBounds();            // Returns bounds of element in same coordinate system as used by UIWindowCreate.
 
+   int scale(auto sz) const;
+   
 private:
    void _DestroyDescendents(bool topLevel);
 };
@@ -690,6 +692,8 @@ struct UIWindow : public UIElement {
    void SetPressed(UIElement* element, int button);
    bool InputEvent(UIMessage message, int di, void* dp);
 };
+
+inline int UIElement::scale(auto sz) const { return (int)((float)sz * window->scale); }
 
 struct UIPanel : public UIElement {
    enum {
