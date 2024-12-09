@@ -1585,8 +1585,9 @@ int _UIWrapPanelMessage(UIElement* element, UIMessage message, int di, void* dp)
          if (rowLimit && rowPosition + width > rowLimit) {
             _UIWrapPanelLayoutRow(panel, rowStart, i, totalHeight, rowHeight);
             totalHeight += rowHeight;
-            rowPosition = rowHeight = 0;
-            rowStart                = i;
+            rowPosition = 0;
+            rowHeight   = 0;
+            rowStart    = i;
          }
 
          if (height > rowHeight) {
@@ -1824,11 +1825,8 @@ int _UISplitterMessage(UIElement* element, UIMessage message, int di, void* dp) 
       int space = (vertical ? splitPane->bounds.height() : splitPane->bounds.width()) - splitterSize;
       float oldWeight = splitPane->weight;
       splitPane->weight =
-         (float)(cursor - splitterSize / 2 - (vertical ? splitPane->bounds.t : splitPane->bounds.l)) / space;
-      if (splitPane->weight < 0.05f)
-         splitPane->weight = 0.05f;
-      if (splitPane->weight > 0.95f)
-         splitPane->weight = 0.95f;
+         (float)(cursor - (float)splitterSize / 2 - (vertical ? splitPane->bounds.t : splitPane->bounds.l)) / space;
+      std::clamp(splitPane->weight, 0.05f, 0.95f);
 
       if (splitPane->children[2]->messageClass == _UISplitPaneMessage &&
           (splitPane->children[2]->flags & UIElement::VERTICAL) == (splitPane->flags & UIElement::VERTICAL)) {
@@ -1836,10 +1834,7 @@ int _UISplitterMessage(UIElement* element, UIMessage message, int di, void* dp) 
          subSplitPane->weight =
             (splitPane->weight - oldWeight - subSplitPane->weight + oldWeight * subSplitPane->weight) /
             (-1 + splitPane->weight);
-         if (subSplitPane->weight < 0.05f)
-            subSplitPane->weight = 0.05f;
-         if (subSplitPane->weight > 0.95f)
-            subSplitPane->weight = 0.95f;
+         std::clamp(subSplitPane->weight, 0.05f, 0.95f);
       }
 
       splitPane->Refresh();
@@ -1867,18 +1862,18 @@ int _UISplitPaneMessage(UIElement* element, UIMessage message, int di, void* dp)
          left->Move(UIRectangle(element->bounds.l, element->bounds.r, element->bounds.t, element->bounds.t + leftSize),
                     false);
          splitter->Move(UIRectangle(element->bounds.l, element->bounds.r, element->bounds.t + leftSize,
-                                  element->bounds.t + leftSize + splitterSize),
+                                    element->bounds.t + leftSize + splitterSize),
                         false);
-         right->Move(UIRectangle(element->bounds.l, element->bounds.r, element->bounds.b - rightSize, element->bounds.b),
-                     false);
+         right->Move(
+            UIRectangle(element->bounds.l, element->bounds.r, element->bounds.b - rightSize, element->bounds.b), false);
       } else {
          left->Move(UIRectangle(element->bounds.l, element->bounds.l + leftSize, element->bounds.t, element->bounds.b),
                     false);
          splitter->Move(UIRectangle(element->bounds.l + leftSize, element->bounds.l + leftSize + splitterSize,
-                                  element->bounds.t, element->bounds.b),
+                                    element->bounds.t, element->bounds.b),
                         false);
-         right->Move(UIRectangle(element->bounds.r - rightSize, element->bounds.r, element->bounds.t, element->bounds.b),
-                     false);
+         right->Move(
+            UIRectangle(element->bounds.r - rightSize, element->bounds.r, element->bounds.t, element->bounds.b), false);
       }
    }
 
