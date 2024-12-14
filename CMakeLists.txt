@@ -73,8 +73,8 @@ endif ()
 ## ------------------------------------------------------------------------------------
 ##                                    Sanitizers
 ## ------------------------------------------------------------------------------------
-option(ENABLE_SANITIZERS         "Build with sanitizers enabled"         ${PROJECT_NAME})
-option(ENABLE_ADDRESS_SANITIZER  "Build with address sanitizers enabled" ${PROJECT_NAME})
+option(ENABLE_SANITIZERS         "Build with sanitizers enabled")
+option(ENABLE_ADDRESS_SANITIZER  "Build with address sanitizers enabled")
 
 if (ENABLE_SANITIZERS OR ENABLE_ADDRESS_SANITIZER)
     if (ENABLE_ADDRESS_SANITIZER)

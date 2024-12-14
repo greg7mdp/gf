@@ -2782,14 +2782,11 @@ void UICodeInsertContent(UICode* code, std::string_view new_content, bool replac
    }
 
    size_t orig_lines = code->lines.size();
-   code->lines.resize(orig_lines + lineCount);
+   code->lines.reserve(orig_lines + lineCount);
 
-   size_t offset = 0, lineIndex = 0;
-
-   for (size_t i = 0; i <= sz && lineIndex < lineCount; i++) {
-      if (new_content[i] == '\n' || i == sz) {
-         code->set_line(orig_lines + lineIndex, orig_size + offset, i - offset);
-         lineIndex++;
+   for (size_t i = 0, offset = 0; i <= sz; ++i) {
+      if (i == sz || new_content[i] == '\n') {
+         code->lines.emplace_back(orig_size + offset, i - offset);
          offset = i + 1;
       }
    }
@@ -3521,7 +3518,7 @@ int _UIMDIChildMessage(UIElement* element, UIMessage message, int di, void* dp) 
 #define _UI_MDI_CHILD_MOVE_EDGE(bit, edge, cursor, size, opposite, negate, minimum, offset)                         \
    if (mdiChild->dragHitTest & bit)                                                                                 \
       mdiChild->bounds.edge = mdiChild->dragOffset.edge + element->window->cursor - element->parent->bounds.offset; \
-   if ((mdiChild->dragHitTest & bit) && mdiChild->bounds.size() < minimum) \
+   if ((mdiChild->dragHitTest & bit) && mdiChild->bounds.size() < minimum)                                          \
       mdiChild->bounds.edge = mdiChild->bounds.opposite negate minimum;
 
          _UI_MDI_CHILD_MOVE_EDGE(0b1000, l, cursor.x, width, r, -, ui_size::MDI_CHILD_MINIMUM_WIDTH, l);
@@ -3532,10 +3529,9 @@ int _UIMDIChildMessage(UIElement* element, UIMessage message, int di, void* dp) 
       }
    } else if (message == UIMessage::DESTROY) {
       UIMDIClient* client = (UIMDIClient*)element->parent;
-
       if (client->active == mdiChild) {
          client->active =
-            (UIMDIChild*)(client->children.size() == 1 ? NULL : client->children[client->children.size() - 2]);
+            (UIMDIChild*)(client->children.size() == 1 ? NULL : client->children[client->children.size() - 2]); // todo: seems wrong
       }
    } else if (message == UIMessage::DEALLOCATE) {
    }
