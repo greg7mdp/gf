@@ -66,7 +66,7 @@ public:
 
    bool pop(std::optional<T>& value) {
       std::unique_lock<std::mutex> lock(mutex_);
-      bool res = cv_.wait_for(lock, std::chrono::seconds(1), [this] { return !queue_.empty() || quit_; });
+      bool res = cv_.wait_for(lock, std::chrono::seconds(15), [this] { return !queue_.empty() || quit_; });
 
       if (!res || quit_) { // !res means we hit the timeout
          value = std::optional<T>{};
@@ -211,11 +211,9 @@ struct INIState {
    size_t valueBytes   = 0;
 };
 
-using str_unique_ptr = std::unique_ptr<char, decltype([](char* s) { free(s); })>;
-
 struct ReceiveMessageType {
-   UIMessage                           message;
-   std::function<void(str_unique_ptr)> callback;
+   UIMessage                        message;
+   std::function<void(std::unique_ptr<std::string>)> callback;
 };
 
 struct WatchWindow;
@@ -240,7 +238,7 @@ struct Context {
    char**            gdbArgv      = nullptr;
    int               gdbArgc      = 0;
    SPSCQueue<std::string> evaluateResultQueue;
-   bool                   programRunning = true; // true
+   std::atomic<bool>      programRunning = true;
 
    std::unordered_map<std::string, InterfaceWindow> interfaceWindows;
    vector<InterfaceCommand>                         interfaceCommands;
@@ -671,7 +669,7 @@ bool SourceFindOuterFunctionCall(char** start, char** end) {
    return found;
 }
 
-UIMessage ReceiveMessageRegister(std::function<void(str_unique_ptr)> callback) {
+UIMessage ReceiveMessageRegister(std::function<void(std::unique_ptr<std::string>)> callback) {
    receiveMessageTypes.push_back({.message = msgReceivedNext, .callback = std::move(callback)});
    msgReceivedNext = (UIMessage)((uint32_t)msgReceivedNext + 1);
    return receiveMessageTypes.back().message;
@@ -759,7 +757,7 @@ void Context::DebuggerThread() {
          // as we receive it, even it it is not complete.
          // ----------------------------------------------------------------------
          if (logWindow && !evaluateMode)
-            UIWindowPostMessage(windowMain, msgReceivedLog, strdup(buffer));
+            UIWindowPostMessage(windowMain, msgReceivedLog, new std::string(buffer));
 
          if (catBuffer.size() + count + 1 > catBuffer.capacity())
             catBuffer.reserve(catBuffer.capacity() * 2);
@@ -767,22 +765,27 @@ void Context::DebuggerThread() {
 
          // wait till we get the prompt again so we know we received the complete output
          // ----------------------------------------------------------------------------
-         if (!catBuffer.contains("(gdb) "))
-            continue;
+         //if (catBuffer.contains("(gdb) ") && !catBuffer.contains("\n(gdb) "))
+         //   print("================ got catBuffer=\"{}\"\n", catBuffer);
 
+         // just checking for `"(gdb) "` fails when I'm debugging `gf` itself, as a string containing `"(gdb) "`
+         // is passed to `MsgReceivedData` sometimes, and therefore appears on the stack trace.
+         // => Be more strict with what markes the end of the debugger output.
+         if (!(catBuffer.contains("\n(gdb) ") || catBuffer.contains(">(gdb) ") || catBuffer == "(gdb) ")) {
+            continue;
+         }
          // print("================ got ({}) catBuffer=\"{}\"\n", evaluateMode, catBuffer);
 
          // Notify the main thread we have data.
          // ------------------------------------
          if (evaluateMode) {
             evaluateResultQueue.push(std::move(catBuffer));
-            catBuffer.clear();
             evaluateMode = false;
          } else {
-            UIWindowPostMessage(windowMain, msgReceivedData, strdup(catBuffer.c_str()));
+            UIWindowPostMessage(windowMain, msgReceivedData, new std::string(std::move(catBuffer)));
          }
 
-         catBuffer.clear();
+         catBuffer = std::string{};
       }
    }
 
@@ -797,19 +800,17 @@ void DebuggerStartThread() {
 // synchronous means we will wait for the debugger output
 std::optional<std::string> DebuggerSend(string_view command, bool echo, bool synchronous) {
    std::optional<std::string> res;
-   if (synchronous) {
-      ctx.InterruptGdb();
+   ctx.InterruptGdb();
+   
+   if (synchronous) 
       ctx.evaluateMode = true;
-   } else if (ctx.programRunning) {
-      ctx.InterruptGdb(0);
-   }
 
    ctx.programRunning = true;
 
    if (trafficLight)
       trafficLight->Repaint(nullptr);
 
-   // std::cout << "sending: " << string << '\n';
+   // std::cout << "sending: \"" << command << "\"\n";
 
    if (echo && displayOutput) {
       UICodeInsertContent(displayOutput, command, false);
@@ -823,10 +824,11 @@ std::optional<std::string> DebuggerSend(string_view command, bool echo, bool syn
       if (!res) {
          print("Hit timeout on command \"{}\"\n", command);
          res = std::string{}; // in synchronous mode we always return a (possibly empty) string
+      } else {
+         ctx.programRunning = false;
+         if (!quit && trafficLight)
+            trafficLight->Repaint(nullptr);
       }
-      ctx.programRunning = false;
-      if (!quit && trafficLight)
-         trafficLight->Repaint(nullptr);
    }
    // print("{} ==> {}\n", command, res ? *res : "???"s);
    return res;
@@ -852,9 +854,10 @@ std::string EvaluateExpression(string_view expression, string_view format = {}) 
 void* ControlPipeThread(void*) {
    while (true) {
       FILE* file = fopen(controlPipePath, "rb");
-      char  input[256];
-      input[fread(input, 1, sizeof(input) - 1, file)] = 0;
-      UIWindowPostMessage(windowMain, msgReceivedControl, strdup(input));
+      auto s = new std::string;
+      s->resize(256);
+      (*s)[fread(s->data(), 1, 255, file)] = 0;
+      UIWindowPostMessage(windowMain, msgReceivedControl, s);
       fclose(file);
    }
 
@@ -3175,7 +3178,8 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
    return;
 }
 
-bool WatchLoggerUpdate(char* data) {
+bool WatchLoggerUpdate(std::string _data) {
+   char *data = &_data[0];
    char* stringWatchpoint = strstr(data, "watchpoint ");
    if (!stringWatchpoint)
       return false;
@@ -4454,10 +4458,12 @@ void* LogWindowThread(void* context) {
          if (length <= 0)
             break;
          input[length] = 0;
-         void* buffer  = malloc(strlen(input) + sizeof(context) + 1);
-         memcpy(buffer, &context, sizeof(context));
-         strcpy((char*)buffer + sizeof(context), input);
-         UIWindowPostMessage(windowMain, msgReceivedLog, buffer);
+
+         std::string *s = new std::string;
+         s->resize(sizeof(context) + length + 1);
+         memcpy(s->data(), &context, sizeof(context));
+         strcpy(s->data() + sizeof(context), input);
+         UIWindowPostMessage(windowMain, msgReceivedLog, s);
       }
    }
 }
@@ -7098,7 +7104,7 @@ bool ElementHidden(UIElement* element) {
    return false;
 }
 
-void MsgReceivedData(str_unique_ptr input) {
+void MsgReceivedData(std::unique_ptr<std::string> input) {
    ctx.programRunning = false;
 
    if (ctx.firstUpdate) {
@@ -7120,13 +7126,17 @@ void MsgReceivedData(str_unique_ptr input) {
       ctx.firstUpdate = false;
    }
 
-   if (WatchLoggerUpdate(input.get()))
+   if (WatchLoggerUpdate(*input))
       return;
    if (showingDisassembly)
       DisassemblyUpdateLine();
 
-   DebuggerGetStack();
-   DebuggerGetBreakpoints();
+   if (!regex::match_stack_or_breakpoint_output(*input)) {
+      // we don't want to call `DebuggerGetBreakpoints()` upon receiving the result of `DebuggerGetBreakpoints()`,
+      // causing an infinite loop!!!
+      DebuggerGetStack();
+      DebuggerGetBreakpoints();
+   }
 
    for (auto& [name, iw] : ctx.interfaceWindows) {
       InterfaceWindow* window = &iw;
@@ -7135,13 +7145,13 @@ void MsgReceivedData(str_unique_ptr input) {
       if (!window->alwaysUpdate && ElementHidden(window->element))
          window->queuedUpdate = true;
       else
-         window->update(input.get(), window->element);
+         window->update(input->c_str(), window->element);
    }
 
    DataViewersUpdateAll();
 
    if (displayOutput) {
-      UICodeInsertContent(displayOutput, input.get(), false);
+      UICodeInsertContent(displayOutput, *input, false);
       displayOutput->Refresh();
    }
 
@@ -7149,9 +7159,9 @@ void MsgReceivedData(str_unique_ptr input) {
       trafficLight->Repaint(nullptr);
 }
 
-void MsgReceivedControl(str_unique_ptr input) {
-   const char* start = input.get();
-   char*       end   = strchr(input.get(), '\n');
+void MsgReceivedControl(std::unique_ptr<std::string> input) {
+   char* start = &(*input)[0];
+   char* end   = strchr(start, '\n');
    if (end)
       *end = 0;
 
@@ -7291,9 +7301,9 @@ void Context::InterfaceAddBuiltinWindowsAndCommands() {
    msgReceivedControl = ReceiveMessageRegister(MsgReceivedControl);
 
    // received buffer contains debugger output to add to log window
-   msgReceivedLog = ReceiveMessageRegister([](str_unique_ptr buffer) {
+   msgReceivedLog = ReceiveMessageRegister([](std::unique_ptr<std::string> buffer) {
       assert(ctx.logWindow);
-      UICodeInsertContent(ctx.logWindow, buffer.get(), false);
+      UICodeInsertContent(ctx.logWindow, *buffer, false);
       ctx.logWindow->Refresh();
    });
 }
@@ -7349,7 +7359,7 @@ int MainWindowMessageProc(UIElement*, UIMessage message, int di, void* dp) {
    } else {
       for (const auto& msgtype : receiveMessageTypes) {
          if (msgtype.message == message) {
-            msgtype.callback(str_unique_ptr((char*)dp));
+            msgtype.callback(std::unique_ptr<std::string>(static_cast<std::string*>(dp)));
             break;
          }
       }

@@ -9,6 +9,11 @@ template <size_t N>
 using fs_t = ctll::fixed_string<N>; // we can use `fs_t` instead of `ctll::fixed_string` only with clang++-19 or g++-11
 
 // --------------------------------------------------------------------------------
+bool regex::match_stack_or_breakpoint_output(std::string_view s) {
+   return static_cast<bool>(ctre::starts_with<"(Num|#[0-9]+)[ ]+">(s));
+}
+
+// --------------------------------------------------------------------------------
 template <ctll::fixed_string... Strings>
 constexpr auto fs_concat() noexcept {
    constexpr std::size_t len = (Strings.size() + ...);
@@ -98,12 +103,26 @@ std::vector<std::string_view> regex::extract_debuggable_expressions(std::string_
 }
 
 #if 0
+// compile with: `cd ../src; g++-12 -std=c++20 -I../deps/include regex.cpp`
+// ------------------------------------------------------------------------
 int main() {
     std::string code = "aa::bb::result = aa::foo::bar(x + y) + a::b::c->x + arr[idx]->member.value * 2;";
-    auto expressions = extract_debuggable_expressions(code);
+    auto expressions = regex::extract_debuggable_expressions(code);
 
     for (const auto& expr : expressions) {
         std::cout << "Debuggable expression: " << expr << '\n';
     }
+
+    std::string input;
+    while (true) {
+        std::cout << "Enter text (or 'quit' to exit): ";
+        getline(std::cin, input);
+        if (input == "quit") 
+            break;
+
+        std::cout << "match: " << regex::match_stack_or_breakpoint_output(input) << '\n';
+    }
+
+    return 0;
 }
 #endif
