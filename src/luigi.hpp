@@ -864,10 +864,10 @@ public:
       selection = {};
    }
 
-   void set_line(size_t idx, size_t offset, size_t bytes) {
+   void emplace_back_line(size_t offset, size_t bytes) {
       if (bytes > columns)
          columns = bytes;
-      lines[idx] = code_line{.offset = offset, .bytes = bytes};
+      lines.emplace_back(offset, bytes);
    }
 };
 

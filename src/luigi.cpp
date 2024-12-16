@@ -2786,7 +2786,7 @@ void UICodeInsertContent(UICode* code, std::string_view new_content, bool replac
 
    for (size_t i = 0, offset = 0; i <= sz; ++i) {
       if (i == sz || new_content[i] == '\n') {
-         code->lines.emplace_back(orig_size + offset, i - offset);
+         code->emplace_back_line(orig_size + offset, i - offset);
          offset = i + 1;
       }
    }
