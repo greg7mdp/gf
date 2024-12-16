@@ -761,10 +761,31 @@ struct UISplitPane : public UIElement {
 };
 
 struct UITabPane : public UIElement {
-   char*     tabs;
-   uint32_t  active;
+private:
+   std::string tabs;
+   uint32_t    active;
 
+public:
    UITabPane(UIElement* parent, uint32_t flags,  const char* tabs);
+
+   void     set_active(uint32_t idx) { active = idx; }
+   uint32_t get_active() const { return active; }
+
+   template <class F>
+   void for_each_tab(F&& f) {
+      uint32_t position = 0;
+      uint32_t index    = 0;
+      while (true) {
+         uint32_t end = position;
+         for (; tabs[end] != '\t' && tabs[end]; end++)
+            ;
+         std::string_view tab_text{&tabs[0] + position, end - position};
+         if (!std::forward<F>(f)(tab_text, index, active == index) || tabs[end] == 0)
+            break;
+         position = end + 1;
+         index++;
+      }
+   }
 };
 
 struct UIScrollBar : public UIElement {

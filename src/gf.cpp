@@ -7332,7 +7332,7 @@ UIElement* Context::InterfaceWindowSwitchToAndFocus(string_view target_name) {
 
          for (uint32_t i = 0; i < tabPane->children.size(); i++) {
             if (tabPane->children[i] == w.element) {
-               tabPane->active = i;
+               tabPane->set_active(i);
                break;
             }
          }

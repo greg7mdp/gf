@@ -1907,62 +1907,31 @@ int _UITabPaneMessage(UIElement* element, UIMessage message, int di, void* dp) {
       tab.l += element->scale(ui_size::TAB_PANE_SPACE_LEFT);
       tab.t += element->scale(ui_size::TAB_PANE_SPACE_TOP);
 
-      int      position = 0;
-      uint32_t index    = 0;
-
-      while (true) {
-         int end = position;
-         for (; tabPane->tabs[end] != '\t' && tabPane->tabs[end]; end++)
-            ;
-
-         int width = UIMeasureStringWidth({tabPane->tabs, static_cast<size_t>(end - position)});
-         tab.r     = tab.l + width + ui_size::BUTTON_PADDING;
-
-         UIDrawControl(painter, tab,
-                       UI_DRAW_CONTROL_TAB | (tabPane->active == index ? UI_DRAW_CONTROL_STATE_SELECTED : 0),
-                       {tabPane->tabs + position, static_cast<size_t>(end - position)}, 0, element->window->scale);
+      tabPane->for_each_tab([&](std::string_view tab_text, uint32_t index, bool active) {
+         tab.r = tab.l + UIMeasureStringWidth(tab_text) + ui_size::BUTTON_PADDING;
+         UIDrawControl(painter, tab, UI_DRAW_CONTROL_TAB | (active ? UI_DRAW_CONTROL_STATE_SELECTED : 0), tab_text, 0,
+                       element->window->scale);
          tab.l = tab.r - 1;
+         return true;
+      });
 
-         if (tabPane->tabs[end] == '\t') {
-            position = end + 1;
-            index++;
-         } else {
-            break;
-         }
-      }
    } else if (message == UIMessage::LEFT_DOWN) {
       UIRectangle tab = element->bounds;
       tab.b           = tab.t + element->scale(ui_size::BUTTON_HEIGHT);
       tab.l += element->scale(ui_size::TAB_PANE_SPACE_LEFT);
       tab.t += element->scale(ui_size::TAB_PANE_SPACE_TOP);
 
-      int position = 0;
-      int index    = 0;
-
-      while (true) {
-         int end = position;
-         for (; tabPane->tabs[end] != '\t' && tabPane->tabs[end]; end++)
-            ;
-
-         int width = UIMeasureStringWidth({tabPane->tabs, static_cast<size_t>(end - position)});
-         tab.r     = tab.l + width + ui_size::BUTTON_PADDING;
-
+      tabPane->for_each_tab([&](std::string_view tab_text, uint32_t index, bool active) {
+         tab.r = tab.l + UIMeasureStringWidth(tab_text) + ui_size::BUTTON_PADDING;
          if (tab.contains(element->window->cursor)) {
-            tabPane->active = index;
+            tabPane->set_active(index);
             element->Relayout();
             element->Repaint(NULL);
-            break;
+            return false;;
          }
-
          tab.l = tab.r - 1;
-
-         if (tabPane->tabs[end] == '\t') {
-            position = end + 1;
-            index++;
-         } else {
-            break;
-         }
-      }
+         return true;
+      });
    } else if (message == UIMessage::LAYOUT) {
       UIRectangle content = element->bounds;
       content.t += element->scale(ui_size::BUTTON_HEIGHT);
@@ -1970,7 +1939,7 @@ int _UITabPaneMessage(UIElement* element, UIMessage message, int di, void* dp) {
       for (uint32_t index = 0; index < element->children.size(); index++) {
          UIElement* child = element->children[index];
 
-         if (tabPane->active == index) {
+         if (tabPane->get_active() == index) {
             child->flags &= ~UIElement::HIDE;
             child->Move(content, false);
             child->Message(UIMessage::TAB_SELECTED, 0, 0);
@@ -1984,12 +1953,11 @@ int _UITabPaneMessage(UIElement* element, UIMessage message, int di, void* dp) {
       for (uint32_t index = 0; index < element->children.size(); index++) {
          UIElement* child = element->children[index];
 
-         if (tabPane->active == index) {
+         if (tabPane->get_active() == index) {
             return baseHeight + child->Message(UIMessage::GET_HEIGHT, di, dp);
          }
       }
    } else if (message == UIMessage::DEALLOCATE) {
-      UI_FREE(tabPane->tabs);
    }
 
    return 0;
@@ -1997,7 +1965,7 @@ int _UITabPaneMessage(UIElement* element, UIMessage message, int di, void* dp) {
 
 UITabPane::UITabPane(UIElement* parent, uint32_t flags, const char* tabs)
    : UIElement(parent, flags, _UITabPaneMessage, "Tab Pane")
-   , tabs(UIStringCopy(tabs, -1))
+   , tabs(tabs)
    , active(0) {}
 
 UITabPane* UITabPaneCreate(UIElement* parent, uint32_t flags, const char* tabs) {
