@@ -484,27 +484,23 @@ inline uint64_t Hash(const uint8_t* key, size_t keyBytes) {
    return hash;
 }
 
-vector<char> LoadFile(const char* path, size_t* _bytes) {
+std::string LoadFile(const char* path) {
    FILE* f = fopen(path, "rb");
-
-   if (!f) {
-      if (_bytes)
-         *_bytes = 0;
-      return vector<char>{'\0'};
-   }
+   if (!f)
+      return {};
 
    fseek(f, 0, SEEK_END);
    size_t bytes = ftell(f);
    fseek(f, 0, SEEK_SET);
-   vector<char> buffer(bytes + 1);
+   std::string s;
+   s.resize_and_overwrite(bytes + 1, [](char*, size_t sz) { return sz; });
 
-   buffer[bytes] = 0;
-   fread(buffer.data(), 1, bytes, f);
+   fread(s.data(), 1, bytes, f);
+   s[bytes] = 0;        // make sure it is null terminated
+   s.resize(bytes);     // return a string of the correct size
    fclose(f);
-   if (_bytes)
-      *_bytes = bytes;
 
-   return buffer;
+   return s;
 }
 
 #define INI_READ(destination, counter, c1, c2)              \
@@ -1284,13 +1280,16 @@ void CommandCustom(string_view command) {
 
       if (displayOutput)
          UICodeInsertContent(displayOutput, std::format("Running shell command \"{}\"...\n", command), false);
-      int          start  = time(nullptr);
-      int          result = system(std::format("{} > .output.gf 2>&1", command).c_str());
-      size_t       bytes  = 0;
-      vector<char> output = LoadFile(".output.gf", &bytes);
+      int         start  = time(nullptr);
+      int         result = system(std::format("{} > .output.gf 2>&1", command).c_str());
+      std::string output = LoadFile(".output.gf");
+      size_t      bytes  = output.size();
       unlink(".output.gf");
-      vector<char> copy(bytes + 1);
-      uintptr_t    j = 0;
+      
+      std::string copy;
+      copy.resize_and_overwrite(output.size() + 1, [](char*, size_t sz) { return sz; });
+
+      uintptr_t j = 0;
 
       for (size_t i = 0; i <= bytes;) {
          if ((uint8_t)output[i] == 0xE2 && (uint8_t)output[i + 1] == 0x80 &&
@@ -1325,8 +1324,8 @@ const char* themeItems[] = {
 };
 
 void SettingsAddTrustedFolder() {
-   vector<char> config           = LoadFile(globalConfigPath, nullptr);
-   size_t       length           = strlen(config.data());
+   std::string  config           = LoadFile(globalConfigPath);
+   size_t       length           = strlen(config.c_str()); // should be equal to config.size() if file doesn't contain zeros
    size_t       insert           = 0;
    const char*  sectionString    = "\n[trusted_folders]\n";
    bool         addSectionString = true;
@@ -1366,8 +1365,9 @@ void Context::SettingsLoad(bool earlyPass) {
 
    for (int i = 0; i < 2; i++) {
       INIState state;
-      auto     config_vec = LoadFile(i ? localConfigPath : globalConfigPath, &state.bytes);
-      state.buffer        = config_vec[0] ? strdup(config_vec.data()) : nullptr;
+      auto     config = LoadFile(i ? localConfigPath : globalConfigPath);
+      state.bytes     = config.size();
+      state.buffer    = config[0] ? strdup(config.c_str()) : nullptr;
 
       if (earlyPass && i && !currentFolderIsTrusted && state.buffer) {
          print(std::cerr, "Would you like to load the config file .project.gf from your current directory?\n");
@@ -1646,14 +1646,13 @@ bool DisplaySetPosition(const char* file, int line, bool useGDBToGetFullPath) {
 
       XStoreName(ui->display, windowMain->xwindow, currentFileFull);
 
-      size_t       bytes;
-      vector<char> buffer2 = LoadFile(file, &bytes);
+      std::string buff = LoadFile(file);
 
-      if (!bytes) {
+      if (buff.empty()) {
          UICodeInsertContent(displayCode,
                              std::format("The file '{}' (from '{}') could not be loaded.", file, originalFile), true);
       } else {
-         UICodeInsertContent(displayCode, {buffer2.data(), bytes}, true);
+         UICodeInsertContent(displayCode, buff, true);
       }
 
       changed            = true;
@@ -7112,8 +7111,8 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
 
       char path[PATH_MAX];
       std_format_to_n(path, sizeof(path), "{}/.config/gf2_watch.txt", getenv("HOME"));
-      vector<char> data_vec = LoadFile(path, NULL);
-      const char*  data     = data_vec.data();
+      std::string s    = LoadFile(path);
+      const char* data = s.c_str();
 
       while (data && restoreWatchWindow) {
          const char* end = strchr(data, '\n');
