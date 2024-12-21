@@ -87,6 +87,28 @@ UITheme uiThemeDark = {
    .accent2 = 0x45F94E,
 };
 
+// ---------------------------------------------------------------------------------------------
+//                              Utilities
+// ---------------------------------------------------------------------------------------------
+std::string LoadFile(const char* path) {
+   FILE* f = fopen(path, "rb");
+   if (!f)
+      return {};
+
+   fseek(f, 0, SEEK_END);
+   size_t bytes = ftell(f);
+   fseek(f, 0, SEEK_SET);
+   std::string s;
+   s.resize_and_overwrite(bytes + 1, [](char*, size_t sz) { return sz; });
+
+   fread(s.data(), 1, bytes, f);
+   s[bytes] = 0;        // make sure it is null terminated
+   s.resize(bytes);     // return a string of the correct size
+   fclose(f);
+
+   return s;
+}
+
 // --------------------------------------------------
 // Member functions.
 // --------------------------------------------------
@@ -310,7 +332,7 @@ char* UIStringCopy(const char* in, ptrdiff_t inBytes) {
       inBytes = _UIStringLength(in);
    }
 
-   char* buffer = (char*)UI_MALLOC(inBytes + 1);
+   char* buffer = (char*)malloc(inBytes + 1);
 
    for (intptr_t i = 0; i < inBytes; i++) {
       buffer[i] = in[i];
@@ -2720,51 +2742,51 @@ void UICodeFocusLine(UICode* code, int index) {
    code->Refresh();
 }
 
-void UICodeInsertContent(UICode* code, std::string_view new_content, bool replace) {
+void UICode::insert_content(std::string_view new_content, bool replace) {
    constexpr size_t max_size = 1000000000;
    if (new_content.size() > max_size)
       new_content = new_content.substr(0, max_size);
    
-   code->useVerticalMotionColumn = false;
+   useVerticalMotionColumn = false;
 
-   UIFont* previousFont = UIFontActivate(code->font);
+   UIFont* previousFont = UIFontActivate(font);
 
    if (replace) 
-      code->clear();
+      clear();
 
    if (new_content.empty())
       return;
 
    size_t sz        = new_content.size();
-   size_t orig_size = code->content.size();
+   size_t orig_size = content.size();
 
-   code->content.resize(orig_size + sz);
+   content.resize(orig_size + sz);
 
    size_t lineCount = new_content.back() != '\n';
 
    for (size_t i = 0; i < sz; ++i) {
-      code->content[orig_size + i] = new_content[i];
+      content[orig_size + i] = new_content[i];
       
       if (new_content[i] == '\n')
          lineCount++;
    }
 
-   size_t orig_lines = code->lines.size();
-   code->lines.reserve(orig_lines + lineCount);
+   size_t orig_lines = lines.size();
+   lines.reserve(orig_lines + lineCount);
 
    for (size_t i = 0, offset = 0; i <= sz; ++i) {
       if (i == sz || new_content[i] == '\n') {
-         code->emplace_back_line(orig_size + offset, i - offset);
+         emplace_back_line(orig_size + offset, i - offset);
          offset = i + 1;
       }
    }
 
    if (!replace) {
-      code->vScroll->position = code->lines.size() * UIMeasureStringHeight();
+      vScroll->position = lines.size() * UIMeasureStringHeight();
    }
 
    UIFontActivate(previousFont);
-   code->Repaint(NULL);
+   Repaint(NULL);
 }
 
 UICode::UICode(UIElement* parent, uint32_t flags) :
@@ -3625,7 +3647,7 @@ int _UIImageDisplayMessage(UIElement* element, UIMessage message, int di, void* 
    } else if (message == UIMessage::GET_WIDTH) {
       return display->width;
    } else if (message == UIMessage::DEALLOCATE) {
-      UI_FREE(display->bits);
+      free(display->bits);
    } else if (message == UIMessage::PAINT) {
       UIPainter* painter = (UIPainter*)dp;
 
@@ -3713,9 +3735,9 @@ int _UIImageDisplayMessage(UIElement* element, UIMessage message, int di, void* 
 }
 
 void UIImageDisplaySetContent(UIImageDisplay* display, uint32_t* bits, size_t width, size_t height, size_t stride) {
-   UI_FREE(display->bits);
+   free(display->bits);
 
-   display->bits   = (uint32_t*)UI_MALLOC(width * height * 4);
+   display->bits   = (uint32_t*)malloc(width * height * 4);
    display->width  = width;
    display->height = height;
 
@@ -3852,12 +3874,11 @@ int _UIDialogTextboxMessage(UIElement* element, UIMessage message, int di, void*
    if (message == UIMessage::VALUE_CHANGED) {
       auto sz = text.size();
       char** buffer             = (char**)element->cp;
-      *buffer                   = (char*)UI_REALLOC(*buffer, sz + 1);
-      (*buffer)[sz] = 0;
+      *buffer                   = (char*)realloc(*buffer, sz + 1); // update user pointer to hold the textbox text
 
-      for (size_t i = 0; i < sz; i++) {
+      for (size_t i = 0; i < sz; i++)
          (*buffer)[i] = text[i];
-      }
+      (*buffer)[sz] = 0;
    } else if (message == UIMessage::UPDATE && di == UIUpdate::FOCUSED && element->window->focused == element) {
       textbox->carets[1] = 0;
       textbox->carets[0] = text.size();
@@ -3920,7 +3941,7 @@ const char* UIDialogShow(UIWindow* window, uint32_t flags, const char* format, .
                focus = textbox;
             if (*buffer)
                UITextboxReplace(textbox, *buffer, false);
-            textbox->cp          = buffer;
+            textbox->cp          = buffer; // when the textbox text is updated, `*buffer` will contain a `char*` to the string
             textbox->messageUser = _UIDialogTextboxMessage;
          } else if (format[i] == 'f' /* horizontal fill */) {
             UISpacerCreate(row, UIElement::H_FILL, 0, 0);
@@ -4610,7 +4631,7 @@ UIFont* UIFontCreate(const char* cPath, uint32_t size) {
          font->glyphHeight = (font->font->size->metrics.ascender - font->font->size->metrics.descender) / 64;
          font->isFreeType  = true;
       } else {
-         printf("Cannot load font %s : %d\n", cPath, ret);
+         std_print("Cannot load font {} : {}\n", cPath, ret);
          return nullptr;
       }
    }
@@ -4641,16 +4662,6 @@ UIFont::~UIFont() {
 // --------------------------------------------------
 
 #ifdef UI_DEBUG
-
-void UIInspectorLog(const char* cFormat, ...) {
-   va_list arguments;
-   va_start(arguments, cFormat);
-   char buffer[4096];
-   vsnprintf(buffer, sizeof(buffer), cFormat, arguments);
-   UICodeInsertContent(ui->inspectorLog, buffer, false);
-   va_end(arguments);
-   &ui->inspectorLog->e->Refresh();
-}
 
 UIElement* _UIInspectorFindNthElement(UIElement* element, int* index, int* depth) {
    if (*index == 0) {
@@ -5389,7 +5400,7 @@ bool _UIProcessEvent(XEvent* event) {
          char   text[32];
          KeySym symbol = NoSymbol;
          Status status;
-         // printf("%ld, %s\n", symbol, text);
+         // std_print("{}, {}\n", symbol, text);
          UIKeyTyped m;
          auto       sz = Xutf8LookupString(window->xic, &event->xkey, text, sizeof(text) - 1, &symbol, &status);
          m.text        = {text, static_cast<size_t>(sz)};
@@ -5521,7 +5532,7 @@ bool _UIProcessEvent(XEvent* event) {
 
       if (format == 8 /* bits per character */) {
          if (event->xselection.target == ui->uriListID) {
-            char* copy      = (char*)UI_MALLOC(count);
+            char* copy      = (char*)malloc(count);
             int   fileCount = 0;
 
             for (int i = 0; i < (int)count; i++) {
@@ -5532,7 +5543,7 @@ bool _UIProcessEvent(XEvent* event) {
                }
             }
 
-            char** files = (char**)UI_MALLOC(sizeof(char*) * fileCount);
+            char** files = (char**)malloc(sizeof(char*) * fileCount);
             fileCount    = 0;
 
             for (int i = 0; i < (int)count; i++) {
@@ -5560,8 +5571,8 @@ bool _UIProcessEvent(XEvent* event) {
 
             window->Message(UIMessage::WINDOW_DROP_FILES, fileCount, files);
 
-            UI_FREE(files);
-            UI_FREE(copy);
+            free(files);
+            free(copy);
          } else if (event->xselection.target == ui->plainTextID) {
             // TODO.
          }
@@ -5829,19 +5840,19 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPAR
    } else if (message == WM_DROPFILES) {
       HDROP  drop  = (HDROP)wParam;
       int    count = DragQueryFile(drop, 0xFFFFFFFF, NULL, 0);
-      char** files = (char**)UI_MALLOC(sizeof(char*) * count);
+      char** files = (char**)malloc(sizeof(char*) * count);
 
       for (int i = 0; i < count; i++) {
          int length       = DragQueryFile(drop, i, NULL, 0);
-         files[i]         = (char*)UI_MALLOC(length + 1);
+         files[i]         = (char*)malloc(length + 1);
          files[i][length] = 0;
          DragQueryFile(drop, i, files[i], length + 1);
       }
 
       window->Message(UIMessage::WINDOW_DROP_FILES, count, files);
       for (int i = 0; i < count; i++)
-         UI_FREE(files[i]);
-      UI_FREE(files);
+         free(files[i]);
+      free(files);
       DragFinish(drop);
       _UIUpdate();
    } else if (message == WM_APP + 1) {
@@ -5985,23 +5996,6 @@ void UIWindow::GetScreenPosition(int* _x, int* _y) {
 
 void UIWindowPostMessage(UIWindow* window, UIMessage message, void* _dp) {
    PostMessage(window->hwnd, WM_APP + 1, (WPARAM)message, (LPARAM)_dp);
-}
-
-void* _UIHeapReAlloc(void* pointer, size_t size) {
-   if (pointer) {
-      if (size) {
-         return HeapReAlloc(ui->heap, 0, pointer, size);
-      } else {
-         UI_FREE(pointer);
-         return NULL;
-      }
-   } else {
-      if (size) {
-         return UI_MALLOC(size);
-      } else {
-         return NULL;
-      }
-   }
 }
 
 void _UIClipboardWriteText(UIWindow* window, std::string text, sel_target_t) {

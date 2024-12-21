@@ -176,11 +176,7 @@ int main(int argc, char** argv) {
    {
       // Top-Right pane.
       UICode*               code = UICodeCreate(uisplit_top_leftright, 0);
-      std::unique_ptr<char[]> buffer(new char[262144]);
-      FILE*                 f    = fopen("../src/luigi.hpp", "rb");
-      size_t                size = fread(buffer.get(), 1, 262144, f);
-      fclose(f);
-      UICodeInsertContent(code, {buffer.get(), size}, true);
+      code->load_file("../src/luigi.hpp");
       UICodeFocusLine(code, 0);
    }
 

@@ -52,10 +52,6 @@ using std::make_shared;
             ExitProcess(1);                                                              \
          }                                                                               \
       } while (0)
-   #define UI_CALLOC(x) HeapAlloc(ui->heap, HEAP_ZERO_MEMORY, (x))
-   #define UI_FREE(x) HeapFree(ui->heap, 0, (x))
-   #define UI_MALLOC(x) HeapAlloc(ui->heap, 0, (x))
-   #define UI_REALLOC _UIHeapReAlloc
    #define UI_CLOCK GetTickCount
    #define UI_CLOCKS_PER_SECOND (1000)
    #define UI_CLOCK_T DWORD
@@ -66,17 +62,9 @@ using std::make_shared;
    #include <cmath>
 
    #define UI_ASSERT assert
-   #define UI_CALLOC(x) calloc(1, (x))
-   #define UI_FREE free
-   #define UI_MALLOC malloc
-   #define UI_REALLOC realloc
    #define UI_CLOCK _UIClock
    #define UI_CLOCKS_PER_SECOND 1000
    #define UI_CLOCK_T clock_t
-#endif
-
-#ifdef UI_DEBUG
-   #include <stdio.h>
 #endif
 
 #ifdef DMALLOC
@@ -144,8 +132,8 @@ enum class UIKeycode : int {
 #endif
 
 inline UIKeycode UI_KEYCODE_LETTER(char x) { return (UIKeycode)((int)UIKeycode::A + (x - 'A')); }
-inline UIKeycode UI_KEYCODE_DIGIT(char x) { return (UIKeycode)((int)UIKeycode::ZERO + (x - '0')); }
-inline UIKeycode UI_KEYCODE_FKEY(char x) { return (UIKeycode)((int)UIKeycode::F1 + (x - 1)); }
+inline UIKeycode UI_KEYCODE_DIGIT(char x)  { return (UIKeycode)((int)UIKeycode::ZERO + (x - '0')); }
+inline UIKeycode UI_KEYCODE_FKEY(char x)   { return (UIKeycode)((int)UIKeycode::F1 + (x - 1)); }
 
 // ---------------------------------------------------------------------------------------------
 //                              Utilities
@@ -166,6 +154,8 @@ void std_print(std::format_string<Args...> fmt, Args&&... args ) {
    std::ostreambuf_iterator<char> out(std::cout);
    std::format_to(out, fmt, std::forward<Args>(args)...);
 }
+
+std::string LoadFile(const char* path); // load whole file into string
 
 // --------------------------------------------------
 // Definitions.
@@ -890,6 +880,16 @@ public:
          columns = bytes;
       lines.emplace_back(offset, bytes);
    }
+
+   void insert_content(std::string_view new_content, bool replace);
+
+   void load_file(const char* path, std::optional<std::string_view> err = {}) {
+      std::string buff = LoadFile(path);
+      if (buff.empty())
+         insert_content(err ? *err : std::format("The file '{}' could not be loaded.", path), true);
+      else
+         insert_content(buff, true);
+   }
 };
 
 struct UIGauge : public UIElement {
@@ -1072,7 +1072,6 @@ UICode* UICodeCreate(UIElement* parent, uint32_t flags);
 void    UICodeFocusLine(UICode* code, int index); // Line numbers are 1-indexed!!
 int UICodeHitTest(UICode* code, int x, int y); // Returns line number; negates if in margin. Returns 0 if not on a line.
 void UICodePositionToByte(UICode* code, int x, int y, int* line, int* byte);
-void UICodeInsertContent(UICode* code, std::string_view content, bool replace);
 void UICodeMoveCaret(UICode* code, bool backward, bool word);
 
 void UIDrawBlock(UIPainter* painter, UIRectangle rectangle, uint32_t color);
@@ -1117,7 +1116,13 @@ UIFont* UIFontCreate(const char* cPath, uint32_t size);
 UIFont* UIFontActivate(UIFont* font); // Returns the previously active font.
 
 #ifdef UI_DEBUG
-void UIInspectorLog(const char* cFormat, ...);
+template< class... Args >
+void UIInspectorLog(std::format_string<Args...> fmt, Args&&... args ) {
+   char buffer[4096];
+   std_format_to_n(buffer, sizeof(buffer), fmt, std::forward<Args>(args)...);
+   ui->inspectorLog->insert_content(buffer, false);
+   &ui->inspectorLog->e->Refresh();
+}
 #endif
 
 inline bool _UICharIsDigit(int c) {
