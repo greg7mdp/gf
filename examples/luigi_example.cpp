@@ -121,6 +121,9 @@ int main(int argc, char** argv) {
    UIConfig cfg;
    auto     ui = UIInitialise(cfg);
 
+   if (!ui)
+      return 1;
+
    std::string home = getenv("HOME");
    std::string fontPath = home + "/fonts/FiraCode-Regular.ttf";
    auto fontCode = UIFontCreate(fontPath.c_str(), 12);

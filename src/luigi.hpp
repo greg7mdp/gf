@@ -1163,16 +1163,16 @@ struct UI {
 #ifdef UI_LINUX
    using cursors_t   = std::array<Cursor, (uint32_t)UICursor::count>;
 
-   Display*  display = nullptr;
-   Visual*   visual  = nullptr;
-   XIM       xim     = nullptr;
-   Atom      windowClosedID = 0, primaryID = 0, uriListID = 0, plainTextID = 0;
-   Atom      dndEnterID = 0, dndPositionID = 0, dndStatusID = 0, dndActionCopyID = 0;
-   Atom      dndDropID = 0, dndSelectionID = 0, dndFinishedID = 0, dndAwareID = 0;
-   Atom      clipboardID = 0, xSelectionDataID = 0, textID = 0, targetID = 0, incrID = 0;
-   cursors_t cursors{};
-   std::string  pasteText;
-   XEvent    copyEvent;
+   Display*    display        = nullptr;
+   Visual*     visual         = nullptr;
+   XIM         xim            = nullptr;
+   Atom        windowClosedID = 0, primaryID = 0, uriListID = 0, plainTextID = 0;
+   Atom        dndEnterID = 0, dndPositionID = 0, dndStatusID = 0, dndActionCopyID = 0;
+   Atom        dndDropID = 0, dndSelectionID = 0, dndFinishedID = 0, dndAwareID = 0;
+   Atom        clipboardID = 0, xSelectionDataID = 0, textID = 0, targetID = 0, incrID = 0;
+   cursors_t   cursors{};
+   std::string pasteText;
+   XEvent      copyEvent;
 #endif
 
 #ifdef UI_WINDOWS
