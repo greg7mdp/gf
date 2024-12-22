@@ -861,19 +861,19 @@ public:
 
    UICode(UIElement* parent, uint32_t flags);
 
+   void clear();
+
+   void insert_content(std::string_view new_content, bool replace);
+
+   void load_file(const char* path, std::optional<std::string_view> err = {});
+
    std::string_view line(size_t line) const {
-      return std::string_view{&content[lines[line].offset], lines[line].bytes};
+      const auto& l = lines[line];
+      return std::string_view{&content[l.offset], l.bytes};
    }
    
    size_t num_lines() const { return lines.size(); }
    size_t size() const { return content.size(); }
-
-   void clear() {
-      content.clear();
-      lines.clear();
-      columns   = 0;
-      selection = {};
-   }
 
    void emplace_back_line(size_t offset, size_t bytes) {
       if (bytes > columns)
@@ -881,15 +881,10 @@ public:
       lines.emplace_back(offset, bytes);
    }
 
-   void insert_content(std::string_view new_content, bool replace);
-
-   void load_file(const char* path, std::optional<std::string_view> err = {}) {
-      std::string buff = LoadFile(path);
-      if (buff.empty())
-         insert_content(err ? *err : std::format("The file '{}' could not be loaded.", path), true);
-      else
-         insert_content(buff, true);
-   }
+   void move_caret(bool backward, bool word);
+   void focus_line(int index); // Line numbers are 1-indexed!!
+   void position_to_byte(int x, int y, size_t* line, size_t* byte);
+   int  hittest(int x, int y);
 };
 
 struct UIGauge : public UIElement {
@@ -1069,10 +1064,6 @@ bool     UITableEnsureVisible(UITable* table, int index);    // Returns false if
 void     UITableResizeColumns(UITable* table);
 
 UICode* UICodeCreate(UIElement* parent, uint32_t flags);
-void    UICodeFocusLine(UICode* code, int index); // Line numbers are 1-indexed!!
-int UICodeHitTest(UICode* code, int x, int y); // Returns line number; negates if in margin. Returns 0 if not on a line.
-void UICodePositionToByte(UICode* code, int x, int y, int* line, int* byte);
-void UICodeMoveCaret(UICode* code, bool backward, bool word);
 
 void UIDrawBlock(UIPainter* painter, UIRectangle rectangle, uint32_t color);
 void UIDrawCircle(UIPainter* painter, int centerX, int centerY, int radius, uint32_t fillColor, uint32_t outlineColor,

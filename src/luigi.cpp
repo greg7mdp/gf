@@ -2203,35 +2203,50 @@ int _UICodeByteToColumn(UICode* code, int line, int byte) {
    return _UIByteToColumn(code->line(line), byte, code->tabSize);
 }
 
-void UICodePositionToByte(UICode* code, int x, int y, size_t* line, size_t* byte) {
-   UIFont* previousFont = UIFontActivate(code->font);
-   int     lineHeight   = UIMeasureStringHeight();
-   *line                = (size_t)std::max(0., (y - code->bounds.t + code->vScroll->position) / lineHeight);
-   if (*line >= code->num_lines())
-      *line = code->num_lines() - 1;
-   int column =
-      (x - code->bounds.l + code->hScroll->position + ui->activeFont->glyphWidth / 2) / ui->activeFont->glyphWidth;
-   if (~code->flags & UICode::NO_MARGIN)
-      column -= (ui->code_margin() + ui->code_margin_gap()) / ui->activeFont->glyphWidth;
-   UIFontActivate(previousFont);
-   *byte = _UICodeColumnToByte(code, *line, column);
+void UICode::clear() {
+   content.clear();
+   lines.clear();
+   columns   = 0;
+   selection = {};
 }
 
-int UICodeHitTest(UICode* code, int x, int y) {
-   x -= code->bounds.l;
+void UICode::load_file(const char* path, std::optional<std::string_view> err /* = {} */) {
+   std::string buff = LoadFile(path);
+   if (buff.empty())
+      insert_content(err ? *err : std::format("The file '{}' could not be loaded.", path), true);
+   else
+      insert_content(buff, true);
+}
 
-   if (x < 0 || x >= code->vScroll->bounds.l) {
+void UICode::position_to_byte(int x, int y, size_t* line, size_t* byte) {
+   UIFont* previousFont = UIFontActivate(font);
+   int     lineHeight   = UIMeasureStringHeight();
+   *line                = (size_t)std::max(0., (y - bounds.t + vScroll->position) / lineHeight);
+   if (*line >= num_lines())
+      *line = num_lines() - 1;
+   int column =
+      (x - bounds.l + hScroll->position + ui->activeFont->glyphWidth / 2) / ui->activeFont->glyphWidth;
+   if (~flags & UICode::NO_MARGIN)
+      column -= (ui->code_margin() + ui->code_margin_gap()) / ui->activeFont->glyphWidth;
+   UIFontActivate(previousFont);
+   *byte = _UICodeColumnToByte(this, *line, column);
+}
+
+int UICode::hittest(int x, int y) {
+   x -= bounds.l;
+
+   if (x < 0 || x >= vScroll->bounds.l) {
       return 0;
    }
 
-   y -= code->bounds.t - code->vScroll->position;
+   y -= bounds.t - vScroll->position;
 
-   UIFont* previousFont = UIFontActivate(code->font);
+   UIFont* previousFont = UIFontActivate(font);
    int     lineHeight   = UIMeasureStringHeight();
-   bool    inMargin     = x < ui->code_margin() + ui->code_margin_gap() / 2 && (~code->flags & UICode::NO_MARGIN);
+   bool    inMargin     = x < ui->code_margin() + ui->code_margin_gap() / 2 && (~flags & UICode::NO_MARGIN);
    UIFontActivate(previousFont);
 
-   if (y < 0 || y >= lineHeight * (int)code->num_lines()) {
+   if (y < 0 || y >= lineHeight * (int)num_lines()) {
       return 0;
    }
 
@@ -2528,7 +2543,7 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
    } else if (message == UIMessage::MOUSE_WHEEL) {
       return code->vScroll->Message(message, di, dp);
    } else if (message == UIMessage::GET_CURSOR) {
-      if (UICodeHitTest(code, element->window->cursor.x, element->window->cursor.y) < 0) {
+      if (code->hittest(element->window->cursor.x, element->window->cursor.y) < 0) {
          return (int)UICursor::flipped_arrow;
       }
 
@@ -2538,12 +2553,12 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
    } else if (message == UIMessage::LEFT_UP) {
       element->Animate(true);
    } else if (message == UIMessage::LEFT_DOWN && code->num_lines()) {
-      int hitTest            = UICodeHitTest(code, element->window->cursor.x, element->window->cursor.y);
+      int hitTest            = code->hittest(element->window->cursor.x, element->window->cursor.y);
       code->leftDownInMargin = hitTest < 0;
 
       if (hitTest > 0 && (element->flags & UICode::SELECTABLE)) {
-         UICodePositionToByte(code, element->window->cursor.x, element->window->cursor.y, &code->selection[2].line,
-                              &code->selection[2].offset);
+         code->position_to_byte(element->window->cursor.x, element->window->cursor.y, &code->selection[2].line,
+                                &code->selection[2].offset);
          _UICodeMessage(element, UIMessage::MOUSE_DRAG, di, dp);
          element->Focus();
          element->Animate(false);
@@ -2589,8 +2604,8 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
    } else if (message == UIMessage::MOUSE_DRAG && element->window->pressedButton == 1 && code->num_lines() &&
               !code->leftDownInMargin) {
       // TODO Double-click and triple-click dragging for word and line granularity respectively.
-      UICodePositionToByte(code, element->window->cursor.x, element->window->cursor.y, &code->selection[3].line,
-                           &code->selection[3].offset);
+      code->position_to_byte(element->window->cursor.x, element->window->cursor.y, &code->selection[3].line,
+                             &code->selection[3].offset);
       _UICodeUpdateSelection(code);
       code->moveScrollToFocusNextLayout = code->moveScrollToCaretNextLayout = false;
       code->useVerticalMotionColumn                                         = false;
@@ -2661,7 +2676,7 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
          }
       } else if ((m->code == UIKeycode::LEFT || m->code == UIKeycode::RIGHT) && !element->window->alt) {
          if (element->window->shift) {
-            UICodeMoveCaret(code, m->code == UIKeycode::LEFT, element->window->ctrl);
+            code->move_caret(m->code == UIKeycode::LEFT, element->window->ctrl);
          } else if (!element->window->ctrl) {
             code->hScroll->position +=
                m->code == UIKeycode::LEFT ? -ui->activeFont->glyphWidth : ui->activeFont->glyphWidth;
@@ -2675,7 +2690,7 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
 
       return 1;
    } else if (message == UIMessage::RIGHT_DOWN) {
-      int hitTest = UICodeHitTest(code, element->window->cursor.x, element->window->cursor.y);
+      int hitTest = code->hittest(element->window->cursor.x, element->window->cursor.y);
 
       if (hitTest > 0 && (element->flags & UICode::SELECTABLE)) {
          element->Focus();
@@ -2697,49 +2712,50 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
    return 0;
 }
 
-void UICodeMoveCaret(UICode* code, bool backward, bool word) {
+void UICode::move_caret(bool backward, bool word) {
    while (true) {
       if (backward) {
-         if ((int)code->selection[3].offset - 1 < 0) {
-            if (code->selection[3].line > 0) {
-               code->selection[3].line--;
-               code->selection[3].offset = code->lines[code->selection[3].line].bytes;
+         if ((int)selection[3].offset - 1 < 0) {
+            if (selection[3].line > 0) {
+               selection[3].line--;
+               selection[3].offset = lines[selection[3].line].bytes;
             } else
                break;
          } else
-            _ui_move_caret_backwards(code->selection[3].offset, &code->content[0],
-                                     code->lines[code->selection[3].line].offset + code->selection[3].offset,
-                                     code->lines[code->selection[3].line].offset);
+            _ui_move_caret_backwards(selection[3].offset, &content[0],
+                                     lines[selection[3].line].offset + selection[3].offset,
+                                     lines[selection[3].line].offset);
       } else {
-         if (code->selection[3].offset + 1 > code->lines[code->selection[3].line].bytes) {
-            if (code->selection[3].line + 1 < code->num_lines()) {
-               code->selection[3].line++;
-               code->selection[3].offset = 0;
+         if (selection[3].offset + 1 > lines[selection[3].line].bytes) {
+            if (selection[3].line + 1 < num_lines()) {
+               selection[3].line++;
+               selection[3].offset = 0;
             } else
                break;
          } else
-            _ui_move_caret_forward(code->selection[3].offset,  std::string_view(&code->content[0], code->size()),
-                                   code->lines[code->selection[3].line].offset + code->selection[3].offset);
+            _ui_move_caret_forward(selection[3].offset,  std::string_view(&content[0], size()),
+                                   lines[selection[3].line].offset + selection[3].offset);
       }
 
       if (!word)
          break;
 
-      if (code->selection[3].offset != 0 && code->selection[3].offset != code->lines[code->selection[3].line].bytes) {
-         if (_ui_move_caret_by_word(std::string_view{&code->content[0], code->size()},
-                                    code->lines[code->selection[3].line].offset + code->selection[3].offset))
+      if (selection[3].offset != 0 && selection[3].offset != lines[selection[3].line].bytes) {
+         if (_ui_move_caret_by_word(std::string_view{&content[0], size()},
+                                    lines[selection[3].line].offset + selection[3].offset))
             break;
       }
    }
 
-   code->useVerticalMotionColumn = false;
-   _UICodeUpdateSelection(code);
+   useVerticalMotionColumn = false;
+   _UICodeUpdateSelection(this);
 }
 
-void UICodeFocusLine(UICode* code, int index) {
-   code->focused                     = index - 1;
-   code->moveScrollToFocusNextLayout = true;
-   code->Refresh();
+// Line numbers are 1-indexed!!
+void UICode::focus_line(int index) {
+   focused                     = index - 1;
+   moveScrollToFocusNextLayout = true;
+   Refresh();
 }
 
 void UICode::insert_content(std::string_view new_content, bool replace) {

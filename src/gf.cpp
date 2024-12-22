@@ -554,8 +554,9 @@ int SourceFindEndOfBlock() {
 
    int tabs = 0;
 
-   for (size_t i = 0; i < displayCode->lines[currentLine - 1].bytes; i++) {
-      if (isspace(displayCode->content[displayCode->lines[currentLine - 1].offset + i]))
+   auto line = displayCode->line(currentLine - 1);
+   for (size_t i = 0; i < line.size(); i++) {
+      if (isspace(line[i]))
          tabs++;
       else
          break;
@@ -564,14 +565,18 @@ int SourceFindEndOfBlock() {
    for (int j = currentLine; j < num_lines; j++) {
       int t = 0;
 
-      for (int i = 0; i < (int)displayCode->lines[j].bytes - 1; i++) {
-         if (isspace(displayCode->content[displayCode->lines[j].offset + i]))
+      auto line = displayCode->line(j);
+      if (line.empty())
+         continue;
+      
+      for (size_t i = 0; i < line.size() - 1; i++) {
+         if (isspace(line[i]))
             t++;
          else
             break;
       }
 
-      if (t < tabs && displayCode->content[displayCode->lines[j].offset + t] == '}') {
+      if (t < tabs && line[t] == '}') {
          return j + 1;
       }
    }
@@ -1635,7 +1640,7 @@ bool DisplaySetPosition(const char* file, int line, bool useGDBToGetFullPath) {
 
    if (line != -1 && currentLine != line) {
       currentLine = line;
-      UICodeFocusLine(displayCode, line);
+      displayCode->focus_line(line);
       changed = true;
    }
 
@@ -1712,7 +1717,7 @@ void DisassemblyUpdateLine() {
             uint64_t b = sv_atoul(displayCode->line(i), 3);
 
             if (a == b) {
-               UICodeFocusLine(displayCode, i + 1);
+               displayCode->focus_line(i + 1);
                autoPrintExpressionLine = i;
                found                   = true;
                break;
@@ -1846,7 +1851,7 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
    UICode* code = (UICode*)element;
 
    if (message == UIMessage::CLICKED && !showingDisassembly) {
-      int result = UICodeHitTest(code, element->window->cursor.x, element->window->cursor.y);
+      int result = code->hittest(element->window->cursor.x, element->window->cursor.y);
 
       if (result < 0 && code->leftDownInMargin) {
          int line = -result;
@@ -1862,7 +1867,7 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
          }
       }
    } else if (message == UIMessage::RIGHT_DOWN && !showingDisassembly) {
-      int result = UICodeHitTest(code, element->window->cursor.x, element->window->cursor.y);
+      int result = code->hittest(element->window->cursor.x, element->window->cursor.y);
 
       bool atLeastOneBreakpointEnabled = false;
 
@@ -1923,7 +1928,7 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
          UIDrawString(m->painter, rectangle, autoPrintResult, ui->theme.codeComment, UIAlign::left, NULL);
       }
 
-      if (UICodeHitTest(code, element->window->cursor.x, element->window->cursor.y) == m->index &&
+      if (code->hittest(element->window->cursor.x, element->window->cursor.y) == m->index &&
           element->window->hovered == element &&
           (element->window->ctrl || element->window->alt || element->window->shift) &&
           !element->window->textboxModifiedFlag) {
@@ -2198,7 +2203,7 @@ void InspectLineModeExit(UIElement* element) {
    textboxInput->Focus();
    inInspectLineMode = false;
    currentLine       = inspectModeRestoreLine;
-   UICodeFocusLine(displayCode, currentLine);
+   displayCode->focus_line(currentLine);
    displayCode->Refresh();
 }
 
@@ -2220,7 +2225,7 @@ int InspectLineModeMessage(UIElement* element, UIMessage message, int di, void* 
       } else if ((m->code == UIKeycode::UP && currentLine != 1) ||
                  (m->code == UIKeycode::DOWN && currentLine != (int)displayCode->num_lines())) {
          currentLine += m->code == UIKeycode::UP ? -1 : 1;
-         UICodeFocusLine(displayCode, currentLine);
+         displayCode->focus_line(currentLine);
          InspectCurrentLine();
          displayCode->Refresh();
       }

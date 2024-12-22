@@ -120,7 +120,7 @@ int MyCheckboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
 int main(int argc, char** argv) {
    UIConfig cfg;
    auto     ui = UIInitialise(cfg);
-
+   
    if (!ui)
       return 1;
 
@@ -178,9 +178,9 @@ int main(int argc, char** argv) {
 
    {
       // Top-Right pane.
-      UICode*               code = UICodeCreate(uisplit_top_leftright, 0);
+      UICode* code = UICodeCreate(uisplit_top_leftright, 0);
       code->load_file("../src/luigi.hpp");
-      UICodeFocusLine(code, 0);
+      code->focus_line(0);
    }
 
    // Split bottom pane (horizontally) into left/right panes.
