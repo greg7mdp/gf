@@ -2216,6 +2216,7 @@ void UICode::load_file(const char* path, std::optional<std::string_view> err /* 
       insert_content(err ? *err : std::format("The file '{}' could not be loaded.", path), true);
    else
       insert_content(buff, true);
+   currentLine.reset();
 }
 
 void UICode::position_to_byte(int x, int y, size_t* line, size_t* byte) {
@@ -2441,7 +2442,7 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
          code->moveScrollToCaretNextLayout = code->moveScrollToFocusNextLayout = false;
          // TODO Horizontal scrolling.
       } else if (code->moveScrollToFocusNextLayout) {
-         code->vScroll->position = (code->focused + 0.5) * UIMeasureStringHeight() - code->bounds.height() / 2;
+         code->vScroll->position = (code->focused + 0.5f) * UIMeasureStringHeight() - code->bounds.height() * 0.5f;
       }
 
       if (!(code->flags & UICode::NO_MARGIN))
@@ -2501,7 +2502,7 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
                          marginColor ? ui->theme.codeDefault : ui->theme.codeComment, UIAlign::right, NULL);
          }
 
-         if ((size_t)code->focused == i) {
+         if (code->focused == i) {
             UIDrawBlock(painter, lineBounds, ui->theme.codeFocused);
          }
 
@@ -2530,7 +2531,7 @@ int _UICodeMessage(UIElement* element, UIMessage message, int di, void* dp) {
          painter->clip = oldClip;
 
          UICodeDecorateLine m;
-         m.x = x, m.y = y, m.bounds = lineBounds, m.index = i + 1, m.painter = painter;
+         m.x = x, m.y = y, m.bounds = lineBounds, m.index = i, m.painter = painter;
          element->Message(UIMessage::CODE_DECORATE_LINE, 0, &m);
 
          lineBounds.t += lineHeight;
@@ -2752,8 +2753,8 @@ void UICode::move_caret(bool backward, bool word) {
 }
 
 // Line numbers are 1-indexed!!
-void UICode::focus_line(int index) {
-   focused                     = index - 1;
+void UICode::focus_line(size_t index) {
+   focused                     = index;
    moveScrollToFocusNextLayout = true;
    Refresh();
 }
@@ -2808,12 +2809,13 @@ void UICode::insert_content(std::string_view new_content, bool replace) {
 UICode::UICode(UIElement* parent, uint32_t flags) :
    UIElement(parent, flags, _UICodeMessage, "Code"),
    font(ui->activeFont),
-   focused(-1),
+   focused(0),
    moveScrollToFocusNextLayout(0),
    leftDownInMargin(0),
    tabSize(4),
    columns(0),
    lastAnimateTime(0),
+   currentLine(0),
    verticalMotionColumn(0),
    useVerticalMotionColumn(false),
    moveScrollToCaretNextLayout(false)

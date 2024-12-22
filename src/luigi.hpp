@@ -844,7 +844,7 @@ public:
    UIScrollBar*            vScroll;
    UIScrollBar*            hScroll;
    UIFont*                 font;
-   int                     focused;
+   size_t                  focused;
    bool                    moveScrollToFocusNextLayout;
    bool                    leftDownInMargin;
    std::vector<char>       content;
@@ -852,8 +852,9 @@ public:
    int                     tabSize;
    size_t                  columns;
    UI_CLOCK_T              lastAnimateTime;
+   std::optional<size_t>   currentLine;        // if set, 0 <= currentLine < lines.size()
 
-   std::array<code_pos, 4> selection{}; // start, end, anchor, caret
+   std::array<code_pos, 4> selection{};        // start, end, anchor, caret
 
    int  verticalMotionColumn;
    bool useVerticalMotionColumn;
@@ -882,9 +883,19 @@ public:
    }
 
    void move_caret(bool backward, bool word);
-   void focus_line(int index); // Line numbers are 1-indexed!!
+   void focus_line(size_t index);                                        // Line numbers are 0-based
    void position_to_byte(int x, int y, size_t* line, size_t* byte);
    int  hittest(int x, int y);
+
+   void     set_tab_size(uint32_t sz) { tabSize = sz; }
+   uint32_t tab_size() const { return tabSize; }
+
+   void     set_current_line(std::optional<size_t> l)  { if (!l || *l < num_lines()) currentLine = l; }
+   std::optional<size_t> current_line() {
+      if (currentLine && *currentLine >= num_lines())
+         currentLine.reset();
+      return currentLine;
+   }
 };
 
 struct UIGauge : public UIElement {

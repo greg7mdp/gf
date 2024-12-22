@@ -322,7 +322,6 @@ UIConfig ui_config = {.rfu = true};
 
 char   currentFile[PATH_MAX];
 char   currentFileFull[PATH_MAX];
-int    currentLine;
 time_t currentFileReadTime;
 bool   showingDisassembly;
 char   previousLocation[256];
@@ -468,7 +467,7 @@ end
 
 // Forward declarations:
 
-bool DisplaySetPosition(const char* file, int line, bool useGDBToGetFullPath);
+bool DisplaySetPosition(const char* file, std::optional<size_t> line, bool useGDBToGetFullPath);
 void WatchAddExpression2(string_view string);
 int  WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp);
 void CommandInspectLine();
@@ -547,14 +546,14 @@ int TrafficLightMessage(UIElement* element, UIMessage message, int di, void* dp)
 }
 
 int SourceFindEndOfBlock() {
-   int num_lines = (int)displayCode->num_lines();
+   auto currentLine = displayCode->current_line();
 
-   if (!currentLine || currentLine - 1 >= (int)num_lines)
+   if (!currentLine)
       return -1;
 
    int tabs = 0;
 
-   auto line = displayCode->line(currentLine - 1);
+   auto line = displayCode->line(*currentLine);
    for (size_t i = 0; i < line.size(); i++) {
       if (isspace(line[i]))
          tabs++;
@@ -562,7 +561,8 @@ int SourceFindEndOfBlock() {
          break;
    }
 
-   for (int j = currentLine; j < num_lines; j++) {
+   size_t num_lines = displayCode->num_lines();
+   for (size_t j = *currentLine + 1; j < num_lines; j++) {
       int t = 0;
 
       auto line = displayCode->line(j);
@@ -586,10 +586,12 @@ int SourceFindEndOfBlock() {
 
 bool SourceFindOuterFunctionCall(char** start, char** end) {
    int num_lines = (int)displayCode->num_lines();
+   auto currentLine = displayCode->current_line();
 
-   if (!currentLine || currentLine - 1 >= num_lines)
+   if (!currentLine)
       return false;
-   size_t offset = displayCode->lines[currentLine - 1].offset;
+   
+   size_t offset = displayCode->lines[*currentLine].offset;
    bool   found  = false;
 
    // Look forwards for the end of the call ");".
@@ -1232,17 +1234,20 @@ void CommandSyncWithGvim() {
       strcpy(buffer2, name);
    }
 
-   DisplaySetPosition(buffer2, lineNumber, false);
+   DisplaySetPosition(buffer2, lineNumber-1, false); // lines in vi are 1-based
 }
 
-void CommandToggleBreakpoint(int line) {
+void CommandToggleBreakpoint(int line = 0) {
    if (showingDisassembly) {
       // TODO.
       return;
    }
 
    if (!line) {
-      line = currentLine;
+      auto currentLine = displayCode->current_line();
+      if (!currentLine)
+         return;
+      line = *currentLine + 1; // gdb line numbers are 1-indexed
    }
 
    for (const auto& bp : breakpoints) {
@@ -1253,10 +1258,6 @@ void CommandToggleBreakpoint(int line) {
    }
 
    (void)DebuggerSend(std::format("b {}:{}", currentFile, line), true, false);
-}
-
-void CommandToggleBreakpoint() {
-   CommandToggleBreakpoint(currentLine);
 }
 
 void CommandCustom(string_view command) {
@@ -1581,7 +1582,10 @@ int                   inspectModeRestoreLine;
 UIRectangle           displayCurrentLineBounds;
 const char*           disassemblyCommand = "disas /s";
 
-bool DisplaySetPosition(const char* file, int line, bool useGDBToGetFullPath) {
+// --------------------------------
+// `line`, if present, is `0-based`
+// --------------------------------
+bool DisplaySetPosition(const char* file, std::optional<size_t> line, bool useGDBToGetFullPath) {
    if (showingDisassembly) {
       return false;
    }
@@ -1626,7 +1630,6 @@ bool DisplaySetPosition(const char* file, int line, bool useGDBToGetFullPath) {
    bool changed = false;
 
    if (reloadFile) {
-      currentLine = 0;
       std_format_to_n(currentFile, 4096, "{}", file);
       realpath(currentFile, currentFileFull);
 
@@ -1638,9 +1641,10 @@ bool DisplaySetPosition(const char* file, int line, bool useGDBToGetFullPath) {
       autoPrintResult[0] = 0;
    }
 
-   if (line != -1 && currentLine != line) {
-      currentLine = line;
-      displayCode->focus_line(line);
+   auto currentLine = displayCode->current_line();
+   if (line && (!currentLine || currentLine != line)) {
+      displayCode->set_current_line(*line);
+      displayCode->focus_line(*line);
       changed = true;
    }
 
@@ -1656,9 +1660,12 @@ void DisplaySetPositionFromStack() {
       strcpy(previousLocation, stack[stackSelected].location);
       strcpy(location, stack[stackSelected].location);
       char* line = strchr(location, ':');
-      if (line)
+      std::optional<size_t> position;
+      if (line) {
          *line = 0;
-      DisplaySetPosition(location, line ? sv_atoi(line + 1) : -1, true);
+         position = sv_atoul(line + 1) - 1;            // lines in gdb are 1-based
+      }
+      DisplaySetPosition(location, position, true);
    }
 }
 
@@ -1717,7 +1724,7 @@ void DisassemblyUpdateLine() {
             uint64_t b = sv_atoul(displayCode->line(i), 3);
 
             if (a == b) {
-               displayCode->focus_line(i + 1);
+               displayCode->focus_line(i);
                autoPrintExpressionLine = i;
                found                   = true;
                break;
@@ -1744,16 +1751,16 @@ void CommandToggleDisassembly() {
 
    if (showingDisassembly) {
       displayCode->insert_content("Disassembly could not be loaded.\nPress Ctrl+D to return to source view.", true);
-      displayCode->tabSize = 8;
+      displayCode->set_tab_size(8);
       DisassemblyLoad();
       DisassemblyUpdateLine();
    } else {
-      currentLine         = -1;
+      displayCode->set_current_line({});
       currentEndOfBlock   = -1;
       currentFile[0]      = 0;
       currentFileReadTime = 0;
       DisplaySetPositionFromStack();
-      displayCode->tabSize = 4;
+      displayCode->set_tab_size(4);
    }
 
    displayCode->Refresh();
@@ -1787,8 +1794,11 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
    }
 
    int xOffset = 0;
+   auto currentLine = displayCode->current_line();
+   if (!currentLine)
+      return;
 
-   std::string_view cur_line = displayCode->line(currentLine - 1);
+   std::string_view cur_line = displayCode->line(*currentLine);
    for (auto c : cur_line) {
       if (c == '\t' || c == ' ') {
          xOffset += (c == '\t' ? 4 : 1) * ui->activeFont->glyphWidth;
@@ -1917,8 +1927,9 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
       return 1;
    } else if (message == UIMessage::CODE_DECORATE_LINE) {
       UICodeDecorateLine* m = (UICodeDecorateLine*)dp;
+      auto currentLine = displayCode->current_line();
 
-      if (m->index == currentLine) {
+      if (currentLine && m->index == (int)*currentLine) {
          displayCurrentLineBounds = m->bounds;
       }
 
@@ -1941,8 +1952,8 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
       }
 
       if (m->index == ifConditionLine && ifConditionEvaluation) {
-         int columnFrom = _UICodeByteToColumn(code, ifConditionLine - 1, ifConditionFrom);
-         int columnTo   = _UICodeByteToColumn(code, ifConditionLine - 1, ifConditionTo);
+         int columnFrom = _UICodeByteToColumn(code, ifConditionLine, ifConditionFrom);
+         int columnTo   = _UICodeByteToColumn(code, ifConditionLine, ifConditionTo);
          UIDrawBlock(m->painter,
                      UIRectangle(m->bounds.l + columnFrom * ui->activeFont->glyphWidth,
                                  m->bounds.l + columnTo * ui->activeFont->glyphWidth, m->bounds.b - 2, m->bounds.b),
@@ -2007,7 +2018,8 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
       DisplaySetPositionFromStack();
    }
 
-   if (changedSourceLine && currentLine < (int)displayCode->num_lines() && currentLine > 0) {
+   auto currentLine = displayCode->current_line();
+   if (changedSourceLine && currentLine) {
       // If there is an auto-print expression from the previous line, evaluate it.
 #if 0
       if (autoPrintExpression[0]) {
@@ -2027,9 +2039,9 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
          autoPrintExpression[0] = 0;
       }
 #endif
-      // Parse the new source line.
 
-      std::string_view text_sv = displayCode->line(currentLine - 1);
+      // Parse the new source line.
+      std::string_view text_sv = displayCode->line(*currentLine);
       size_t      bytes    = text_sv.size();
       const char* text = &text_sv[0];
       uintptr_t   position = 0;
@@ -2101,7 +2113,7 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
                          std::string_view{text + expressionStart, expressionEnd - expressionStart});
       }
 
-      autoPrintExpressionLine = currentLine;
+      autoPrintExpressionLine = *currentLine + 1;
 
       // Try to evaluate simple if conditions.
 
@@ -2152,11 +2164,11 @@ void SourceWindowUpdate(const char* data, UIElement* element) {
                if (res == "= true") {
                   ifConditionEvaluation = 2;
                   ifConditionFrom = expressionStart, ifConditionTo = i;
-                  ifConditionLine = currentLine;
+                  ifConditionLine = *currentLine;
                } else if (res == "= false") {
                   ifConditionEvaluation = 1;
                   ifConditionFrom = expressionStart, ifConditionTo = i;
-                  ifConditionLine = currentLine;
+                  ifConditionLine = *currentLine;
                }
 #endif
                break;
@@ -2174,8 +2186,11 @@ bool InspectIsTokenCharacter(char c) {
 
 void InspectCurrentLine() {
    inspectResults.clear();
+   auto currentLine = displayCode->current_line();
+   if (!currentLine)
+      return;
 
-   auto code = displayCode->line(currentLine - 1);
+   auto code = displayCode->line(*currentLine);
 
    auto expressions = regex::extract_debuggable_expressions(code);
    for (auto e : expressions) {
@@ -2202,8 +2217,8 @@ void InspectLineModeExit(UIElement* element) {
    element->Destroy();
    textboxInput->Focus();
    inInspectLineMode = false;
-   currentLine       = inspectModeRestoreLine;
-   displayCode->focus_line(currentLine);
+   displayCode->set_current_line(inspectModeRestoreLine);
+   displayCode->focus_line(inspectModeRestoreLine);
    displayCode->Refresh();
 }
 
@@ -2212,7 +2227,7 @@ int InspectLineModeMessage(UIElement* element, UIMessage message, int di, void* 
       InspectLineModeExit(element);
    } else if (message == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
-
+      
       if ((m->text == "`") || m->code == UIKeycode::ESCAPE) {
          InspectLineModeExit(element);
       } else if (m->code >= UI_KEYCODE_DIGIT('1') && m->code <= UI_KEYCODE_DIGIT('9')) {
@@ -2222,12 +2237,18 @@ int InspectLineModeMessage(UIElement* element, UIMessage message, int di, void* 
             InspectLineModeExit(element);
             WatchAddExpression2(inspectResults[index].expression);
          }
-      } else if ((m->code == UIKeycode::UP && currentLine != 1) ||
-                 (m->code == UIKeycode::DOWN && currentLine != (int)displayCode->num_lines())) {
-         currentLine += m->code == UIKeycode::UP ? -1 : 1;
-         displayCode->focus_line(currentLine);
-         InspectCurrentLine();
-         displayCode->Refresh();
+      } else {
+         auto currentLine = displayCode->current_line();
+         if (!currentLine)
+            return 0;
+         if ((m->code == UIKeycode::UP && *currentLine != 0) ||
+             (m->code == UIKeycode::DOWN && *currentLine + 1 < displayCode->num_lines())) {
+            *currentLine +=  m->code == UIKeycode::UP ? -1 : 1;
+            displayCode->set_current_line(*currentLine);
+            displayCode->focus_line(*currentLine);
+            InspectCurrentLine();
+            displayCode->Refresh();
+         }
       }
 
       return 1;
@@ -2237,10 +2258,11 @@ int InspectLineModeMessage(UIElement* element, UIMessage message, int di, void* 
 }
 
 void CommandInspectLine() {
-   if (!currentLine || currentLine - 1 >= (int)displayCode->num_lines())
+   auto currentLine = displayCode->current_line();
+   if (!currentLine)
       return;
 
-   inspectModeRestoreLine = currentLine;
+   inspectModeRestoreLine = *currentLine;
    inInspectLineMode      = true;
    InspectCurrentLine();
    displayCode->Refresh();
@@ -2578,17 +2600,19 @@ int TextboxInputMessage(UIElement* element, UIMessage message, int di, void* dp)
          TabCompleterRun(&tabCompleter, textbox, lastKeyWasTab, false);
          return 1;
       } else if (m->code == UIKeycode::UP) {
+         auto currentLine = displayCode->current_line();
          if (element->window->shift) {
-            if (currentLine > 1) {
-               DisplaySetPosition(NULL, currentLine - 1, false);
+            if (currentLine && *currentLine > 0) {
+               DisplaySetPosition(NULL, *currentLine - 1, false);
             }
          } else {
             CommandPreviousCommand();
          }
       } else if (m->code == UIKeycode::DOWN) {
+         auto currentLine = displayCode->current_line();
          if (element->window->shift) {
-            if (currentLine < (int)displayCode->num_lines()) {
-               DisplaySetPosition(NULL, currentLine + 1, false);
+            if (currentLine && *currentLine + 1 < displayCode->num_lines()) {
+               DisplaySetPosition(NULL, *currentLine + 1, false);
             }
          } else {
             CommandNextCommand();
@@ -2983,7 +3007,7 @@ void WatchLoggerTraceSelectFrame(UIElement* element, int index, WatchLogger* log
 
    if (colon) {
       *colon = 0;
-      DisplaySetPosition(location, sv_atoi(colon, 1), false);
+      DisplaySetPosition(location, sv_atoul(colon + 1) - 1, false);
       element->Refresh();
    }
 }
@@ -3315,7 +3339,7 @@ void CommandWatchViewSourceAtAddress(WatchWindow* _w) {
       position++;
    if (!(*position))
       return;
-   int line = strtol(position, &position, 0);
+   size_t line = strtol(position, &position, 0);
    while (*position && *position != '"')
       position++;
    if (!(*position))
@@ -3325,7 +3349,7 @@ void CommandWatchViewSourceAtAddress(WatchWindow* _w) {
    if (!end)
       return;
    *end = 0;
-   DisplaySetPosition(file, line, false);
+   DisplaySetPosition(file, line-1, false);
 }
 
 void CommandWatchViewSourceAtAddress() {
@@ -3573,8 +3597,9 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
          WatchDestroyTextbox(w);
       } else if (m->code == UIKeycode::UP) {
          if (element->window->shift) {
-            if (currentLine > 1) {
-               DisplaySetPosition(NULL, currentLine - 1, false);
+            auto currentLine = displayCode->current_line();
+            if (currentLine && *currentLine > 0) {
+               DisplaySetPosition(NULL, *currentLine - 1, false);
             }
          } else {
             WatchDestroyTextbox(w);
@@ -3583,8 +3608,9 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
          }
       } else if (m->code == UIKeycode::DOWN) {
          if (element->window->shift) {
-            if (currentLine < (int)displayCode->num_lines()) {
-               DisplaySetPosition(NULL, currentLine + 1, false);
+            auto currentLine = displayCode->current_line();
+            if (currentLine && *currentLine + 1 < displayCode->num_lines()) {
+               DisplaySetPosition(NULL, *currentLine + 1, false);
             }
          } else {
             WatchDestroyTextbox(w);
@@ -3838,7 +3864,7 @@ void StackSetFrame(UIElement* element, int index) {
          stackSelected = index;
          element->Repaint(nullptr);
       } else {
-         currentLine = -1; // force the update in DisplayPosition as we may have scrolled away
+         displayCode->set_current_line({});  // force the update in DisplayPosition as we may have scrolled away
          DisplaySetPositionFromStack();
       }
    }
@@ -4025,7 +4051,7 @@ int TableBreakpointsMessage(UIElement* element, UIMessage message, int di, void*
          }
 
          if (!entry->watchpoint && rng::find(data->selected, entry->number) != rng::end(data->selected)) {
-            DisplaySetPosition(entry->file, entry->line, false);
+            DisplaySetPosition(entry->file, entry->line - 1, false);
          }
       } else if (!element->window->ctrl && !element->window->shift) {
          data->selected.clear();
@@ -4188,7 +4214,7 @@ int FilesButtonMessage(UIElement* element, UIMessage message, int di, void* dp) 
             return 0;
          }
       } else if (S_ISREG(mode)) {
-         DisplaySetPosition(window->directory, 1, false);
+         DisplaySetPosition(window->directory, 0, false);
       }
 
       window->directory[oldLength] = 0;
@@ -4971,7 +4997,7 @@ void ProfShowSource(ProfFlameGraphReport* report) {
       UIDialogShow(windowMain, 0, "Source information was not found for this function.\n%f%b", "OK");
       return;
    } else {
-      DisplaySetPosition(report->sourceFiles[function.sourceFileIndex].cPath, function.lineNumber, false);
+      DisplaySetPosition(report->sourceFiles[function.sourceFileIndex].cPath, function.lineNumber - 1, false);
    }
 }
 
@@ -7143,9 +7169,9 @@ void MsgReceivedControl(std::unique_ptr<std::string> input) {
       *end = 0;
 
    if (start[0] == 'f' && start[1] == ' ') {
-      DisplaySetPosition(start + 2, 1, false);
+      DisplaySetPosition(start + 2, 0, false);
    } else if (start[0] == 'l' && start[1] == ' ') {
-      DisplaySetPosition(nullptr, sv_atoi(start, 2), false);
+      DisplaySetPosition(nullptr, sv_atoul(start + 2) - 1, false);
    } else if (start[0] == 'c' && start[1] == ' ') {
       (void)CommandParseInternal(start + 2, false);
    }
@@ -7332,7 +7358,7 @@ UIElement* Context::InterfaceWindowSwitchToAndFocus(string_view target_name) {
 
 int MainWindowMessageProc(UIElement*, UIMessage message, int di, void* dp) {
    if (message == UIMessage::WINDOW_ACTIVATE) {
-      DisplaySetPosition(currentFileFull, currentLine, false);
+      DisplaySetPosition(currentFileFull, displayCode->current_line(), false);
    } else {
       for (const auto& msgtype : receiveMessageTypes) {
          if (msgtype.message == message) {
