@@ -28,6 +28,7 @@ using std::shared_ptr;
 using std::make_unique;
 using std::make_shared;
 
+#define UI_DEBUG 1
 
 #ifdef UI_LINUX
    #include <X11/Xlib.h>
@@ -376,9 +377,10 @@ struct UITheme {
 
 // ------------------------------------------------------------------------------------------
 struct UIPainter {
-   UIRectangle clip = UIRectangle(0);
-   uint32_t*   bits = nullptr;
-   uint32_t    width = 0, height = 0;
+   UIRectangle clip   = UIRectangle(0);
+   uint32_t*   bits   = nullptr;
+   uint32_t    width  = 0;
+   uint32_t    height = 0;
 #ifdef UI_DEBUG
    int fillCount = 0;
 #endif
@@ -646,46 +648,46 @@ struct UIWindow : public UIElement {
       MAXIMIZE        = (1 << 3),
    };
 
-   UIElement*              dialog;
-   std::vector<UIShortcut> shortcuts;
-   float                   scale;
-   std::vector<uint32_t>   bits;
-   uint32_t                width;
-   uint32_t                height;
-   UIWindow*               next;
-   UIElement*              hovered;
-   UIElement*              pressed;
-   UIElement*              focused;
-   UIElement*              dialogOldFocus;
-   int                     pressedButton;
-   UIPoint                 cursor;
-   int                     cursorStyle;
+   UIElement*              _dialog;
+   std::vector<UIShortcut> _shortcuts;
+   float                   _scale;
+   std::vector<uint32_t>   _bits;
+   uint32_t                _width;
+   uint32_t                _height;
+   UIWindow*               _next;
+   UIElement*              _hovered;
+   UIElement*              _pressed;
+   UIElement*              _focused;
+   UIElement*              _dialog_old_focus;
+   int                     _pressed_button;
+   UIPoint                 _cursor;
+   int                     _cursor_style;
 
    // Set when a textbox is modified.
    // Useful for tracking whether changes to the loaded document have been saved.
-   bool        textboxModifiedFlag;
-   bool        ctrl;
-   bool        shift;
-   bool        alt;
-   UIRectangle updateRegion;
+   bool        _textbox_modified_flag;
+   bool        _ctrl;
+   bool        _shift;
+   bool        _alt;
+   UIRectangle _update_region;
 
 #ifdef UI_DEBUG
-   float lastFullFillCount = 0;
+   float _last_full_fill_count = 0;
 #endif
 
 #ifdef UI_LINUX
-   Window   xwindow    = 0;
-   XImage*  image      = nullptr;
-   XIC      xic        = nullptr;
-   unsigned ctrlCode   = 0;
-   unsigned shiftCode  = 0;
-   unsigned altCode    = 0;
-   Window   dragSource = 0;
+   Window   _xwindow     = 0;
+   XImage*  _image       = nullptr;
+   XIC      _xic         = nullptr;
+   unsigned _ctrl_code   = 0;
+   unsigned _shift_code  = 0;
+   unsigned _alt_code    = 0;
+   Window   _drag_source = 0;
 #endif
 
 #ifdef UI_WINDOWS
-   HWND hwnd          = 0;
-   bool trackingLeave = false;
+   HWND _hwnd           = 0;
+   bool _tracking_leave = false;
 #endif
 
    UIWindow(UIElement* parent, uint32_t flags, message_proc_t message_proc, const char* cClassName);
@@ -698,7 +700,7 @@ struct UIWindow : public UIElement {
    bool InputEvent(UIMessage message, int di, void* dp);
 };
 
-inline int UIElement::scale(auto sz) const { return (int)((float)sz * _window->scale); }
+inline int UIElement::scale(auto sz) const { return (int)((float)sz * _window->_scale); }
 
 // ------------------------------------------------------------------------------------------
 struct UIPanel : public UIElement {
@@ -990,6 +992,7 @@ struct UITextbox : public UIElement {
    bool               rejectNextKey;
 
    UITextbox(UIElement* parent, uint32_t flags);
+   
    std::string_view text() const { return std::string_view(buffer); }
 };
 
@@ -1120,10 +1123,6 @@ void       UITextboxPasteText(void* cp, sel_target_t t);
 
 UITable* UITableCreate(UIElement* parent, uint32_t flags,
                        const char* columns /* separate with \t, terminate with \0 */);
-int      UITableHitTest(UITable* table, int x, int y);       // Returns item index. Returns -1 if not on an item.
-int      UITableHeaderHitTest(UITable* table, int x, int y); // Returns column index or -1.
-bool     UITableEnsureVisible(UITable* table, int index);    // Returns false if the item was already visible.
-void     UITableResizeColumns(UITable* table);
 
 UICode* UICodeCreate(UIElement* parent, uint32_t flags);
 
@@ -1167,16 +1166,6 @@ char* UIStringCopy(const char* in, ptrdiff_t inBytes);
 
 UIFont* UIFontCreate(const char* cPath, uint32_t size);
 UIFont* UIFontActivate(UIFont* font); // Returns the previously active font.
-
-#ifdef UI_DEBUG
-template< class... Args >
-void UIInspectorLog(std::format_string<Args...> fmt, Args&&... args ) {
-   char buffer[4096];
-   std_format_to_n(buffer, sizeof(buffer), fmt, std::forward<Args>(args)...);
-   ui->inspectorLog->insert_content(buffer, false);
-   &ui->inspectorLog->e->Refresh();
-}
-#endif
 
 inline bool _UICharIsDigit(int c) {
    return c >= '0' && c <= '9';
@@ -1252,6 +1241,17 @@ struct UI {
    int code_margin() { return activeFont->glyphWidth * 5; }
    int code_margin_gap() { return activeFont->glyphWidth * 1; }
 };
+
+// ----------------------------------------
+#ifdef UI_DEBUG
+template< class... Args >
+void UIInspectorLog(UI* ui, std::format_string<Args...> fmt, Args&&... args ) {
+   char buffer[4096];
+   std_format_to_n(buffer, sizeof(buffer), fmt, std::forward<Args>(args)...);
+   ui->inspectorLog->insert_content(buffer, false);
+   ui->inspectorLog->Refresh();
+}
+#endif
 
 // ----------------------------------------
 //      Forward declarations.
