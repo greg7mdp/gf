@@ -623,6 +623,8 @@ struct UIConfig {
    bool rfu = false;
 };
 
+enum class sel_target_t { primary, clipboard };
+
 struct UIWindow : public UIElement {
    enum {
       MENU            = (1 << 0),
@@ -792,41 +794,52 @@ struct UIScrollBar : public UIElement {
    UIScrollBar(UIElement* parent, uint32_t flags);
 };
 
-template <class EL>
-inline void UILayoutScrollbarPair(const EL* el, int hSpace, int vSpace, int scrollBarSize) {
-   el->vScroll->page = vSpace - (el->hScroll->page < el->hScroll->maximum ? scrollBarSize : 0);
-   el->hScroll->page = hSpace - (el->vScroll->page < el->vScroll->maximum ? scrollBarSize : 0);
-   el->vScroll->page = vSpace - (el->hScroll->page < el->hScroll->maximum ? scrollBarSize : 0);
+struct UIScrollbarPair {
+protected:
+   UIScrollBar* _vscroll;
+   UIScrollBar* _hscroll;
 
-   UIRectangle vScrollBarBounds = el->bounds, hScrollBarBounds = el->bounds;
+   UIScrollbarPair(UIElement* el)
+      : _vscroll(new UIScrollBar(el, 0))
+      , _hscroll(new UIScrollBar(el, UIScrollBar::HORIZONTAL)) {}
 
-   hScrollBarBounds.r = vScrollBarBounds.l =
-      vScrollBarBounds.r - (el->vScroll->page < el->vScroll->maximum ? scrollBarSize : 0);
-   vScrollBarBounds.b = hScrollBarBounds.t =
-      hScrollBarBounds.b - (el->hScroll->page < el->hScroll->maximum ? scrollBarSize : 0);
+   void layout_scrollbar_pair(int hSpace, int vSpace, int scrollBarSize, UIElement* el) {
+      _vscroll->page = vSpace - (_hscroll->page < _hscroll->maximum ? scrollBarSize : 0);
+      _hscroll->page = hSpace - (_vscroll->page < _vscroll->maximum ? scrollBarSize : 0);
+      _vscroll->page = vSpace - (_hscroll->page < _hscroll->maximum ? scrollBarSize : 0);
 
-   el->vScroll->Move(vScrollBarBounds, true);
-   el->hScroll->Move(hScrollBarBounds, true);
-}
+      UIRectangle vScrollBarBounds = el->bounds, hScrollBarBounds = el->bounds;
 
-template <class EL>
-inline void  UIKeyInputVScroll(EL* el, UIKeyTyped* m, int rowHeight, int pageHeight) {
-   if (m->code == UIKeycode::UP)
-      el->vScroll->position -= rowHeight;
-   else if (m->code == UIKeycode::DOWN)
-      el->vScroll->position += rowHeight;
-   else if (m->code == UIKeycode::PAGE_UP)
-      el->vScroll->position += pageHeight;
-   else if (m->code == UIKeycode::PAGE_DOWN)
-      el->vScroll->position -= pageHeight;
-   else if (m->code == UIKeycode::HOME)
-      el->vScroll->position = 0;
-   else if (m->code == UIKeycode::END)
-      el->vScroll->position = el->vScroll->maximum;
-   el->Refresh();
-}
+      hScrollBarBounds.r = vScrollBarBounds.l =
+         vScrollBarBounds.r - (_vscroll->page < _vscroll->maximum ? scrollBarSize : 0);
+      vScrollBarBounds.b = hScrollBarBounds.t =
+         hScrollBarBounds.b - (_hscroll->page < _hscroll->maximum ? scrollBarSize : 0);
 
-struct UICode : public UIElement {
+      _vscroll->Move(vScrollBarBounds, true);
+      _hscroll->Move(hScrollBarBounds, true);
+   }
+
+   inline void key_input_vscroll(UIKeyTyped* m, int rowHeight, int pageHeight, UIElement* el) {
+      if (m->code == UIKeycode::UP)
+         _vscroll->position -= rowHeight;
+      else if (m->code == UIKeycode::DOWN)
+         _vscroll->position += rowHeight;
+      else if (m->code == UIKeycode::PAGE_UP)
+         _vscroll->position += pageHeight;
+      else if (m->code == UIKeycode::PAGE_DOWN)
+         _vscroll->position -= pageHeight;
+      else if (m->code == UIKeycode::HOME)
+         _vscroll->position = 0;
+      else if (m->code == UIKeycode::END)
+         _vscroll->position = _vscroll->maximum;
+      el->Refresh();
+   }
+
+public:
+   void reset_vscroll() { _vscroll->position = 0; }
+};
+
+struct UICode : public UIElement, public UIScrollbarPair {
 private:
    struct code_pos {
       size_t line   = 0;
@@ -838,27 +851,28 @@ private:
       size_t bytes;
    };
 
+   std::vector<char>      _content;
+   std::vector<code_line> _lines;
+   std::optional<size_t>  _current_line{0};                 // if set, 0 <= currentLine < lines.size()
+   size_t                 _focus_line{0};
+   UIFont*                _font;
+   bool                   _move_scroll_to_focus_next_layout{false};
+   bool                   _move_scroll_to_caret_next_layout{false};
+   int                    _tab_columns{4};
+   size_t                 _max_columns{0};
+   UI_CLOCK_T             _last_animate_time{0};
+   bool                   _left_down_in_margin{false};
+   int                    _vertical_motion_column{0};
+   bool                   _use_vertical_motion_column{false};
+   std::array<code_pos, 4> _selection{};                     // start, end, anchor, caret
+
+   void _SetVerticalMotionColumn(bool restore);
+   void _UpdateSelection();
+
+   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+
 public:
    enum { NO_MARGIN = 1 << 0, SELECTABLE = 1 << 1 };
-
-   UIScrollBar*            vScroll;
-   UIScrollBar*            hScroll;
-   UIFont*                 font;
-   size_t                  focused;
-   bool                    moveScrollToFocusNextLayout;
-   bool                    leftDownInMargin;
-   std::vector<char>       content;
-   std::vector<code_line>  lines;
-   int                     tabSize;
-   size_t                  columns;
-   UI_CLOCK_T              lastAnimateTime;
-   std::optional<size_t>   currentLine;        // if set, 0 <= currentLine < lines.size()
-
-   std::array<code_pos, 4> selection{};        // start, end, anchor, caret
-
-   int  verticalMotionColumn;
-   bool useVerticalMotionColumn;
-   bool moveScrollToCaretNextLayout;
 
    UICode(UIElement* parent, uint32_t flags);
 
@@ -869,33 +883,57 @@ public:
    void load_file(const char* path, std::optional<std::string_view> err = {});
 
    std::string_view line(size_t line) const {
-      const auto& l = lines[line];
-      return std::string_view{&content[l.offset], l.bytes};
+      const auto& l = _lines[line];
+      return std::string_view{&_content[l.offset], l.bytes};
    }
+   size_t line_offset(size_t line) const { return _lines[line].offset; }
    
-   size_t num_lines() const { return lines.size(); }
-   size_t size() const { return content.size(); }
+   size_t num_lines() const { return _lines.size(); }
+   size_t size() const { return _content.size(); }
 
+   code_pos selection(size_t idx) const { assert(idx < _selection.size()); return _selection[idx]; }
+   
    void emplace_back_line(size_t offset, size_t bytes) {
-      if (bytes > columns)
-         columns = bytes;
-      lines.emplace_back(offset, bytes);
+      if (bytes > _max_columns)
+         _max_columns = bytes;
+      _lines.emplace_back(offset, bytes);
    }
 
    void move_caret(bool backward, bool word);
-   void focus_line(size_t index);                                        // Line numbers are 0-based
    void position_to_byte(int x, int y, size_t* line, size_t* byte);
    int  hittest(int x, int y);
 
-   void     set_tab_size(uint32_t sz) { tabSize = sz; }
-   uint32_t tab_size() const { return tabSize; }
+   void     set_tab_columns(uint32_t sz) { _tab_columns = sz; }
+   uint32_t tab_columns() const { return _tab_columns; }
 
-   void     set_current_line(std::optional<size_t> l)  { if (!l || *l < num_lines()) currentLine = l; }
-   std::optional<size_t> current_line() {
-      if (currentLine && *currentLine >= num_lines())
-         currentLine.reset();
-      return currentLine;
+   void set_focus_line(size_t index);                                        // Line numbers are 0-based
+   size_t focus_line() const { return _focus_line; }
+
+   bool left_down_in_margin() const { return _left_down_in_margin; }
+
+   void set_last_animate_time(UI_CLOCK_T t) { _last_animate_time = t; }
+   UI_CLOCK_T last_animate_time() const { return _last_animate_time; }
+
+   size_t max_columns() const { return _max_columns; }
+      
+   void set_current_line(std::optional<size_t> l) {
+      if (!l || *l < num_lines())
+         _current_line = l;
    }
+   std::optional<size_t> current_line() {
+      if (_current_line && *_current_line >= num_lines())
+         _current_line.reset();
+      return _current_line;
+   }
+
+   const char& operator[](size_t idx) const { return _content[idx]; }
+
+   size_t offset(const code_pos& pos) { return _lines[pos.line].offset + pos.offset; }
+
+   void set_font(UIFont* font) { _font = font; }
+   UIFont* font() const { return _font; }
+
+   void copy_text(sel_target_t t);
 };
 
 struct UIGauge : public UIElement {
@@ -915,9 +953,12 @@ struct UISlider : public UIElement {
    void SetPosition(double position);
 };
 
-struct UITable : public UIElement {
-   UIScrollBar*        vScroll;
-   UIScrollBar*        hScroll;
+struct UITable : public UIElement, public UIScrollbarPair {
+private:
+   
+   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+
+public:
    size_t              itemCount;
    std::string         columns;       // list of column headers separated by '\t' characters
    std::vector<size_t> columnWidths;
@@ -935,6 +976,10 @@ struct UITable : public UIElement {
    std::string_view column(size_t start, size_t end) const {
       return std::string_view{columns.c_str() + start, end - start};
    }
+
+   int  hittest(int x, int y);
+   int  header_hittest(int x, int y);
+   bool ensure_visible(int index);
 };
 
 struct UITextbox : public UIElement {
@@ -1012,8 +1057,6 @@ struct UISwitcher : public UIElement {
 };
 
 unique_ptr<UI> UIInitialise(const UIConfig& cfg);
-
-enum class sel_target_t { primary, clipboard };
 
 int  UIMessageLoop();
 

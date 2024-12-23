@@ -88,11 +88,11 @@ int MyTableMessage(UIElement* element, UIMessage message, int di, void* dp) {
          return m->format_to("other column {}", m->index);
       }
    } else if (message == UIMessage::LEFT_DOWN) {
-      int hit = UITableHitTest((UITable*)element, element->window->cursor.x, element->window->cursor.y);
+      int hit = ((UITable*)element)->hittest(element->window->cursor.x, element->window->cursor.y);
 
       if (selected != hit) {
          selected = hit;
-         if (!UITableEnsureVisible((UITable*)element, selected)) {
+         if (!((UITable*)element)->ensure_visible(selected)) {
             element->Repaint(NULL);
          }
       }
@@ -180,7 +180,7 @@ int main(int argc, char** argv) {
       // Top-Right pane.
       UICode* code = UICodeCreate(uisplit_top_leftright, 0);
       code->load_file("../src/luigi.hpp");
-      code->focus_line(0);
+      code->set_focus_line(0);
    }
 
    // Split bottom pane (horizontally) into left/right panes.

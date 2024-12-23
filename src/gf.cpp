@@ -584,24 +584,24 @@ int SourceFindEndOfBlock() {
    return -1;
 }
 
-bool SourceFindOuterFunctionCall(char** start, char** end) {
+bool SourceFindOuterFunctionCall(const char** start, const char** end) {
    int num_lines = (int)displayCode->num_lines();
    auto currentLine = displayCode->current_line();
 
    if (!currentLine)
       return false;
    
-   size_t offset = displayCode->lines[*currentLine].offset;
+   size_t offset = displayCode->line_offset(*currentLine);
    bool   found  = false;
 
    // Look forwards for the end of the call ");".
 
    size_t num_chars = displayCode->size();
    while (offset < num_chars - 1) {
-      if (displayCode->content[offset] == ')' && displayCode->content[offset + 1] == ';') {
+      if ((*displayCode)[offset] == ')' && (*displayCode)[offset + 1] == ';') {
          found = true;
          break;
-      } else if (displayCode->content[offset] == ';' || displayCode->content[offset] == '{') {
+      } else if ((*displayCode)[offset] == ';' || (*displayCode)[offset] == '{') {
          break;
       }
 
@@ -616,9 +616,9 @@ bool SourceFindOuterFunctionCall(char** start, char** end) {
    int level = 0;
 
    while (offset > 0) {
-      if (displayCode->content[offset] == ')') {
+      if ((*displayCode)[offset] == ')') {
          level++;
-      } else if (displayCode->content[offset] == '(') {
+      } else if ((*displayCode)[offset] == '(') {
          level--;
          if (level == 0)
             break;
@@ -630,7 +630,7 @@ bool SourceFindOuterFunctionCall(char** start, char** end) {
    if (level)
       return false;
 
-   *start = *end = &displayCode->content[offset];
+   *start = *end = &(*displayCode)[offset];
    found         = false;
    offset--;
 
@@ -638,13 +638,13 @@ bool SourceFindOuterFunctionCall(char** start, char** end) {
    // TODO Support function pointers.
 
    while (offset > 0) {
-      char c = displayCode->content[offset];
+      char c = (*displayCode)[offset];
 
       if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c == ' ' || (c >= '0' && c <= '9')) {
          // Part of the function name.
          offset--;
       } else {
-         *start = &displayCode->content[offset + 1];
+         *start = &(*displayCode)[offset + 1];
          found  = true;
          break;
       }
@@ -1091,7 +1091,7 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
          (void)DebuggerSend(std::format("until {}", line), true, synchronous);
       }
    } else if (command == "gf-step-into-outer") {
-      char *start, *end;
+      const char *start, *end;
       bool  found = SourceFindOuterFunctionCall(&start, &end);
 
       if (found) {
@@ -1644,7 +1644,7 @@ bool DisplaySetPosition(const char* file, std::optional<size_t> line, bool useGD
    auto currentLine = displayCode->current_line();
    if (line && (!currentLine || currentLine != line)) {
       displayCode->set_current_line(*line);
-      displayCode->focus_line(*line);
+      displayCode->set_focus_line(*line);
       changed = true;
    }
 
@@ -1724,7 +1724,7 @@ void DisassemblyUpdateLine() {
             uint64_t b = sv_atoul(displayCode->line(i), 3);
 
             if (a == b) {
-               displayCode->focus_line(i);
+               displayCode->set_focus_line(i);
                autoPrintExpressionLine = i;
                found                   = true;
                break;
@@ -1751,7 +1751,7 @@ void CommandToggleDisassembly() {
 
    if (showingDisassembly) {
       displayCode->insert_content("Disassembly could not be loaded.\nPress Ctrl+D to return to source view.", true);
-      displayCode->set_tab_size(8);
+      displayCode->set_tab_columns(8);
       DisassemblyLoad();
       DisassemblyUpdateLine();
    } else {
@@ -1760,7 +1760,7 @@ void CommandToggleDisassembly() {
       currentFile[0]      = 0;
       currentFileReadTime = 0;
       DisplaySetPositionFromStack();
-      displayCode->set_tab_size(4);
+      displayCode->set_tab_columns(4);
    }
 
    displayCode->Refresh();
@@ -1863,10 +1863,10 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
    if (message == UIMessage::CLICKED && !showingDisassembly) {
       int result = code->hittest(element->window->cursor.x, element->window->cursor.y);
 
-      if (result < 0 && code->leftDownInMargin) {
+      if (result < 0 && code->left_down_in_margin()) {
          int line = -result;
          CommandToggleBreakpoint(line);
-      } else if (result > 0 && !code->leftDownInMargin) {
+      } else if (result > 0 && !code->left_down_in_margin()) {
          int line = result;
 
          if (element->window->ctrl) {
@@ -1919,7 +1919,7 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
       element->messageClass(element, message, di, dp);
 
       if (inInspectLineMode) {
-         UIFont* previousFont = UIFontActivate(code->font);
+         UIFont* previousFont = UIFontActivate(code->font());
          DisplayCodeDrawInspectLineModeOverlay((UIPainter*)dp);
          UIFontActivate(previousFont);
       }
@@ -1973,8 +1973,8 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
 }
 
 UIElement* SourceWindowCreate(UIElement* parent) {
-   displayCode              = UICodeCreate(parent, selectableSource ? UICode::SELECTABLE : 0);
-   displayCode->font        = fontCode;
+   displayCode = UICodeCreate(parent, selectableSource ? UICode::SELECTABLE : 0);
+   displayCode->set_font(fontCode);
    displayCode->messageUser = DisplayCodeMessage;
    return displayCode;
 }
@@ -2218,7 +2218,7 @@ void InspectLineModeExit(UIElement* element) {
    textboxInput->Focus();
    inInspectLineMode = false;
    displayCode->set_current_line(inspectModeRestoreLine);
-   displayCode->focus_line(inspectModeRestoreLine);
+   displayCode->set_focus_line(inspectModeRestoreLine);
    displayCode->Refresh();
 }
 
@@ -2245,7 +2245,7 @@ int InspectLineModeMessage(UIElement* element, UIMessage message, int di, void* 
              (m->code == UIKeycode::DOWN && *currentLine + 1 < displayCode->num_lines())) {
             *currentLine +=  m->code == UIKeycode::UP ? -1 : 1;
             displayCode->set_current_line(*currentLine);
-            displayCode->focus_line(*currentLine);
+            displayCode->set_focus_line(*currentLine);
             InspectCurrentLine();
             displayCode->Refresh();
          }
@@ -3032,7 +3032,7 @@ int WatchLoggerTableMessage(UIElement* element, UIMessage message, int di, void*
          }
       }
    } else if (message == UIMessage::LEFT_DOWN || message == UIMessage::MOUSE_DRAG) {
-      int index = UITableHitTest((UITable*)element, element->window->cursor.x, element->window->cursor.y);
+      int index = ((UITable*)element)->hittest(element->window->cursor.x, element->window->cursor.y);
 
       if (index != -1 && logger->selectedEntry != index) {
          logger->selectedEntry    = index;
@@ -3064,7 +3064,7 @@ int WatchLoggerTraceMessage(UIElement* element, UIMessage message, int di, void*
          return m->format_to("0x{:X}", entry->address);
       }
    } else if (message == UIMessage::LEFT_DOWN || message == UIMessage::MOUSE_DRAG) {
-      int index = UITableHitTest((UITable*)element, element->window->cursor.x, element->window->cursor.y);
+      int index = ((UITable*)element)->hittest(element->window->cursor.x, element->window->cursor.y);
       WatchLoggerTraceSelectFrame(element, index, logger);
    }
 
@@ -3886,7 +3886,7 @@ int TableStackMessage(UIElement* element, UIMessage message, int di, void* dp) {
          return m->format_to("0x{:X}", entry->address);
       }
    } else if (message == UIMessage::LEFT_DOWN || message == UIMessage::MOUSE_DRAG) {
-      StackSetFrame(element, UITableHitTest((UITable*)element, element->window->cursor.x, element->window->cursor.y));
+      StackSetFrame(element, ((UITable*)element)->hittest(element->window->cursor.x, element->window->cursor.y));
    } else if (message == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
@@ -3970,7 +3970,7 @@ int TableBreakpointsMessage(UIElement* element, UIMessage message, int di, void*
          }
       }
    } else if (message == UIMessage::RIGHT_DOWN) {
-      int index = UITableHitTest((UITable*)element, element->window->cursor.x, element->window->cursor.y);
+      int index = ((UITable*)element)->hittest(element->window->cursor.x, element->window->cursor.y);
 
       if (index != -1) {
          Breakpoint* entry = &breakpoints[index];
@@ -4015,7 +4015,7 @@ int TableBreakpointsMessage(UIElement* element, UIMessage message, int di, void*
          UIMenuShow(menu);
       }
    } else if (message == UIMessage::LEFT_DOWN) {
-      int index = UITableHitTest((UITable*)element, element->window->cursor.x, element->window->cursor.y);
+      int index = ((UITable*)element)->hittest(element->window->cursor.x, element->window->cursor.y);
 
       if (index != -1) {
          Breakpoint* entry = &breakpoints[index];
@@ -4511,7 +4511,7 @@ int ThreadTableMessage(UIElement* element, UIMessage message, int di, void* dp) 
          return m->format_to("{}", window->threads[m->index].frame);
       }
    } else if (message == UIMessage::LEFT_DOWN) {
-      int index = UITableHitTest((UITable*)element, element->window->cursor.x, element->window->cursor.y);
+      int index = ((UITable*)element)->hittest(element->window->cursor.x, element->window->cursor.y);
 
       if (index != -1) {
          (void)DebuggerSend(std::format("thread {}", window->threads[index].id), true, false);
@@ -4747,7 +4747,7 @@ int TextboxSearchCommandMessage(UIElement* element, UIMessage message, int di, v
          window->display->insert_content("(no matches)", firstMatch);
       }
 
-      window->display->vScroll->position = 0;
+      window->display->reset_vscroll();
       window->display->Refresh();
    }
 
@@ -5520,7 +5520,7 @@ int ProfTableMessage(UIElement* element, UIMessage message, int di, void* dp) {
          return m->format_to("{:f}", entry->totalTime / report->totalTime * 100);
       }
    } else if (message == UIMessage::LEFT_DOWN) {
-      int index = UITableHeaderHitTest(table, element->window->cursor.x, element->window->cursor.y);
+      int index = table->header_hittest(element->window->cursor.x, element->window->cursor.y);
 
       if (index != -1) {
          if (index == 0) {
@@ -5544,9 +5544,8 @@ int ProfTableMessage(UIElement* element, UIMessage message, int di, void* dp) {
          table->columnHighlight = index;
       }
    } else if (message == UIMessage::GET_CURSOR) {
-      return UITableHeaderHitTest(table, element->window->cursor.x, element->window->cursor.y) == -1
-                ? (int)UICursor::arrow
-                : (int)UICursor::hand;
+      return table->header_hittest(element->window->cursor.x, element->window->cursor.y) == -1 ? (int)UICursor::arrow
+                                                                                              : (int)UICursor::hand;
    }
 
    return 0;
