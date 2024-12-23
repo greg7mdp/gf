@@ -593,16 +593,12 @@ struct UIElement {
    UIElement*              _parent  = nullptr;
    UIWindow*               _window  = nullptr;
    std::vector<UIElement*> _children;
-
-   UIRectangle bounds;
-   UIRectangle clip;
-
-   void* cp = nullptr; // Context pointer (for user).
-
-   MsgFn messageClass = nullptr;
-   MsgFn messageUser = nullptr;
-
-   const char* cClassName = nullptr;
+   UIRectangle             _bounds;
+   UIRectangle             _clip;
+   void*                   _cp         = nullptr; // Context pointer (for user).
+   MsgFn                   _class_proc = nullptr;
+   MsgFn                   _user_proc  = nullptr;
+   const char*             _class_name = nullptr;
 
    UIElement(UIElement* parent, uint32_t flags, MsgFn message, const char* cClassName);
    virtual ~UIElement();
@@ -834,7 +830,7 @@ protected:
       _hscroll->page = hSpace - (_vscroll->page < _vscroll->maximum ? scrollBarSize : 0);
       _vscroll->page = vSpace - (_hscroll->page < _hscroll->maximum ? scrollBarSize : 0);
 
-      UIRectangle vScrollBarBounds = el->bounds, hScrollBarBounds = el->bounds;
+      UIRectangle vScrollBarBounds = el->_bounds, hScrollBarBounds = el->_bounds;
 
       hScrollBarBounds.r = vScrollBarBounds.l =
          vScrollBarBounds.r - (_vscroll->page < _vscroll->maximum ? scrollBarSize : 0);

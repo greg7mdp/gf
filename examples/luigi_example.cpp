@@ -141,7 +141,7 @@ int main(int argc, char** argv) {
       // In the top-left pane - create a single panel taking up the whole pane.
       UIPanel* panel = UIPanelCreate(uisplit_top_leftright, UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING);
       // Panels are by default vertical in layout, so items start at top and go down.
-      UIButtonCreate(panel, 0, "Hello World")->messageUser = MyButtonMessage;
+      UIButtonCreate(panel, 0, "Hello World")->_user_proc = MyButtonMessage;
       // Create a new horizontal-layout "sub-panel" and put left and right panels inside it.
       UIPanel* subpanel = UIPanelCreate(panel, UIPanel::COLOR_1 | UIPanel::HORIZONTAL);
       // The left side will layout elements horizontally, with custom borders and gap.
@@ -154,21 +154,21 @@ int main(int argc, char** argv) {
       gauge_vert1              = UIGaugeCreate(sub_left, UIElement::VERTICAL);
       gauge_vert2              = UIGaugeCreate(sub_left, UIElement::VERTICAL);
       slider_vert              = UISliderCreate(sub_left, UIElement::VERTICAL);
-      slider_vert->messageUser = MySliderVMessage;
+      slider_vert->_user_proc = MySliderVMessage;
       // The right side will lay out elements vertically (the default), with default medium spacing.
       UIPanel* sub_right = UIPanelCreate(subpanel, UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING);
-      UIButtonCreate(sub_right, 0, "1")->messageUser = MyButtonMessage;
-      UIButtonCreate(sub_right, 0, "2")->messageUser = MyButtonMessage;
-      UIButtonCreate(sub_right, 0, "3")->messageUser = MyButtonMessage;
-      UIButtonCreate(sub_right, 0, "4")->messageUser = MyButtonMessage;
-      UIButtonCreate(sub_right, 0, "5")->messageUser = MyButtonMessage;
+      UIButtonCreate(sub_right, 0, "1")->_user_proc = MyButtonMessage;
+      UIButtonCreate(sub_right, 0, "2")->_user_proc = MyButtonMessage;
+      UIButtonCreate(sub_right, 0, "3")->_user_proc = MyButtonMessage;
+      UIButtonCreate(sub_right, 0, "4")->_user_proc = MyButtonMessage;
+      UIButtonCreate(sub_right, 0, "5")->_user_proc = MyButtonMessage;
       // Back outside of the "sub-panel", we continue layout downwards.
-      UIButtonCreate(panel, 0, "Goodbye World")->messageUser = MyButtonMessage;
+      UIButtonCreate(panel, 0, "Goodbye World")->_user_proc = MyButtonMessage;
 
       gauge_horiz1              = UIGaugeCreate(panel, 0);
       gauge_horiz2              = UIGaugeCreate(panel, 0);
       slider_horiz              = UISliderCreate(panel, 0);
-      slider_horiz->messageUser = MySliderHMessage;
+      slider_horiz->_user_proc = MySliderHMessage;
       UITextboxCreate(panel, 0);
       UITextboxCreate(panel, 0); // UITextbox::HIDE_CHARACTERS);
       // Set default slider positions.
@@ -191,7 +191,7 @@ int main(int argc, char** argv) {
       UIPanel* panel = UIPanelCreate(uisplit_bottom_leftright, UIPanel::COLOR_2);
       panel->border  = UIRectangle(5);
       panel->gap     = 5;
-      UIButtonCreate(panel, 0, "It's a button??")->messageUser = MyButton2Message;
+      UIButtonCreate(panel, 0, "It's a button??")->_user_proc = MyButton2Message;
       label = UILabelCreate(panel, UIElement::H_FILL, "Hello, I am a label!");
    }
 
@@ -201,7 +201,7 @@ int main(int argc, char** argv) {
       // First tab in tabPane
       UITable*   table   = UITableCreate(tabPane, 0, "Column 1\tColumn 2");
       table->set_num_items(100000);
-      table->messageUser = MyTableMessage;
+      table->_user_proc = MyTableMessage;
       table->resize_columns();
       // Second tab
       UILabelCreate(UIPanelCreate(tabPane, UIPanel::COLOR_1), 0, "you're in tab 2, bucko");
@@ -209,7 +209,7 @@ int main(int argc, char** argv) {
       UIPanel *settingsPanel = UIPanelCreate(tabPane, UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING | UIPanel::HORIZONTAL);
       UILabelCreate(settingsPanel, 0, "Delete top-left panel buttons on click:");
       check_delete = UICheckboxCreate(settingsPanel, 0, "Off");
-      check_delete->messageUser = MyCheckboxMessage;
+      check_delete->_user_proc = MyCheckboxMessage;
    }
 
    UIWindowRegisterShortcut(window, UIShortcut{.code = UI_KEYCODE_LETTER('T'), .ctrl = true, .invoke = []() {

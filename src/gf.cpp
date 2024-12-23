@@ -530,7 +530,7 @@ bool INIParse(INIState* s) {
 
 int ModifiedRowMessage(UIElement* element, UIMessage message, int di, void* dp) {
    if (message == UIMessage::PAINT) {
-      UIDrawBorder((UIPainter*)dp, element->bounds, ui->theme.selected, UIRectangle(2));
+      UIDrawBorder((UIPainter*)dp, element->_bounds, ui->theme.selected, UIRectangle(2));
    }
 
    return 0;
@@ -538,7 +538,7 @@ int ModifiedRowMessage(UIElement* element, UIMessage message, int di, void* dp) 
 
 int TrafficLightMessage(UIElement* element, UIMessage message, int di, void* dp) {
    if (message == UIMessage::PAINT) {
-      UIDrawRectangle((UIPainter*)dp, element->bounds, ctx.programRunning ? ui->theme.accent1 : ui->theme.accent2,
+      UIDrawRectangle((UIPainter*)dp, element->_bounds, ctx.programRunning ? ui->theme.accent1 : ui->theme.accent2,
                       ui->theme.border, UIRectangle(1));
    }
 
@@ -1916,7 +1916,7 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
                 ((ui->theme.accent1 & 0xFF) >> 1);
       }
    } else if (message == UIMessage::PAINT) {
-      element->messageClass(element, message, di, dp);
+      element->_class_proc(element, message, di, dp);
 
       if (inInspectLineMode) {
          UIFont* previousFont = UIFontActivate(code->font());
@@ -1975,7 +1975,7 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
 UIElement* SourceWindowCreate(UIElement* parent) {
    displayCode = UICodeCreate(parent, selectableSource ? UICode::SELECTABLE : 0);
    displayCode->set_font(fontCode);
-   displayCode->messageUser = DisplayCodeMessage;
+   displayCode->_user_proc = DisplayCodeMessage;
    return displayCode;
 }
 
@@ -2299,7 +2299,7 @@ int DataViewerAutoUpdateButtonMessage(UIElement* element, UIMessage message, int
       element->_flags ^= UIButton::CHECKED;
 
       if (element->_flags & UIButton::CHECKED) {
-         AutoUpdateViewer v = {.element = element->_parent, .callback = (void (*)(UIElement*))element->cp};
+         AutoUpdateViewer v = {.element = element->_parent, .callback = (void (*)(UIElement*))element->_cp};
          autoUpdateViewers.push_back(v);
       } else {
          [[maybe_unused]] bool found = DataViewerRemoveFromAutoUpdateList(element->_parent);
@@ -2338,11 +2338,11 @@ struct BitmapViewer {
 };
 
 int BitmapViewerWindowMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   BitmapViewer* viewer = (BitmapViewer*)element->cp;
+   BitmapViewer* viewer = (BitmapViewer*)element->_cp;
    if (message == UIMessage::DESTROY) {
       DataViewerRemoveFromAutoUpdateList(element);
       delete viewer;
-      element->cp = nullptr;
+      element->_cp = nullptr;
    } else if (message == UIMessage::GET_WIDTH) {
       int fit = viewer->parsedWidth + 40;
       return fit > 300 ? fit : 300;
@@ -2359,7 +2359,7 @@ void BitmapViewerUpdate(std::string pointerString, std::string widthString, std:
 
 int BitmapViewerRefreshMessage(UIElement* element, UIMessage message, int di, void* dp) {
    if (message == UIMessage::CLICKED) {
-      BitmapViewer* bitmap = (BitmapViewer*)element->_parent->cp;
+      BitmapViewer* bitmap = (BitmapViewer*)element->_parent->_cp;
       BitmapViewerUpdate(bitmap->pointer, bitmap->width, bitmap->height, bitmap->stride, element->_parent);
    }
 
@@ -2453,7 +2453,7 @@ int BitmapViewerDisplayMessage(UIElement* element, UIMessage message, int di, vo
 }
 
 void BitmapViewerAutoUpdateCallback(UIElement* element) {
-   BitmapViewer* bitmap = (BitmapViewer*)element->cp;
+   BitmapViewer* bitmap = (BitmapViewer*)element->_cp;
    BitmapViewerUpdate(bitmap->pointer, bitmap->width, bitmap->height, bitmap->stride, element);
 }
 
@@ -2473,12 +2473,12 @@ void BitmapViewerUpdate(std::string pointerString, std::string widthString, std:
       bitmap->stride  = std::move(strideString);
 
       UIMDIChild* window     = UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Bitmap");
-      window->messageUser    = BitmapViewerWindowMessage;
-      window->cp             = bitmap;
+      window->_user_proc    = BitmapViewerWindowMessage;
+      window->_cp             = bitmap;
       bitmap->autoToggle     = UIButtonCreate(window, UIButton::SMALL | UIElement::NON_CLIENT, "Auto");
-      bitmap->autoToggle->cp = (void*)BitmapViewerAutoUpdateCallback;
-      bitmap->autoToggle->messageUser = DataViewerAutoUpdateButtonMessage;
-      UIButtonCreate(window, UIButton::SMALL | UIElement::NON_CLIENT, "Refresh")->messageUser =
+      bitmap->autoToggle->_cp = (void*)BitmapViewerAutoUpdateCallback;
+      bitmap->autoToggle->_user_proc = DataViewerAutoUpdateButtonMessage;
+      UIButtonCreate(window, UIButton::SMALL | UIElement::NON_CLIENT, "Refresh")->_user_proc =
          BitmapViewerRefreshMessage;
       owner = window;
 
@@ -2487,10 +2487,10 @@ void BitmapViewerUpdate(std::string pointerString, std::string widthString, std:
          UIImageDisplayCreate(panel, UIImageDisplay::INTERACTIVE | UIElement::V_FILL, bits, width, height, stride);
       bitmap->labelPanel           = UIPanelCreate(panel, UIPanel::COLOR_1 | UIElement::V_FILL);
       bitmap->label                = UILabelCreate(bitmap->labelPanel, UIElement::H_FILL, {});
-      bitmap->display->messageUser = BitmapViewerDisplayMessage;
+      bitmap->display->_user_proc = BitmapViewerDisplayMessage;
    }
 
-   BitmapViewer* bitmap = (BitmapViewer*)owner->cp;
+   BitmapViewer* bitmap = (BitmapViewer*)owner->_cp;
    bitmap->parsedWidth = width, bitmap->parsedHeight = height;
    UIImageDisplaySetContent(bitmap->display, bits, width, height, stride);
    if (error)
@@ -2630,11 +2630,11 @@ UIElement* ConsoleWindowCreate(UIElement* parent) {
    panel3->border            = UIRectangle(5);
    panel3->gap               = 5;
    trafficLight              = UISpacerCreate(panel3, 0, 30, 30);
-   trafficLight->messageUser = TrafficLightMessage;
+   trafficLight->_user_proc = TrafficLightMessage;
    UIButton* buttonMenu      = UIButtonCreate(panel3, 0, "Menu");
    buttonMenu->invoke        = [buttonMenu]() { ctx.InterfaceShowMenu(buttonMenu); };
    textboxInput              = UITextboxCreate(panel3, UIElement::H_FILL);
-   textboxInput->messageUser = TextboxInputMessage;
+   textboxInput->_user_proc = TextboxInputMessage;
    textboxInput->Focus();
    return panel2;
 }
@@ -2714,7 +2714,7 @@ int WatchTextboxMessage(UIElement* element, UIMessage message, int di, void* dp)
    if (message == UIMessage::UPDATE) {
       if (element->_window->focused != element) {
          element->Destroy();
-         ((WatchWindow*)element->cp)->textbox = nullptr;
+         ((WatchWindow*)element->_cp)->textbox = nullptr;
       }
    } else if (message == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
@@ -2909,7 +2909,7 @@ void WatchEnsureRowVisible(WatchWindow* w, size_t index) {
       w->selectedRow = w->rows.size();
    UIScrollBar* scroll    = ((UIPanel*)w->_parent)->scrollBar;
    int          rowHeight = (int)(ui_size::TEXTBOX_HEIGHT * w->_window->scale);
-   int          start = index * rowHeight, end = (index + 1) * rowHeight, height = w->_parent->bounds.height();
+   int          start = index * rowHeight, end = (index + 1) * rowHeight, height = w->_parent->_bounds.height();
    bool         unchanged = false;
    if (end >= scroll->position + height)
       scroll->position = end - height;
@@ -2967,7 +2967,7 @@ void WatchAddExpression(WatchWindow* w, string_view string = {}) {
 
 void WatchAddExpression2(string_view string) {
    UIElement*   element = ctx.InterfaceWindowSwitchToAndFocus("Watch");
-   WatchWindow* w       = (WatchWindow*)element->cp;
+   WatchWindow* w       = (WatchWindow*)element->_cp;
    w->selectedRow       = w->rows.size();
    WatchAddExpression(w, string);
    if (w->selectedRow)
@@ -2979,8 +2979,8 @@ void WatchAddExpression2(string_view string) {
 
 int WatchLoggerWindowMessage(UIElement* element, UIMessage message, int di, void* dp) {
    if (message == UIMessage::DESTROY) {
-      if (element->cp) {
-         WatchLogger* logger = (WatchLogger*)element->cp;
+      if (element->_cp) {
+         WatchLogger* logger = (WatchLogger*)element->_cp;
 
          if (auto it = rng::find(watchLoggers, logger); it != rng::end(watchLoggers))
             watchLoggers.erase(it);
@@ -3013,7 +3013,7 @@ void WatchLoggerTraceSelectFrame(UIElement* element, int index, WatchLogger* log
 }
 
 int WatchLoggerTableMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   WatchLogger* logger = (WatchLogger*)element->cp;
+   WatchLogger* logger = (WatchLogger*)element->_cp;
 
    if (message == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m     = (UITableGetItem*)dp;
@@ -3048,7 +3048,7 @@ int WatchLoggerTableMessage(UIElement* element, UIMessage message, int di, void*
 }
 
 int WatchLoggerTraceMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   WatchLogger* logger = (WatchLogger*)element->cp;
+   WatchLogger* logger = (WatchLogger*)element->_cp;
 
    if (message == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m     = (UITableGetItem*)dp;
@@ -3165,12 +3165,12 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
    logger->trace                 = trace;
    logger->selectedEntry         = -1;
    logger->expressionsToEvaluate = expressionsToEvaluate;
-   child->cp                     = logger;
-   table->cp                     = logger;
-   trace->cp                     = logger;
-   child->messageUser            = WatchLoggerWindowMessage;
-   table->messageUser            = WatchLoggerTableMessage;
-   trace->messageUser            = WatchLoggerTraceMessage;
+   child->_cp                     = logger;
+   table->_cp                     = logger;
+   trace->_cp                     = logger;
+   child->_user_proc            = WatchLoggerWindowMessage;
+   table->_user_proc            = WatchLoggerTableMessage;
+   trace->_user_proc            = WatchLoggerTraceMessage;
    watchLoggers.push_back(logger);
    dataWindow->Refresh();
    WatchLoggerResizeColumns(logger);
@@ -3263,11 +3263,11 @@ bool WatchLoggerUpdate(std::string _data) {
 
 void WatchCreateTextboxForRow(WatchWindow* w, bool addExistingText) {
    int         rowHeight = (int)(ui_size::TEXTBOX_HEIGHT * w->_window->scale);
-   UIRectangle row       = w->bounds;
+   UIRectangle row       = w->_bounds;
    row.t += w->selectedRow * rowHeight, row.b = row.t + rowHeight;
    w->textbox              = UITextboxCreate(w, 0);
-   w->textbox->messageUser = WatchTextboxMessage;
-   w->textbox->cp          = w;
+   w->textbox->_user_proc = WatchTextboxMessage;
+   w->textbox->_cp          = w;
    w->textbox->Move(row, true);
    w->textbox->Focus();
 
@@ -3277,7 +3277,7 @@ void WatchCreateTextboxForRow(WatchWindow* w, bool addExistingText) {
 }
 
 WatchWindow* WatchGetFocused() {
-   return windowMain->focused->messageClass == WatchWindowMessage ? (WatchWindow*)windowMain->focused->cp : NULL;
+   return windowMain->focused->_class_proc == WatchWindowMessage ? (WatchWindow*)windowMain->focused->_cp : NULL;
 }
 
 void CommandWatchAddEntryForAddress(WatchWindow* _w) {
@@ -3423,15 +3423,15 @@ void CommandWatchCopyValueToClipboard(WatchWindow* w) {
 }
 
 int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   WatchWindow* w         = (WatchWindow*)element->cp;
+   WatchWindow* w         = (WatchWindow*)element->_cp;
    int          rowHeight = (int)(ui_size::TEXTBOX_HEIGHT * element->_window->scale);
    int          result    = 0;
 
    if (message == UIMessage::PAINT) {
       UIPainter* painter = (UIPainter*)dp;
 
-      for (size_t i = (painter->clip.t - element->bounds.t) / rowHeight; i <= WatchLastRow(w); i++) {
-         UIRectangle row = element->bounds;
+      for (size_t i = (painter->clip.t - element->_bounds.t) / rowHeight; i <= WatchLastRow(w); i++) {
+         UIRectangle row = element->_bounds;
          row.t += i * rowHeight, row.b = row.t + rowHeight;
 
          UIRectangle rect_intersection = intersection(row, painter->clip);
@@ -3490,12 +3490,12 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
    } else if (message == UIMessage::GET_HEIGHT) {
       return (WatchLastRow(w) + 1) * rowHeight;
    } else if (message == UIMessage::LEFT_DOWN) {
-      if (element->_window->cursor.y >= element->bounds.t) {
-         w->selectedRow = (element->_window->cursor.y - element->bounds.t) / rowHeight;
+      if (element->_window->cursor.y >= element->_bounds.t) {
+         w->selectedRow = (element->_window->cursor.y - element->_bounds.t) / rowHeight;
 
          if (w->selectedRow < w->rows.size()) {
             const shared_ptr<Watch>& watch = w->rows[w->selectedRow];
-            int                      x = (element->_window->cursor.x - element->bounds.l) / ui->activeFont->glyphWidth;
+            int                      x = (element->_window->cursor.x - element->_bounds.l) / ui->activeFont->glyphWidth;
 
             if (x >= watch->depth * 3 - 1 && x <= watch->depth * 3 + 1 && watch->hasFields) {
                UIKeyTyped m;
@@ -3509,8 +3509,8 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
       element->Focus();
       element->Repaint(nullptr);
    } else if (message == UIMessage::RIGHT_DOWN) {
-      if (element->_window->cursor.y >= element->bounds.t) {
-         size_t index = (element->_window->cursor.y - element->bounds.t) / rowHeight;
+      if (element->_window->cursor.y >= element->_bounds.t) {
+         size_t index = (element->_window->cursor.y - element->_bounds.t) / rowHeight;
 
          if (index < w->rows.size()) {
             WatchWindowMessage(element, UIMessage::LEFT_DOWN, di, dp);
@@ -3674,7 +3674,7 @@ int WatchWindowMessage(UIElement* element, UIMessage message, int di, void* dp) 
 }
 
 int WatchPanelMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   WatchWindow* window = (WatchWindow*)element->cp;
+   WatchWindow* window = (WatchWindow*)element->_cp;
    if (message == UIMessage::LEFT_DOWN) {
       window->Focus();
       window->Repaint(nullptr);
@@ -3690,14 +3690,14 @@ WatchWindow::WatchWindow(UIElement* parent, uint32_t flags, const char* name)
    , mode(WATCH_NORMAL)
    , updateIndex(0)
    , waitingForFormatCharacter(false) {
-   cp = this; // todo: shouldn't be needed
+   _cp = this; // todo: shouldn't be needed
 }
 
 UIElement* WatchWindowCreate(UIElement* parent) {
    UIPanel*     panel = UIPanelCreate(parent, UIPanel::SCROLL | UIPanel::COLOR_1);
    WatchWindow* w     = new WatchWindow(panel, UIElement::H_FILL | UIElement::TAB_STOP, "Watch");
-   panel->messageUser = WatchPanelMessage;
-   panel->cp          = w;
+   panel->_user_proc = WatchPanelMessage;
+   panel->_cp          = w;
 
    w->mode      = WATCH_NORMAL;
    w->extraRows = 1;
@@ -3709,14 +3709,14 @@ UIElement* WatchWindowCreate(UIElement* parent) {
 UIElement* LocalsWindowCreate(UIElement* parent) {
    UIPanel*     panel = UIPanelCreate(parent, UIPanel::SCROLL | UIPanel::COLOR_1);
    WatchWindow* w     = new WatchWindow(panel, UIElement::H_FILL | UIElement::TAB_STOP, "Locals");
-   panel->messageUser = WatchPanelMessage;
-   panel->cp          = w;
+   panel->_user_proc = WatchPanelMessage;
+   panel->_cp          = w;
    w->mode            = WATCH_LOCALS;
    return panel;
 }
 
 void WatchWindowUpdate(const char*, UIElement* element) {
-   WatchWindow* w = (WatchWindow*)element->cp;
+   WatchWindow* w = (WatchWindow*)element->_cp;
 
    if (w->mode == WATCH_LOCALS) {
       auto res = EvaluateCommand("py gf_locals()");
@@ -3845,7 +3845,7 @@ void CommandAddWatch() {
    UIElement* element = ctx.InterfaceWindowSwitchToAndFocus("Watch");
    if (!element)
       return;
-   WatchWindow* w = (WatchWindow*)element->cp;
+   WatchWindow* w = (WatchWindow*)element->_cp;
    if (w->textbox)
       return;
    w->selectedRow = w->rows.size();
@@ -3902,7 +3902,7 @@ int TableStackMessage(UIElement* element, UIMessage message, int di, void* dp) {
 
 UIElement* StackWindowCreate(UIElement* parent) {
    UITable* table     = UITableCreate(parent, 0, "Index\tFunction\tLocation\tAddress");
-   table->messageUser = TableStackMessage;
+   table->_user_proc = TableStackMessage;
    return table;
 }
 
@@ -3946,7 +3946,7 @@ void CommandEnableSelectedBreakpoints(BreakpointTableData* data) {
 }
 
 int TableBreakpointsMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   BreakpointTableData* data = (BreakpointTableData*)element->cp;
+   BreakpointTableData* data = (BreakpointTableData*)element->_cp;
 
    if (message == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m     = (UITableGetItem*)dp;
@@ -4070,8 +4070,8 @@ int TableBreakpointsMessage(UIElement* element, UIMessage message, int di, void*
 
 UIElement* BreakpointsWindowCreate(UIElement* parent) {
    UITable* table     = UITableCreate(parent, 0, "File\tLine\tEnabled\tCondition\tHit");
-   table->cp          = new BreakpointTableData;
-   table->messageUser = TableBreakpointsMessage;
+   table->_cp          = new BreakpointTableData;
+   table->_user_proc = TableBreakpointsMessage;
    return table;
 }
 
@@ -4130,7 +4130,7 @@ UIElement* DataWindowCreate(UIElement* parent) {
    }
 
    dataWindow           = UIMDIClientCreate(dataTab, UIElement::V_FILL);
-   dataTab->messageUser = DataTabMessage;
+   dataTab->_user_proc = DataTabMessage;
    return dataTab;
 }
 
@@ -4144,7 +4144,7 @@ struct StructWindow {
 };
 
 int TextboxStructNameMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   StructWindow* window = (StructWindow*)element->cp;
+   StructWindow* window = (StructWindow*)element->_cp;
 
    if (message == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
@@ -4169,8 +4169,8 @@ UIElement* StructWindowCreate(UIElement* parent) {
    StructWindow* window         = new StructWindow;
    UIPanel*      panel          = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
    window->textbox              = UITextboxCreate(panel, 0);
-   window->textbox->messageUser = TextboxStructNameMessage;
-   window->textbox->cp          = window;
+   window->textbox->_user_proc = TextboxStructNameMessage;
+   window->textbox->_cp          = window;
    window->display              = UICodeCreate(panel, UIElement::V_FILL | UICode::NO_MARGIN | UICode::SELECTABLE);
    window->display->insert_content("Type the name of a struct to view its layout.", false);
    return panel;
@@ -4202,7 +4202,7 @@ int FilesButtonMessage(UIElement* element, UIMessage message, int di, void* dp) 
    UIButton* button = (UIButton*)element;
 
    if (message == UIMessage::CLICKED) {
-      FilesWindow* window = (FilesWindow*)element->cp;
+      FilesWindow* window = (FilesWindow*)element->_cp;
       size_t       oldLength;
       mode_t       mode = FilesGetMode(window, button, &oldLength);
 
@@ -4222,8 +4222,8 @@ int FilesButtonMessage(UIElement* element, UIMessage message, int di, void* dp) 
       UIPainter* painter = (UIPainter*)dp;
       int        i       = (element == element->_window->pressed) + (element == element->_window->hovered);
       if (i)
-         UIDrawBlock(painter, element->bounds, i == 2 ? ui->theme.buttonPressed : ui->theme.buttonHovered);
-      UIDrawString(painter, element->bounds + UIRectangle(ui_size::BUTTON_PADDING, 0, 0, 0), button->label,
+         UIDrawBlock(painter, element->_bounds, i == 2 ? ui->theme.buttonPressed : ui->theme.buttonHovered);
+      UIDrawString(painter, element->_bounds + UIRectangle(ui_size::BUTTON_PADDING, 0, 0, 0), button->label,
                    button->_flags & UIButton::CHECKED ? ui->theme.codeNumber : ui->theme.codeDefault, UIAlign::left,
                    NULL);
       return 1;
@@ -4251,8 +4251,8 @@ bool FilesPanelPopulate(FilesWindow* window) {
       if (name[0] != '.' || name[1] != 0) {
          UIButton* button = UIButtonCreate(window->panel, 0, name);
          button->_flags &= ~UIElement::TAB_STOP;
-         button->cp          = window;
-         button->messageUser = FilesButtonMessage;
+         button->_cp          = window;
+         button->_user_proc = FilesButtonMessage;
 
          if (S_ISDIR(FilesGetMode(window, button, &oldLength))) {
             button->_flags |= UIButton::CHECKED;
@@ -4297,7 +4297,7 @@ UIElement* FilesWindowCreate(UIElement* parent) {
    UIPanel*     container = UIPanelCreate(parent, UIPanel::EXPAND);
    window->panel = UIPanelCreate(container, UIPanel::COLOR_1 | UIPanel::EXPAND | UIPanel::SCROLL | UIElement::V_FILL);
    window->panel->gap = -1, window->panel->border = UIRectangle(1);
-   window->panel->cp = window;
+   window->panel->_cp = window;
    UIPanel* row      = UIPanelCreate(container, UIPanel::COLOR_2 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
 
    UIButton* button = UIButtonCreate(row, UIButton::SMALL, "-> cwd");
@@ -4377,7 +4377,7 @@ void RegistersWindowUpdate(const char*, UIElement* panel) {
 
       UIPanel* row = UIPanelCreate(panel, UIPanel::HORIZONTAL | UIElement::H_FILL);
       if (modified)
-         row->messageUser = ModifiedRowMessage;
+         row->_user_proc = ModifiedRowMessage;
       UILabelCreate(row, 0, {stringStart, static_cast<size_t>(stringEnd - stringStart)});
 
       bool isPC = false;
@@ -4499,7 +4499,7 @@ struct ThreadWindow {
 };
 
 int ThreadTableMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   ThreadWindow* window = (ThreadWindow*)element->cp;
+   ThreadWindow* window = (ThreadWindow*)element->_cp;
 
    if (message == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m = (UITableGetItem*)dp;
@@ -4523,13 +4523,13 @@ int ThreadTableMessage(UIElement* element, UIMessage message, int di, void* dp) 
 
 UIElement* ThreadWindowCreate(UIElement* parent) {
    UITable* table     = UITableCreate(parent, 0, "ID\tFrame");
-   table->cp          = new ThreadWindow;
-   table->messageUser = ThreadTableMessage;
+   table->_cp          = new ThreadWindow;
+   table->_user_proc = ThreadTableMessage;
    return table;
 }
 
 void ThreadWindowUpdate(const char*, UIElement* _table) {
-   ThreadWindow* window = (ThreadWindow*)_table->cp;
+   ThreadWindow* window = (ThreadWindow*)_table->_cp;
    window->threads.clear();
 
    auto res = EvaluateCommand("info threads");
@@ -4676,7 +4676,7 @@ struct CommandSearchWindow {
 };
 
 int TextboxSearchCommandMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   CommandSearchWindow* window = (CommandSearchWindow*)element->cp;
+   CommandSearchWindow* window = (CommandSearchWindow*)element->_cp;
 
    if (message == UIMessage::KEY_TYPED) {
       if (!window->commands.size()) {
@@ -4758,8 +4758,8 @@ UIElement* CommandSearchWindowCreate(UIElement* parent) {
    CommandSearchWindow* window  = new CommandSearchWindow;
    UIPanel*             panel   = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
    window->textbox              = UITextboxCreate(panel, 0);
-   window->textbox->messageUser = TextboxSearchCommandMessage;
-   window->textbox->cp          = window;
+   window->textbox->_user_proc = TextboxSearchCommandMessage;
+   window->textbox->_cp          = window;
    window->display              = UICodeCreate(panel, UIElement::V_FILL | UICode::NO_MARGIN | UICode::SELECTABLE);
    window->display->insert_content("Type here to search \nGDB command descriptions.", true);
    return panel;
@@ -5084,7 +5084,7 @@ void* ProfFlameGraphRenderThread(void* _unused) {
          ProfFlameGraphEntry* entry = &report->entries[i];
          PROFILER_ENTRY_RECTANGLE_OTHER();
 
-         if (rl <= element->clip.r && rr >= element->clip.l && rt <= element->clip.b && rb >= element->clip.t) {
+         if (rl <= element->_clip.r && rr >= element->_clip.l && rt <= element->_clip.b && rb >= element->_clip.t) {
             // Carefully convert 64-bit integers to 32-bit integers for UIRectangle,
             // since the rectangle may be really large when zoomed in.
             UIRectangle r;
@@ -5254,10 +5254,10 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
          int lineHeight = UIMeasureStringHeight();
          int height     = 3 * lineHeight;
          int x          = element->_window->cursor.x;
-         if (x + width > element->clip.r)
-            x = element->clip.r - width;
+         if (x + width > element->_clip.r)
+            x = element->_clip.r - width;
          int y = element->_window->cursor.y + 25;
-         if (y + height > element->clip.b)
+         if (y + height > element->_clip.b)
             y = element->_window->cursor.y - height - 10;
          UIRectangle rectangle = UIRectangle(x, x + width, y, y + height);
 
@@ -5441,11 +5441,11 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
              : report->dragMode == FLAME_GRAPH_DRAG_X_PAN_AND_ZOOM ? (int)UICursor::cross_hair
                                                                    : (int)UICursor::arrow;
    } else if (message == UIMessage::LAYOUT) {
-      UIRectangle scrollBarBounds = element->bounds;
+      UIRectangle scrollBarBounds = element->_bounds;
       scrollBarBounds.l           = scrollBarBounds.r - ui_size::SCROLL_BAR * element->_window->scale;
-      report->vScroll->page       = element->bounds.height() - profZoomBarHeight;
+      report->vScroll->page       = element->_bounds.height() - profZoomBarHeight;
       report->vScroll->Move(scrollBarBounds, true);
-      report->client   = element->bounds;
+      report->client   = element->_bounds;
       report->client.r = scrollBarBounds.l;
    } else if (message == UIMessage::SCROLLED) {
       element->Refresh();
@@ -5461,7 +5461,7 @@ int ProfFlameGraphMessage(UIElement* element, UIMessage message, int di, void* d
 }
 
 int ProfReportWindowMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   ProfFlameGraphReport* report = (ProfFlameGraphReport*)element->cp;
+   ProfFlameGraphReport* report = (ProfFlameGraphReport*)element->_cp;
 
    if (message == UIMessage::LAYOUT) {
       if (report->showingTable) {
@@ -5471,8 +5471,8 @@ int ProfReportWindowMessage(UIElement* element, UIMessage message, int di, void*
          report->_flags &= ~UIElement::HIDE;
          report->table->_flags |= UIElement::HIDE;
       }
-      element->messageClass(element, message, di, dp);
-      report->table->Move(report->bounds, false);
+      element->_class_proc(element, message, di, dp);
+      report->table->Move(report->_bounds, false);
       return 1;
    }
 
@@ -5501,7 +5501,7 @@ PROF_FUNCTION_COMPARE(ProfFunctionCompareAverage,
 PROF_FUNCTION_COMPARE(ProfFunctionComparePercentage, PROF_COMPARE_NUMBERS(left->totalTime, right->totalTime));
 
 int ProfTableMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   ProfFlameGraphReport* report = (ProfFlameGraphReport*)element->cp;
+   ProfFlameGraphReport* report = (ProfFlameGraphReport*)element->_cp;
    UITable*              table  = report->table;
 
    if (message == UIMessage::TABLE_GET_ITEM) {
@@ -5703,13 +5703,13 @@ void ProfLoadProfileData(void* _window) {
    report->vScroll = UIScrollBarCreate(report, 0);
    report->font    = data->fontFlameGraph;
 
-   window->cp          = report;
-   window->messageUser = ProfReportWindowMessage;
+   window->_cp          = report;
+   window->_user_proc = ProfReportWindowMessage;
 
-   switchViewButton->cp     = report;
+   switchViewButton->_cp     = report;
    switchViewButton->invoke = [report]() { ProfSwitchView(report); };
-   table->cp                = report;
-   table->messageUser       = ProfTableMessage;
+   table->_cp                = report;
+   table->_user_proc       = ProfTableMessage;
    report->switchViewButton = switchViewButton;
    report->table            = table;
 
@@ -5820,7 +5820,7 @@ void ProfLoadProfileData(void* _window) {
       painter.height    = maxDepth * 30 + 30;
       painter.clip      = UIRectangle(0, painter.width, 0, painter.height);
       painter.bits      = (uint32_t*)malloc(painter.width * painter.height * 4);
-      report->client = report->bounds = report->clip = painter.clip;
+      report->client = report->_bounds = report->_clip = painter.clip;
       ProfFlameGraphMessage(report, UIMessage::PAINT, 0, &painter);
       int newHeight = 30;
       ThumbnailResize(painter.bits, painter.width, painter.height, painter.width, newHeight);
@@ -5847,7 +5847,7 @@ void ProfStepOverProfiled(ProfWindow* window) {
 }
 
 void ProfWindowUpdate(const char* data, UIElement* element) {
-   ProfWindow* window = (ProfWindow*)element->cp;
+   ProfWindow* window = (ProfWindow*)element->_cp;
 
    if (window->inStepOverProfiled) {
       (void)EvaluateCommand("call GfProfilingStop()");
@@ -5863,7 +5863,7 @@ UIElement* ProfWindowCreate(UIElement* parent) {
    ProfWindow* window             = new ProfWindow;
    window->fontFlameGraph         = UIFontCreate(_UI_TO_STRING_2(UI_FONT_PATH), fontSizeFlameGraph);
    UIPanel* panel                 = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
-   panel->cp                      = window;
+   panel->_cp                      = window;
    UIButton* button               = UIButtonCreate(panel, UIElement::V_FILL, "Step over profiled");
    button->invoke                 = [window]() { ProfStepOverProfiled(window); };
 
@@ -5911,12 +5911,12 @@ int MemoryWindowMessage(UIElement* element, UIMessage message, int di, void* dp)
 
    if (message == UIMessage::PAINT) {
       UIPainter* painter = (UIPainter*)dp;
-      UIDrawBlock(painter, element->bounds, ui->theme.panel1);
+      UIDrawBlock(painter, element->_bounds, ui->theme.panel1);
 
       char        buffer[64];
       uint64_t    address   = window->offset;
       const int   rowHeight = UIMeasureStringHeight();
-      UIRectangle row       = element->bounds + ui_rect_1i(10);
+      UIRectangle row       = element->_bounds + ui_rect_1i(10);
       size_t      rowCount  = (painter->clip.b - row.t) / rowHeight;
       row.b                 = row.t + rowHeight;
 
@@ -5998,7 +5998,7 @@ int MemoryWindowMessage(UIElement* element, UIMessage message, int di, void* dp)
          address += 0x10;
       }
    } else if (message == UIMessage::LAYOUT) {
-      UIRectangle bounds = element->bounds + ui_rect_1i(10);
+      UIRectangle bounds = element->_bounds + ui_rect_1i(10);
       window->gotoButton->Move(UIRectangle(bounds.r - window->gotoButton->Message(UIMessage::GET_WIDTH, 0, 0), bounds.r,
                                            bounds.t,
                                            bounds.t + window->gotoButton->Message(UIMessage::GET_HEIGHT, 0, 0)),
@@ -6150,9 +6150,9 @@ int ViewWindowColorSwatchMessage(UIElement* element, UIMessage message, int di, 
       uint32_t    color   = ((ViewWindowColorSwatch*)element)->color;
       UIPainter*  painter = (UIPainter*)dp;
       const char* message = "Col: ";
-      UIDrawString(painter, element->bounds, message, ui->theme.text, UIAlign::left, nullptr);
-      UIRectangle swatch = UIRectangle(element->bounds.l + UIMeasureStringWidth(message), 0, element->bounds.t + 2,
-                                       element->bounds.b - 2);
+      UIDrawString(painter, element->_bounds, message, ui->theme.text, UIAlign::left, nullptr);
+      UIRectangle swatch = UIRectangle(element->_bounds.l + UIMeasureStringWidth(message), 0, element->_bounds.t + 2,
+                                       element->_bounds.b - 2);
       swatch.r           = swatch.l + 50;
       UIDrawRectangle(painter, swatch, color, 0xFF000000, UIRectangle(1));
    }
@@ -6206,8 +6206,8 @@ int ViewWindowMatrixGridMessage(UIElement* element, UIMessage message, int di, v
                char c = grid->data()[i * grid->w + j];
                if (!c)
                   continue;
-               UIDrawGlyph(painter, element->bounds.l + j * glyphWidth - grid->hScroll->position,
-                           element->bounds.t + i * glyphHeight - grid->vScroll->position, c, ui->theme.text);
+               UIDrawGlyph(painter, element->_bounds.l + j * glyphWidth - grid->hScroll->position,
+                           element->_bounds.t + i * glyphHeight - grid->vScroll->position, c, ui->theme.text);
             } else if (grid->grid_type == grid_type_t::float_t || grid->grid_type == grid_type_t::double_t) {
                double f = grid->grid_type == grid_type_t::double_t ? ((double*)grid->data())[i * grid->w + j]
                                                                    : (double)((float*)grid->data())[i * grid->w + j];
@@ -6215,8 +6215,8 @@ int ViewWindowMatrixGridMessage(UIElement* element, UIMessage message, int di, v
                std_format_to_n(buffer, sizeof(buffer), "{:f}", f);
                UIRectangle rectangle =
                   UIRectangle(j * glyphWidth * 14, (j + 1) * glyphWidth * 14, i * glyphHeight, (i + 1) * glyphHeight);
-               UIRectangle offset = UIRectangle(element->bounds.l - (int)grid->hScroll->position,
-                                                element->bounds.t - (int)grid->vScroll->position);
+               UIRectangle offset = UIRectangle(element->_bounds.l - (int)grid->hScroll->position,
+                                                element->_bounds.t - (int)grid->vScroll->position);
                UIDrawString(painter, rectangle + offset, buffer, ui->theme.text, UIAlign::right, nullptr);
             }
          }
@@ -6224,16 +6224,16 @@ int ViewWindowMatrixGridMessage(UIElement* element, UIMessage message, int di, v
 
       int scrollBarSize = ui_size::SCROLL_BAR * element->_window->scale;
       UIDrawBlock(painter,
-                  UIRectangle(element->bounds.r - scrollBarSize, element->bounds.r, element->bounds.b - scrollBarSize,
-                              element->bounds.b),
+                  UIRectangle(element->_bounds.r - scrollBarSize, element->_bounds.r, element->_bounds.b - scrollBarSize,
+                              element->_bounds.b),
                   ui->theme.panel1);
    } else if (message == UIMessage::LAYOUT) {
-      UIRectangle scrollBarBounds = element->bounds;
+      UIRectangle scrollBarBounds = element->_bounds;
       scrollBarBounds.l           = scrollBarBounds.r - ui_size::SCROLL_BAR * element->_window->scale;
       scrollBarBounds.b -= ui_size::SCROLL_BAR * element->_window->scale;
       grid->vScroll->page = scrollBarBounds.height();
       grid->vScroll->Move(scrollBarBounds, true);
-      scrollBarBounds   = element->bounds;
+      scrollBarBounds   = element->_bounds;
       scrollBarBounds.t = scrollBarBounds.b - ui_size::SCROLL_BAR * element->_window->scale;
       scrollBarBounds.r -= ui_size::SCROLL_BAR * element->_window->scale;
       grid->hScroll->page = scrollBarBounds.width();
@@ -6246,7 +6246,7 @@ int ViewWindowMatrixGridMessage(UIElement* element, UIMessage message, int di, v
 }
 
 int ViewWindowStringLayout(ViewWindowString* display, UIPainter* painter, int offset) {
-   UIRectangle clientBounds = display->bounds;
+   UIRectangle clientBounds = display->_bounds;
    clientBounds.r -= ui_size::SCROLL_BAR * display->_window->scale;
    int x = clientBounds.l, y = clientBounds.t - offset;
    int glyphWidth = UIMeasureStringWidth("a"), glyphHeight = UIMeasureStringHeight();
@@ -6306,15 +6306,15 @@ int ViewWindowStringMessage(UIElement* element, UIMessage message, int di, void*
    if (message == UIMessage::DESTROY) {
       display->data.reset();
    } else if (message == UIMessage::LAYOUT) {
-      UIRectangle scrollBarBounds = element->bounds;
+      UIRectangle scrollBarBounds = element->_bounds;
       scrollBarBounds.l           = scrollBarBounds.r - ui_size::SCROLL_BAR * element->_window->scale;
-      UIRectangle clientBounds    = element->bounds;
+      UIRectangle clientBounds    = element->_bounds;
       clientBounds.r -= ui_size::SCROLL_BAR * element->_window->scale;
       display->vScroll->maximum = ViewWindowStringLayout(display, nullptr, 0);
-      display->vScroll->page    = element->bounds.height();
+      display->vScroll->page    = element->_bounds.height();
       display->vScroll->Move(scrollBarBounds, true);
    } else if (message == UIMessage::PAINT) {
-      UIDrawBlock((UIPainter*)dp, element->bounds, ui->theme.codeBackground);
+      UIDrawBlock((UIPainter*)dp, element->_bounds, ui->theme.codeBackground);
       ViewWindowStringLayout(display, (UIPainter*)dp, display->vScroll->position);
    } else if (message == UIMessage::MOUSE_WHEEL) {
       return display->vScroll->Message(message, di, dp);
@@ -6330,7 +6330,7 @@ void ViewWindowView(void* cp) {
    UIElement* watchElement = ctx.InterfaceWindowSwitchToAndFocus("Watch");
    if (!watchElement)
       return;
-   WatchWindow* w = (WatchWindow*)watchElement->cp;
+   WatchWindow* w = (WatchWindow*)watchElement->_cp;
    if (w->textbox)
       return;
    if (w->selectedRow > w->rows.size() || !w->rows.size())
@@ -6569,9 +6569,9 @@ struct WaveformDisplay : public UIElement {
       , dragLastX(0)
       , dragLastModification(0)
       , peak(0) {
-      zoomOut->messageUser   = WaveformDisplayZoomButtonMessage;
-      zoomIn->messageUser    = WaveformDisplayZoomButtonMessage;
-      normalize->messageUser = WaveformDisplayNormalizeButtonMessage;
+      zoomOut->_user_proc   = WaveformDisplayZoomButtonMessage;
+      zoomIn->_user_proc    = WaveformDisplayZoomButtonMessage;
+      normalize->_user_proc = WaveformDisplayNormalizeButtonMessage;
    }
 };
 
@@ -6611,31 +6611,31 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
       }
 
       int         scrollBarHeight = ui_size::SCROLL_BAR * element->_window->scale;
-      UIRectangle scrollBarBounds = element->bounds;
+      UIRectangle scrollBarBounds = element->_bounds;
       scrollBarBounds.t           = scrollBarBounds.b - scrollBarHeight;
       display->scrollBar->maximum = display->sampleCount;
       display->scrollBar->page    = display->samplesOnScreen;
       display->scrollBar->Move(scrollBarBounds, true);
 
-      display->zoomOut->Move(UIRectangle(element->bounds.l + (int)(15 * element->_window->scale),
-                                         element->bounds.l + (int)(45 * element->_window->scale),
-                                         element->bounds.t + (int)(15 * element->_window->scale),
-                                         element->bounds.t + (int)(45 * element->_window->scale)),
+      display->zoomOut->Move(UIRectangle(element->_bounds.l + (int)(15 * element->_window->scale),
+                                         element->_bounds.l + (int)(45 * element->_window->scale),
+                                         element->_bounds.t + (int)(15 * element->_window->scale),
+                                         element->_bounds.t + (int)(45 * element->_window->scale)),
                              true);
-      display->zoomIn->Move(UIRectangle(element->bounds.l + (int)(45 * element->_window->scale),
-                                        element->bounds.l + (int)(75 * element->_window->scale),
-                                        element->bounds.t + (int)(15 * element->_window->scale),
-                                        element->bounds.t + (int)(45 * element->_window->scale)),
+      display->zoomIn->Move(UIRectangle(element->_bounds.l + (int)(45 * element->_window->scale),
+                                        element->_bounds.l + (int)(75 * element->_window->scale),
+                                        element->_bounds.t + (int)(15 * element->_window->scale),
+                                        element->_bounds.t + (int)(45 * element->_window->scale)),
                             true);
-      display->normalize->Move(UIRectangle(element->bounds.l + (int)(75 * element->_window->scale),
-                                           element->bounds.l + (int)(135 * element->_window->scale),
-                                           element->bounds.t + (int)(15 * element->_window->scale),
-                                           element->bounds.t + (int)(45 * element->_window->scale)),
+      display->normalize->Move(UIRectangle(element->_bounds.l + (int)(75 * element->_window->scale),
+                                           element->_bounds.l + (int)(135 * element->_window->scale),
+                                           element->_bounds.t + (int)(15 * element->_window->scale),
+                                           element->_bounds.t + (int)(45 * element->_window->scale)),
                                true);
    } else if (message == UIMessage::MOUSE_DRAG && element->_window->pressedButton == 1) {
       display->scrollBar->position += display->dragLastModification;
       display->dragLastModification =
-         (element->_window->cursor.x - display->dragLastX) * display->samplesOnScreen / element->bounds.width();
+         (element->_window->cursor.x - display->dragLastX) * display->samplesOnScreen / element->_bounds.width();
       display->scrollBar->position -= display->dragLastModification;
       display->Refresh();
    } else if (message == UIMessage::MOUSE_DRAG && element->_window->pressedButton == 2) {
@@ -6643,14 +6643,14 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
    } else if (message == UIMessage::MOUSE_MOVE) {
       display->Repaint(NULL);
    } else if (message == UIMessage::MIDDLE_UP) {
-      int l = element->_window->cursor.x - element->bounds.l, r = display->dragLastX - element->bounds.l;
+      int l = element->_window->cursor.x - element->_bounds.l, r = display->dragLastX - element->_bounds.l;
       if (r < l) {
          int t = l;
          l     = r;
          r     = t;
       }
-      float lf = (float)l / element->bounds.width() * display->samplesOnScreen + display->scrollBar->position;
-      float rf = (float)r / element->bounds.width() * display->samplesOnScreen + display->scrollBar->position;
+      float lf = (float)l / element->_bounds.width() * display->samplesOnScreen + display->scrollBar->position;
+      float rf = (float)r / element->_bounds.width() * display->samplesOnScreen + display->scrollBar->position;
 
       if (rf - lf >= display->minimumZoom) {
          display->scrollBar->position = lf;
@@ -6669,7 +6669,7 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
          factor *= perDivision, divisions--;
       while (divisions < 0)
          factor /= perDivision, divisions++;
-      double mouse   = (double)(element->_window->cursor.x - element->bounds.l) / element->bounds.width();
+      double mouse   = (double)(element->_window->cursor.x - element->_bounds.l) / element->_bounds.width();
       double newZoom = (double)display->samplesOnScreen / display->sampleCount * factor;
 
       if (newZoom * display->sampleCount >= display->minimumZoom) {
@@ -6681,8 +6681,8 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
    } else if (message == UIMessage::SCROLLED) {
       element->Repaint(NULL);
    } else if (message == UIMessage::PAINT) {
-      UIRectangle client = element->bounds;
-      client.b -= display->scrollBar->bounds.height();
+      UIRectangle client = element->_bounds;
+      client.b -= display->scrollBar->_bounds.height();
 
       UIPainter*  painter = (UIPainter*)dp;
       UIRectangle oldClip = painter->clip;
@@ -6751,10 +6751,10 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
          }
 
          int mouseXSample =
-            (float)(element->_window->cursor.x - client.l) / element->bounds.width() * display->samplesOnScreen - 0.5f;
+            (float)(element->_window->cursor.x - client.l) / element->_bounds.width() * display->samplesOnScreen - 0.5f;
 
-         if (mouseXSample >= 0 && mouseXSample < sampleCount && element->clip.contains(element->_window->cursor) &&
-             !display->scrollBar->clip.contains(element->_window->cursor)) {
+         if (mouseXSample >= 0 && mouseXSample < sampleCount && element->_clip.contains(element->_window->cursor) &&
+             !display->scrollBar->_clip.contains(element->_window->cursor)) {
             int         stringOffset = 20 * element->_window->scale;
             UIRectangle stringRectangle =
                UIRectangle(client.l + stringOffset, client.r - stringOffset, client.t + stringOffset,
@@ -6782,7 +6782,7 @@ int WaveformDisplayMessage(UIElement* element, UIMessage message, int di, void* 
 
       if (element->_window->pressedButton == 2 && element->_window->pressed) {
          int l = element->_window->cursor.x, r = display->dragLastX;
-         UIDrawInvert(painter, UIRectangle(l > r ? r : l, l > r ? l : r, element->bounds.t, element->bounds.r));
+         UIDrawInvert(painter, UIRectangle(l > r ? r : l, l > r ? l : r, element->_bounds.t, element->_bounds.r));
       }
 
       painter->clip = oldClip;
@@ -6922,7 +6922,7 @@ const char* WaveformViewerGetSamples(const char* pointerString, const char* samp
 int WaveformViewerWindowMessage(UIElement* element, UIMessage message, int di, void* dp) {
    if (message == UIMessage::DESTROY) {
       DataViewerRemoveFromAutoUpdateList(element);
-      delete (WaveformViewer*)element->cp;
+      delete (WaveformViewer*)element->_cp;
    } else if (message == UIMessage::GET_WIDTH) {
       return 300;
    } else if (message == UIMessage::GET_HEIGHT) {
@@ -6933,7 +6933,7 @@ int WaveformViewerWindowMessage(UIElement* element, UIMessage message, int di, v
 }
 
 void WaveformViewerAutoUpdateCallback(UIElement* element) {
-   WaveformViewer* viewer = (WaveformViewer*)element->cp;
+   WaveformViewer* viewer = (WaveformViewer*)element->_cp;
    WaveformViewerUpdate(viewer->pointer, viewer->sampleCount, viewer->channels, element);
 }
 
@@ -7018,12 +7018,12 @@ void WaveformViewerUpdate(const char* pointerString, const char* sampleCountStri
          std_format_to_n(viewer->channels, sizeof(viewer->channels), "{}", channelsString);
 
       UIMDIChild* window     = UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Waveform");
-      window->messageUser    = WaveformViewerWindowMessage;
-      window->cp             = viewer;
+      window->_user_proc    = WaveformViewerWindowMessage;
+      window->_cp             = viewer;
       viewer->autoToggle     = UIButtonCreate(window, UIButton::SMALL | UIElement::NON_CLIENT, "Auto");
-      viewer->autoToggle->cp = (void*)WaveformViewerAutoUpdateCallback;
-      viewer->autoToggle->messageUser = DataViewerAutoUpdateButtonMessage;
-      UIButtonCreate(window, UIButton::SMALL | UIElement::NON_CLIENT, "Refresh")->messageUser =
+      viewer->autoToggle->_cp = (void*)WaveformViewerAutoUpdateCallback;
+      viewer->autoToggle->_user_proc = DataViewerAutoUpdateButtonMessage;
+      UIButtonCreate(window, UIButton::SMALL | UIElement::NON_CLIENT, "Refresh")->_user_proc =
          WaveformViewerRefreshMessage;
       owner = window;
 
@@ -7031,10 +7031,10 @@ void WaveformViewerUpdate(const char* pointerString, const char* sampleCountStri
       viewer->labelPanel           = UIPanelCreate(panel, UIPanel::COLOR_1 | UIElement::V_FILL);
       viewer->label                = UILabelCreate(viewer->labelPanel, UIElement::H_FILL, {});
       viewer->display              = WaveformDisplayCreate(panel, UIElement::V_FILL);
-      viewer->display->messageUser = WaveformViewerDisplayMessage;
+      viewer->display->_user_proc = WaveformViewerDisplayMessage;
    }
 
-   WaveformViewer* viewer    = (WaveformViewer*)owner->cp;
+   WaveformViewer* viewer    = (WaveformViewer*)owner->_cp;
    viewer->parsedSampleCount = sampleCount, viewer->parsedChannels = channels;
 
    if (error) {
@@ -7329,7 +7329,7 @@ UIElement* Context::InterfaceWindowSwitchToAndFocus(string_view target_name) {
       if (target_name != name)
          continue;
 
-      if ((w.element->_flags & UIElement::HIDE) && w.element->_parent->messageClass == _UITabPaneMessage) {
+      if ((w.element->_flags & UIElement::HIDE) && w.element->_parent->_class_proc == _UITabPaneMessage) {
          UITabPane* tabPane = (UITabPane*)w.element->_parent;
 
          for (uint32_t i = 0; i < tabPane->_children.size(); i++) {
@@ -7372,13 +7372,13 @@ int MainWindowMessageProc(UIElement*, UIMessage message, int di, void* dp) {
 
 int InterfaceTabPaneMessage(UIElement* element, UIMessage message, int di, void* dp) {
    if (message == UIMessage::LAYOUT) {
-      element->messageClass(element, message, di, dp);
+      element->_class_proc(element, message, di, dp);
 
       for (auto& [name, w] : ctx.interfaceWindows) {
          if (w.element && (~w.element->_flags & UIElement::HIDE) && w.queuedUpdate) {
             w.queuedUpdate = false;
             w.update("", w.element);
-            w.element->Move(w.element->bounds, false);
+            w.element->Move(w.element->_bounds, false);
          }
       }
 
@@ -7464,7 +7464,7 @@ void Context::InterfaceLayoutCreate(UIElement* parent) {
          else if (copy[i] == ')')
             copy[i] = 0;
       UIElement* container   = UITabPaneCreate(parent, UIElement::V_FILL | UIElement::H_FILL, copy);
-      container->messageUser = InterfaceTabPaneMessage;
+      container->_user_proc = InterfaceTabPaneMessage;
       free(copy);
       InterfaceLayoutCreate(container);
 
@@ -7560,7 +7560,7 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
 
    windowMain              = UIWindowCreate(0, maximize ? UIWindow::MAXIMIZE : 0, "gf", window_width, window_height);
    windowMain->scale       = uiScale;
-   windowMain->messageUser = MainWindowMessageProc;
+   windowMain->_user_proc = MainWindowMessageProc;
 
    for (const auto& ic : interfaceCommands) {
       if (!(int)ic.shortcut.code)
