@@ -4931,7 +4931,7 @@ bool UIAutomationCheckTableItemMatches(UITable* table, int row, int column, cons
 void _UIWindowDestroyCommon(UIWindow* window) {
 }
 
-void _UIInitialiseCommon(const UIConfig& cfg) {
+void _UIInitialiseCommon(UIConfig& cfg) {
    ui->theme = uiThemeClassic;
    
 #ifdef UI_FREETYPE
@@ -5902,7 +5902,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPAR
       _UIMenusClose();
 
       if (message == WM_SETFOCUS) {
-         _UIInspectorSetFocusedWindow(window);
+         ui->InspectorSetFocusedWindow(window);
          window->Message(UIMessage::WINDOW_ACTIVATE, 0, 0);
       }
    } else if (message == WM_MOUSEACTIVATE && (window->_flags & UIWindow::MENU)) {
@@ -5942,9 +5942,12 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPAR
    return 0;
 }
 
-unique_ptr<UI> UIInitialise(const UIConfig& cfg) {
+unique_ptr<UI> UIInitialise(UIConfig& cfg) {
    ui = new UI;
    ui->heap = GetProcessHeap();
+
+   if (cfg.font_path.empty())
+       cfg.font_path = _UI_TO_STRING_2(UI_FONT_PATH);
 
    _UIInitialiseCommon(cfg);
 
@@ -5971,6 +5974,9 @@ unique_ptr<UI> UIInitialise(const UIConfig& cfg) {
    windowClass.style |= CS_DROPSHADOW;
    windowClass.lpszClassName = "shadow";
    RegisterClass(&windowClass);
+
+   ui->InspectorCreate();
+
    return unique_ptr<UI>{ui};
 }
 
