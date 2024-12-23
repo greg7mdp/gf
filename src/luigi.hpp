@@ -587,13 +587,12 @@ struct UIElement {
       DESTROY_DESCENDENT  = 1 << 31
    };
 
-   uint32_t flags      = 0; // First 16 bits are element specific.
-   uint32_t id         = 0;
-   uint32_t _unused0   = 0;
-
-   UIElement*  parent   = nullptr;
-   UIWindow*   window   = nullptr;
-   std::vector<UIElement*> children;
+   uint32_t                _flags   = 0; // First 16 bits are element specific.
+   uint32_t                _id      = 0;
+   uint32_t                _unused0 = 0;
+   UIElement*              _parent  = nullptr;
+   UIWindow*               _window  = nullptr;
+   std::vector<UIElement*> _children;
 
    UIRectangle bounds;
    UIRectangle clip;
@@ -703,7 +702,7 @@ struct UIWindow : public UIElement {
    bool InputEvent(UIMessage message, int di, void* dp);
 };
 
-inline int UIElement::scale(auto sz) const { return (int)((float)sz * window->scale); }
+inline int UIElement::scale(auto sz) const { return (int)((float)sz * _window->scale); }
 
 // ------------------------------------------------------------------------------------------
 struct UIPanel : public UIElement {

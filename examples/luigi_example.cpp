@@ -26,7 +26,7 @@ int MyButtonMessage(UIElement* element, UIMessage message, int di, void* dp) {
       std_print("clicked button '{}'...", ((UIButton*)element)->label);
 
       if (check_delete->check == UICheckbox::CHECKED) {
-         element->parent->Refresh();
+         element->_parent->Refresh();
          element->Destroy();
          std_print(" and deleted it!\n");
       } else {
@@ -88,7 +88,7 @@ int MyTableMessage(UIElement* element, UIMessage message, int di, void* dp) {
          return m->format_to("other column {}", m->index);
       }
    } else if (message == UIMessage::LEFT_DOWN) {
-      int hit = ((UITable*)element)->hittest(element->window->cursor.x, element->window->cursor.y);
+      int hit = ((UITable*)element)->hittest(element->_window->cursor.x, element->_window->cursor.y);
 
       if (selected != hit) {
          selected = hit;
