@@ -825,37 +825,8 @@ protected:
       : _vscroll(new UIScrollBar(el, 0))
       , _hscroll(new UIScrollBar(el, UIScrollBar::HORIZONTAL)) {}
 
-   void layout_scrollbar_pair(int hSpace, int vSpace, int scrollBarSize, UIElement* el) {
-      _vscroll->page = vSpace - (_hscroll->page < _hscroll->maximum ? scrollBarSize : 0);
-      _hscroll->page = hSpace - (_vscroll->page < _vscroll->maximum ? scrollBarSize : 0);
-      _vscroll->page = vSpace - (_hscroll->page < _hscroll->maximum ? scrollBarSize : 0);
-
-      UIRectangle vScrollBarBounds = el->_bounds, hScrollBarBounds = el->_bounds;
-
-      hScrollBarBounds.r = vScrollBarBounds.l =
-         vScrollBarBounds.r - (_vscroll->page < _vscroll->maximum ? scrollBarSize : 0);
-      vScrollBarBounds.b = hScrollBarBounds.t =
-         hScrollBarBounds.b - (_hscroll->page < _hscroll->maximum ? scrollBarSize : 0);
-
-      _vscroll->Move(vScrollBarBounds, true);
-      _hscroll->Move(hScrollBarBounds, true);
-   }
-
-   inline void key_input_vscroll(UIKeyTyped* m, int rowHeight, int pageHeight, UIElement* el) {
-      if (m->code == UIKeycode::UP)
-         _vscroll->position -= rowHeight;
-      else if (m->code == UIKeycode::DOWN)
-         _vscroll->position += rowHeight;
-      else if (m->code == UIKeycode::PAGE_UP)
-         _vscroll->position += pageHeight;
-      else if (m->code == UIKeycode::PAGE_DOWN)
-         _vscroll->position -= pageHeight;
-      else if (m->code == UIKeycode::HOME)
-         _vscroll->position = 0;
-      else if (m->code == UIKeycode::END)
-         _vscroll->position = _vscroll->maximum;
-      el->Refresh();
-   }
+   void layout_scrollbar_pair(int hSpace, int vSpace, int scrollBarSize, UIElement* el);
+   void key_input_vscroll(UIKeyTyped* m, int rowHeight, int pageHeight, UIElement* el);
 
 public:
    void reset_vscroll() { _vscroll->position = 0; }
@@ -874,20 +845,20 @@ private:
       size_t bytes;
    };
 
-   std::vector<char>      _content;
-   std::vector<code_line> _lines;
-   std::optional<size_t>  _current_line{0};                 // if set, 0 <= currentLine < lines.size()
-   size_t                 _focus_line{0};
-   UIFont*                _font;
-   bool                   _move_scroll_to_focus_next_layout{false};
-   bool                   _move_scroll_to_caret_next_layout{false};
-   int                    _tab_columns{4};
-   size_t                 _max_columns{0};
-   UI_CLOCK_T             _last_animate_time{0};
-   bool                   _left_down_in_margin{false};
-   int                    _vertical_motion_column{0};
-   bool                   _use_vertical_motion_column{false};
-   std::array<code_pos, 4> _selection{};                     // start, end, anchor, caret
+   std::vector<char>       _content;
+   std::vector<code_line>  _lines;
+   std::optional<size_t>   _current_line{0}; // if set, 0 <= currentLine < lines.size()
+   size_t                  _focus_line{0};
+   UIFont*                 _font;
+   bool                    _move_scroll_to_focus_next_layout{false};
+   bool                    _move_scroll_to_caret_next_layout{false};
+   int                     _tab_columns{4};
+   size_t                  _max_columns{0};
+   UI_CLOCK_T              _last_animate_time{0};
+   bool                    _left_down_in_margin{false};
+   int                     _vertical_motion_column{0};
+   bool                    _use_vertical_motion_column{false};
+   std::array<code_pos, 4> _selection{}; // start, end, anchor, caret
 
    void _SetVerticalMotionColumn(bool restore);
    void _UpdateSelection();

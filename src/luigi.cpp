@@ -2192,6 +2192,41 @@ UIScrollBar* UIScrollBarCreate(UIElement* parent, uint32_t flags) {
 }
 
 // --------------------------------------------------
+// Scrollbar pairs
+// --------------------------------------------------
+void UIScrollbarPair::layout_scrollbar_pair(int hSpace, int vSpace, int scrollBarSize, UIElement* el) {
+   _vscroll->page = vSpace - (_hscroll->page < _hscroll->maximum ? scrollBarSize : 0);
+   _hscroll->page = hSpace - (_vscroll->page < _vscroll->maximum ? scrollBarSize : 0);
+   _vscroll->page = vSpace - (_hscroll->page < _hscroll->maximum ? scrollBarSize : 0);
+
+   UIRectangle vScrollBarBounds = el->_bounds, hScrollBarBounds = el->_bounds;
+
+   hScrollBarBounds.r = vScrollBarBounds.l =
+      vScrollBarBounds.r - (_vscroll->page < _vscroll->maximum ? scrollBarSize : 0);
+   vScrollBarBounds.b = hScrollBarBounds.t =
+      hScrollBarBounds.b - (_hscroll->page < _hscroll->maximum ? scrollBarSize : 0);
+
+   _vscroll->Move(vScrollBarBounds, true);
+   _hscroll->Move(hScrollBarBounds, true);
+}
+
+inline void UIScrollbarPair::key_input_vscroll(UIKeyTyped* m, int rowHeight, int pageHeight, UIElement* el) {
+   if (m->code == UIKeycode::UP)
+      _vscroll->position -= rowHeight;
+   else if (m->code == UIKeycode::DOWN)
+      _vscroll->position += rowHeight;
+   else if (m->code == UIKeycode::PAGE_UP)
+      _vscroll->position += pageHeight;
+   else if (m->code == UIKeycode::PAGE_DOWN)
+      _vscroll->position -= pageHeight;
+   else if (m->code == UIKeycode::HOME)
+      _vscroll->position = 0;
+   else if (m->code == UIKeycode::END)
+      _vscroll->position = _vscroll->maximum;
+   el->Refresh();
+}
+
+// --------------------------------------------------
 // Code views.
 // --------------------------------------------------
 
