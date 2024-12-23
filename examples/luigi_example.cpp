@@ -1,3 +1,7 @@
+#ifdef _MSC_VER
+    #pragma warning(disable: 4100) // unreferenced formal parameter
+    #pragma warning(disable: 4996) // This function or variable may be unsafe. Consider using ... instead.
+#endif
 
 #include "../src/luigi.hpp"
 
@@ -119,9 +123,9 @@ int MyCheckboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
 
 int main(int argc, char** argv) {
    UIConfig cfg;
-   auto     ui = UIInitialise(cfg);
+   auto     ui_ptr = UIInitialise(cfg);
    
-   if (!ui)
+   if (!ui_ptr)
       return 1;
 
    std::string home = getenv("HOME");
@@ -218,8 +222,8 @@ int main(int argc, char** argv) {
 
    {
       // Create a separate window demonstrating the MDI element
-      UIWindow*    window = UIWindowCreate(0, 0, "luigi 2 - MDI Example", 0, 0);
-      UIMDIClient* client = UIMDIClientCreate(window, 0);
+      UIWindow*    mdi_window = UIWindowCreate(0, 0, "luigi 2 - MDI Example", 0, 0);
+      UIMDIClient* client = UIMDIClientCreate(mdi_window, 0);
       UIMDIChild*  child1 =
          UIMDIChildCreate(client, UIMDIChild::CLOSE_BUTTON, UIRectangle(10, 600, 10, 400), "My Window");
       UIPanel* panel1 = UIPanelCreate(child1, UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING);

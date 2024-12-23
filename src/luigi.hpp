@@ -147,7 +147,7 @@ int std_format_to_n(OutputIt buffer, std::iter_difference_t<OutputIt> n, std::fo
    auto written    = std::min(res.size, max_chars);
    buffer[written] = '\0'; // adds terminator to buffer
    // fprintf(stderr, "%s\n", buffer);
-   return written;
+   return (int)written;
 }
 
 template< class... Args >
@@ -1298,8 +1298,8 @@ void* _UIMemmove(void* dest, const void* src, size_t n);
 #endif
 
 
-int _UICodeColumnToByte(UICode* code, int line, int column);
-int _UICodeByteToColumn(UICode* code, int line, int byte);
+int _UICodeColumnToByte(UICode* code, size_t line, size_t column);
+int _UICodeByteToColumn(UICode* code, size_t line, size_t byte);
 
 int _UITabPaneMessage(UIElement* element, UIMessage message, int di, void* dp);
 
