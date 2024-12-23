@@ -224,13 +224,14 @@ struct UI;
 
 namespace UIUpdate {
    enum {
-      HOVERED = 1,
-      PRESSED = 2,
-      FOCUSED = 3,
+      HOVERED  = 1,
+      PRESSED  = 2,
+      FOCUSED  = 3,
       DISABLED = 4
    };
 }
 
+// ------------------------------------------------------------------------------------------
 enum class UIMessage : uint32_t {
    // General messages.
    PAINT,               // dp = pointer to UIPainter
@@ -285,11 +286,13 @@ enum class UIMessage : uint32_t {
    USER_PLUS_1,
 };
 
+// ------------------------------------------------------------------------------------------
 struct UIPoint {
    int x = 0;
    int y = 0;
 };
 
+// ------------------------------------------------------------------------------------------
 struct UIRectangle {
    int l, r, t, b;
 
@@ -360,6 +363,7 @@ inline UIRectangle ui_rect_4pd(int x, int y, int w, int h) { return UIRectangle{
 
 #define UI_RECT_SIZE(_r) (_r).width(), (_r).height()
 
+// ------------------------------------------------------------------------------------------
 struct UITheme {
    uint32_t panel1 = 0, panel2 = 0, selected = 0, border = 0;
    uint32_t text = 0, textDisabled = 0, textSelected = 0;
@@ -370,6 +374,7 @@ struct UITheme {
    uint32_t accent1 = 0, accent2 = 0;
 };
 
+// ------------------------------------------------------------------------------------------
 struct UIPainter {
    UIRectangle clip = UIRectangle(0);
    uint32_t*   bits = nullptr;
@@ -386,6 +391,7 @@ struct UIFontSpec {
    bool operator==(const UIFontSpec&) const = default;
 };
 
+// ------------------------------------------------------------------------------------------
 template<>
 struct std::hash<UIFontSpec>
 {
@@ -396,6 +402,7 @@ struct std::hash<UIFontSpec>
     }
 };
 
+// ------------------------------------------------------------------------------------------
 struct UIFont {
    int glyphWidth = 0;
    int glyphHeight = 0;
@@ -413,6 +420,7 @@ struct UIFont {
    ~UIFont();
 };
 
+// ------------------------------------------------------------------------------------------
 struct UIShortcut {
    UIKeycode             code  = static_cast<UIKeycode>(0);
    bool                  ctrl  = false;
@@ -421,17 +429,20 @@ struct UIShortcut {
    std::function<void()> invoke;
 };
 
+// ------------------------------------------------------------------------------------------
 struct UIStringSelection {
    int      carets[2];
    uint32_t colorText       = 0;
    uint32_t colorBackground = 0;
 };
 
+// ------------------------------------------------------------------------------------------
 struct UIKeyTyped {
    std::string_view text;
    UIKeycode        code = static_cast<UIKeycode>(0);
 };
 
+// ------------------------------------------------------------------------------------------
 struct UITableGetItem {
    std::string buffer;
    int    index       = 0;
@@ -451,6 +462,7 @@ struct UITableGetItem {
    size_t           buff_size() const { return buffer.size(); }
 };
 
+// ------------------------------------------------------------------------------------------
 struct UICodeDecorateLine {
    UIRectangle bounds;
    int         index; // Starting at 1!
@@ -482,6 +494,7 @@ inline uint32_t ui_color_from_rgba(float r, float g, float b, float a) {
 #endif
 
 
+// ------------------------------------------------------------------------------------------
 enum {
    UI_DRAW_CONTROL_PUSH_BUTTON      = 1,
    UI_DRAW_CONTROL_DROP_DOWN        = 2,
@@ -517,6 +530,7 @@ enum {
    UI_DRAW_CONTROL_STATE_DISABLED      = 1 << 31,
 };
 
+// ------------------------------------------------------------------------------------------
 enum class UICursor : uint32_t {
    arrow             = 0,
    text              = 1,
@@ -536,6 +550,7 @@ enum class UICursor : uint32_t {
    count             = 15,
 };
 
+// ------------------------------------------------------------------------------------------
 enum class UIAlign : uint32_t {
    left   = 1,
    right  = 2,
@@ -551,6 +566,7 @@ struct UIElement;
 
 using  MsgFn = int(*)(UIElement*, UIMessage, int di, void* dp); // data integer, data pointer
 
+// ------------------------------------------------------------------------------------------
 struct UIElement {
    enum {
       V_FILL      = 1 << 16,
@@ -619,12 +635,14 @@ private:
    void _DestroyDescendents(bool topLevel);
 };
 
+// ------------------------------------------------------------------------------------------
 struct UIConfig {
    bool rfu = false;
 };
 
 enum class sel_target_t { primary, clipboard };
 
+// ------------------------------------------------------------------------------------------
 struct UIWindow : public UIElement {
    enum {
       MENU            = (1 << 0),
@@ -687,6 +705,7 @@ struct UIWindow : public UIElement {
 
 inline int UIElement::scale(auto sz) const { return (int)((float)sz * window->scale); }
 
+// ------------------------------------------------------------------------------------------
 struct UIPanel : public UIElement {
    enum {
       HORIZONTAL     = 1 << 0,
@@ -706,6 +725,7 @@ struct UIPanel : public UIElement {
    UIPanel(UIElement* parent, uint32_t flags);
 };
 
+// ------------------------------------------------------------------------------------------
 struct UIButton : public UIElement {
    enum {
       SMALL     = 1 << 0,
@@ -721,6 +741,7 @@ struct UIButton : public UIElement {
    UIButton(UIElement* parent, uint32_t flags, std::string_view label);
 };
 
+// ------------------------------------------------------------------------------------------
 struct UICheckbox : public UIElement {
    enum { ALLOW_INDETERMINATE = 1 << 0 };
 
@@ -734,24 +755,28 @@ struct UICheckbox : public UIElement {
    void SetLabel(std::string_view label);
 };
 
+// ------------------------------------------------------------------------------------------
 struct UILabel : public UIElement {
    std::string label;
 
    UILabel(UIElement* parent, uint32_t flags, std::string_view label);
 };
 
+// ------------------------------------------------------------------------------------------
 struct UISpacer : public UIElement {
    size_t   width, height;
 
    UISpacer(UIElement* parent, uint32_t flags, int width, int height);
 };
 
+// ------------------------------------------------------------------------------------------
 struct UISplitPane : public UIElement {
    float     weight;
 
    UISplitPane(UIElement* parent, uint32_t flags, float weight);
 };
 
+// ------------------------------------------------------------------------------------------
 struct UITabPane : public UIElement {
 private:
    std::string tabs;
@@ -780,6 +805,7 @@ public:
    }
 };
 
+// ------------------------------------------------------------------------------------------
 struct UIScrollBar : public UIElement {
    enum { HORIZONTAL = 1 << 0 };
 
@@ -794,6 +820,7 @@ struct UIScrollBar : public UIElement {
    UIScrollBar(UIElement* parent, uint32_t flags);
 };
 
+// ------------------------------------------------------------------------------------------
 struct UIScrollbarPair {
 protected:
    UIScrollBar* _vscroll;
@@ -839,6 +866,7 @@ public:
    void reset_vscroll() { _vscroll->position = 0; }
 };
 
+// ------------------------------------------------------------------------------------------
 struct UICode : public UIElement, public UIScrollbarPair {
 private:
    struct code_pos {
@@ -936,6 +964,7 @@ public:
    void copy_text(sel_target_t t);
 };
 
+// ------------------------------------------------------------------------------------------
 struct UIGauge : public UIElement {
    double position;
    bool   vertical;
@@ -944,6 +973,7 @@ struct UIGauge : public UIElement {
    void SetPosition(double position);
 };
 
+// ------------------------------------------------------------------------------------------
 struct UISlider : public UIElement {
    double position;
    int    steps;
@@ -953,6 +983,7 @@ struct UISlider : public UIElement {
    void SetPosition(double position);
 };
 
+// ------------------------------------------------------------------------------------------
 struct UITable : public UIElement, public UIScrollbarPair {
 private:
    size_t              _num_items;
@@ -976,15 +1007,16 @@ public:
       return std::string_view{_columns.c_str() + start, end - start};
    }
 
-   int  hittest(int x, int y);
-   int  header_hittest(int x, int y);
-   bool ensure_visible(int index);
-   size_t& num_items() { return _num_items; }
-   void set_num_items(size_t n) { _num_items = n; }
-   void set_column_highlight(size_t c) { _column_highlight = c; }
-   void resize_columns();
+   int     hittest(int x, int y);
+   int     header_hittest(int x, int y);
+   bool    ensure_visible(int index);
+   size_t& num_items()                    { return _num_items; }
+   void    set_num_items(size_t n)        { _num_items = n; }
+   void    set_column_highlight(size_t c) { _column_highlight = c; }
+   void    resize_columns();
 };
 
+// ------------------------------------------------------------------------------------------
 struct UITextbox : public UIElement {
    std::string        buffer;
    std::array<int, 2> carets{};
@@ -995,6 +1027,7 @@ struct UITextbox : public UIElement {
    std::string_view text() const { return std::string_view(buffer); }
 };
 
+// ------------------------------------------------------------------------------------------
 struct UIMenu : public UIElement {
    enum {
       PLACE_ABOVE = 1 << 0,
@@ -1009,6 +1042,7 @@ struct UIMenu : public UIElement {
    UIMenu(UIElement* parent, uint32_t flags);
 };
 
+// ------------------------------------------------------------------------------------------
 struct UIMDIClient : public UIElement {
    enum { _TRANSPARENT = 1 << 0 };
 
@@ -1018,6 +1052,7 @@ struct UIMDIClient : public UIElement {
    UIMDIClient(UIElement* parent, uint32_t flags);
 };
 
+// ------------------------------------------------------------------------------------------
 struct UIMDIChild : public UIElement {
    enum { CLOSE_BUTTON = 1 << 0 };
 
@@ -1029,6 +1064,7 @@ struct UIMDIChild : public UIElement {
    UIMDIChild(UIElement* parent, uint32_t flags, const UIRectangle& initialBounds, std::string_view title);
 };
 
+// ------------------------------------------------------------------------------------------
 struct UIImageDisplay : public UIElement {
    enum { INTERACTIVE = (1 << 0), ZOOM_FIT = (1 << 1) };
 
@@ -1048,17 +1084,20 @@ struct UIImageDisplay : public UIElement {
    UIImageDisplay(UIElement* parent, uint32_t flags, uint32_t* bits, size_t width, size_t height, size_t stride);
 };
 
+// ------------------------------------------------------------------------------------------
 struct UIWrapPanel : public UIElement {
 
    UIWrapPanel(UIElement* parent, uint32_t flags);
 };
 
+// ------------------------------------------------------------------------------------------
 struct UISwitcher : public UIElement {
    UIElement* active = nullptr;
 
    UISwitcher(UIElement* parent, uint32_t flags);
 };
 
+// ------------------------------------------------------------------------------------------
 unique_ptr<UI> UIInitialise(const UIConfig& cfg);
 
 int  UIMessageLoop();
