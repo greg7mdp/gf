@@ -5783,11 +5783,11 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPAR
    } else if (message == WM_SIZE) {
       RECT client;
       GetClientRect(hwnd, &client);
-      window->width  = client.right;
-      window->height = client.bottom;
-      window->bits.resize(window->width * window->height);
-      window->_bounds = ui_rect_2s(window->width, window->height);
-      window->_clip   = ui_rect_2s(window->width, window->height);
+      window->_width  = client.right;
+      window->_height = client.bottom;
+      window->_bits.resize(window->_width * window->_height);
+      window->_bounds = ui_rect_2s(window->_width, window->_height);
+      window->_clip   = ui_rect_2s(window->_width, window->_height);
       window->Relayout();
       _UIUpdate();
    } else if (message == WM_MOUSEMOVE) {
@@ -5803,15 +5803,15 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPAR
       POINT cursor;
       GetCursorPos(&cursor);
       ScreenToClient(hwnd, &cursor);
-      window->cursor.x = cursor.x;
-      window->cursor.y = cursor.y;
+      window->_cursor.x = cursor.x;
+      window->_cursor.y = cursor.y;
       window->InputEvent(UIMessage::MOUSE_MOVE, 0, 0);
    } else if (message == WM_MOUSELEAVE) {
       window->_tracking_leave = false;
 
-      if (!window->pressed) {
-         window->cursor.x = -1;
-         window->cursor.y = -1;
+      if (!window->_pressed) {
+         window->_cursor.x = -1;
+         window->_cursor.y = -1;
       }
 
       window->InputEvent(UIMessage::MOUSE_MOVE, 0, 0);
@@ -5819,30 +5819,30 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPAR
       SetCapture(hwnd);
       window->InputEvent(UIMessage::LEFT_DOWN, 0, 0);
    } else if (message == WM_LBUTTONUP) {
-      if (window->pressedButton == 1)
+      if (window->_pressed_button == 1)
          ReleaseCapture();
       window->InputEvent(UIMessage::LEFT_UP, 0, 0);
    } else if (message == WM_MBUTTONDOWN) {
       SetCapture(hwnd);
       window->InputEvent(UIMessage::MIDDLE_DOWN, 0, 0);
    } else if (message == WM_MBUTTONUP) {
-      if (window->pressedButton == 2)
+      if (window->_pressed_button == 2)
          ReleaseCapture();
       window->InputEvent(UIMessage::MIDDLE_UP, 0, 0);
    } else if (message == WM_RBUTTONDOWN) {
       SetCapture(hwnd);
       window->InputEvent(UIMessage::RIGHT_DOWN, 0, 0);
    } else if (message == WM_RBUTTONUP) {
-      if (window->pressedButton == 3)
+      if (window->_pressed_button == 3)
          ReleaseCapture();
       window->InputEvent(UIMessage::RIGHT_UP, 0, 0);
    } else if (message == WM_MOUSEWHEEL) {
       int delta = (int)wParam >> 16;
       window->InputEvent(UIMessage::MOUSE_WHEEL, -delta, 0);
    } else if (message == WM_KEYDOWN) {
-      window->ctrl  = GetKeyState(VK_CONTROL) & 0x8000;
-      window->shift = GetKeyState(VK_SHIFT) & 0x8000;
-      window->alt   = GetKeyState(VK_MENU) & 0x8000;
+      window->_ctrl  = GetKeyState(VK_CONTROL) & 0x8000;
+      window->_shift = GetKeyState(VK_SHIFT) & 0x8000;
+      window->_alt   = GetKeyState(VK_MENU) & 0x8000;
 
       UIKeyTyped m { .code = (UIKeycode)wParam} ;
       window->InputEvent(UIMessage::KEY_TYPED, 0, &m);
@@ -5856,13 +5856,13 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPAR
       HDC              dc   = BeginPaint(hwnd, &paint);
       BITMAPINFOHEADER info = {0};
       info.biSize           = sizeof(info);
-      info.biWidth = window->width, info.biHeight = -window->height;
+      info.biWidth = window->_width, info.biHeight = -window->_height;
       info.biPlanes = 1, info.biBitCount = 32;
-      StretchDIBits(dc, 0, 0, UI_RECT_SIZE(window->_bounds), 0, 0, UI_RECT_SIZE(window->_bounds), window->bits.data(),
+      StretchDIBits(dc, 0, 0, UI_RECT_SIZE(window->_bounds), 0, 0, UI_RECT_SIZE(window->_bounds), window->_bits.data(),
                     (BITMAPINFO*)&info, DIB_RGB_COLORS, SRCCOPY);
       EndPaint(hwnd, &paint);
    } else if (message == WM_SETCURSOR && LOWORD(lParam) == HTCLIENT) {
-      ::SetCursor(ui->cursors[window->cursorStyle]);
+      ::SetCursor(ui->cursors[window->_cursor_style]);
       return 1;
    } else if (message == WM_SETFOCUS || message == WM_KILLFOCUS) {
       _UIMenusClose();
