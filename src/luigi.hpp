@@ -564,7 +564,7 @@ struct UIMDIChild;
 struct UIMDIClient;
 struct UIElement;
 
-using  MsgFn = int(*)(UIElement*, UIMessage, int di, void* dp); // data integer, data pointer
+using  message_proc_t = int(*)(UIElement*, UIMessage, int di, void* dp); // data integer, data pointer
 
 // ------------------------------------------------------------------------------------------
 struct UIElement {
@@ -596,11 +596,11 @@ struct UIElement {
    UIRectangle             _bounds;
    UIRectangle             _clip;
    void*                   _cp         = nullptr; // Context pointer (for user).
-   MsgFn                   _class_proc = nullptr;
-   MsgFn                   _user_proc  = nullptr;
+   message_proc_t          _class_proc = nullptr;
+   message_proc_t          _user_proc  = nullptr;
    const char*             _class_name = nullptr;
 
-   UIElement(UIElement* parent, uint32_t flags, MsgFn message, const char* cClassName);
+   UIElement(UIElement* parent, uint32_t flags, message_proc_t message_proc, const char* cClassName);
    virtual ~UIElement();
 
    uint32_t    state() const;
@@ -688,7 +688,7 @@ struct UIWindow : public UIElement {
    bool trackingLeave = false;
 #endif
 
-   UIWindow(UIElement* parent, uint32_t flags, MsgFn message, const char* cClassName);
+   UIWindow(UIElement* parent, uint32_t flags, message_proc_t message_proc, const char* cClassName);
    virtual ~UIWindow();
 
    void EndPaint(UIPainter* painter);
@@ -807,7 +807,7 @@ struct UIScrollBar : public UIElement {
    int64_t    maximum;
    int64_t    page;
    int64_t    dragOffset;
-   double     position;
+   int64_t    position;
    UI_CLOCK_T lastAnimateTime;
    bool       inDrag;
    bool       horizontal;

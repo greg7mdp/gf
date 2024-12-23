@@ -1325,14 +1325,14 @@ bool _UIDestroy(UIElement* element) {
 }
 
 
-UIElement::UIElement(UIElement* parent, uint32_t flags, MsgFn message, const char* cClassName)
+UIElement::UIElement(UIElement* parent, uint32_t flags, message_proc_t message_proc, const char* cClassName)
    : _flags(flags)
    , _parent(parent)
    , _bounds(0)
    , _clip(0)
    , _class_name(cClassName) {
 
-   _class_proc = message;
+   _class_proc = message_proc;
 
    if (!parent && (~flags & UIElement::WINDOW)) {
       UI_ASSERT(ui->parentStackCount);
@@ -1361,8 +1361,8 @@ UIElement::UIElement(UIElement* parent, uint32_t flags, MsgFn message, const cha
 UIElement::~UIElement() {
 }
 
-UIElement* UIElementCreate(size_t bytes, UIElement* parent, uint32_t flags, MsgFn message, const char* cClassName) {
-   UIElement* element = new UIElement(parent, flags, message, cClassName);
+UIElement* UIElementCreate(size_t bytes, UIElement* parent, uint32_t flags, message_proc_t message_proc, const char* cClassName) {
+   UIElement* element = new UIElement(parent, flags, message_proc, cClassName);
    return element;
 }
 
@@ -2057,7 +2057,7 @@ int _UIScrollBarMessage(UIElement* element, UIMessage message, int di, void* dp)
             scrollBar->position = scrollBar->maximum - scrollBar->page;
          }
 
-         int thumbPosition = scrollBar->position / (scrollBar->maximum - scrollBar->page) * (size - thumbSize);
+         int thumbPosition = (int)((double)scrollBar->position / (scrollBar->maximum - scrollBar->page) * (size - thumbSize));
 
          if (scrollBar->position == scrollBar->maximum - scrollBar->page) {
             thumbPosition = size - thumbSize;
@@ -2257,7 +2257,7 @@ void UICode::load_file(const char* path, std::optional<std::string_view> err /* 
 void UICode::position_to_byte(int x, int y, size_t* line, size_t* byte) {
    UIFont* previousFont = UIFontActivate(_font);
    int     lineHeight   = UIMeasureStringHeight();
-   *line                = (size_t)std::max(0., (y - _bounds.t + _vscroll->position) / lineHeight);
+   *line                = std::max((int64_t)0, (y - _bounds.t + _vscroll->position) / lineHeight);
    if (*line >= num_lines())
       *line = num_lines() - 1;
    int column =
@@ -4969,8 +4969,8 @@ int UIMessageLoop() {
 #endif
 }
 
-UIWindow::UIWindow(UIElement* parent, uint32_t flags, MsgFn message, const char* cClassName) :
-   UIElement(parent, flags, message, cClassName),
+UIWindow::UIWindow(UIElement* parent, uint32_t flags, message_proc_t message_proc, const char* cClassName) :
+   UIElement(parent, flags, message_proc, cClassName),
    dialog(nullptr),
    scale(0),
    width(0),
