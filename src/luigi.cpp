@@ -2917,7 +2917,7 @@ int UITable::hittest(int x, int y) {
 
    int rowHeight = scale(ui_size::TABLE_ROW);
 
-   if (y < 0 || y >= (int)(rowHeight * itemCount)) {
+   if (y < 0 || y >= (int)(rowHeight * _num_items)) {
       return -1;
    }
 
@@ -2925,7 +2925,7 @@ int UITable::hittest(int x, int y) {
 }
 
 int UITable::header_hittest(int x, int y) {
-   if (columnWidths.empty())
+   if (_column_widths.empty())
       return -1;
    UIRectangle header = bounds;
    header.b           = header.t + scale(ui_size::TABLE_HEADER);
@@ -2934,11 +2934,11 @@ int UITable::header_hittest(int x, int y) {
 
    while (true) {
       size_t end = column_end(position);
-      header.r = header.l + columnWidths[index];
+      header.r = header.l + _column_widths[index];
       if (header.contains(x, y))
          return index;
-      header.l += columnWidths[index] + scale(ui_size::TABLE_COLUMN_GAP);
-      if (columns[end] != '\t')
+      header.l += _column_widths[index] + scale(ui_size::TABLE_COLUMN_GAP);
+      if (_columns[end] != '\t')
          break;
       position = end + 1;
       index++;
@@ -2966,32 +2966,32 @@ bool UITable::ensure_visible(int index) {
    }
 }
 
-void UITableResizeColumns(UITable* table) {
+void UITable::resize_columns() {
    size_t position = 0;
    size_t count    = 0;
 
    while (true) {
-      size_t end = table->column_end(position);
+      size_t end = column_end(position);
       count++;
-      if (table->columns[end] == '\t')
+      if (_columns[end] == '\t')
          position = end + 1;
       else
          break;
    }
 
-   table->columnWidths.resize(count);
+   _column_widths.resize(count);
 
    position = 0;
 
    UITableGetItem m(256);
 
    while (true) {
-      size_t end = table->column_end(position);
-      int longest = UIMeasureStringWidth(table->column(position, end));
+      size_t end = column_end(position);
+      int longest = UIMeasureStringWidth(column(position, end));
 
-      for (size_t i = 0; i < (size_t)table->itemCount; i++) {
+      for (size_t i = 0; i < num_items(); i++) {
          m.index   = i;
-         int bytes = table->Message(UIMessage::TABLE_GET_ITEM, 0, &m);
+         int bytes = Message(UIMessage::TABLE_GET_ITEM, 0, &m);
          int width = UIMeasureStringWidth(m.buff(bytes));
 
          if (width > longest) {
@@ -2999,15 +2999,15 @@ void UITableResizeColumns(UITable* table) {
          }
       }
 
-      table->columnWidths[m.column] = longest;
+      _column_widths[m.column] = longest;
       m.column++;
-      if (table->columns[end] == '\t')
+      if (_columns[end] == '\t')
          position = end + 1;
       else
          break;
    }
 
-   table->Repaint(NULL);
+   Repaint(NULL);
 }
 
 int UITable::_ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp) {
@@ -3029,7 +3029,7 @@ int UITable::_ClassMessageProc(UIElement* element, UIMessage message, int di, vo
       painter->clip       = intersection(
          oldClip, UIRectangle(bounds.l, bounds.r, bounds.t + element->scale(ui_size::TABLE_HEADER), bounds.b));
 
-      for (int i = table->_vscroll->position / rowHeight; i < (int)table->itemCount; i++) {
+      for (int i = table->_vscroll->position / rowHeight; i < (int)table->num_items(); i++) {
          if (row.t > painter->clip.b) {
             break;
          }
@@ -3047,19 +3047,19 @@ int UITable::_ClassMessageProc(UIElement* element, UIMessage message, int di, vo
          UIRectangle cell = row;
          cell.l += table->scale(ui_size::TABLE_COLUMN_GAP) - (int64_t)table->_hscroll->position;
 
-         for (size_t j = 0; j < table->columnWidths.size(); j++) {
+         for (size_t j = 0; j < table->_column_widths.size(); j++) {
             if (j) {
                m.column = j;
                bytes    = element->Message(UIMessage::TABLE_GET_ITEM, 0, &m);
             }
 
-            cell.r = cell.l + table->columnWidths[j];
+            cell.r = cell.l + table->_column_widths[j];
             if ((size_t)bytes > m.buff_size() && bytes > 0)
                bytes = m.buff_size();
             if (bytes > 0)
                UIDrawControl(painter, cell, UI_DRAW_CONTROL_TABLE_CELL | rowFlags, m.buff(bytes), 0,
                              element->window->scale);
-            cell.l += table->columnWidths[j] + table->scale(ui_size::TABLE_COLUMN_GAP);
+            cell.l += table->_column_widths[j] + table->scale(ui_size::TABLE_COLUMN_GAP);
          }
 
          row.t += rowHeight;
@@ -3077,18 +3077,18 @@ int UITable::_ClassMessageProc(UIElement* element, UIMessage message, int di, vo
       size_t position = 0;
       int index    = 0;
 
-      if (!table->columnWidths.empty()) {
+      if (!table->_column_widths.empty()) {
          while (true) {
             size_t end = table->column_end(position);
 
-            header.r = header.l + table->columnWidths[index];
+            header.r = header.l + table->_column_widths[index];
             UIDrawControl(painter, header,
                           UI_DRAW_CONTROL_TABLE_HEADER |
-                             (index == table->columnHighlight ? UI_DRAW_CONTROL_STATE_SELECTED : 0),
+                             (index == table->_column_highlight ? UI_DRAW_CONTROL_STATE_SELECTED : 0),
                           table->column(position, end), 0, element->window->scale);
-            header.l += table->columnWidths[index] + table->scale(ui_size::TABLE_COLUMN_GAP);
+            header.l += table->_column_widths[index] + table->scale(ui_size::TABLE_COLUMN_GAP);
 
-            if (table->columns[end] == '\t') {
+            if (table->_columns[end] == '\t') {
                position = end + 1;
                index++;
             } else {
@@ -3100,9 +3100,9 @@ int UITable::_ClassMessageProc(UIElement* element, UIMessage message, int di, vo
       int scrollBarSize = table->scale(ui_size::SCROLL_BAR);
       int columnGap     = table->scale(ui_size::TABLE_COLUMN_GAP);
 
-      table->_vscroll->maximum = table->itemCount * element->scale(ui_size::TABLE_ROW);
+      table->_vscroll->maximum = table->num_items() * element->scale(ui_size::TABLE_ROW);
       table->_hscroll->maximum = columnGap;
-      for (auto width : table->columnWidths) {
+      for (auto width : table->_column_widths) {
          table->_hscroll->maximum += width + columnGap;
       }
 
@@ -3141,13 +3141,12 @@ int UITable::_ClassMessageProc(UIElement* element, UIMessage message, int di, vo
    return 0;
 }
 
-UITable::UITable(UIElement* parent, uint32_t flags, const char* columns) :
-   UIElement(parent, flags, UITable::_ClassMessageProc, "Table"),
-   UIScrollbarPair(this),
-   itemCount(0),
-   columns(columns),
-   columnHighlight(-1)
-{}
+UITable::UITable(UIElement* parent, uint32_t flags, const char* columns)
+   : UIElement(parent, flags, UITable::_ClassMessageProc, "Table")
+   , UIScrollbarPair(this)
+   , _num_items(0)
+   , _columns(columns)
+   , _column_highlight(-1) {}
 
 UITable* UITableCreate(UIElement* parent, uint32_t flags, const char* columns) {
    return new UITable(parent, flags, columns);
@@ -4763,8 +4762,8 @@ int _UIInspectorCountElements(UIElement* element) {
 void _UIInspectorRefresh() {
    if (!ui->inspectorTarget || !ui->inspector || !ui->inspectorTable)
       return;
-   ui->inspectorTable->itemCount = _UIInspectorCountElements(&ui->inspectorTarget->e);
-   UITableResizeColumns(ui->inspectorTable);
+   ui->inspectorTable->set_num_items(_UIInspectorCountElements(&ui->inspectorTarget->e));
+   ui->inspectorTable->ResizeColumns();
    &ui->inspectorTable->e->Refresh();
 }
 
@@ -4862,7 +4861,7 @@ bool UIAutomationCheckTableItemMatches(UITable* table, int row, int column, cons
    int bytes = 0;
    for (int i = 0; input[i]; i++)
       bytes++;
-   if (row < 0 || row >= table->itemCount)
+   if (row < 0 || row >= table->num_items())
       return false;
    if (column < 0 || column >= table->columnCount)
       return false;

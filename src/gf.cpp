@@ -3036,9 +3036,9 @@ int WatchLoggerTableMessage(UIElement* element, UIMessage message, int di, void*
 
       if (index != -1 && logger->selectedEntry != index) {
          logger->selectedEntry    = index;
-         logger->trace->itemCount = logger->entries[index].trace.size();
+         logger->trace->set_num_items(logger->entries[index].trace.size());
          WatchLoggerTraceSelectFrame(logger->trace, 0, logger);
-         UITableResizeColumns(logger->trace);
+         logger->trace->resize_columns();
          logger->trace->Refresh();
          element->Refresh();
       }
@@ -3091,7 +3091,7 @@ std::string WatchGetAddress(const shared_ptr<Watch>& watch) {
 }
 
 void WatchLoggerResizeColumns(WatchLogger* logger) {
-   UITableResizeColumns(logger->table);
+   logger->table->resize_columns();
    logger->table->Refresh();
 }
 
@@ -3255,7 +3255,7 @@ bool WatchLoggerUpdate(std::string _data) {
    entry.trace = stack;
    stack       = previousStack;
    logger->entries.push_back(entry);
-   logger->table->itemCount++;
+   ++logger->table->num_items();
    logger->table->Refresh();
    (void)DebuggerSend("c", false, false);
    return true;
@@ -3857,7 +3857,7 @@ void CommandAddWatch() {
 // ---------------------------------------------------/
 
 void StackSetFrame(UIElement* element, int index) {
-   if (index >= 0 && index < (int)((UITable*)element)->itemCount) {
+   if (index >= 0 && index < (int)((UITable*)element)->num_items()) {
       stackChanged = true;
       if (stackSelected != (size_t)index) {
          (void)DebuggerSend(std::format("frame {}", index), false, false);
@@ -3908,8 +3908,8 @@ UIElement* StackWindowCreate(UIElement* parent) {
 
 void StackWindowUpdate(const char*, UIElement* _table) {
    UITable* table   = (UITable*)_table;
-   table->itemCount = stack.size();
-   UITableResizeColumns(table);
+   table->set_num_items(stack.size());
+   table->resize_columns();
    table->Refresh();
 }
 
@@ -4077,8 +4077,8 @@ UIElement* BreakpointsWindowCreate(UIElement* parent) {
 
 void BreakpointsWindowUpdate(const char*, UIElement* _table) {
    UITable* table   = (UITable*)_table;
-   table->itemCount = breakpoints.size();
-   UITableResizeColumns(table);
+   table->set_num_items(breakpoints.size());
+   table->resize_columns();
    table->Refresh();
 }
 
@@ -4568,8 +4568,8 @@ void ThreadWindowUpdate(const char*, UIElement* _table) {
    }
 
    UITable* table   = (UITable*)_table;
-   table->itemCount = window->threads.size();
-   UITableResizeColumns(table);
+   table->set_num_items(window->threads.size());
+   table->resize_columns();
    table->Refresh();
 }
 
@@ -5541,7 +5541,7 @@ int ProfTableMessage(UIElement* element, UIMessage message, int di, void* dp) {
          }
 
          element->Refresh();
-         table->columnHighlight = index;
+         table->set_column_highlight(index);
       }
    } else if (message == UIMessage::GET_CURSOR) {
       return table->header_hittest(element->window->cursor.x, element->window->cursor.y) == -1 ? (int)UICursor::arrow
@@ -5831,11 +5831,11 @@ void ProfLoadProfileData(void* _window) {
       report->thumbnailHeight = painter.height;
    }
 
-   table->itemCount = report->sortedFunctions.size();
+   table->set_num_items(report->sortedFunctions.size());
    qsort(report->sortedFunctions.data(), report->sortedFunctions.size(), sizeof(ProfFunctionEntry),
          ProfFunctionCompareTotalTime);
-   table->columnHighlight = 1;
-   UITableResizeColumns(table);
+   table->set_column_highlight(1);
+   table->resize_columns();
 
    free(rawEntries);
 }

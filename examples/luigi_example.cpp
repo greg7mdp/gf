@@ -200,9 +200,9 @@ int main(int argc, char** argv) {
       UITabPane* tabPane = UITabPaneCreate(uisplit_bottom_leftright, 0, "Tab 1\tMiddle Tab\tTab 3");
       // First tab in tabPane
       UITable*   table   = UITableCreate(tabPane, 0, "Column 1\tColumn 2");
-      table->itemCount   = 100000;
+      table->set_num_items(100000);
       table->messageUser = MyTableMessage;
-      UITableResizeColumns(table);
+      table->resize_columns();
       // Second tab
       UILabelCreate(UIPanelCreate(tabPane, UIPanel::COLOR_1), 0, "you're in tab 2, bucko");
       // Third tab

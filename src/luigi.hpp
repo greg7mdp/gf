@@ -955,31 +955,34 @@ struct UISlider : public UIElement {
 
 struct UITable : public UIElement, public UIScrollbarPair {
 private:
+   size_t              _num_items;
+   std::string         _columns;       // list of column headers separated by '\t' characters
+   std::vector<size_t> _column_widths;
+   int                 _column_highlight;
    
    static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
 
 public:
-   size_t              itemCount;
-   std::string         columns;       // list of column headers separated by '\t' characters
-   std::vector<size_t> columnWidths;
-   int                 columnHighlight;
-
    UITable(UIElement* parent, uint32_t flags, const char* columns);
 
    size_t column_end(size_t start) const {
       size_t end = start;
-      for (; columns[end] != '\t' && columns[end]; ++end)
+      for (; _columns[end] != '\t' && _columns[end]; ++end)
          ;
       return end;
    }
 
    std::string_view column(size_t start, size_t end) const {
-      return std::string_view{columns.c_str() + start, end - start};
+      return std::string_view{_columns.c_str() + start, end - start};
    }
 
    int  hittest(int x, int y);
    int  header_hittest(int x, int y);
    bool ensure_visible(int index);
+   size_t& num_items() { return _num_items; }
+   void set_num_items(size_t n) { _num_items = n; }
+   void set_column_highlight(size_t c) { _column_highlight = c; }
+   void resize_columns();
 };
 
 struct UITextbox : public UIElement {
