@@ -166,17 +166,6 @@ void print(std::format_string<Args...> fmt, Args&&... args) {
    std::cout << std::format(fmt, std::forward<Args>(args)...);
 }
 
-template <typename... Args>
-void print(std::ostream& stream, std::format_string<Args...> fmt, Args&&... args) {
-   stream << std::format(fmt, std::forward<Args>(args)...);
-}
-
-template <typename... Args>
-void print(FILE* f, std::format_string<Args...> fmt, Args&&... args) {
-   std::string formatted = std::format(fmt, std::forward<Args>(args)...);
-   fprintf(f, "%s", formatted.c_str());
-}
-
 // ---------------------------------------------------------------------------------------------
 //                              Data structures
 // ---------------------------------------------------------------------------------------------
@@ -302,13 +291,12 @@ bool                       executableAskDirectory = true;
 vector<ReceiveMessageType> receiveMessageTypes;
 const char* layoutString = "v(75,h(80,Source,v(50,t(Exe,Breakpoints,Commands,Struct),t(Stack,Files,Thread,CmdSearch)))"
                             ",h(65,Console,t(Watch,Locals,Registers,Data)))";
-const char*  fontPath          = nullptr;
-int          fontSizeCode      = 13;
-int          fontSizeInterface = 11;
-int          window_width      = 800;
-int          window_height     = 600;
-float        uiScale           = 1;
-bool         selectableSource  = true;
+int          code_font_size      = 13;
+int          interface_font_size = 11;
+int          window_width        = 800;
+int          window_height       = 600;
+float        ui_scale            = 1;
+bool         selectableSource    = true;
 bool         restoreWatchWindow;
 WatchWindow* firstWatchWindow = nullptr;
 bool         maximize;
@@ -316,7 +304,7 @@ bool         confirmCommandConnect = true, confirmCommandKill = true;
 int          backtraceCountLimit = 50;
 UIMessage    msgReceivedData, msgReceivedLog, msgReceivedControl, msgReceivedNext = (UIMessage)(UIMessage::USER_PLUS_1);
 
-UIConfig ui_config = {.rfu = true};
+UIConfig ui_config;
 
 // Current file and line:
 
@@ -339,7 +327,7 @@ UISpacer*  trafficLight  = nullptr;
 UIMDIClient* dataWindow = nullptr;
 UIPanel*     dataTab    = nullptr;
 
-UIFont* fontCode = nullptr;
+UIFont* code_font = nullptr;
 
 // Breakpoints:
 
@@ -1420,15 +1408,15 @@ void Context::SettingsLoad(bool earlyPass) {
             }
          } else if (0 == strcmp(state.section, "ui") && earlyPass) {
             if (0 == strcmp(state.key, "font_path")) {
-               fontPath = state.value;
+               ui_config.font_path = state.value;
             } else if (0 == strcmp(state.key, "font_size")) {
-               fontSizeInterface = fontSizeCode = sv_atoi(state.value);
+               interface_font_size = code_font_size = sv_atoi(state.value);
             } else if (0 == strcmp(state.key, "font_size_code")) {
-               fontSizeCode = sv_atoi(state.value);
+               code_font_size = sv_atoi(state.value);
             } else if (0 == strcmp(state.key, "font_size_interface")) {
-               fontSizeInterface = sv_atoi(state.value);
+               interface_font_size = sv_atoi(state.value);
             } else if (0 == strcmp(state.key, "scale")) {
-               uiScale = atof(state.value);
+               ui_scale = atof(state.value);
             } else if (0 == strcmp(state.key, "layout")) {
                layoutString = state.value;
             } else if (0 == strcmp(state.key, "maximize")) {
@@ -1974,7 +1962,7 @@ int DisplayCodeMessage(UIElement* element, UIMessage message, int di, void* dp) 
 
 UIElement* SourceWindowCreate(UIElement* parent) {
    displayCode = UICodeCreate(parent, selectableSource ? UICode::SELECTABLE : 0);
-   displayCode->set_font(fontCode);
+   displayCode->set_font(code_font);
    displayCode->_user_proc = DisplayCodeMessage;
    return displayCode;
 }
@@ -7530,36 +7518,20 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
    std_format_to_n(localConfigPath, sizeof(localConfigPath), "{}/.project.gf", localConfigDirectory);
 
    ctx.SettingsLoad(true);
-   auto ui_ptr = UIInitialise(ui_config);
+
+   ui_config.default_font_size = interface_font_size;
+   
+   auto ui_ptr = UIInitialise(ui_config);  // may update `ui_config.font_path`
    ui->theme   = uiThemeDark;
 
    // create fonts for interface and code
    // -----------------------------------
-#ifdef UI_FREETYPE
-   if (!fontPath) {
-      // Ask fontconfig for a monospaced font. If this fails, the fallback font will be used.
-      FILE* f = popen("fc-list | grep -F `fc-match mono | awk '{ print($1) }'` "
-                      "| awk 'BEGIN { FS = \":\" } ; { print($1) }'",
-                      "r");
+   const auto& font_path = ui_config.font_path;
+   code_font = UIFontCreate(font_path.c_str(), code_font_size);
+   UIFontActivate(UIFontCreate(font_path.c_str(), interface_font_size));
 
-      if (f) {
-         char* buffer                          = (char*)malloc(PATH_MAX + 1);
-         buffer[fread(buffer, 1, PATH_MAX, f)] = 0;
-         pclose(f);
-         char* newline = strchr(buffer, '\n');
-         if (newline)
-            *newline = 0;
-         fontPath = buffer;
-         print(std::cerr, "Using font {}\n", fontPath);
-      }
-   }
-#endif
-
-   fontCode = UIFontCreate(fontPath, fontSizeCode);
-   UIFontActivate(UIFontCreate(fontPath, fontSizeInterface));
-
-   windowMain              = UIWindowCreate(0, maximize ? UIWindow::MAXIMIZE : 0, "gf", window_width, window_height);
-   windowMain->_scale       = uiScale;
+   windowMain             = UIWindowCreate(0, maximize ? UIWindow::MAXIMIZE : 0, "gf", window_width, window_height);
+   windowMain->_scale     = ui_scale;
    windowMain->_user_proc = MainWindowMessageProc;
 
    for (const auto& ic : interfaceCommands) {

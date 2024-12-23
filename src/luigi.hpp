@@ -156,6 +156,17 @@ void std_print(std::format_string<Args...> fmt, Args&&... args ) {
    std::format_to(out, fmt, std::forward<Args>(args)...);
 }
 
+template <typename... Args>
+void print(std::ostream& stream, std::format_string<Args...> fmt, Args&&... args) {
+   stream << std::format(fmt, std::forward<Args>(args)...);
+}
+
+template <typename... Args>
+void print(FILE* f, std::format_string<Args...> fmt, Args&&... args) {
+   std::string formatted = std::format(fmt, std::forward<Args>(args)...);
+   fprintf(f, "%s", formatted.c_str());
+}
+
 std::string LoadFile(const char* path); // load whole file into string
 
 // --------------------------------------------------
@@ -634,7 +645,9 @@ private:
 
 // ------------------------------------------------------------------------------------------
 struct UIConfig {
-   bool rfu = false;
+   std::string font_path;
+   uint32_t    default_font_size = 13;
+   bool        rfu = false;
 };
 
 enum class sel_target_t { primary, clipboard };
@@ -1067,7 +1080,7 @@ struct UISwitcher : public UIElement {
 };
 
 // ------------------------------------------------------------------------------------------
-unique_ptr<UI> UIInitialise(const UIConfig& cfg);
+unique_ptr<UI> UIInitialise(UIConfig& cfg);
 
 int  UIMessageLoop();
 
@@ -1194,6 +1207,7 @@ struct UI {
    bool        dialogCanExit  = false;
 
    UIFont* activeFont = nullptr;
+   UIFont* defaultFont = nullptr;
 
 #ifdef UI_DEBUG
    UIWindow* inspector       = nullptr;
@@ -1238,6 +1252,10 @@ struct UI {
 #endif
    }
 
+   void InspectorCreate();
+   void InspectorRefresh();
+   void InspectorSetFocusedWindow(UIWindow* window);
+   
    int code_margin() { return activeFont->glyphWidth * 5; }
    int code_margin_gap() { return activeFont->glyphWidth * 1; }
 };

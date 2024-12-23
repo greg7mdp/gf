@@ -1027,7 +1027,7 @@ void UIElement::_DestroyDescendents(bool topLevel) {
          child->Destroy();
    }
 
-   _UIInspectorRefresh();
+   ui->InspectorRefresh();
 }
 
 void UIElement::DestroyDescendents() {
@@ -1152,7 +1152,7 @@ void UIElement::Focus() {
       previous->Message(UIMessage::UPDATE, UIUpdate::FOCUSED, 0);
    this->Message(UIMessage::UPDATE, UIUpdate::FOCUSED, 0);
 
-   _UIInspectorRefresh();
+   ui->InspectorRefresh();
 }
 
 // --------------------------------------------------
@@ -1352,7 +1352,7 @@ UIElement::UIElement(UIElement* parent, uint32_t flags, message_proc_t message_p
    static uint32_t s_id = 0;
    _id = ++s_id;
 
-   _UIInspectorRefresh();
+   ui->InspectorRefresh();
 
    if (flags & UIElement::PARENT_PUSH) {
       UIParentPush(this);
@@ -3111,7 +3111,7 @@ int UITable::_ClassMessageProc(UIElement* element, UIMessage message, int di, vo
       header.l += table->scale(ui_size::TABLE_COLUMN_GAP);
 
       size_t position = 0;
-      int index    = 0;
+      size_t index    = 0;
 
       if (!table->_column_widths.empty()) {
          while (true) {
@@ -4045,18 +4045,21 @@ const char* UIDialogShow(UIWindow* window, uint32_t flags, const char* format, .
 // --------------------------------------------------
 
 bool _UIMenusClose() {
-   UIWindow* window    = ui->windows;
-   bool      anyClosed = false;
+   bool anyClosed = false;
 
-   while (window) {
-      if (window->_flags & UIWindow::MENU) {
-         window->Destroy();
-         anyClosed = true;
+   if (ui) {
+      UIWindow* window = ui->windows;
+
+      while (window) {
+         if (window->_flags & UIWindow::MENU) {
+            window->Destroy();
+            anyClosed = true;
+         }
+
+         window = window->_next;
       }
-
-      window = window->_next;
    }
-
+   
    return anyClosed;
 }
 
@@ -4623,9 +4626,10 @@ void UIDrawGlyph(UIPainter* painter, int x0, int y0, int c, uint32_t color) {
 }
 
 UIFont* UIFontCreate(const char* cPath, uint32_t size) {
-   if (!cPath)
+   if (!cPath || !*cPath) {
       return nullptr;
-
+   }
+   
    UIFontSpec spec { cPath, size };
 
    if (auto it = ui->font_map.find(spec); it != ui->font_map.end())
@@ -4775,12 +4779,16 @@ int _UIInspectorTableMessage(UIElement* element, UIMessage message, int di, void
    return 0;
 }
 
-void _UIInspectorCreate() {
-   ui->inspector                  = UIWindowCreate(0, UIWindow::INSPECTOR, "Inspector", 0, 0);
-   UISplitPane* splitPane         = UISplitPaneCreate(ui->inspector, 0, 0.5f);
-   ui->inspectorTable             = UITableCreate(splitPane, 0, "Class\tBounds\tID");
-   ui->inspectorTable->_user_proc = _UIInspectorTableMessage;
-   ui->inspectorLog               = UICodeCreate(splitPane, 0);
+void UI::InspectorCreate() {
+   if (inspector)
+      return;
+
+   inspector                  = UIWindowCreate(0, UIWindow::INSPECTOR, "Inspector", 0, 0);
+   UISplitPane* splitPane     = UISplitPaneCreate(inspector, 0, 0.5f);
+   inspectorTable             = UITableCreate(splitPane, 0, "Class\tBounds\tID");
+   inspectorTable->_user_proc = _UIInspectorTableMessage;
+   inspectorLog               = UICodeCreate(splitPane, 0);
+   inspectorLog->set_font(ui->defaultFont);
 }
 
 int _UIInspectorCountElements(UIElement* element) {
@@ -4795,33 +4803,33 @@ int _UIInspectorCountElements(UIElement* element) {
    return count;
 }
 
-void _UIInspectorRefresh() {
-   if (!ui->inspectorTarget || !ui->inspector || !ui->inspectorTable)
+void UI::InspectorRefresh() {
+   if (!inspectorTarget || !inspector || !inspectorTable)
       return;
-   ui->inspectorTable->set_num_items(_UIInspectorCountElements(ui->inspectorTarget));
-   ui->inspectorTable->resize_columns();
-   ui->inspectorTable->Refresh();
+   inspectorTable->set_num_items(_UIInspectorCountElements(inspectorTarget));
+   inspectorTable->resize_columns();
+   inspectorTable->Refresh();
 }
 
-void _UIInspectorSetFocusedWindow(UIWindow* window) {
-   if (!ui->inspector || !ui->inspectorTable)
+void UI::InspectorSetFocusedWindow(UIWindow* window) {
+   if (!inspector || !inspectorTable)
       return;
 
    if (window->_flags & UIWindow::INSPECTOR) {
       return;
    }
 
-   if (ui->inspectorTarget != window) {
-      ui->inspectorTarget = window;
-      _UIInspectorRefresh();
+   if (inspectorTarget != window) {
+      inspectorTarget = window;
+      ui->InspectorRefresh();
    }
 }
 
 #else
 
-void _UIInspectorCreate() {}
-void _UIInspectorSetFocusedWindow(UIWindow* window) {}
-void _UIInspectorRefresh() {}
+void UI::InspectorCreate() {}
+void UI::InspectorSetFocusedWindow(UIWindow* window) {}
+void UI::InspectorRefresh() {}
 
 #endif // UI_DEBUG
 
@@ -4923,15 +4931,15 @@ bool UIAutomationCheckTableItemMatches(UITable* table, int row, int column, cons
 void _UIWindowDestroyCommon(UIWindow* window) {
 }
 
-void _UIInitialiseCommon() {
+void _UIInitialiseCommon(const UIConfig& cfg) {
    ui->theme = uiThemeClassic;
-
+   
 #ifdef UI_FREETYPE
    FT_Init_FreeType(&ui->ft);
-   UIFontActivate(UIFontCreate(_UI_TO_STRING_2(UI_FONT_PATH), 11));
-#else
-   UIFontActivate(UIFontCreate(0, 0));
 #endif
+
+   ui->defaultFont = UIFontCreate(cfg.font_path.c_str(), cfg.default_font_size);
+   UIFontActivate(ui->defaultFont);
 }
 
 
@@ -4958,7 +4966,6 @@ int _UIWindowMessageCommon(UIElement* element, UIMessage message, int di, void* 
 }
 
 int UIMessageLoop() {
-   _UIInspectorCreate();
    _UIUpdate();
 #ifdef UI_AUTOMATION_TESTS
    return UIAutomationRunTests();
@@ -5029,13 +5036,13 @@ UIWindow* UIWindowCreate(UIWindow* owner, uint32_t flags, const char* cTitle, in
    attributes.override_redirect    = flags & UIWindow::MENU;
 
    window->_xwindow = XCreateWindow(ui->display, DefaultRootWindow(ui->display), 0, 0, width, height, 0, 0, InputOutput,
-                                   CopyFromParent, CWOverrideRedirect, &attributes);
+                                    CopyFromParent, CWOverrideRedirect, &attributes);
    if (cTitle)
       XStoreName(ui->display, window->_xwindow, cTitle);
    XSelectInput(ui->display, window->_xwindow,
                 SubstructureNotifyMask | ExposureMask | PointerMotionMask | ButtonPressMask | ButtonReleaseMask |
-                   KeyPressMask | KeyReleaseMask | StructureNotifyMask | EnterWindowMask | LeaveWindowMask |
-                   ButtonMotionMask | KeymapStateMask | FocusChangeMask | PropertyChangeMask);
+                KeyPressMask | KeyReleaseMask | StructureNotifyMask | EnterWindowMask | LeaveWindowMask |
+                ButtonMotionMask | KeymapStateMask | FocusChangeMask | PropertyChangeMask);
 
    if (flags & UIWindow::MAXIMIZE) {
       Atom atoms[2] = {XInternAtom(ui->display, "_NET_WM_STATE_MAXIMIZED_HORZ", 0),
@@ -5178,9 +5185,33 @@ std::string _UIClipboardReadText(UIWindow* window, sel_target_t t) {
    }
 }
 
-unique_ptr<UI> UIInitialise(const UIConfig& cfg) {
+unique_ptr<UI> UIInitialise(UIConfig& cfg) {
    ui = new UI;
-   _UIInitialiseCommon();
+
+#ifdef UI_FREETYPE
+   if (cfg.font_path.empty()) {
+      // Ask fontconfig for a monospaced font. If this fails, the fallback font will be used.
+      FILE* f = popen("fc-list | grep -F `fc-match mono | awk '{ print($1) }'` "
+                      "| awk 'BEGIN { FS = \":\" } ; { print($1) }'",
+                      "r");
+
+      if (f) {
+         cfg.font_path.resize(PATH_MAX + 1);
+         auto cnt = fread(&cfg.font_path[0], 1, PATH_MAX, f);
+         cfg.font_path.resize(cnt);
+         pclose(f);
+         char* newline = strchr(&cfg.font_path[0], '\n');
+         if (newline) {
+            *newline = 0;
+            cfg.font_path.resize(newline - &cfg.font_path[0]);
+         }
+         print(std::cerr, "Using font {}\n", cfg.font_path);
+      }
+   }
+#endif
+
+
+   _UIInitialiseCommon(cfg);
 
    XInitThreads();
 
@@ -5229,6 +5260,9 @@ unique_ptr<UI> UIInitialise(const UIConfig& cfg) {
       XSetLocaleModifiers("@im=none");
       ui->xim = XOpenIM(ui->display, 0, 0, 0);
    }
+
+   ui->InspectorCreate();
+
    return unique_ptr<UI>{ui};
 }
 
@@ -5417,7 +5451,7 @@ bool _UIProcessEvent(XEvent* event) {
          window->InputEvent(UIMessage::MOUSE_WHEEL, 72, 0);
       }
 
-      _UIInspectorSetFocusedWindow(window);
+      ui->InspectorSetFocusedWindow(window);
    } else if (event->type == KeyPress) {
       UIWindow* window = _UIFindWindow(event->xkey.window);
       if (!window)
@@ -5912,7 +5946,7 @@ unique_ptr<UI> UIInitialise(const UIConfig& cfg) {
    ui = new UI;
    ui->heap = GetProcessHeap();
 
-   _UIInitialiseCommon();
+   _UIInitialiseCommon(cfg);
 
    ui->cursors[(uint32_t)UICursor::arrow]             = LoadCursor(NULL, IDC_ARROW);
    ui->cursors[(uint32_t)UICursor::text]              = LoadCursor(NULL, IDC_IBEAM);
