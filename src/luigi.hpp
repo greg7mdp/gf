@@ -957,7 +957,7 @@ private:
    size_t              _num_items;
    std::string         _columns;       // list of column headers separated by '\t' characters
    std::vector<size_t> _column_widths;
-   int                 _column_highlight;
+   size_t              _column_highlight;
    
    static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
 

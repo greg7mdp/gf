@@ -6005,16 +6005,16 @@ UIWindow* UIWindowCreate(UIWindow* owner, uint32_t flags, const char* cTitle, in
 }
 
 void UIWindow::EndPaint(UIPainter* painter) {
-   HDC              dc   = GetDC(hwnd);
+   HDC              dc   = GetDC(_hwnd);
    BITMAPINFOHEADER info = {0};
    info.biSize           = sizeof(info);
-   info.biWidth = width, info.biHeight = height;
+   info.biWidth = _width, info.biHeight = _height;
    info.biPlanes = 1, info.biBitCount = 32;
-   StretchDIBits(dc, updateRegion.l, updateRegion.t, UI_RECT_SIZE(_window->updateRegion),
-                 updateRegion.l, updateRegion.b + 1,
-                 updateRegion.width(), -updateRegion.height(),
-                 bits.data(), (BITMAPINFO*)&info, DIB_RGB_COLORS, SRCCOPY);
-   ReleaseDC(hwnd, dc);
+   StretchDIBits(dc, _update_region.l, _update_region.t, UI_RECT_SIZE(_window->_update_region),
+                 _update_region.l, _update_region.b + 1,
+                 _update_region.width(), -_update_region.height(),
+                 _bits.data(), (BITMAPINFO*)&info, DIB_RGB_COLORS, SRCCOPY);
+   ReleaseDC(_hwnd, dc);
 }
 
 void UIWindow::SetCursor(int cursor) {
