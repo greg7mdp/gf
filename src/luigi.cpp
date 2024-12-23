@@ -4931,14 +4931,14 @@ bool UIAutomationCheckTableItemMatches(UITable* table, int row, int column, cons
 void _UIWindowDestroyCommon(UIWindow* window) {
 }
 
-void _UIInitialiseCommon(UIConfig& cfg) {
+void _UIInitialiseCommon(const UIConfig& cfg, const std::string& default_font_path) {
    ui->theme = uiThemeClassic;
    
 #ifdef UI_FREETYPE
    FT_Init_FreeType(&ui->ft);
 #endif
 
-   ui->defaultFont = UIFontCreate(cfg.font_path.c_str(), cfg.default_font_size);
+   ui->defaultFont = UIFontCreate(default_font_path.c_str(), cfg.default_font_size);
    UIFontActivate(ui->defaultFont);
 }
 
@@ -5185,33 +5185,35 @@ std::string _UIClipboardReadText(UIWindow* window, sel_target_t t) {
    }
 }
 
-unique_ptr<UI> UIInitialise(UIConfig& cfg) {
+unique_ptr<UI> UIInitialise(const UIConfig& cfg) {
    ui = new UI;
 
+   std::string font_path = cfg.font_path;
+   
 #ifdef UI_FREETYPE
-   if (cfg.font_path.empty()) {
+   if (font_path.empty()) {
       // Ask fontconfig for a monospaced font. If this fails, the fallback font will be used.
       FILE* f = popen("fc-list | grep -F `fc-match mono | awk '{ print($1) }'` "
                       "| awk 'BEGIN { FS = \":\" } ; { print($1) }'",
                       "r");
 
       if (f) {
-         cfg.font_path.resize(PATH_MAX + 1);
-         auto cnt = fread(&cfg.font_path[0], 1, PATH_MAX, f);
-         cfg.font_path.resize(cnt);
+         font_path.resize(PATH_MAX + 1);
+         auto cnt = fread(&font_path[0], 1, PATH_MAX, f);
+         font_path.resize(cnt);
          pclose(f);
-         char* newline = strchr(&cfg.font_path[0], '\n');
+         char* newline = strchr(&font_path[0], '\n');
          if (newline) {
             *newline = 0;
-            cfg.font_path.resize(newline - &cfg.font_path[0]);
+            font_path.resize(newline - &font_path[0]);
          }
-         print(std::cerr, "Using font {}\n", cfg.font_path);
+         print(std::cerr, "Using font {}\n", font_path);
       }
    }
 #endif
 
-
-   _UIInitialiseCommon(cfg);
+   ui->default_font_path = font_path;
+   _UIInitialiseCommon(cfg, font_path);
 
    XInitThreads();
 
@@ -5942,14 +5944,16 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPAR
    return 0;
 }
 
-unique_ptr<UI> UIInitialise(UIConfig& cfg) {
+unique_ptr<UI> UIInitialise(const UIConfig& cfg) {
    ui = new UI;
    ui->heap = GetProcessHeap();
 
-   if (cfg.font_path.empty())
-       cfg.font_path = _UI_TO_STRING_2(UI_FONT_PATH);
+   std::string font_path = cfg.font_path;
+   if (font_path.empty())
+       font_path = _UI_TO_STRING_2(UI_FONT_PATH);
 
-   _UIInitialiseCommon(cfg);
+   ui->default_font_path = font_path;
+   _UIInitialiseCommon(cfg, font_path);
 
    ui->cursors[(uint32_t)UICursor::arrow]             = LoadCursor(NULL, IDC_ARROW);
    ui->cursors[(uint32_t)UICursor::text]              = LoadCursor(NULL, IDC_IBEAM);

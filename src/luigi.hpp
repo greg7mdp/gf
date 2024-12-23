@@ -1080,7 +1080,7 @@ struct UISwitcher : public UIElement {
 };
 
 // ------------------------------------------------------------------------------------------
-unique_ptr<UI> UIInitialise(UIConfig& cfg);
+unique_ptr<UI> UIInitialise(const UIConfig& cfg);
 
 int  UIMessageLoop();
 
@@ -1206,8 +1206,9 @@ struct UI {
    UIElement*  dialogOldFocus = nullptr;
    bool        dialogCanExit  = false;
 
-   UIFont* activeFont = nullptr;
-   UIFont* defaultFont = nullptr;
+   std::string default_font_path;     // default font used
+   UIFont*     activeFont  = nullptr;
+   UIFont*     defaultFont = nullptr;
 
 #ifdef UI_DEBUG
    UIWindow* inspector       = nullptr;

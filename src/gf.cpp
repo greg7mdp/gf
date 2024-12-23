@@ -5849,7 +5849,7 @@ void ProfWindowUpdate(const char* data, UIElement* element) {
 UIElement* ProfWindowCreate(UIElement* parent) {
    const int   fontSizeFlameGraph = 8;
    ProfWindow* window             = new ProfWindow;
-   window->fontFlameGraph         = UIFontCreate(_UI_TO_STRING_2(UI_FONT_PATH), fontSizeFlameGraph);
+   window->fontFlameGraph         = UIFontCreate(ui->default_font_path.c_str(), fontSizeFlameGraph);
    UIPanel* panel                 = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
    panel->_cp                      = window;
    UIButton* button               = UIButtonCreate(panel, UIElement::V_FILL, "Step over profiled");
@@ -7521,12 +7521,12 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
 
    ui_config.default_font_size = interface_font_size;
    
-   auto ui_ptr = UIInitialise(ui_config);  // may update `ui_config.font_path`
+   auto ui_ptr = UIInitialise(ui_config);  // sets `ui.default_font_path`
    ui->theme   = uiThemeDark;
 
    // create fonts for interface and code
    // -----------------------------------
-   const auto& font_path = ui_config.font_path;
+   const auto& font_path = ui->default_font_path;
    code_font = UIFontCreate(font_path.c_str(), code_font_size);
    UIFontActivate(UIFontCreate(font_path.c_str(), interface_font_size));
 
