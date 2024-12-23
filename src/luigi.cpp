@@ -5935,8 +5935,8 @@ bool _UIMessageLoopSingle(int* result) {
 void UIMenuShow(UIMenu* menu) {
    int width, height;
    _UIMenuPrepare(menu, &width, &height);
-   MoveWindow(menu->window->hwnd, menu->pointX, menu->pointY, width, height, FALSE);
-   ShowWindow(menu->window->hwnd, SW_SHOWNOACTIVATE);
+   MoveWindow(menu->_window->hwnd, menu->pointX, menu->pointY, width, height, FALSE);
+   ShowWindow(menu->_window->hwnd, SW_SHOWNOACTIVATE);
 }
 
 UIWindow* UIWindowCreate(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height) {
@@ -5974,7 +5974,7 @@ void UIWindow::EndPaint(UIPainter* painter) {
    info.biSize           = sizeof(info);
    info.biWidth = width, info.biHeight = height;
    info.biPlanes = 1, info.biBitCount = 32;
-   StretchDIBits(dc, updateRegion.l, updateRegion.t, UI_RECT_SIZE(window->updateRegion),
+   StretchDIBits(dc, updateRegion.l, updateRegion.t, UI_RECT_SIZE(_window->updateRegion),
                  updateRegion.l, updateRegion.b + 1,
                  updateRegion.width(), -updateRegion.height(),
                  bits.data(), (BITMAPINFO*)&info, DIB_RGB_COLORS, SRCCOPY);
@@ -5989,7 +5989,7 @@ void UIWindow::GetScreenPosition(int* _x, int* _y) {
    POINT p;
    p.x = 0;
    p.y = 0;
-   ClientToScreen(window->hwnd, &p);
+   ClientToScreen(_window->hwnd, &p);
    *_x = p.x;
    *_y = p.y;
 }
