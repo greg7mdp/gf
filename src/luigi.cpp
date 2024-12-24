@@ -3478,11 +3478,11 @@ void _UIMDIChildCloseButton(void* _child) {
    }
 }
 
-int _UIMDIChildMessage(UIElement* element, UIMessage message, int di, void* dp) {
+int UIMDIChild::_ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp) {
    UIMDIChild* mdiChild = (UIMDIChild*)element;
 
    if (message == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, element->_bounds, UI_DRAW_CONTROL_MDI_CHILD, mdiChild->title,
+      UIDrawControl((UIPainter*)dp, element->_bounds, UI_DRAW_CONTROL_MDI_CHILD, mdiChild->_title,
                     0, element->_window->_scale);
    } else if (message == UIMessage::GET_WIDTH) {
       UIElement* child = element->_children.empty() ? nullptr : element->_children.back();
@@ -3537,23 +3537,23 @@ int _UIMDIChildMessage(UIElement* element, UIMessage message, int di, void* dp) 
          return (int)UICursor::resize_down_right;
       return (int)UICursor::arrow;
    } else if (message == UIMessage::LEFT_DOWN) {
-      mdiChild->dragHitTest = _UIMDIChildHitTest(mdiChild, element->_window->_cursor.x, element->_window->_cursor.y);
-      mdiChild->dragOffset =
+      mdiChild->_drag_hit_test = _UIMDIChildHitTest(mdiChild, element->_window->_cursor.x, element->_window->_cursor.y);
+      mdiChild->_drag_offset =
          element->_bounds + UIRectangle(-element->_window->_cursor.x, -element->_window->_cursor.y);
    } else if (message == UIMessage::LEFT_UP) {
-      if (mdiChild->bounds.l < 0)
-         mdiChild->bounds.r -= mdiChild->bounds.l, mdiChild->bounds.l = 0;
-      if (mdiChild->bounds.t < 0)
-         mdiChild->bounds.b -= mdiChild->bounds.t, mdiChild->bounds.t = 0;
+      if (mdiChild->_mdi_bounds.l < 0)
+         mdiChild->_mdi_bounds.r -= mdiChild->_mdi_bounds.l, mdiChild->_mdi_bounds.l = 0;
+      if (mdiChild->_mdi_bounds.t < 0)
+         mdiChild->_mdi_bounds.b -= mdiChild->_mdi_bounds.t, mdiChild->_mdi_bounds.t = 0;
       element->_parent->Refresh();
    } else if (message == UIMessage::MOUSE_DRAG) {
-      if (mdiChild->dragHitTest > 0) {
+      if (mdiChild->_drag_hit_test > 0) {
 
 #define _UI_MDI_CHILD_MOVE_EDGE(bit, edge, cursor, size, opposite, negate, minimum, offset)                         \
-   if (mdiChild->dragHitTest & bit)                                                                                 \
-      mdiChild->bounds.edge = mdiChild->dragOffset.edge + element->_window->cursor - element->_parent->_bounds.offset; \
-   if ((mdiChild->dragHitTest & bit) && mdiChild->bounds.size() < minimum)                                          \
-      mdiChild->bounds.edge = mdiChild->bounds.opposite negate minimum;
+   if (mdiChild->_drag_hit_test & bit)                                                                                 \
+      mdiChild->_mdi_bounds.edge = mdiChild->_drag_offset.edge + element->_window->cursor - element->_parent->_bounds.offset; \
+   if ((mdiChild->_drag_hit_test & bit) && mdiChild->_mdi_bounds.size() < minimum)                                          \
+      mdiChild->_mdi_bounds.edge = mdiChild->_mdi_bounds.opposite negate minimum;
 
          _UI_MDI_CHILD_MOVE_EDGE(0b1000, l, _cursor.x, width, r, -, ui_size::MDI_CHILD_MINIMUM_WIDTH, l);
          _UI_MDI_CHILD_MOVE_EDGE(0b0100, r, _cursor.x, width, l, +, ui_size::MDI_CHILD_MINIMUM_WIDTH, l);
@@ -3563,8 +3563,8 @@ int _UIMDIChildMessage(UIElement* element, UIMessage message, int di, void* dp) 
       }
    } else if (message == UIMessage::DESTROY) {
       UIMDIClient* client = (UIMDIClient*)element->_parent;
-      if (client->active == mdiChild) {
-         client->active =
+      if (client->_active == mdiChild) {
+         client->_active =
             (UIMDIChild*)(client->_children.size() == 1 ? NULL : client->_children[client->_children.size() - 2]); // todo: seems wrong
       }
    } else if (message == UIMessage::DEALLOCATE) {
@@ -3573,7 +3573,7 @@ int _UIMDIChildMessage(UIElement* element, UIMessage message, int di, void* dp) 
    return 0;
 }
 
-int _UIMDIClientMessage(UIElement* element, UIMessage message, int di, void* dp) {
+int UIMDIClient::_ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp) {
    UIMDIClient* client = (UIMDIClient*)element;
 
    if (message == UIMessage::PAINT) {
@@ -3583,25 +3583,25 @@ int _UIMDIClientMessage(UIElement* element, UIMessage message, int di, void* dp)
    } else if (message == UIMessage::LAYOUT) {
       for (auto child : element->_children) {
          UIMDIChild *mdiChild = (UIMDIChild * )child;
-         UI_ASSERT(mdiChild->_class_proc == _UIMDIChildMessage);
+         UI_ASSERT(mdiChild->_class_proc == UIMDIChild::_ClassMessageProc);
 
-         if (mdiChild->bounds == UIRectangle(0)) {
+         if (mdiChild->_mdi_bounds == UIRectangle(0)) {
             int width  = mdiChild->Message(UIMessage::GET_WIDTH, 0, 0);
             int height = mdiChild->Message(UIMessage::GET_HEIGHT, width, 0);
-            if (client->cascade + width > element->_bounds.r || client->cascade + height > element->_bounds.b)
-               client->cascade = 0;
-            mdiChild->bounds =
-               UIRectangle(client->cascade, client->cascade + width, client->cascade, client->cascade + height);
-            client->cascade += element->scale(ui_size::MDI_CASCADE);
+            if (client->_cascade + width > element->_bounds.r || client->_cascade + height > element->_bounds.b)
+               client->_cascade = 0;
+            mdiChild->_mdi_bounds =
+               UIRectangle(client->_cascade, client->_cascade + width, client->_cascade, client->_cascade + height);
+            client->_cascade += element->scale(ui_size::MDI_CASCADE);
          }
 
-         UIRectangle bounds = mdiChild->bounds + UIRectangle(element->_bounds.l, element->_bounds.t);
+         UIRectangle bounds = mdiChild->_mdi_bounds + UIRectangle(element->_bounds.l, element->_bounds.t);
          mdiChild->Move(bounds, false);
       }
    } else if (message == UIMessage::PRESSED_DESCENDENT) {
       UIMDIChild* child = (UIMDIChild*)dp;
 
-      if (child && child != client->active) {
+      if (child && child != client->_active) {
          for (uint32_t i = 0; i < element->_children.size(); i++) {
             if (element->_children[i] == child) {
                element->_children.erase(element->_children.begin() + i);
@@ -3610,7 +3610,7 @@ int _UIMDIClientMessage(UIElement* element, UIMessage message, int di, void* dp)
             }
          }
 
-         client->active = child;
+         client->_active = child;
          element->Refresh();
       }
    }
@@ -3619,15 +3619,15 @@ int _UIMDIClientMessage(UIElement* element, UIMessage message, int di, void* dp)
 }
 
 UIMDIChild::UIMDIChild(UIElement* parent, uint32_t flags, const UIRectangle& initialBounds, std::string_view title)
-   : UIElement(parent, flags, _UIMDIChildMessage, "MDIChild")
-   , bounds(initialBounds)
-   , title(title)
-   , dragHitTest(0)
-   , dragOffset(0) {
-   UI_ASSERT(parent->_class_proc == _UIMDIClientMessage);
+   : UIElement(parent, flags, UIMDIChild::_ClassMessageProc, "MDIChild")
+   , _mdi_bounds(initialBounds)
+   , _title(title)
+   , _drag_hit_test(0)
+   , _drag_offset(0) {
+   UI_ASSERT(parent->_class_proc == UIMDIClient::_ClassMessageProc);
    UIMDIClient* mdiClient = (UIMDIClient*)parent;
 
-   mdiClient->active = this;
+   mdiClient->_active = this;
 
    if (flags & UIMDIChild::CLOSE_BUTTON) {
       UIButton* closeButton = UIButtonCreate(this, UIButton::SMALL | UIElement::NON_CLIENT, "X");
@@ -3640,9 +3640,9 @@ UIMDIChild* UIMDIChildCreate(UIElement* parent, uint32_t flags, UIRectangle init
 }
 
 UIMDIClient::UIMDIClient(UIElement* parent, uint32_t flags) :
-   UIElement(parent, flags, _UIMDIClientMessage, "MDIClient"),
-   active(nullptr),
-   cascade(0)
+   UIElement(parent, flags, UIMDIClient::_ClassMessageProc, "MDIClient"),
+   _active(nullptr),
+   _cascade(0)
 {}
 
 UIMDIClient* UIMDIClientCreate(UIElement* parent, uint32_t flags) {

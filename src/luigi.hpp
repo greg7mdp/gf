@@ -1024,24 +1024,36 @@ struct UIMenu : public UIElement {
    UIMenu(UIElement* parent, uint32_t flags);
 };
 
+struct UIMDIChild;
+
 // ------------------------------------------------------------------------------------------
 struct UIMDIClient : public UIElement {
-   enum { _TRANSPARENT = 1 << 0 };
+private:
+   UIMDIChild* _active;
+   int         _cascade;
+   
+   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+   friend struct UIMDIChild;
 
-   UIMDIChild* active;
-   int         cascade;
+public:
+   enum { _TRANSPARENT = 1 << 0 };
 
    UIMDIClient(UIElement* parent, uint32_t flags);
 };
 
 // ------------------------------------------------------------------------------------------
 struct UIMDIChild : public UIElement {
-   enum { CLOSE_BUTTON = 1 << 0 };
+private:
+   UIRectangle _mdi_bounds;
+   std::string _title;
+   int         _drag_hit_test;
+   UIRectangle _drag_offset;
 
-   UIRectangle bounds;
-   std::string title;
-   int         dragHitTest;
-   UIRectangle dragOffset;
+   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+   friend struct UIMDIClient;
+   
+public:
+   enum { CLOSE_BUTTON = 1 << 0 };
 
    UIMDIChild(UIElement* parent, uint32_t flags, const UIRectangle& initialBounds, std::string_view title);
 };
