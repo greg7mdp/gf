@@ -606,7 +606,7 @@ using  message_proc_t = int(*)(UIElement*, UIMessage msg, int di, void* dp); // 
 // ------------------------------------------------------------------------------------------
 struct UIElement {
 private:
-   void _DestroyDescendents(bool topLevel);
+   void _destroy_descendents(bool topLevel);
 
 public:
    enum {
@@ -644,32 +644,34 @@ public:
    UIElement(UIElement* parent, uint32_t flags, message_proc_t message_proc, const char* cClassName);
    virtual ~UIElement();
 
-   uint32_t    state() const;
+   uint32_t       state() const;
 
-   bool        animate(bool stop);
-   void        destroy();
-   void        destroy_descendents();
-   int         message(UIMessage msg, int di, void* dp);
-   UIElement*  change_parent(UIElement* newParent, UIElement* insertBefore);
-   UIElement*  next_or_previous_sibling(bool previous);
-   UIElement&  parent() { return *_parent; }
+   bool           animate(bool stop);
+   void           destroy();
+   void           destroy_descendents();
+   int            message(UIMessage msg, int di, void* dp);
+   UIElement*     change_parent(UIElement* newParent, UIElement* insertBefore);
+   UIElement*     next_or_previous_sibling(bool previous);
+   UIElement&     parent() { return *_parent; }
 
-   void        refresh();
-   void        relayout();
-   void        repaint(const UIRectangle* region);
-   void        paint(UIPainter* painter);
+   void           refresh();
+   void           relayout();
+   void           repaint(const UIRectangle* region);
+   void           paint(UIPainter* painter);
 
-   void        focus();                    // sets the input focus to this element
-   void        set_disabled(bool disabled);
+   void           focus();                    // sets the input focus to this element
+   void           set_disabled(bool disabled);
 
-   void        move(UIRectangle bounds, bool layout);
-   UIElement*  find_by_point(int x, int y);
-   UIRectangle screen_bounds();            // Returns bounds of element in same coordinate system as used by UIWindowCreate.
+   void           move(UIRectangle bounds, bool layout);
+   UIElement*     find_by_point(int x, int y);
+   UIRectangle    screen_bounds();            // Returns bounds of element in same coordinate system as used by UIWindowCreate.
 
-   int         scale(auto sz) const;
+   int            scale(auto sz) const;
 
    message_proc_t get_class_proc() const { return _class_proc; }
-   UIElement& set_user_proc(message_proc_t proc) { _user_proc = proc; return *this; }
+
+   UIElement&     set_user_proc(message_proc_t proc) { _user_proc = proc; return *this; }
+   message_proc_t user_proc() const { return _user_proc; }
 
    
    // functions to create child UI elements
@@ -996,47 +998,45 @@ public:
 
    UICode(UIElement* parent, uint32_t flags);
 
-   UICode& clear();
-
-   UICode& insert_content(std::string_view new_content, bool replace);
-
-   UICode& load_file(const char* path, std::optional<std::string_view> err = {});
+   UICode&   clear();
+   UICode&   insert_content(std::string_view new_content, bool replace);
+   UICode&   load_file(const char* path, std::optional<std::string_view> err = {});
 
    std::string_view line(size_t line) const {
       const auto& l = _lines[line];
       return std::string_view{&_content[l.offset], l.bytes};
    }
-   size_t line_offset(size_t line) const { return _lines[line].offset; }
+   size_t    line_offset(size_t line) const { return _lines[line].offset; }
    
-   size_t num_lines() const { return _lines.size(); }
-   size_t size() const { return _content.size(); }
+   size_t    num_lines() const { return _lines.size(); }
+   size_t    size() const { return _content.size(); }
 
-   code_pos selection(size_t idx) const { assert(idx < _selection.size()); return _selection[idx]; }
+   code_pos  selection(size_t idx) const { assert(idx < _selection.size()); return _selection[idx]; }
    
-   void emplace_back_line(size_t offset, size_t bytes) {
+   void      emplace_back_line(size_t offset, size_t bytes) {
       if (bytes > _max_columns)
          _max_columns = bytes;
       _lines.emplace_back(offset, bytes);
    }
 
-   UICode& move_caret(bool backward, bool word);
-   UICode& position_to_byte(int x, int y, size_t* line, size_t* byte);
-   int  hittest(int x, int y);
+   UICode&    move_caret(bool backward, bool word);
+   UICode&    position_to_byte(int x, int y, size_t* line, size_t* byte);
+   int        hittest(int x, int y);
 
-   UICode&  set_tab_columns(uint32_t sz) { _tab_columns = sz; return *this; }
-   uint32_t tab_columns() const { return _tab_columns; }
+   UICode&    set_tab_columns(uint32_t sz) { _tab_columns = sz; return *this; }
+   uint32_t   tab_columns() const { return _tab_columns; }
 
-   UICode& set_focus_line(size_t index);                                        // Line numbers are 0-based
-   size_t focus_line() const { return _focus_line; }
+   UICode&    set_focus_line(size_t index);                                        // Line numbers are 0-based
+   size_t     focus_line() const { return _focus_line; }
 
-   bool left_down_in_margin() const { return _left_down_in_margin; }
+   bool       left_down_in_margin() const { return _left_down_in_margin; }
 
-   UICode& set_last_animate_time(UI_CLOCK_T t) { _last_animate_time = t; return *this; }
+   UICode&    set_last_animate_time(UI_CLOCK_T t) { _last_animate_time = t; return *this; }
    UI_CLOCK_T last_animate_time() const { return _last_animate_time; }
 
-   size_t max_columns() const { return _max_columns; }
+   size_t     max_columns() const { return _max_columns; }
       
-   UICode& set_current_line(std::optional<size_t> l) {
+   UICode&    set_current_line(std::optional<size_t> l) {
       if (!l || *l < num_lines())
          _current_line = l;
       return *this;
@@ -1049,32 +1049,42 @@ public:
 
    const char& operator[](size_t idx) const { return _content[idx]; }
 
-   size_t offset(const code_pos& pos) { return _lines[pos.line].offset + pos.offset; }
+   size_t     offset(const code_pos& pos) { return _lines[pos.line].offset + pos.offset; }
 
-   UICode&  set_font(UIFont* font) { _font = font; return *this; }
-   UIFont* font() const { return _font; }
+   UICode&    set_font(UIFont* font) { _font = font; return *this; }
+   UIFont*    font() const { return _font; }
 
-   UICode& copy_text(sel_target_t t);
+   UICode&    copy_text(sel_target_t t);
 };
 
 // ------------------------------------------------------------------------------------------
 struct UIGauge : public UIElement {
-   double position;
-   bool   vertical;
+   double _position;
+   bool   _vertical;
 
    UIGauge(UIElement* parent, uint32_t flags);
-   void SetPosition(double position);
+
+   UIGauge& set_position(double position);
+   double   position() const { return _position; }
+
+   bool     vertical() const { return _vertical; }
 };
 
 // ------------------------------------------------------------------------------------------
 struct UISlider : public UIElement {
-   double position;
-   int    steps;
-   bool   vertical;
+   double _position;
+   int    _steps;
+   bool   _vertical;
 
    UISlider(UIElement* parent, uint32_t flags);
 
-   void set_position(double position);
+   UISlider& set_position(double position);
+   double    position() const { return _position; }
+
+   bool      vertical() const { return _vertical; }
+
+   UISlider& set_steps(int steps) { _steps = steps; return *this; }
+   int       steps() const { return _steps; }
 };
 
 // ------------------------------------------------------------------------------------------

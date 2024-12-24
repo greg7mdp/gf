@@ -5,15 +5,15 @@
 
 #include "../src/luigi.hpp"
 
-UILabel* label;
+UILabel* label = nullptr;
 
-UISlider* slider_horiz;
-UIGauge*  gauge_horiz1;
-UIGauge*  gauge_horiz2;
+UISlider* slider_horiz = nullptr;
+UIGauge*  gauge_horiz1 = nullptr;
+UIGauge*  gauge_horiz2 = nullptr;
 
-UISlider* slider_vert;
-UIGauge*  gauge_vert1;
-UIGauge*  gauge_vert2;
+UISlider* slider_vert = nullptr;
+UIGauge*  gauge_vert1 = nullptr;
+UIGauge*  gauge_vert2 = nullptr;
 
 UICheckbox* check_delete;
 
@@ -58,10 +58,8 @@ int MyButton2Message(UIElement* el, UIMessage msg, int di, void* dp) {
 
 int MySliderHMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::VALUE_CHANGED) {
-      gauge_horiz2->position = slider_horiz->position;
-      gauge_vert1->position  = slider_horiz->position;
-      gauge_horiz2->repaint(NULL);
-      gauge_vert1->repaint(NULL);
+      gauge_horiz2->set_position(slider_horiz->_position);
+      gauge_vert1->set_position(slider_horiz->_position);
    }
 
    return 0;
@@ -69,10 +67,8 @@ int MySliderHMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
 int MySliderVMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::VALUE_CHANGED) {
-      gauge_vert2->position  = slider_vert->position;
-      gauge_horiz1->position = slider_vert->position;
-      gauge_vert1->repaint(NULL);
-      gauge_horiz1->repaint(NULL);
+      gauge_vert2->set_position(slider_vert->_position);
+      gauge_horiz1->set_position(slider_vert->_position);
    }
 
    return 0;

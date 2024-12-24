@@ -1030,7 +1030,7 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
 // Element hierarchy.
 // --------------------------------------------------
 
-void UIElement::_DestroyDescendents(bool topLevel) {
+void UIElement::_destroy_descendents(bool topLevel) {
    for (auto child : _children) {
       if (!topLevel || (~child->_flags & UIElement::NON_CLIENT))
          child->destroy();
@@ -1040,7 +1040,7 @@ void UIElement::_DestroyDescendents(bool topLevel) {
 }
 
 void UIElement::destroy_descendents() {
-   _DestroyDescendents(true);
+   _destroy_descendents(true);
 }
 
 void UIElement::destroy() {
@@ -1060,7 +1060,7 @@ void UIElement::destroy() {
       ancestor = ancestor->_parent;
    }
 
-   _DestroyDescendents(false);
+   _destroy_descendents(false);
 
    if (_parent) {
       _parent->relayout();
@@ -2954,30 +2954,31 @@ int _UIGaugeMessage(UIElement* element, UIMessage msg, int di, void* dp) {
    UIGauge* gauge = (UIGauge*)element;
 
    if (msg == UIMessage::GET_HEIGHT) {
-      return element->scale(gauge->vertical ? ui_size::GAUGE_WIDTH : ui_size::GAUGE_HEIGHT);
+      return element->scale(gauge->_vertical ? ui_size::GAUGE_WIDTH : ui_size::GAUGE_HEIGHT);
    } else if (msg == UIMessage::GET_WIDTH) {
-      return element->scale(gauge->vertical ? ui_size::GAUGE_HEIGHT : ui_size::GAUGE_WIDTH);
+      return element->scale(gauge->_vertical ? ui_size::GAUGE_HEIGHT : ui_size::GAUGE_WIDTH);
    } else if (msg == UIMessage::PAINT) {
       UIDrawControl((UIPainter*)dp, element->_bounds,
-                    UI_DRAW_CONTROL_GAUGE | element->state() | (gauge->vertical ? UI_DRAW_CONTROL_STATE_VERTICAL : 0),
-                    {}, gauge->position, element->_window->_scale);
+                    UI_DRAW_CONTROL_GAUGE | element->state() | (gauge->_vertical ? UI_DRAW_CONTROL_STATE_VERTICAL : 0),
+                    {}, gauge->_position, element->_window->_scale);
    }
 
    return 0;
 }
 
-void UIGauge::SetPosition(double new_pos) {
+UIGauge& UIGauge::set_position(double new_pos) {
    new_pos = std::clamp(new_pos, 0., 1.);
-   if (new_pos == position)
-      return;
-   position = new_pos;
-   repaint(NULL);
+   if (new_pos != _position) {
+      _position = new_pos;
+      repaint(NULL);
+   }
+   return *this;
 }
 
 UIGauge::UIGauge(UIElement* parent, uint32_t flags)
    : UIElement(parent, flags, _UIGaugeMessage, "Gauge")
-   , position(0)
-   , vertical(!!(flags & UIElement::VERTICAL)) {}
+   , _position(0)
+   , _vertical(!!(flags & UIElement::VERTICAL)) {}
 
 UIGauge* UIGaugeCreate(UIElement* parent, uint32_t flags) {
    return new UIGauge(parent, flags);
@@ -2991,26 +2992,26 @@ int _UISliderMessage(UIElement* element, UIMessage msg, int di, void* dp) {
    UISlider* slider = (UISlider*)element;
 
    if (msg == UIMessage::GET_HEIGHT) {
-      return element->scale(slider->vertical ? ui_size::SLIDER_WIDTH : ui_size::SLIDER_HEIGHT);
+      return element->scale(slider->_vertical ? ui_size::SLIDER_WIDTH : ui_size::SLIDER_HEIGHT);
    } else if (msg == UIMessage::GET_WIDTH) {
-      return element->scale(slider->vertical ? ui_size::SLIDER_HEIGHT : ui_size::SLIDER_WIDTH);
+      return element->scale(slider->_vertical ? ui_size::SLIDER_HEIGHT : ui_size::SLIDER_WIDTH);
    } else if (msg == UIMessage::PAINT) {
       UIDrawControl((UIPainter*)dp, element->_bounds,
-                    UI_DRAW_CONTROL_SLIDER | element->state() | (slider->vertical ? UI_DRAW_CONTROL_STATE_VERTICAL : 0),
-                    {}, slider->position, element->_window->_scale);
+                    UI_DRAW_CONTROL_SLIDER | element->state() | (slider->_vertical ? UI_DRAW_CONTROL_STATE_VERTICAL : 0),
+                    {}, slider->_position, element->_window->_scale);
    } else if (msg == UIMessage::LEFT_DOWN || (msg == UIMessage::MOUSE_DRAG && element->_window->_pressed_button == 1)) {
       UIRectangle bounds    = element->_bounds;
       int         thumbSize = element->scale(ui_size::SLIDER_THUMB);
-      slider->position =
-         slider->vertical
+      slider->_position =
+         slider->_vertical
             ? 1 - ((float)(element->_window->_cursor.y - thumbSize / 2 - bounds.t) / (bounds.height() - thumbSize))
             : (double)(element->_window->_cursor.x - thumbSize / 2 - bounds.l) / (bounds.width() - thumbSize);
-      if (slider->steps > 1)
-         slider->position = (int)(slider->position * (slider->steps - 1) + 0.5f) / (double)(slider->steps - 1);
-      if (slider->position < 0)
-         slider->position = 0;
-      if (slider->position > 1)
-         slider->position = 1;
+      if (slider->_steps > 1)
+         slider->_position = (int)(slider->_position * (slider->_steps - 1) + 0.5f) / (double)(slider->_steps - 1);
+      if (slider->_position < 0)
+         slider->_position = 0;
+      if (slider->_position > 1)
+         slider->_position = 1;
       element->message(UIMessage::VALUE_CHANGED, 0, 0);
       element->repaint(NULL);
    } else if (msg == UIMessage::UPDATE) {
@@ -3020,21 +3021,22 @@ int _UISliderMessage(UIElement* element, UIMessage msg, int di, void* dp) {
    return 0;
 }
 
-void UISlider::set_position(double new_pos) {
+UISlider& UISlider::set_position(double new_pos) {
    new_pos = std::clamp(new_pos, 0., 1.);
-   if (new_pos == position)
-      return;
-   if (steps > 1)
-      position = (int)(position * (steps - 1) + 0.5f) / (float)(steps - 1);
-   message(UIMessage::VALUE_CHANGED, 0, 0);
-   repaint(NULL);
+   if (new_pos != _position) {
+      if (_steps > 1)
+         _position = (int)(_position * (_steps - 1) + 0.5f) / (float)(_steps - 1);
+      message(UIMessage::VALUE_CHANGED, 0, 0);
+      repaint(NULL);
+   }
+   return *this;
 }
 
 UISlider::UISlider(UIElement* parent, uint32_t flags)
    : UIElement(parent, flags, _UISliderMessage, "Slider")
-   , position(0)
-   , steps(0)
-   , vertical(!!(flags & UIElement::VERTICAL)) {}
+   , _position(0)
+   , _steps(0)
+   , _vertical(!!(flags & UIElement::VERTICAL)) {}
 
 UISlider* UISliderCreate(UIElement* parent, uint32_t flags) {
    return new UISlider(parent, flags);
