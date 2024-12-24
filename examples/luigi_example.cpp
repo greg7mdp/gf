@@ -25,13 +25,13 @@ const char* themeItems[] = {
    "codeNumber",     "codeOperator", "codePreprocessor",
 };
 
-int MyButtonMessage(UIElement* element, UIMessage msg, int di, void* dp) {
+int MyButtonMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::CLICKED) {
-      std_print("clicked button '{}'...", ((UIButton*)element)->label);
+      std_print("clicked button '{}'...", ((UIButton*)el)->label);
 
       if (check_delete->check == UICheckbox::CHECKED) {
-         element->_parent->Refresh();
-         element->destroy();
+         el->_parent->Refresh();
+         el->destroy();
          std_print(" and deleted it!\n");
       } else {
          std_print(" but not deleted!\n");
@@ -46,9 +46,9 @@ void MyMenuCallback(const char* cp) {
    label->Refresh();
 }
 
-int MyButton2Message(UIElement* element, UIMessage msg, int di, void* dp) {
+int MyButton2Message(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::CLICKED) {
-      UIMenu* menu = UIMenuCreate(element, 0);
+      UIMenu* menu = UIMenuCreate(el, 0);
       UIMenuAddItem(menu, 0, "Item 1\tCtrl+F5", []() { MyMenuCallback("Item 1 clicked!"); });
       UIMenuAddItem(menu, 0, "Item 2\tF6", []() { MyMenuCallback("Item 2 clicked!"); });
       UIMenuShow(menu);
@@ -57,7 +57,7 @@ int MyButton2Message(UIElement* element, UIMessage msg, int di, void* dp) {
    return 0;
 }
 
-int MySliderHMessage(UIElement* element, UIMessage msg, int di, void* dp) {
+int MySliderHMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::VALUE_CHANGED) {
       gauge_horiz2->position = slider_horiz->position;
       gauge_vert1->position  = slider_horiz->position;
@@ -68,7 +68,7 @@ int MySliderHMessage(UIElement* element, UIMessage msg, int di, void* dp) {
    return 0;
 }
 
-int MySliderVMessage(UIElement* element, UIMessage msg, int di, void* dp) {
+int MySliderVMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::VALUE_CHANGED) {
       gauge_vert2->position  = slider_vert->position;
       gauge_horiz1->position = slider_vert->position;
@@ -81,7 +81,7 @@ int MySliderVMessage(UIElement* element, UIMessage msg, int di, void* dp) {
 
 int selected;
 
-int MyTableMessage(UIElement* element, UIMessage msg, int di, void* dp) {
+int MyTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m = (UITableGetItem*)dp;
       m->isSelected     = selected == m->index;
@@ -92,12 +92,12 @@ int MyTableMessage(UIElement* element, UIMessage msg, int di, void* dp) {
          return m->format_to("other column {}", m->index);
       }
    } else if (msg == UIMessage::LEFT_DOWN) {
-      int hit = ((UITable*)element)->hittest(element->_window->_cursor.x, element->_window->_cursor.y);
+      int hit = ((UITable*)el)->hittest(el->_window->_cursor.x, el->_window->_cursor.y);
 
       if (selected != hit) {
          selected = hit;
-         if (!((UITable*)element)->ensure_visible(selected)) {
-            element->Repaint(NULL);
+         if (!((UITable*)el)->ensure_visible(selected)) {
+            el->Repaint(NULL);
          }
       }
    }
@@ -105,9 +105,9 @@ int MyTableMessage(UIElement* element, UIMessage msg, int di, void* dp) {
    return 0;
 }
 
-int MyCheckboxMessage(UIElement* element, UIMessage msg, int di, void* dp) {
+int MyCheckboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::CLICKED) {
-      auto cb = (UICheckbox*)element;
+      auto cb = (UICheckbox*)el;
       cb->SetLabel(cb->check == UICheckbox::CHECKED ? "Off" : "On");
       
       // Note, because this message function is run when the checkbox is
