@@ -5,8 +5,7 @@
 
 #include "../src/luigi.hpp"
 
-UIWindow* window;
-UILabel*  label;
+UILabel* label;
 
 UISlider* slider_horiz;
 UIGauge*  gauge_horiz1;
@@ -16,7 +15,7 @@ UISlider* slider_vert;
 UIGauge*  gauge_vert1;
 UIGauge*  gauge_vert2;
 
-UICheckbox *check_delete;
+UICheckbox* check_delete;
 
 const char* themeItems[] = {
    "panel1",         "panel2",       "selected",         "border",        "text",           "textDisabled",
@@ -133,97 +132,95 @@ int main(int argc, char** argv) {
    auto fontCode = UIFontCreate(fontPath.c_str(), 12);
    UIFontActivate(fontCode);
 
-   window = UIWindowCreate(0, 0, "luigi2 - Example Application", 0, 0);
+   UIWindow& window = ui->add_window(0, 0, "luigi2 - Example Application", 0, 0);
 
    // Split window (vertically) into top/bottom panes.
-   UISplitPane* uisplit_topbottom = UISplitPaneCreate(window, UIElement::VERTICAL, 0.75f);
+   UISplitPane& uisplit_topbottom = window.add_splitpane(UIElement::VERTICAL, 0.75f);
 
    // Split top pane (horizontally) into left/right panes.
-   UISplitPane* uisplit_top_leftright = UISplitPaneCreate(uisplit_topbottom, 0, 0.3f);
+   UISplitPane& uisplit_top_leftright = uisplit_topbottom.add_splitpane(0, 0.3f);
 
    {
       // In the top-left pane - create a single panel taking up the whole pane.
-      UIPanel* panel = UIPanelCreate(uisplit_top_leftright, UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING);
-      // Panels are by default vertical in layout, so items start at top and go down.
-      UIButtonCreate(panel, 0, "Hello World")->_user_proc = MyButtonMessage;
-      // Create a new horizontal-layout "sub-panel" and put left and right panels inside it.
-      UIPanel* subpanel = UIPanelCreate(panel, UIPanel::COLOR_1 | UIPanel::HORIZONTAL);
-      // The left side will layout elements horizontally, with custom borders and gap.
-      UIPanel* sub_left        = UIPanelCreate(subpanel, UIPanel::COLOR_1 | UIPanel::HORIZONTAL);
-      sub_left->border.t       = 10;
-      sub_left->border.b       = 10;
-      sub_left->border.l       = 10;
-      sub_left->border.r       = 10;
-      sub_left->gap            = 2;
-      gauge_vert1              = UIGaugeCreate(sub_left, UIElement::VERTICAL);
-      gauge_vert2              = UIGaugeCreate(sub_left, UIElement::VERTICAL);
-      slider_vert              = UISliderCreate(sub_left, UIElement::VERTICAL);
-      slider_vert->_user_proc = MySliderVMessage;
-      // The right side will lay out elements vertically (the default), with default medium spacing.
-      UIPanel* sub_right = UIPanelCreate(subpanel, UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING);
-      UIButtonCreate(sub_right, 0, "1")->_user_proc = MyButtonMessage;
-      UIButtonCreate(sub_right, 0, "2")->_user_proc = MyButtonMessage;
-      UIButtonCreate(sub_right, 0, "3")->_user_proc = MyButtonMessage;
-      UIButtonCreate(sub_right, 0, "4")->_user_proc = MyButtonMessage;
-      UIButtonCreate(sub_right, 0, "5")->_user_proc = MyButtonMessage;
-      // Back outside of the "sub-panel", we continue layout downwards.
-      UIButtonCreate(panel, 0, "Goodbye World")->_user_proc = MyButtonMessage;
+      UIPanel& panel = uisplit_top_leftright.add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING);
 
-      gauge_horiz1              = UIGaugeCreate(panel, 0);
-      gauge_horiz2              = UIGaugeCreate(panel, 0);
-      slider_horiz              = UISliderCreate(panel, 0);
+      // Panels are by default vertical in layout, so items start at top and go down.
+      panel.add_button(0, "Hello World").set_user_proc(MyButtonMessage);
+
+      // Create a new horizontal-layout "sub-panel" and put left and right panels inside it.
+      UIPanel& subpanel = panel.add_panel(UIPanel::COLOR_1 | UIPanel::HORIZONTAL);
+
+      // The left side will layout elements horizontally, with custom borders and gap.
+      UIPanel& sub_left =
+         subpanel.add_panel(UIPanel::COLOR_1 | UIPanel::HORIZONTAL).set_border(ui_rect_1(10)).set_gap(2);
+      gauge_vert1             = &sub_left.add_gauge(UIElement::VERTICAL);
+      gauge_vert2             = &sub_left.add_gauge(UIElement::VERTICAL);
+      slider_vert             = &sub_left.add_slider(UIElement::VERTICAL);
+      slider_vert->set_user_proc(MySliderVMessage);
+
+      // The right side will lay out elements vertically (the default), with default medium spacing.
+      UIPanel& sub_right                      = subpanel.add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING);
+      sub_right.add_button(0, "1").set_user_proc(MyButtonMessage);
+      sub_right.add_button(0, "2").set_user_proc(MyButtonMessage);
+      sub_right.add_button(0, "3").set_user_proc(MyButtonMessage);
+      sub_right.add_button(0, "4").set_user_proc(MyButtonMessage);
+      sub_right.add_button(0, "5").set_user_proc(MyButtonMessage);
+
+      // Back outside of the "sub-panel", we continue layout downwards.
+      panel.add_button(0, "Goodbye World").set_user_proc(MyButtonMessage);
+
+      gauge_horiz1             = &panel.add_gauge(0);
+      gauge_horiz2             = &panel.add_gauge(0);
+      slider_horiz             = &panel.add_slider(0);
       slider_horiz->_user_proc = MySliderHMessage;
-      UITextboxCreate(panel, 0);
-      UITextboxCreate(panel, 0); // UITextbox::HIDE_CHARACTERS);
+      panel.add_textbox(0);
+      panel.add_textbox(0);  // UITextbox::HIDE_CHARACTERS);
+      
       // Set default slider positions.
       slider_vert->set_position(0.1);
       slider_horiz->set_position(0.3);
    }
 
-   {
-      // Top-Right pane.
-      UICode* code = UICodeCreate(uisplit_top_leftright, 0);
-      code->load_file("../src/luigi.hpp");
-      code->set_focus_line(0);
-   }
+   // Top-Right pane.
+   uisplit_top_leftright.add_code(0).load_file("../src/luigi.hpp").set_focus_line(0);
 
    // Split bottom pane (horizontally) into left/right panes.
-   UISplitPane* uisplit_bottom_leftright = UISplitPaneCreate(uisplit_topbottom, 0, 0.3f);
+   UISplitPane& uisplit_bottom_leftright = uisplit_topbottom.add_splitpane(0, 0.3f);
 
    {
       // Bottom-Left pane.
-      UIPanel* panel = UIPanelCreate(uisplit_bottom_leftright, UIPanel::COLOR_2);
-      panel->border  = UIRectangle(5);
-      panel->gap     = 5;
-      UIButtonCreate(panel, 0, "It's a button??")->_user_proc = MyButton2Message;
-      label = UILabelCreate(panel, UIElement::H_FILL, "Hello, I am a label!");
+      UIPanel& panel = uisplit_bottom_leftright.add_panel(UIPanel::COLOR_2).set_border(UIRectangle(5)).set_gap(5);
+      panel.add_button(0, "It's a button??").set_user_proc(MyButton2Message);
+      label = &panel.add_label(UIElement::H_FILL, "Hello, I am a label!");
    }
 
    {
       // Bottom-Right pane.
-      UITabPane* tabPane = UITabPaneCreate(uisplit_bottom_leftright, 0, "Tab 1\tMiddle Tab\tTab 3");
+      UITabPane& tabPane = uisplit_bottom_leftright.add_tabpane(0, "Tab 1\tMiddle Tab\tTab 3");
+
       // First tab in tabPane
-      UITable*   table   = UITableCreate(tabPane, 0, "Column 1\tColumn 2");
-      table->set_num_items(100000);
-      table->_user_proc = MyTableMessage;
-      table->resize_columns();
+      UITable& table   = tabPane.add_table(0, "Column 1\tColumn 2").set_num_items(100000);
+      table.set_user_proc(MyTableMessage);
+      table.resize_columns();
+
       // Second tab
-      UILabelCreate(UIPanelCreate(tabPane, UIPanel::COLOR_1), 0, "you're in tab 2, bucko");
+      tabPane.add_panel(UIPanel::COLOR_1).add_label(0, "you're in tab 2, bucko");
+
       // Third tab
-      UIPanel *settingsPanel = UIPanelCreate(tabPane, UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING | UIPanel::HORIZONTAL);
-      UILabelCreate(settingsPanel, 0, "Delete top-left panel buttons on click:");
-      check_delete = UICheckboxCreate(settingsPanel, 0, "Off");
-      check_delete->_user_proc = MyCheckboxMessage;
+      UIPanel &settingsPanel = tabPane.add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING | UIPanel::HORIZONTAL);
+      settingsPanel.add_label(0, "Delete top-left panel buttons on click:");
+      check_delete = &settingsPanel.add_checkbox(0, "Off");
+      check_delete->set_user_proc(MyCheckboxMessage);
    }
 
-   UIWindowRegisterShortcut(window, UIShortcut{.code = UI_KEYCODE_LETTER('T'), .ctrl = true, .invoke = []() {
-                                                    MyMenuCallback("Keyboard shortcut!");
-                                                 }});
+   UIWindowRegisterShortcut(&window, UIShortcut{.code = UI_KEYCODE_LETTER('T'), .ctrl = true, .invoke = []() {
+                                                   MyMenuCallback("Keyboard shortcut!");
+                                                }});
 
    {
       // Create a separate window demonstrating the MDI element
       UIWindow&    mdi_window = ui->add_window(0, 0, "luigi 2 - MDI Example", 0, 0);
-      UIMDIClient& client = mdi_window.add_mdiclient(0);
+      UIMDIClient& client     = mdi_window.add_mdiclient(0);
 
       client.add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(10, 600, 10, 400), "My Window")
          .add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING)

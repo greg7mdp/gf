@@ -391,6 +391,7 @@ struct UIRectangle {
    auto operator<=>(const UIRectangle&) const = default;
 };
 
+inline UIRectangle ui_rect_1(int x)         { return UIRectangle{x, x, x, x}; }
 inline UIRectangle ui_rect_1i(int x)        { return UIRectangle{x, -x, x, -x}; }
 inline UIRectangle ui_rect_2i(int x, int y) { return UIRectangle{x, -x, y, -y}; }
 inline UIRectangle ui_rect_2s(int x, int y) { return UIRectangle{0, x, 0, y}; }
@@ -668,6 +669,7 @@ public:
    int         scale(auto sz) const;
 
    message_proc_t get_class_proc() const { return _class_proc; }
+   UIElement& set_user_proc(message_proc_t proc) { _user_proc = proc; return *this; }
 
    
    // functions to create child UI elements
@@ -788,11 +790,17 @@ public:
       EXPAND         = 1 << 9,
    };
 
-   UIScrollBar* scrollBar;
-   UIRectangle  border;
-   int          gap;
+   UIScrollBar* _scrollBar;
+   UIRectangle  _border;
+   int          _gap;
 
    UIPanel(UIElement* parent, uint32_t flags);
+
+   UIPanel& set_border(const UIRectangle& b) { _border = b; return *this; }
+   const UIRectangle& border() const { return _border; }
+
+   UIPanel& set_gap(int gap) { _gap = gap;  return *this; }
+   int gap() const { return _gap; }
 };
 
 // ------------------------------------------------------------------------------------------
@@ -978,8 +986,8 @@ private:
    bool                    _use_vertical_motion_column{false};
    std::array<code_pos, 4> _selection{}; // start, end, anchor, caret
 
-   void _set_vertical_motion_column(bool restore);
-   void _update_selection();
+   UICode& _set_vertical_motion_column(bool restore);
+   UICode& _update_selection();
 
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
 
@@ -988,11 +996,11 @@ public:
 
    UICode(UIElement* parent, uint32_t flags);
 
-   void clear();
+   UICode& clear();
 
-   void insert_content(std::string_view new_content, bool replace);
+   UICode& insert_content(std::string_view new_content, bool replace);
 
-   void load_file(const char* path, std::optional<std::string_view> err = {});
+   UICode& load_file(const char* path, std::optional<std::string_view> err = {});
 
    std::string_view line(size_t line) const {
       const auto& l = _lines[line];
@@ -1011,26 +1019,27 @@ public:
       _lines.emplace_back(offset, bytes);
    }
 
-   void move_caret(bool backward, bool word);
-   void position_to_byte(int x, int y, size_t* line, size_t* byte);
+   UICode& move_caret(bool backward, bool word);
+   UICode& position_to_byte(int x, int y, size_t* line, size_t* byte);
    int  hittest(int x, int y);
 
-   void     set_tab_columns(uint32_t sz) { _tab_columns = sz; }
+   UICode&  set_tab_columns(uint32_t sz) { _tab_columns = sz; return *this; }
    uint32_t tab_columns() const { return _tab_columns; }
 
-   void set_focus_line(size_t index);                                        // Line numbers are 0-based
+   UICode& set_focus_line(size_t index);                                        // Line numbers are 0-based
    size_t focus_line() const { return _focus_line; }
 
    bool left_down_in_margin() const { return _left_down_in_margin; }
 
-   void set_last_animate_time(UI_CLOCK_T t) { _last_animate_time = t; }
+   UICode& set_last_animate_time(UI_CLOCK_T t) { _last_animate_time = t; return *this; }
    UI_CLOCK_T last_animate_time() const { return _last_animate_time; }
 
    size_t max_columns() const { return _max_columns; }
       
-   void set_current_line(std::optional<size_t> l) {
+   UICode& set_current_line(std::optional<size_t> l) {
       if (!l || *l < num_lines())
          _current_line = l;
+      return *this;
    }
    std::optional<size_t> current_line() {
       if (_current_line && *_current_line >= num_lines())
@@ -1042,10 +1051,10 @@ public:
 
    size_t offset(const code_pos& pos) { return _lines[pos.line].offset + pos.offset; }
 
-   void set_font(UIFont* font) { _font = font; }
+   UICode&  set_font(UIFont* font) { _font = font; return *this; }
    UIFont* font() const { return _font; }
 
-   void copy_text(sel_target_t t);
+   UICode& copy_text(sel_target_t t);
 };
 
 // ------------------------------------------------------------------------------------------
@@ -1092,13 +1101,13 @@ public:
       return std::string_view{_columns.c_str() + start, end - start};
    }
 
-   int     hittest(int x, int y);
-   int     header_hittest(int x, int y);
-   bool    ensure_visible(int index);
-   size_t& num_items()                    { return _num_items; }
-   void    set_num_items(size_t n)        { _num_items = n; }
-   void    set_column_highlight(size_t c) { _column_highlight = c; }
-   void    resize_columns();
+   int      hittest(int x, int y);
+   int      header_hittest(int x, int y);
+   bool     ensure_visible(int index);
+   size_t&  num_items()                    { return _num_items; }
+   UITable& set_num_items(size_t n)        { _num_items = n; return *this; }
+   UITable& set_column_highlight(size_t c) { _column_highlight = c; return *this; }
+   UITable& resize_columns();
 };
 
 // ------------------------------------------------------------------------------------------

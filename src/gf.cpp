@@ -2613,8 +2613,8 @@ UIElement* ConsoleWindowCreate(UIElement* parent) {
    UIPanel* panel2          = UIPanelCreate(parent, UIPanel::EXPAND);
    displayOutput            = UICodeCreate(panel2, UICode::NO_MARGIN | UIElement::V_FILL | UICode::SELECTABLE);
    UIPanel* panel3          = UIPanelCreate(panel2, UIPanel::HORIZONTAL | UIPanel::EXPAND | UIPanel::COLOR_1);
-   panel3->border           = UIRectangle(5);
-   panel3->gap              = 5;
+   panel3->_border           = UIRectangle(5);
+   panel3->_gap              = 5;
    trafficLight             = UISpacerCreate(panel3, 0, 30, 30);
    trafficLight->_user_proc = TrafficLightMessage;
    UIButton* buttonMenu     = UIButtonCreate(panel3, 0, "Menu");
@@ -2893,7 +2893,7 @@ void WatchAddFields(WatchWindow* w, const shared_ptr<Watch>& watch) {
 void WatchEnsureRowVisible(WatchWindow* w, size_t index) {
    if (w->selectedRow > w->rows.size())
       w->selectedRow = w->rows.size();
-   UIScrollBar* scroll    = ((UIPanel*)w->_parent)->scrollBar;
+   UIScrollBar* scroll    = ((UIPanel*)w->_parent)->_scrollBar;
    int          rowHeight = (int)(ui_size::TEXTBOX_HEIGHT * w->_window->_scale);
    int          start = index * rowHeight, end = (index + 1) * rowHeight, height = w->_parent->_bounds.height();
    bool         unchanged = false;
@@ -4282,7 +4282,7 @@ UIElement* FilesWindowCreate(UIElement* parent) {
    FilesWindow* window    = new FilesWindow;
    UIPanel*     container = UIPanelCreate(parent, UIPanel::EXPAND);
    window->panel = UIPanelCreate(container, UIPanel::COLOR_1 | UIPanel::EXPAND | UIPanel::SCROLL | UIElement::V_FILL);
-   window->panel->gap = -1, window->panel->border = UIRectangle(1);
+   window->panel->_gap = -1, window->panel->_border = UIRectangle(1);
    window->panel->_cp = window;
    UIPanel* row       = UIPanelCreate(container, UIPanel::COLOR_2 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
 

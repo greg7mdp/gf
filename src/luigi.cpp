@@ -1501,7 +1501,7 @@ int _UIPanelCalculatePerFill(UIPanel* panel, int* _count, int hSpace, int vSpace
    }
 
    if (count) {
-      available -= (count - 1) * (int)(panel->gap * scale);
+      available -= (count - 1) * (int)(panel->_gap * scale);
    }
 
    if (available > 0 && fill) {
@@ -1531,21 +1531,21 @@ int _UIPanelMeasure(UIPanel* panel, int di) {
          size = childSize;
    }
 
-   int border = horizontal ? (panel->border.t + panel->border.b) : (panel->border.l + panel->border.r);
+   int border = horizontal ? (panel->_border.t + panel->_border.b) : (panel->_border.l + panel->_border.r);
    return size + panel->scale(border);
 }
 
 int _UIPanelLayout(UIPanel* panel, UIRectangle bounds, bool measure) {
    bool horizontal = panel->_flags & UIPanel::HORIZONTAL;
 
-   int position = panel->scale(horizontal ? panel->border.l : panel->border.t);
-   if (panel->scrollBar && !measure)
-      position -= panel->scrollBar->_position;
-   int  hSpace        = bounds.width() - panel->scale(panel->border.total_width());
-   int  vSpace        = bounds.height() - panel->scale(panel->border.total_height());
+   int position = panel->scale(horizontal ? panel->_border.l : panel->_border.t);
+   if (panel->_scrollBar && !measure)
+      position -= panel->_scrollBar->_position;
+   int  hSpace        = bounds.width() - panel->scale(panel->_border.total_width());
+   int  vSpace        = bounds.height() - panel->scale(panel->_border.total_height());
    int  count         = 0;
    int  perFill       = _UIPanelCalculatePerFill(panel, &count, hSpace, vSpace, panel->_window->_scale);
-   int  scaledBorder2 = panel->scale(horizontal ? panel->border.t : panel->border.l);
+   int  scaledBorder2 = panel->scale(horizontal ? panel->_border.t : panel->_border.l);
    bool expand        = panel->_flags & UIPanel::EXPAND;
 
    for (auto child : panel->_children) {
@@ -1562,7 +1562,7 @@ int _UIPanelLayout(UIPanel* panel, UIRectangle bounds, bool measure) {
                                             scaledBorder2 + (vSpace + height) / 2);
          if (!measure)
             child->move(translate(relative, bounds), false);
-         position += width + panel->scale(panel->gap);
+         position += width + panel->scale(panel->_gap);
       } else {
          int width  = ((child->_flags & UIElement::H_FILL) || expand)
                          ? hSpace
@@ -1572,12 +1572,12 @@ int _UIPanelLayout(UIPanel* panel, UIRectangle bounds, bool measure) {
                                             position, position + height);
          if (!measure)
             child->move(translate(relative, bounds), false);
-         position += height + panel->scale(panel->gap);
+         position += height + panel->scale(panel->_gap);
       }
    }
 
-   return position - panel->scale(count ? panel->gap : 0) +
-          panel->scale(horizontal ? panel->border.r : panel->border.b);
+   return position - panel->scale(count ? panel->_gap : 0) +
+          panel->scale(horizontal ? panel->_border.r : panel->_border.b);
 }
 
 int UIPanel::_ClassMessageProc(UIElement* element, UIMessage msg, int di, void* dp) {
@@ -1585,16 +1585,16 @@ int UIPanel::_ClassMessageProc(UIElement* element, UIMessage msg, int di, void* 
    bool     horizontal = element->_flags & UIPanel::HORIZONTAL;
 
    if (msg == UIMessage::LAYOUT) {
-      int         scrollBarWidth = panel->scrollBar ? element->scale(ui_size::SCROLL_BAR) : 0;
+      int         scrollBarWidth = panel->_scrollBar ? element->scale(ui_size::SCROLL_BAR) : 0;
       UIRectangle bounds         = element->_bounds;
       bounds.r -= scrollBarWidth;
 
-      if (panel->scrollBar) {
+      if (panel->_scrollBar) {
          UIRectangle scrollBarBounds = element->_bounds;
          scrollBarBounds.l           = scrollBarBounds.r - scrollBarWidth;
-         panel->scrollBar->set_maximum(_UIPanelLayout(panel, bounds, true));
-         panel->scrollBar->set_page(element->_bounds.height());
-         panel->scrollBar->move(scrollBarBounds, true);
+         panel->_scrollBar->set_maximum(_UIPanelLayout(panel, bounds, true));
+         panel->_scrollBar->set_page(element->_bounds.height());
+         panel->_scrollBar->move(scrollBarBounds, true);
       }
 
       _UIPanelLayout(panel, bounds, false);
@@ -1608,7 +1608,7 @@ int UIPanel::_ClassMessageProc(UIElement* element, UIMessage msg, int di, void* 
       if (horizontal) {
          return _UIPanelMeasure(panel, di);
       } else {
-         int width = di && panel->scrollBar ? (di - element->scale(ui_size::SCROLL_BAR)) : di;
+         int width = di && panel->_scrollBar ? (di - element->scale(ui_size::SCROLL_BAR)) : di;
          return _UIPanelLayout(panel, UIRectangle(0, width, 0, 0), true);
       }
    } else if (msg == UIMessage::PAINT) {
@@ -1617,8 +1617,8 @@ int UIPanel::_ClassMessageProc(UIElement* element, UIMessage msg, int di, void* 
       } else if (element->_flags & UIPanel::COLOR_2) {
          UIDrawBlock((UIPainter*)dp, element->_bounds, ui->theme.panel2);
       }
-   } else if (msg == UIMessage::MOUSE_WHEEL && panel->scrollBar) {
-      return panel->scrollBar->message(msg, di, dp);
+   } else if (msg == UIMessage::MOUSE_WHEEL && panel->_scrollBar) {
+      return panel->_scrollBar->message(msg, di, dp);
    } else if (msg == UIMessage::SCROLLED) {
       element->refresh();
    } else if (msg == UIMessage::GET_CHILD_STABILITY) {
@@ -1632,23 +1632,23 @@ int UIPanel::_ClassMessageProc(UIElement* element, UIMessage msg, int di, void* 
 
 UIPanel::UIPanel(UIElement* parent, uint32_t flags)
    : UIElement(parent, flags, UIPanel::_ClassMessageProc, "Panel")
-   , scrollBar(nullptr)
-   , border(0)
-   , gap(0) {
+   , _scrollBar(nullptr)
+   , _border(0)
+   , _gap(0) {
 
    if (flags & UIPanel::LARGE_SPACING) {
-      border = UIRectangle(ui_size::PANE_LARGE_BORDER);
-      gap    = ui_size::PANE_LARGE_GAP;
+      _border = UIRectangle(ui_size::PANE_LARGE_BORDER);
+      _gap    = ui_size::PANE_LARGE_GAP;
    } else if (flags & UIPanel::MEDIUM_SPACING) {
-      border = UIRectangle(ui_size::PANE_MEDIUM_BORDER);
-      gap    = ui_size::PANE_MEDIUM_GAP;
+      _border = UIRectangle(ui_size::PANE_MEDIUM_BORDER);
+      _gap    = ui_size::PANE_MEDIUM_GAP;
    } else if (flags & UIPanel::SMALL_SPACING) {
-      border = UIRectangle(ui_size::PANE_SMALL_BORDER);
-      gap    = ui_size::PANE_SMALL_GAP;
+      _border = UIRectangle(ui_size::PANE_SMALL_BORDER);
+      _gap    = ui_size::PANE_SMALL_GAP;
    }
 
    if (flags & UIPanel::SCROLL) {
-      scrollBar = UIScrollBarCreate(this, UIElement::NON_CLIENT);
+      _scrollBar = UIScrollBarCreate(this, UIElement::NON_CLIENT);
    }
 }
 
@@ -2327,23 +2327,25 @@ int _UICodeByteToColumn(UICode* code, size_t line, size_t byte) {
    return _UIByteToColumn(code->line(line), byte, code->tab_columns());
 }
 
-void UICode::clear() {
+UICode& UICode::clear() {
    _content.clear();
    _lines.clear();
    _max_columns = 0;
    _selection   = {};
+   return *this;
 }
 
-void UICode::load_file(const char* path, std::optional<std::string_view> err /* = {} */) {
+UICode& UICode::load_file(const char* path, std::optional<std::string_view> err /* = {} */) {
    std::string buff = LoadFile(path);
    if (buff.empty())
       insert_content(err ? *err : std::format("The file '{}' could not be loaded.", path), true);
    else
       insert_content(buff, true);
    _current_line.reset();
+   return *this;
 }
 
-void UICode::position_to_byte(int x, int y, size_t* line, size_t* byte) {
+UICode& UICode::position_to_byte(int x, int y, size_t* line, size_t* byte) {
    UIFont* previousFont = UIFontActivate(_font);
    int     lineHeight   = UIMeasureStringHeight();
    *line                = std::max((int64_t)0, (y - _bounds.t + _vscroll->_position) / lineHeight);
@@ -2354,6 +2356,7 @@ void UICode::position_to_byte(int x, int y, size_t* line, size_t* byte) {
       column -= (ui->code_margin() + ui->code_margin_gap()) / ui->activeFont->glyphWidth;
    UIFontActivate(previousFont);
    *byte = _UICodeColumnToByte(this, *line, column);
+   return *this;
 }
 
 int UICode::hittest(int x, int y) {
@@ -2508,7 +2511,7 @@ int UIDrawStringHighlighted(UIPainter* painter, UIRectangle lineBounds, std::str
    return x;
 }
 
-void UICode::copy_text(sel_target_t t) {
+UICode& UICode::copy_text(sel_target_t t) {
    size_t from = offset(selection(0));
    size_t to   = offset(selection(1));
 
@@ -2519,9 +2522,10 @@ void UICode::copy_text(sel_target_t t) {
          pasteText[i - from] = (*this)[i];
       _UIClipboardWriteText(_window, std::move(pasteText), t);
    }
+   return *this;
 }
 
-void UICode::_update_selection() {
+UICode& UICode::_update_selection() {
    bool swap = _selection[3].line < _selection[2].line ||
                (_selection[3].line == _selection[2].line && _selection[3].offset < _selection[2].offset);
    _selection[1 - swap] = _selection[3];
@@ -2529,15 +2533,17 @@ void UICode::_update_selection() {
    copy_text(sel_target_t::primary);
    _move_scroll_to_caret_next_layout = true;
    refresh();
+   return *this;
 }
 
-void UICode::_set_vertical_motion_column(bool restore) {
+UICode& UICode::_set_vertical_motion_column(bool restore) {
    if (restore) {
       _selection[3].offset = _UICodeColumnToByte(this, _selection[3].line, _vertical_motion_column);
    } else if (!_use_vertical_motion_column) {
       _use_vertical_motion_column = true;
       _vertical_motion_column     = _UICodeByteToColumn(this, _selection[3].line, _selection[3].offset);
    }
+   return *this;
 }
 
 int UICode::_ClassMessageProc(UIElement* element, UIMessage msg, int di, void* dp) {
@@ -2838,7 +2844,7 @@ int UICode::_ClassMessageProc(UIElement* element, UIMessage msg, int di, void* d
    return 0;
 }
 
-void UICode::move_caret(bool backward, bool word) {
+UICode& UICode::move_caret(bool backward, bool word) {
    while (true) {
       if (backward) {
          if ((int)_selection[3].offset - 1 < 0) {
@@ -2872,16 +2878,18 @@ void UICode::move_caret(bool backward, bool word) {
 
    _use_vertical_motion_column = false;
    _update_selection();
+   return *this;
 }
 
 // Line numbers are 1-indexed!!
-void UICode::set_focus_line(size_t index) {
+UICode&  UICode::set_focus_line(size_t index) {
    _focus_line                       = index;
    _move_scroll_to_focus_next_layout = true;
    refresh();
+   return *this;
 }
 
-void UICode::insert_content(std::string_view new_content, bool replace) {
+UICode& UICode::insert_content(std::string_view new_content, bool replace) {
    constexpr size_t max_size = 1000000000;
    if (new_content.size() > max_size)
       new_content = new_content.substr(0, max_size);
@@ -2894,7 +2902,7 @@ void UICode::insert_content(std::string_view new_content, bool replace) {
       clear();
 
    if (new_content.empty())
-      return;
+      return *this;
 
    size_t sz        = new_content.size();
    size_t orig_size = _content.size();
@@ -2926,6 +2934,7 @@ void UICode::insert_content(std::string_view new_content, bool replace) {
 
    UIFontActivate(previousFont);
    repaint(NULL);
+   return *this;
 }
 
 UICode::UICode(UIElement* parent, uint32_t flags)
@@ -3095,7 +3104,7 @@ bool UITable::ensure_visible(int index) {
    }
 }
 
-void UITable::resize_columns() {
+UITable& UITable::resize_columns() {
    size_t position = 0;
    size_t count    = 0;
 
@@ -3137,6 +3146,7 @@ void UITable::resize_columns() {
    }
 
    repaint(NULL);
+   return *this;
 }
 
 int UITable::_ClassMessageProc(UIElement* element, UIMessage msg, int di, void* dp) {
@@ -4025,7 +4035,7 @@ const char* UIDialogShow(UIWindow* window, uint32_t flags, const char* format, .
    UI_ASSERT(!window->_dialog);
    window->_dialog = UIElementCreate(sizeof(UIElement), window, 0, _UIDialogWrapperMessage, "DialogWrapper");
    UIPanel* panel  = UIPanelCreate(window->_dialog, UIPanel::MEDIUM_SPACING | UIPanel::COLOR_1);
-   panel->border   = UIRectangle(ui_size::PANE_MEDIUM_BORDER * 2);
+   panel->_border   = UIRectangle(ui_size::PANE_MEDIUM_BORDER * 2);
    window->_children[0]->_flags |= UIElement::DISABLED;
 
    // Create the dialog contents.
@@ -4041,7 +4051,7 @@ const char* UIDialogShow(UIWindow* window, uint32_t flags, const char* format, .
    for (int i = 0; format[i]; i++) {
       if (i == 0 || format[i - 1] == '\n') {
          row      = UIPanelCreate(panel, UIPanel::HORIZONTAL | UIElement::H_FILL);
-         row->gap = ui_size::PANE_SMALL_GAP;
+         row->_gap = ui_size::PANE_SMALL_GAP;
       }
 
       if (format[i] == ' ' || format[i] == '\n') {
