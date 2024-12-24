@@ -621,21 +621,21 @@ struct UIElement {
    bool        animate(bool stop);
    void        destroy();
    void        destroy_descendents();
-   int         Message(UIMessage msg, int di, void* dp);
-   UIElement*  ChangeParent(UIElement* newParent, UIElement* insertBefore);
-   UIElement*  NextOrPreviousSibling(bool previous);
+   int         message(UIMessage msg, int di, void* dp);
+   UIElement*  change_parent(UIElement* newParent, UIElement* insertBefore);
+   UIElement*  next_or_previous_sibling(bool previous);
 
-   void        Refresh();
-   void        Relayout();
-   void        Repaint(const UIRectangle* region);
-   void        Paint(UIPainter* painter);
+   void        refresh();
+   void        relayout();
+   void        repaint(const UIRectangle* region);
+   void        paint(UIPainter* painter);
 
-   void        Focus();                    // sets the input focus to this element
-   void        SetDisabled(bool disabled);
+   void        focus();                    // sets the input focus to this element
+   void        set_disabled(bool disabled);
 
-   void        Move(UIRectangle bounds, bool layout);
-   UIElement*  FindByPoint(int x, int y);
-   UIRectangle ScreenBounds();            // Returns bounds of element in same coordinate system as used by UIWindowCreate.
+   void        move(UIRectangle bounds, bool layout);
+   UIElement*  find_by_point(int x, int y);
+   UIRectangle screen_bounds();            // Returns bounds of element in same coordinate system as used by UIWindowCreate.
 
    int         scale(auto sz) const;
 
@@ -1342,7 +1342,7 @@ void UIInspectorLog(UI* ui, std::format_string<Args...> fmt, Args&&... args ) {
    char buffer[4096];
    std_format_to_n(buffer, sizeof(buffer), fmt, std::forward<Args>(args)...);
    ui->inspectorLog->insert_content(buffer, false);
-   ui->inspectorLog->Refresh();
+   ui->inspectorLog->refresh();
 }
 #endif
 

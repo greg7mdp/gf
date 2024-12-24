@@ -30,7 +30,7 @@ int MyButtonMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       std_print("clicked button '{}'...", ((UIButton*)el)->label);
 
       if (check_delete->check == UICheckbox::CHECKED) {
-         el->_parent->Refresh();
+         el->_parent->refresh();
          el->destroy();
          std_print(" and deleted it!\n");
       } else {
@@ -43,7 +43,7 @@ int MyButtonMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
 void MyMenuCallback(const char* cp) {
    UILabelSetContent(label, cp);
-   label->Refresh();
+   label->refresh();
 }
 
 int MyButton2Message(UIElement* el, UIMessage msg, int di, void* dp) {
@@ -61,8 +61,8 @@ int MySliderHMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::VALUE_CHANGED) {
       gauge_horiz2->position = slider_horiz->position;
       gauge_vert1->position  = slider_horiz->position;
-      gauge_horiz2->Repaint(NULL);
-      gauge_vert1->Repaint(NULL);
+      gauge_horiz2->repaint(NULL);
+      gauge_vert1->repaint(NULL);
    }
 
    return 0;
@@ -72,8 +72,8 @@ int MySliderVMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::VALUE_CHANGED) {
       gauge_vert2->position  = slider_vert->position;
       gauge_horiz1->position = slider_vert->position;
-      gauge_vert1->Repaint(NULL);
-      gauge_horiz1->Repaint(NULL);
+      gauge_vert1->repaint(NULL);
+      gauge_horiz1->repaint(NULL);
    }
 
    return 0;
@@ -97,7 +97,7 @@ int MyTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       if (selected != hit) {
          selected = hit;
          if (!((UITable*)el)->ensure_visible(selected)) {
-            el->Repaint(NULL);
+            el->repaint(NULL);
          }
       }
    }
