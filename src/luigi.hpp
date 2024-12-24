@@ -817,17 +817,32 @@ public:
 
 // ------------------------------------------------------------------------------------------
 struct UIScrollBar : public UIElement {
+private:
+   int64_t    _maximum;
+   int64_t    _page;
+   int64_t    _drag_offset;
+
+   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+
+public:
    enum { HORIZONTAL = 1 << 0 };
 
-   int64_t    maximum;
-   int64_t    page;
-   int64_t    dragOffset;
-   int64_t    position;
-   UI_CLOCK_T lastAnimateTime;
-   bool       inDrag;
-   bool       horizontal;
+   int64_t    _position;
+   UI_CLOCK_T _last_animate_time;
+   bool       _in_drag;
+   bool       _horizontal;
 
    UIScrollBar(UIElement* parent, uint32_t flags);
+
+   void set_maximum(int64_t m) { _maximum = m; }
+   int64_t maximum() const { return _maximum; }
+
+   void set_page(int64_t m) { _page = m; }
+   int64_t page() const { return _page; }
+
+   void set_drag_offset(int64_t m) { _drag_offset = m; }
+   int64_t drag_offset() const { return _drag_offset; }
+
 };
 
 // ------------------------------------------------------------------------------------------
@@ -844,7 +859,7 @@ protected:
    void key_input_vscroll(UIKeyTyped* m, int rowHeight, int pageHeight, UIElement* el);
 
 public:
-   void reset_vscroll() { _vscroll->position = 0; }
+   void reset_vscroll() { _vscroll->_position = 0; }
 };
 
 // ------------------------------------------------------------------------------------------
@@ -875,8 +890,8 @@ private:
    bool                    _use_vertical_motion_column{false};
    std::array<code_pos, 4> _selection{}; // start, end, anchor, caret
 
-   void _SetVerticalMotionColumn(bool restore);
-   void _UpdateSelection();
+   void _set_vertical_motion_column(bool restore);
+   void _update_selection();
 
    static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
 
