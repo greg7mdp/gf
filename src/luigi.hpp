@@ -654,6 +654,12 @@ enum class sel_target_t { primary, clipboard };
 
 // ------------------------------------------------------------------------------------------
 struct UIWindow : public UIElement {
+private:
+   static int _ClassMessageProcCommon(UIElement* element, UIMessage message, int di, void* dp);
+
+public:
+   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+
    enum {
       MENU            = (1 << 0),
       INSPECTOR       = (1 << 1),
@@ -717,6 +723,10 @@ inline int UIElement::scale(auto sz) const { return (int)((float)sz * _window->_
 
 // ------------------------------------------------------------------------------------------
 struct UIPanel : public UIElement {
+private:
+   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+
+public:
    enum {
       HORIZONTAL     = 1 << 0,
       COLOR_1        = 1 << 2,
@@ -737,6 +747,9 @@ struct UIPanel : public UIElement {
 
 // ------------------------------------------------------------------------------------------
 struct UIButton : public UIElement {
+public:
+   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+
    enum {
       SMALL     = 1 << 0,
       MENU_ITEM = 1 << 1,
@@ -753,6 +766,10 @@ struct UIButton : public UIElement {
 
 // ------------------------------------------------------------------------------------------
 struct UICheckbox : public UIElement {
+private:
+   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+
+public:
    enum { ALLOW_INDETERMINATE = 1 << 0 };
 
    enum { UNCHECKED = 0, CHECKED = 1, INDETERMINATE = 2 };
@@ -767,36 +784,57 @@ struct UICheckbox : public UIElement {
 
 // ------------------------------------------------------------------------------------------
 struct UILabel : public UIElement {
-   std::string label;
+private:
+   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+   
+public:
+   std::string _label;
 
    UILabel(UIElement* parent, uint32_t flags, std::string_view label);
 };
 
 // ------------------------------------------------------------------------------------------
 struct UISpacer : public UIElement {
-   size_t   width, height;
+private:
+   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+
+public:
+   size_t   _width;
+   size_t   _height;
 
    UISpacer(UIElement* parent, uint32_t flags, int width, int height);
 };
 
 // ------------------------------------------------------------------------------------------
 struct UISplitPane : public UIElement {
-   float     weight;
+private:
+public:
+   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+
+   float     _weight;
 
    UISplitPane(UIElement* parent, uint32_t flags, float weight);
 };
 
 // ------------------------------------------------------------------------------------------
+struct UISplitter {
+   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+
+};
+
+// ------------------------------------------------------------------------------------------
 struct UITabPane : public UIElement {
 private:
-   std::string tabs;
-   uint32_t    active;
+   std::string _tabs;
+   uint32_t    _active;
 
 public:
+   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+
    UITabPane(UIElement* parent, uint32_t flags,  const char* tabs);
 
-   void     set_active(uint32_t idx) { active = idx; }
-   uint32_t get_active() const { return active; }
+   void     set_active(uint32_t idx) { _active = idx; }
+   uint32_t get_active() const { return _active; }
 
    template <class F>
    void for_each_tab(F&& f) {
@@ -804,10 +842,10 @@ public:
       uint32_t index    = 0;
       while (true) {
          uint32_t end = position;
-         for (; tabs[end] != '\t' && tabs[end]; end++)
+         for (; _tabs[end] != '\t' && _tabs[end]; end++)
             ;
-         std::string_view tab_text{&tabs[0] + position, end - position};
-         if (!std::forward<F>(f)(tab_text, index, active == index) || tabs[end] == 0)
+         std::string_view tab_text{&_tabs[0] + position, end - position};
+         if (!std::forward<F>(f)(tab_text, index, _active == index) || _tabs[end] == 0)
             break;
          position = end + 1;
          index++;
@@ -1095,12 +1133,19 @@ struct UIImageDisplay : public UIElement {
 
 // ------------------------------------------------------------------------------------------
 struct UIWrapPanel : public UIElement {
+private:
+   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
 
+public:
    UIWrapPanel(UIElement* parent, uint32_t flags);
 };
 
 // ------------------------------------------------------------------------------------------
 struct UISwitcher : public UIElement {
+private:
+   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+
+public:
    UIElement* active = nullptr;
 
    UISwitcher(UIElement* parent, uint32_t flags);

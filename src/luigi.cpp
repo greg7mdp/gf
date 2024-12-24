@@ -1502,7 +1502,7 @@ int _UIPanelLayout(UIPanel* panel, UIRectangle bounds, bool measure) {
           panel->scale(horizontal ? panel->border.r : panel->border.b);
 }
 
-int _UIPanelMessage(UIElement* element, UIMessage message, int di, void* dp) {
+int UIPanel::_ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp) {
    UIPanel* panel      = (UIPanel*)element;
    bool     horizontal = element->_flags & UIPanel::HORIZONTAL;
 
@@ -1553,7 +1553,7 @@ int _UIPanelMessage(UIElement* element, UIMessage message, int di, void* dp) {
 }
 
 UIPanel::UIPanel(UIElement* parent, uint32_t flags)
-   : UIElement(parent, flags, _UIPanelMessage, "Panel")
+   : UIElement(parent, flags, UIPanel::_ClassMessageProc, "Panel")
    , scrollBar(nullptr)
    , border(0)
    , gap(0) {
@@ -1594,7 +1594,7 @@ void _UIWrapPanelLayoutRow(UIWrapPanel* panel, uint32_t rowStart, uint32_t rowEn
    }
 }
 
-int _UIWrapPanelMessage(UIElement* element, UIMessage message, int di, void* dp) {
+int UIWrapPanel::_ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp) {
    UIWrapPanel* panel = (UIWrapPanel*)element;
 
    if (message == UIMessage::LAYOUT || message == UIMessage::GET_HEIGHT) {
@@ -1639,14 +1639,14 @@ int _UIWrapPanelMessage(UIElement* element, UIMessage message, int di, void* dp)
 }
 
 UIWrapPanel::UIWrapPanel(UIElement* parent, uint32_t flags) :
-   UIElement(parent, flags, _UIWrapPanelMessage, "Wrap Panel")
+   UIElement(parent, flags, UIWrapPanel::_ClassMessageProc, "Wrap Panel")
 {}
 
 UIWrapPanel* UIWrapPanelCreate(UIElement* parent, uint32_t flags) {
    return new UIWrapPanel(parent, flags);
 }
 
-int _UISwitcherMessage(UIElement* element, UIMessage message, int di, void* dp) {
+int UISwitcher::_ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp) {
    UISwitcher* switcher = (UISwitcher*)element;
 
    if (!switcher->active) {
@@ -1671,7 +1671,7 @@ void UISwitcherSwitchTo(UISwitcher* switcher, UIElement* child) {
 }
 
 UISwitcher::UISwitcher(UIElement* parent, uint32_t flags) :
-   UIElement(parent, flags, _UISwitcherMessage, "Switcher"),
+   UIElement(parent, flags, UISwitcher::_ClassMessageProc, "Switcher"),
    active(nullptr)
 {}
 
@@ -1683,7 +1683,7 @@ UISwitcher* UISwitcherCreate(UIElement* parent, uint32_t flags) {
 // Checkboxes and buttons.
 // --------------------------------------------------
 
-int _UIButtonMessage(UIElement* element, UIMessage message, int di, void* dp) {
+int UIButton::_ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp) {
    UIButton* button     = (UIButton*)element;
    bool      isMenuItem = element->_flags & UIButton::MENU_ITEM;
    bool      isDropDown = element->_flags & UIButton::DROP_DOWN;
@@ -1741,14 +1741,14 @@ void UIButtonSetLabel(UIButton* button, std::string_view string) {
 }
 
 UIButton::UIButton(UIElement* parent, uint32_t flags, std::string_view label)
-   : UIElement(parent, flags | UIElement::TAB_STOP, _UIButtonMessage, "Button")
+   : UIElement(parent, flags | UIElement::TAB_STOP, UIButton::_ClassMessageProc, "Button")
    , label(label) {}
 
 UIButton* UIButtonCreate(UIElement* parent, uint32_t flags, std::string_view label) {
    return new UIButton(parent, flags | UIElement::TAB_STOP, label);
 }
 
-int _UICheckboxMessage(UIElement* element, UIMessage message, int di, void* dp) {
+int UICheckbox::_ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp) {
    UICheckbox* box = (UICheckbox*)element;
 
    if (message == UIMessage::GET_HEIGHT) {
@@ -1791,7 +1791,7 @@ void UICheckbox::SetLabel(std::string_view new_label) {
 }
 
 UICheckbox::UICheckbox(UIElement* parent, uint32_t flags, std::string_view label)
-   : UIElement(parent, flags | UIElement::TAB_STOP, _UICheckboxMessage, "Checkbox")
+   : UIElement(parent, flags | UIElement::TAB_STOP, UICheckbox::_ClassMessageProc, "Checkbox")
    , check(0)
    , label(label) {}
 
@@ -1804,15 +1804,15 @@ UICheckbox* UICheckboxCreate(UIElement* parent, uint32_t flags, std::string_view
 // Labels.
 // --------------------------------------------------
 
-int _UILabelMessage(UIElement* element, UIMessage message, int di, void* dp) {
+int UILabel::_ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp) {
    UILabel* label = (UILabel*)element;
 
    if (message == UIMessage::GET_HEIGHT) {
       return UIMeasureStringHeight();
    } else if (message == UIMessage::GET_WIDTH) {
-      return UIMeasureStringWidth(label->label);
+      return UIMeasureStringWidth(label->_label);
    } else if (message == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, element->_bounds, UI_DRAW_CONTROL_LABEL | element->state(), label->label,
+      UIDrawControl((UIPainter*)dp, element->_bounds, UI_DRAW_CONTROL_LABEL | element->state(), label->_label,
                     0, element->_window->_scale);
    } else if (message == UIMessage::DEALLOCATE) {
    }
@@ -1821,14 +1821,14 @@ int _UILabelMessage(UIElement* element, UIMessage message, int di, void* dp) {
 }
 
 void UILabelSetContent(UILabel* label, std::string_view str) {
-   label->label = str;
+   label->_label = str;
    UIElementMeasurementsChanged(label, 1);
    label->Repaint(NULL);
 }
 
 UILabel::UILabel(UIElement* parent, uint32_t flags, std::string_view label)
-   : UIElement(parent, flags | UIElement::TAB_STOP, _UILabelMessage, "Label")
-   , label(label) {}
+   : UIElement(parent, flags | UIElement::TAB_STOP, UILabel::_ClassMessageProc, "Label")
+   , _label(label) {}
 
 UILabel* UILabelCreate(UIElement* parent, uint32_t flags, std::string_view label) {
    return new UILabel(parent, flags, label);
@@ -1837,10 +1837,7 @@ UILabel* UILabelCreate(UIElement* parent, uint32_t flags, std::string_view label
 // --------------------------------------------------
 // Split panes.
 // --------------------------------------------------
-
-int _UISplitPaneMessage(UIElement* element, UIMessage message, int di, void* dp);
-
-int _UISplitterMessage(UIElement* element, UIMessage message, int di, void* dp) {
+int UISplitter::_ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp) {
    UISplitPane* splitPane = (UISplitPane*)element->_parent;
    bool         vertical  = splitPane->_flags & UIElement::VERTICAL;
 
@@ -1854,18 +1851,18 @@ int _UISplitterMessage(UIElement* element, UIMessage message, int di, void* dp) 
       int cursor       = vertical ? element->_window->_cursor.y : element->_window->_cursor.x;
       int splitterSize = element->scale(ui_size::SPLITTER);
       int space = (vertical ? splitPane->_bounds.height() : splitPane->_bounds.width()) - splitterSize;
-      float oldWeight = splitPane->weight;
-      splitPane->weight =
+      float oldWeight = splitPane->_weight;
+      splitPane->_weight =
          (float)(cursor - (float)splitterSize / 2 - (vertical ? splitPane->_bounds.t : splitPane->_bounds.l)) / space;
-      splitPane->weight = std::clamp(splitPane->weight, 0.05f, 0.95f);
+      splitPane->_weight = std::clamp(splitPane->_weight, 0.05f, 0.95f);
 
-      if (splitPane->_children[2]->_class_proc == _UISplitPaneMessage &&
+      if (splitPane->_children[2]->_class_proc == UISplitPane::_ClassMessageProc &&
           (splitPane->_children[2]->_flags & UIElement::VERTICAL) == (splitPane->_flags & UIElement::VERTICAL)) {
          UISplitPane* subSplitPane = (UISplitPane*)splitPane->_children[2];
-         subSplitPane->weight =
-            (splitPane->weight - oldWeight - subSplitPane->weight + oldWeight * subSplitPane->weight) /
-            (-1 + splitPane->weight);
-         splitPane->weight = std::clamp(subSplitPane->weight, 0.05f, 0.95f);
+         subSplitPane->_weight =
+            (splitPane->_weight - oldWeight - subSplitPane->_weight + oldWeight * subSplitPane->_weight) /
+            (-1 + splitPane->_weight);
+         splitPane->_weight = std::clamp(subSplitPane->_weight, 0.05f, 0.95f);
       }
 
       splitPane->Refresh();
@@ -1874,7 +1871,7 @@ int _UISplitterMessage(UIElement* element, UIMessage message, int di, void* dp) 
    return 0;
 }
 
-int _UISplitPaneMessage(UIElement* element, UIMessage message, int di, void* dp) {
+int UISplitPane::_ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp) {
    UISplitPane* splitPane = (UISplitPane*)element;
    bool         vertical  = splitPane->_flags & UIElement::VERTICAL;
 
@@ -1886,7 +1883,7 @@ int _UISplitPaneMessage(UIElement* element, UIMessage message, int di, void* dp)
 
       int splitterSize = element->scale(ui_size::SPLITTER);
       int space        = (vertical ? element->_bounds.height() : element->_bounds.width()) - splitterSize;
-      int leftSize     = space * splitPane->weight;
+      int leftSize     = space * splitPane->_weight;
       int rightSize    = space - leftSize;
 
       if (vertical) {
@@ -1912,9 +1909,9 @@ int _UISplitPaneMessage(UIElement* element, UIMessage message, int di, void* dp)
 }
 
 UISplitPane::UISplitPane(UIElement* parent, uint32_t flags, float weight)
-   : UIElement(parent, flags, _UISplitPaneMessage, "Split Pane")
-   , weight(weight) {
-   UIElementCreate(sizeof(UIElement), this, 0, _UISplitterMessage, "Splitter");
+   : UIElement(parent, flags, UISplitPane::_ClassMessageProc, "Split Pane")
+   , _weight(weight) {
+   UIElementCreate(sizeof(UIElement), this, 0, UISplitter::_ClassMessageProc, "Splitter");
 }
 
 UISplitPane* UISplitPaneCreate(UIElement* parent, uint32_t flags, float weight) {
@@ -1925,7 +1922,7 @@ UISplitPane* UISplitPaneCreate(UIElement* parent, uint32_t flags, float weight) 
 // Tab panes.
 // --------------------------------------------------
 
-int _UITabPaneMessage(UIElement* element, UIMessage message, int di, void* dp) {
+int UITabPane::_ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp) {
    UITabPane* tabPane = (UITabPane*)element;
 
    if (message == UIMessage::PAINT) {
@@ -1995,9 +1992,9 @@ int _UITabPaneMessage(UIElement* element, UIMessage message, int di, void* dp) {
 }
 
 UITabPane::UITabPane(UIElement* parent, uint32_t flags, const char* tabs)
-   : UIElement(parent, flags, _UITabPaneMessage, "Tab Pane")
-   , tabs(tabs)
-   , active(0) {}
+   : UIElement(parent, flags, UITabPane::_ClassMessageProc, "Tab Pane")
+   , _tabs(tabs)
+   , _active(0) {}
 
 UITabPane* UITabPaneCreate(UIElement* parent, uint32_t flags, const char* tabs) {
    return new UITabPane(parent, flags, tabs);
@@ -2007,22 +2004,22 @@ UITabPane* UITabPaneCreate(UIElement* parent, uint32_t flags, const char* tabs) 
 // Spacers.
 // --------------------------------------------------
 
-int _UISpacerMessage(UIElement* element, UIMessage message, int di, void* dp) {
+int UISpacer::_ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp) {
    UISpacer* spacer = (UISpacer*)element;
 
    if (message == UIMessage::GET_HEIGHT) {
-      return element->scale(spacer->height);
+      return element->scale(spacer->_height);
    } else if (message == UIMessage::GET_WIDTH) {
-      return element->scale(spacer->width);
+      return element->scale(spacer->_width);
    }
 
    return 0;
 }
 
 UISpacer::UISpacer(UIElement* parent, uint32_t flags, int width, int height)
-   : UIElement(parent, flags, _UISpacerMessage, "Spacer")
-   , width(width)
-   , height(height) {}
+   : UIElement(parent, flags, UISpacer::_ClassMessageProc, "Spacer")
+   , _width(width)
+   , _height(height) {}
 
 UISpacer* UISpacerCreate(UIElement* parent, uint32_t flags, int width, int height) {
    return new UISpacer(parent, flags, width, height);
@@ -2107,7 +2104,7 @@ int UIScrollBar::_ClassMessageProc(UIElement* element, UIMessage message, int di
    return 0;
 }
 
-int _UIScrollUpDownMessage(UIElement* element, UIMessage message, int di, void* dp) {
+int _UIScrollUpDownMessageProc(UIElement* element, UIMessage message, int di, void* dp) {
    UIScrollBar* scrollBar = (UIScrollBar*)element->_parent;
    bool         isDown    = element->_cp;
 
@@ -2143,7 +2140,7 @@ int _UIScrollUpDownMessage(UIElement* element, UIMessage message, int di, void* 
    return 0;
 }
 
-int _UIScrollThumbMessage(UIElement* element, UIMessage message, int di, void* dp) {
+int _UIScrollThumbMessageProc(UIElement* element, UIMessage message, int di, void* dp) {
    UIScrollBar* scrollBar = (UIScrollBar*)element->_parent;
 
    if (message == UIMessage::PAINT) {
@@ -2187,12 +2184,12 @@ UIScrollBar::UIScrollBar(UIElement* parent, uint32_t flags)
    , _last_animate_time(0)
    , _in_drag(false)
    , _horizontal(flags & UIScrollBar::HORIZONTAL) {
-   auto scrollup = new UIElement(this, flags, _UIScrollUpDownMessage, !_horizontal ? "Scroll Up" : "Scroll Left");
+   auto scrollup = new UIElement(this, flags, _UIScrollUpDownMessageProc, !_horizontal ? "Scroll Up" : "Scroll Left");
    scrollup->_cp  = (void*)(uintptr_t)0;
 
-   new UIElement(this, flags, _UIScrollThumbMessage, "Scroll Thumb");
+   new UIElement(this, flags, _UIScrollThumbMessageProc, "Scroll Thumb");
 
-   auto scrolldown = new UIElement(this, flags, _UIScrollUpDownMessage, !_horizontal ? "Scroll Down" : "Scroll Right");
+   auto scrolldown = new UIElement(this, flags, _UIScrollUpDownMessageProc, !_horizontal ? "Scroll Down" : "Scroll Right");
    scrolldown->_cp  = (void*)(uintptr_t)1;
 }
 
@@ -3876,7 +3873,7 @@ int _UIDialogWrapperMessage(UIElement* element, UIMessage message, int di, void*
       for (auto row : rowContainer->_children) {
          for (auto item : row->_children) {
 
-            if (item->_class_proc == _UIButtonMessage) {
+            if (item->_class_proc == UIButton::_ClassMessageProc) {
                UIButton* button = (UIButton*)item;
 
                if (!button->label.empty() && (button->label[0] == c0 || button->label[0] == c1)) {
@@ -3909,7 +3906,7 @@ void _UIDialogButtonInvoke(const char* label) {
 }
 
 int _UIDialogDefaultButtonMessage(UIElement* element, UIMessage message, int di, void* dp) {
-   if (message == UIMessage::PAINT && element->_window->_focused->_class_proc != _UIButtonMessage) {
+   if (message == UIMessage::PAINT && element->_window->_focused->_class_proc != UIButton::_ClassMessageProc) {
       element->_flags |= UIButton::CHECKED;
       element->_class_proc(element, message, di, dp);
       element->_flags &= ~UIButton::CHECKED;
@@ -4968,7 +4965,7 @@ void _UIWindowAdd(UIWindow* window) {
    ui->windows       = window;
 }
 
-int _UIWindowMessageCommon(UIElement* element, UIMessage message, int di, void* dp) {
+int UIWindow::_ClassMessageProcCommon(UIElement* element, UIMessage message, int di, void* dp) {
    if (message == UIMessage::LAYOUT && !element->_children.empty()) {
       element->_children[0]->Move(element->_bounds, false);
       if (element->_window->_dialog)
@@ -5023,7 +5020,7 @@ UIWindow::~UIWindow() {
 
 #ifdef UI_LINUX
 
-int _UIWindowMessage(UIElement* element, UIMessage message, int di, void* dp) {
+int UIWindow::_ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp) {
    if (message == UIMessage::DEALLOCATE) {
       UIWindow* window = (UIWindow*)element;
       _UIWindowDestroyCommon(window);
@@ -5034,13 +5031,13 @@ int _UIWindowMessage(UIElement* element, UIMessage message, int di, void* dp) {
       return 0;
    }
 
-   return _UIWindowMessageCommon(element, message, di, dp);
+   return UIWindow::_ClassMessageProcCommon(element, message, di, dp);
 }
 
 UIWindow* UIWindowCreate(UIWindow* owner, uint32_t flags, const char* cTitle, int _width, int _height) {
    _UIMenusClose();
 
-   UIWindow* window = new UIWindow(NULL, flags | UIElement::WINDOW, _UIWindowMessage, "Window");
+   UIWindow* window = new UIWindow(NULL, flags | UIElement::WINDOW, UIWindow::_ClassMessageProc, "Window");
    _UIWindowAdd(window);
    if (owner)
       window->_scale = owner->_scale;
@@ -5806,7 +5803,7 @@ void UIWindowPostMessage(UIWindow* window, UIMessage message, void* _dp) {
 
 #ifdef UI_WINDOWS
 
-int _UIWindowMessage(UIElement* element, UIMessage message, int di, void* dp) {
+int UIWindow::_ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp) {
    if (message == UIMessage::DEALLOCATE) {
       UIWindow* window = (UIWindow*)element;
       _UIWindowDestroyCommon(window);
@@ -5815,7 +5812,7 @@ int _UIWindowMessage(UIElement* element, UIMessage message, int di, void* dp) {
       return 0;
    }
 
-   return _UIWindowMessageCommon(element, message, di, dp);
+   return UIWindow::_ClassMessageProcCommon(element, message, di, dp);
 }
 
 LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
@@ -6038,7 +6035,7 @@ void UIMenuShow(UIMenu* menu) {
 UIWindow* UIWindowCreate(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height) {
    _UIMenusClose();
 
-   UIWindow* window = new UIWindow(NULL, flags | UIElement::WINDOW, _UIWindowMessage, "Window");
+   UIWindow* window = new UIWindow(NULL, flags | UIElement::WINDOW, UIWindow::_ClassMessageProc, "Window");
    _UIWindowAdd(window);
    if (owner)
       window->_scale = owner->_scale;

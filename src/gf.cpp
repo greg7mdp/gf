@@ -7318,7 +7318,7 @@ UIElement* Context::InterfaceWindowSwitchToAndFocus(string_view target_name) {
       if (target_name != name)
          continue;
 
-      if ((w.element->_flags & UIElement::HIDE) && w.element->_parent->_class_proc == _UITabPaneMessage) {
+      if ((w.element->_flags & UIElement::HIDE) && w.element->_parent->_class_proc == UITabPane::_ClassMessageProc) {
          UITabPane* tabPane = (UITabPane*)w.element->_parent;
 
          for (uint32_t i = 0; i < tabPane->_children.size(); i++) {
