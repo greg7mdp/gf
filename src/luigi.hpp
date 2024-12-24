@@ -781,7 +781,8 @@ public:
    std::function<void()> invoke;
 
    UICheckbox(UIElement* parent, uint32_t flags, std::string_view label);
-   void SetLabel(std::string_view label);
+
+   void set_label(std::string_view label);
 };
 
 // ------------------------------------------------------------------------------------------
@@ -874,15 +875,14 @@ public:
 
    UIScrollBar(UIElement* parent, uint32_t flags);
 
-   void set_maximum(int64_t m) { _maximum = m; }
+   void    set_maximum(int64_t m) { _maximum = m; }
    int64_t maximum() const { return _maximum; }
 
-   void set_page(int64_t m) { _page = m; }
+   void    set_page(int64_t m) { _page = m; }
    int64_t page() const { return _page; }
 
-   void set_drag_offset(int64_t m) { _drag_offset = m; }
+   void    set_drag_offset(int64_t m) { _drag_offset = m; }
    int64_t drag_offset() const { return _drag_offset; }
-
 };
 
 // ------------------------------------------------------------------------------------------
@@ -1016,7 +1016,8 @@ struct UISlider : public UIElement {
    bool   vertical;
 
    UISlider(UIElement* parent, uint32_t flags);
-   void SetPosition(double position);
+
+   void set_position(double position);
 };
 
 // ------------------------------------------------------------------------------------------

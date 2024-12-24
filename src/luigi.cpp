@@ -1779,7 +1779,7 @@ int UICheckbox::_ClassMessageProc(UIElement* element, UIMessage msg, int di, voi
    return 0;
 }
 
-void UICheckbox::SetLabel(std::string_view new_label) {
+void UICheckbox::set_label(std::string_view new_label) {
    label = new_label;
    UIElementMeasurementsChanged(this, 1);
    repaint(NULL);
@@ -2930,7 +2930,7 @@ int _UISliderMessage(UIElement* element, UIMessage msg, int di, void* dp) {
    return 0;
 }
 
-void UISlider::SetPosition(double new_pos) {
+void UISlider::set_position(double new_pos) {
    new_pos = std::clamp(new_pos, 0., 1.);
    if (new_pos == position)
       return;

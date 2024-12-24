@@ -108,7 +108,7 @@ int MyTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 int MyCheckboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::CLICKED) {
       auto cb = (UICheckbox*)el;
-      cb->SetLabel(cb->check == UICheckbox::CHECKED ? "Off" : "On");
+      cb->set_label(cb->check == UICheckbox::CHECKED ? "Off" : "On");
       
       // Note, because this message function is run when the checkbox is
       // clicked _before_ the main checkbox update message is executed, the
@@ -176,8 +176,8 @@ int main(int argc, char** argv) {
       UITextboxCreate(panel, 0);
       UITextboxCreate(panel, 0); // UITextbox::HIDE_CHARACTERS);
       // Set default slider positions.
-      slider_vert->SetPosition(0.1);
-      slider_horiz->SetPosition(0.3);
+      slider_vert->set_position(0.1);
+      slider_horiz->set_position(0.3);
    }
 
    {
