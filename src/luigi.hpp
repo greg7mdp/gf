@@ -577,7 +577,7 @@ struct UIMDIChild;
 struct UIMDIClient;
 struct UIElement;
 
-using  message_proc_t = int(*)(UIElement*, UIMessage, int di, void* dp); // data integer, data pointer
+using  message_proc_t = int(*)(UIElement*, UIMessage msg, int di, void* dp); // data integer, data pointer
 
 // ------------------------------------------------------------------------------------------
 struct UIElement {
@@ -618,10 +618,10 @@ struct UIElement {
 
    uint32_t    state() const;
 
-   bool        Animate(bool stop);
-   void        Destroy();
-   void        DestroyDescendents();
-   int         Message(UIMessage message, int di, void* dp);
+   bool        animate(bool stop);
+   void        destroy();
+   void        destroy_descendents();
+   int         Message(UIMessage msg, int di, void* dp);
    UIElement*  ChangeParent(UIElement* newParent, UIElement* insertBefore);
    UIElement*  NextOrPreviousSibling(bool previous);
 
@@ -637,7 +637,9 @@ struct UIElement {
    UIElement*  FindByPoint(int x, int y);
    UIRectangle ScreenBounds();            // Returns bounds of element in same coordinate system as used by UIWindowCreate.
 
-   int scale(auto sz) const;
+   int         scale(auto sz) const;
+
+   message_proc_t get_class_proc() const { return _class_proc; }
    
 private:
    void _DestroyDescendents(bool topLevel);
@@ -655,10 +657,10 @@ enum class sel_target_t { primary, clipboard };
 // ------------------------------------------------------------------------------------------
 struct UIWindow : public UIElement {
 private:
-   static int _ClassMessageProcCommon(UIElement* element, UIMessage message, int di, void* dp);
+   static int _ClassMessageProcCommon(UIElement* element, UIMessage msg, int di, void* dp);
 
 public:
-   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+   static int _ClassMessageProc(UIElement* element, UIMessage msg, int di, void* dp);
 
    enum {
       MENU            = (1 << 0),
@@ -724,7 +726,7 @@ inline int UIElement::scale(auto sz) const { return (int)((float)sz * _window->_
 // ------------------------------------------------------------------------------------------
 struct UIPanel : public UIElement {
 private:
-   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+   static int _ClassMessageProc(UIElement* element, UIMessage msg, int di, void* dp);
 
 public:
    enum {
@@ -748,7 +750,7 @@ public:
 // ------------------------------------------------------------------------------------------
 struct UIButton : public UIElement {
 public:
-   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+   static int _ClassMessageProc(UIElement* element, UIMessage msg, int di, void* dp);
 
    enum {
       SMALL     = 1 << 0,
@@ -767,7 +769,7 @@ public:
 // ------------------------------------------------------------------------------------------
 struct UICheckbox : public UIElement {
 private:
-   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+   static int _ClassMessageProc(UIElement* element, UIMessage msg, int di, void* dp);
 
 public:
    enum { ALLOW_INDETERMINATE = 1 << 0 };
@@ -785,7 +787,7 @@ public:
 // ------------------------------------------------------------------------------------------
 struct UILabel : public UIElement {
 private:
-   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+   static int _ClassMessageProc(UIElement* element, UIMessage msg, int di, void* dp);
    
 public:
    std::string _label;
@@ -796,7 +798,7 @@ public:
 // ------------------------------------------------------------------------------------------
 struct UISpacer : public UIElement {
 private:
-   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+   static int _ClassMessageProc(UIElement* element, UIMessage msg, int di, void* dp);
 
 public:
    size_t   _width;
@@ -809,7 +811,7 @@ public:
 struct UISplitPane : public UIElement {
 private:
 public:
-   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+   static int _ClassMessageProc(UIElement* element, UIMessage msg, int di, void* dp);
 
    float     _weight;
 
@@ -818,7 +820,7 @@ public:
 
 // ------------------------------------------------------------------------------------------
 struct UISplitter {
-   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+   static int _ClassMessageProc(UIElement* element, UIMessage msg, int di, void* dp);
 
 };
 
@@ -829,7 +831,7 @@ private:
    uint32_t    _active;
 
 public:
-   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+   static int _ClassMessageProc(UIElement* element, UIMessage msg, int di, void* dp);
 
    UITabPane(UIElement* parent, uint32_t flags,  const char* tabs);
 
@@ -860,7 +862,7 @@ private:
    int64_t    _page;
    int64_t    _drag_offset;
 
-   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+   static int _ClassMessageProc(UIElement* element, UIMessage msg, int di, void* dp);
 
 public:
    enum { HORIZONTAL = 1 << 0 };
@@ -931,7 +933,7 @@ private:
    void _set_vertical_motion_column(bool restore);
    void _update_selection();
 
-   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+   static int _ClassMessageProc(UIElement* element, UIMessage msg, int di, void* dp);
 
 public:
    enum { NO_MARGIN = 1 << 0, SELECTABLE = 1 << 1 };
@@ -1025,7 +1027,7 @@ private:
    std::vector<size_t> _column_widths;
    size_t              _column_highlight;
    
-   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+   static int _ClassMessageProc(UIElement* element, UIMessage msg, int di, void* dp);
 
 public:
    UITable(UIElement* parent, uint32_t flags, const char* columns);
@@ -1085,7 +1087,7 @@ private:
    UIMDIChild* _active;
    int         _cascade;
    
-   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+   static int _ClassMessageProc(UIElement* element, UIMessage msg, int di, void* dp);
    friend struct UIMDIChild;
 
 public:
@@ -1102,7 +1104,7 @@ private:
    int         _drag_hit_test;
    UIRectangle _drag_offset;
 
-   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+   static int _ClassMessageProc(UIElement* element, UIMessage msg, int di, void* dp);
    friend struct UIMDIClient;
    
 public:
@@ -1134,7 +1136,7 @@ struct UIImageDisplay : public UIElement {
 // ------------------------------------------------------------------------------------------
 struct UIWrapPanel : public UIElement {
 private:
-   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+   static int _ClassMessageProc(UIElement* element, UIMessage msg, int di, void* dp);
 
 public:
    UIWrapPanel(UIElement* parent, uint32_t flags);
@@ -1143,7 +1145,7 @@ public:
 // ------------------------------------------------------------------------------------------
 struct UISwitcher : public UIElement {
 private:
-   static int _ClassMessageProc(UIElement* element, UIMessage message, int di, void* dp);
+   static int _ClassMessageProc(UIElement* element, UIMessage msg, int di, void* dp);
 
 public:
    UIElement* active = nullptr;
@@ -1188,7 +1190,7 @@ void        UISwitcherSwitchTo(UISwitcher* switcher, UIElement* child);
 
 UIWindow* UIWindowCreate(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height);
 void      UIWindowRegisterShortcut(UIWindow* window, UIShortcut shortcut);
-void      UIWindowPostMessage(UIWindow* window, UIMessage message, void* dp); // Thread-safe.
+void      UIWindowPostMessage(UIWindow* window, UIMessage msg, void* dp); // Thread-safe.
 void      UIWindowPack(UIWindow* window, int width); // Change the size of the window to best match its contents.
 
 typedef void (*UIDialogUserCallback)(UIElement*);
@@ -1373,7 +1375,7 @@ void* _UIMemmove(void* dest, const void* src, size_t n);
 int _UICodeColumnToByte(UICode* code, size_t line, size_t column);
 int _UICodeByteToColumn(UICode* code, size_t line, size_t byte);
 
-int _UITabPaneMessage(UIElement* element, UIMessage message, int di, void* dp);
+int _UITabPaneMessage(UIElement* element, UIMessage msg, int di, void* dp);
 
 // ----------------------------------------
 //      Variables
