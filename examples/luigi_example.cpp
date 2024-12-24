@@ -222,19 +222,19 @@ int main(int argc, char** argv) {
 
    {
       // Create a separate window demonstrating the MDI element
-      UIWindow*    mdi_window = UIWindowCreate(0, 0, "luigi 2 - MDI Example", 0, 0);
-      UIMDIClient* client = UIMDIClientCreate(mdi_window, 0);
-      UIMDIChild*  child1 =
-         UIMDIChildCreate(client, UIMDIChild::CLOSE_BUTTON, UIRectangle(10, 600, 10, 400), "My Window");
-      UIPanel* panel1 = UIPanelCreate(child1, UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING);
-      UILabelCreate(panel1, 0, "It's a christmas miracle");
-      UIMDIChild* child2 =
-         UIMDIChildCreate(client, UIMDIChild::CLOSE_BUTTON, UIRectangle(40, 630, 40, 430), "Second Window");
-      UIPanel* panel2 = UIPanelCreate(child2, UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING);
-      UILabelCreate(panel2, 0, "the system is down");
-      UIMDIChild* child3 =
-         UIMDIChildCreate(client, UIMDIChild::CLOSE_BUTTON, UIRectangle(70, 670, 70, 470), "Third Window");
-      UIButtonCreate(child3, 0, "giant button!!");
+      UIWindow&    mdi_window = ui->add_window(0, 0, "luigi 2 - MDI Example", 0, 0);
+      UIMDIClient& client = mdi_window.add_mdiclient(0);
+
+      client.add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(10, 600, 10, 400), "My Window")
+         .add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING)
+         .add_label(0, "It's a christmas miracle");
+
+      client.add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(40, 630, 40, 430), "Second Window")
+         .add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING)
+         .add_label(0, "the system is down");
+
+      client.add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(70, 670, 70, 470), "Third Window").
+         add_button(0, "giant button!!");
    }
 
    return UIMessageLoop();

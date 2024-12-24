@@ -232,8 +232,6 @@ inline constexpr int MDI_CASCADE              = 30;
 
 // forward declarations
 // --------------------
-struct UI;
-
 namespace UIUpdate {
    enum {
       HOVERED  = 1,
@@ -242,6 +240,31 @@ namespace UIUpdate {
       DISABLED = 4
    };
 }
+
+struct UI;
+struct UIElement;
+struct UIWindow;
+struct UIPanel;
+struct UIButton;
+struct UICheckbox;
+struct UILabel;
+struct UISpacer;
+struct UISplitPane;
+struct UISplitter;
+struct UITabPane;
+struct UIScrollBar;
+struct UIScrollbarPair;
+struct UICode;
+struct UIGauge;
+struct UISlider;
+struct UITable;
+struct UITextbox;
+struct UIMenu;
+struct UIMDIClient;
+struct UIMDIChild;
+struct UIImageDisplay;
+struct UIWrapPanel;
+struct UISwitcher;
 
 // ------------------------------------------------------------------------------------------
 enum class UIMessage : uint32_t {
@@ -581,6 +604,10 @@ using  message_proc_t = int(*)(UIElement*, UIMessage msg, int di, void* dp); // 
 
 // ------------------------------------------------------------------------------------------
 struct UIElement {
+private:
+   void _DestroyDescendents(bool topLevel);
+
+public:
    enum {
       V_FILL      = 1 << 16,
       H_FILL      = 1 << 17,
@@ -624,6 +651,7 @@ struct UIElement {
    int         message(UIMessage msg, int di, void* dp);
    UIElement*  change_parent(UIElement* newParent, UIElement* insertBefore);
    UIElement*  next_or_previous_sibling(bool previous);
+   UIElement&  parent() { return *_parent; }
 
    void        refresh();
    void        relayout();
@@ -640,9 +668,29 @@ struct UIElement {
    int         scale(auto sz) const;
 
    message_proc_t get_class_proc() const { return _class_proc; }
+
    
-private:
-   void _DestroyDescendents(bool topLevel);
+   // functions to create child UI elements
+   // -------------------------------------
+   UIButton&       add_button(uint32_t flags, std::string_view label);
+   UICheckbox&     add_checkbox(uint32_t flags, std::string_view label);
+   UICode&         add_code(uint32_t flags);
+   UIGauge&        add_gauge(uint32_t flags);
+   UIImageDisplay& add_imagedisplay(uint32_t flags, uint32_t* bits, size_t width, size_t height, size_t stride);
+   UILabel&        add_label(uint32_t flags, std::string_view label);
+   UIMDIChild&     add_mdichild(uint32_t flags, UIRectangle initialBounds, std::string_view title);
+   UIMDIClient&    add_mdiclient(uint32_t flags);
+   UIMenu&         add_menu(uint32_t flags);
+   UIPanel&        add_panel(uint32_t flags);
+   UIScrollBar&    add_scrollbar(uint32_t flags);
+   UISlider&       add_slider(uint32_t flags);
+   UISpacer&       add_spacer(uint32_t flags, int width, int height);
+   UISplitPane&    add_splitpane(uint32_t flags, float weight);
+   UISwitcher&     add_switcher(uint32_t flags);
+   UITabPane&      add_tabpane(uint32_t flags, const char* tabs);
+   UITable&        add_table(uint32_t flags, const char* columns);
+   UITextbox&      add_textbox(uint32_t flags);
+   UIWrapPanel&    add_wrappanel(uint32_t flags);
 };
 
 // ------------------------------------------------------------------------------------------
@@ -1334,6 +1382,8 @@ struct UI {
    
    int code_margin() { return activeFont->glyphWidth * 5; }
    int code_margin_gap() { return activeFont->glyphWidth * 1; }
+
+   UIWindow& add_window(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height);
 };
 
 // ----------------------------------------

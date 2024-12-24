@@ -1163,6 +1163,87 @@ void UIElement::focus() {
    ui->InspectorRefresh();
 }
 
+UIMDIChild& UIElement::add_mdichild(uint32_t flags, UIRectangle initialBounds, std::string_view title) {
+   return *new UIMDIChild(this, flags, initialBounds, title);
+}
+
+UIMDIClient& UIElement::add_mdiclient(uint32_t flags) {
+   return *new UIMDIClient(this, flags);
+}
+
+UIPanel& UIElement::add_panel(uint32_t flags) {
+   return *new UIPanel(this, flags);
+}
+
+UILabel& UIElement::add_label(uint32_t flags, std::string_view label) {
+   return *new UILabel(this, flags, label);
+}
+
+UIButton& UIElement::add_button(uint32_t flags, std::string_view label) {
+   return *new UIButton(this, flags, label);
+}
+
+UICheckbox& UIElement::add_checkbox(uint32_t flags, std::string_view label) {
+   return *new UICheckbox(this, flags, label);
+}
+
+UIScrollBar& UIElement::add_scrollbar(uint32_t flags) {
+   return *new UIScrollBar(this, flags);
+}
+
+UISlider& UIElement::add_slider(uint32_t flags) {
+   return *new UISlider(this, flags);
+}
+
+UISpacer& UIElement::add_spacer(uint32_t flags, int width, int height) {
+   return *new UISpacer(this, flags, width, height);
+}
+
+UISplitPane& UIElement::add_splitpane(uint32_t flags, float weight) {
+   return *new UISplitPane(this, flags, weight);
+}
+
+UITabPane& UIElement::add_tabpane(uint32_t flags, const char* tabs) {
+   return *new UITabPane(this, flags, tabs);
+}
+
+UIWrapPanel& UIElement::add_wrappanel(uint32_t flags) {
+   return *new UIWrapPanel(this, flags);
+}
+
+UIGauge& UIElement::add_gauge(uint32_t flags) {
+   return *new UIGauge(this, flags);
+}
+
+UIImageDisplay& UIElement::add_imagedisplay(uint32_t flags, uint32_t* bits, size_t width, size_t height,
+                                            size_t stride) {
+   return *new UIImageDisplay(this, flags, bits, width, height, stride);
+}
+
+UISwitcher& UIElement::add_switcher(uint32_t flags) {
+   return *new UISwitcher(this, flags);
+}
+
+UIMenu& UIElement::add_menu(uint32_t flags) {
+   return *new UIMenu(this, flags);
+}
+
+UITextbox& UIElement::add_textbox(uint32_t flags) {
+   return *new UITextbox(this, flags);
+}
+
+UITable& UIElement::add_table(uint32_t flags, const char* columns) {
+   return *new UITable(this, flags, columns);
+}
+
+UICode& UIElement::add_code(uint32_t flags) {
+   return *new UICode(this, flags);
+}
+
+UIWindow& UI::add_window(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height) {
+   return *UIWindowCreate(owner, flags, cTitle, width, height);
+}
+
 // --------------------------------------------------
 // Update cycles.
 // --------------------------------------------------
