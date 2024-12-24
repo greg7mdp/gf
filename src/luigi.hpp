@@ -714,11 +714,11 @@ public:
    UIWindow(UIElement* parent, uint32_t flags, message_proc_t message_proc, const char* cClassName);
    virtual ~UIWindow();
 
-   void EndPaint(UIPainter* painter);
-   void SetCursor(int cursor);
-   void GetScreenPosition(int* _x, int* _y);
-   void SetPressed(UIElement* el, int button);
-   bool InputEvent(UIMessage message, int di, void* dp);
+   void endpaint(UIPainter* painter);
+   void set_cursor(int cursor);
+   void get_screen_position(int* _x, int* _y);
+   void set_pressed(UIElement* el, int button);
+   bool input_event(UIMessage message, int di, void* dp);
 };
 
 inline int UIElement::scale(auto sz) const { return (int)((float)sz * _window->_scale); }

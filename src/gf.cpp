@@ -5301,7 +5301,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          report->dragInitialPoint  = el->_window->_cursor.x;
          report->dragInitialValue2 = report->vScroll->_position;
          report->dragInitialPoint2 = el->_window->_cursor.y;
-         el->_window->SetCursor((int)UICursor::hand);
+         el->_window->set_cursor((int)UICursor::hand);
       } else {
          report->dragMode         = FLAME_GRAPH_DRAG_X_SCROLL;
          report->dragInitialValue = report->xStart;
@@ -5320,7 +5320,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          report->dragInitialValue  = report->xStart;
          report->dragInitialPoint  = el->_window->_cursor.x;
          report->dragInitialPoint2 = el->_window->_cursor.y;
-         el->_window->SetCursor((int)UICursor::cross_hair);
+         el->_window->set_cursor((int)UICursor::cross_hair);
       }
    } else if (msg == UIMessage::RIGHT_DOWN) {
       if (el->_window->_cursor.y < report->client.b - profZoomBarHeight) {
@@ -5351,7 +5351,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       report->dragMode    = 0;
       report->dragStarted = false;
       el->repaint(NULL);
-      el->_window->SetCursor((int)UICursor::arrow);
+      el->_window->set_cursor((int)UICursor::arrow);
    } else if (msg == UIMessage::MOUSE_DRAG) {
       report->dragStarted = true;
 
@@ -5571,7 +5571,7 @@ void ProfLoadProfileData(void* _window) {
       UIDrawBlock(&painter, painter.clip, ui->theme.panel1);
       UIDrawString(&painter, painter.clip, string, ui->theme.text, UIAlign::center, 0);
       window->_update_region = ui_rect_2s(window->_width, window->_height);
-      window->EndPaint(nullptr);
+      window->endpaint(nullptr);
       window->_update_region = painter.clip;
    }
 

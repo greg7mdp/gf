@@ -1312,7 +1312,7 @@ bool _UIDestroy(UIElement* element) {
       auto win = element->_window;
 
       if (win->_pressed == element) {
-         win->SetPressed(NULL, 0);
+         win->set_pressed(NULL, 0);
       }
 
       if (win->_hovered == element) {
@@ -4021,7 +4021,7 @@ const char* UIDialogShow(UIWindow* window, uint32_t flags, const char* format, .
    ui->dialogResult  = NULL;
    ui->dialogCanExit = buttonCount != 0;
    for (int i = 1; i <= 3; i++)
-      window->SetPressed(NULL, i);
+      window->set_pressed(NULL, i);
    window->refresh();
    _UIUpdate();
    while (!ui->dialogResult && _UIMessageLoopSingle(&result))
@@ -4174,7 +4174,7 @@ UIMenu::UIMenu(UIElement* parent, uint32_t flags)
       pointY                   = (flags & UIMenu::PLACE_ABOVE) ? (screenBounds.t + 1) : (screenBounds.b - 1);
    } else {
       int x = 0, y = 0;
-      parent->_window->GetScreenPosition(&x, &y);
+      parent->_window->get_screen_position(&x, &y);
 
       pointX = parent->_window->_cursor.x + x;
       pointY = parent->_window->_cursor.y + y;
@@ -4191,7 +4191,7 @@ UIMenu* UIMenuCreate(UIElement* parent, uint32_t flags) {
 
 UIRectangle UIElement::screen_bounds() {
    int x = 0, y = 0;
-   _window->GetScreenPosition(&x, &y);
+   _window->get_screen_position(&x, &y);
    return _bounds + UIRectangle(x, y);
 }
 
@@ -4225,7 +4225,7 @@ void _UIUpdate() {
                                  .width  = window->_width,
                                  .height = window->_height};
             window->paint(&painter);
-            window->EndPaint(&painter);
+            window->endpaint(&painter);
             window->_update_region = UIRectangle(0);
 
 #ifdef UI_DEBUG
@@ -4245,7 +4245,7 @@ void _UIUpdate() {
 // Input event handling.
 // --------------------------------------------------
 
-void UIWindow::SetPressed(UIElement* element, int button) {
+void UIWindow::set_pressed(UIElement* element, int button) {
    UIElement* previous = _pressed;
    _pressed            = element;
    _pressed_button     = button;
@@ -4309,7 +4309,7 @@ UIElement* UIElement::next_or_previous_sibling(bool previous) {
    return NULL;
 }
 
-bool UIWindow::InputEvent(UIMessage msg, int di, void* dp) {
+bool UIWindow::input_event(UIMessage msg, int di, void* dp) {
    bool handled = true;
 
    if (_pressed) {
@@ -4326,18 +4326,18 @@ bool UIWindow::InputEvent(UIMessage msg, int di, void* dp) {
             _pressed->message(UIMessage::LEFT_UP, di, dp);
             if (ui->quit || ui->dialogResult)
                goto end;
-            SetPressed(NULL, 1);
+            set_pressed(NULL, 1);
          }
       } else if (msg == UIMessage::MIDDLE_UP && _pressed_button == 2) {
          _pressed->message(UIMessage::MIDDLE_UP, di, dp);
          if (ui->quit || ui->dialogResult)
             goto end;
-         SetPressed(NULL, 2);
+         set_pressed(NULL, 2);
       } else if (msg == UIMessage::RIGHT_UP && _pressed_button == 3) {
          _pressed->message(UIMessage::RIGHT_UP, di, dp);
          if (ui->quit || ui->dialogResult)
             goto end;
-         SetPressed(NULL, 3);
+         set_pressed(NULL, 3);
       }
    }
 
@@ -4366,21 +4366,21 @@ bool UIWindow::InputEvent(UIMessage msg, int di, void* dp) {
 
          if (cursor != _cursor_style) {
             _cursor_style = cursor;
-            SetCursor(cursor);
+            set_cursor(cursor);
          }
       } else if (msg == UIMessage::LEFT_DOWN) {
          if ((_flags & UIWindow::MENU) || !_UIMenusClose()) {
-            SetPressed(loc, 1);
+            set_pressed(loc, 1);
             loc->message(UIMessage::LEFT_DOWN, di, dp);
          }
       } else if (msg == UIMessage::MIDDLE_DOWN) {
          if ((_flags & UIWindow::MENU) || !_UIMenusClose()) {
-            SetPressed(loc, 2);
+            set_pressed(loc, 2);
             loc->message(UIMessage::MIDDLE_DOWN, di, dp);
          }
       } else if (msg == UIMessage::RIGHT_DOWN) {
          if ((_flags & UIWindow::MENU) || !_UIMenusClose()) {
-            SetPressed(loc, 3);
+            set_pressed(loc, 3);
             loc->message(UIMessage::RIGHT_DOWN, di, dp);
          }
       } else if (msg == UIMessage::MOUSE_WHEEL) {
@@ -4787,7 +4787,7 @@ int _UIInspectorTableMessage(UIElement* table, UIMessage msg, int di, void* dp) 
          UIDrawInvert(&painter, element->_bounds + ui_rect_1i(4));
       }
 
-      window->EndPaint(&painter);
+      window->endpaint(&painter);
    }
 
    return 0;
@@ -5067,7 +5067,7 @@ UIWindow* UIWindowCreate(UIWindow* owner, uint32_t flags, const char* cTitle, in
 
    if (flags & UIWindow::CENTER_IN_OWNER) {
       int x = 0, y = 0;
-      owner->GetScreenPosition(&x, &y);
+      owner->get_screen_position(&x, &y);
       XMoveResizeWindow(ui->display, window->_xwindow, x + owner->_width / 2 - width / 2,
                         y + owner->_height / 2 - height / 2, width, height);
    }
@@ -5279,7 +5279,7 @@ unique_ptr<UI> UIInitialise(const UIConfig& cfg) {
    return unique_ptr<UI>{ui};
 }
 
-void UIWindow::SetCursor(int cursor) {
+void UIWindow::set_cursor(int cursor) {
    XDefineCursor(ui->display, _xwindow, ui->cursors[cursor]);
 }
 
@@ -5287,14 +5287,14 @@ void _UIX11ResetCursor(UIWindow* window) {
    XDefineCursor(ui->display, window->_xwindow, ui->cursors[(uint32_t)UICursor::arrow]);
 }
 
-void UIWindow::EndPaint(UIPainter* painter) {
+void UIWindow::endpaint(UIPainter* painter) {
    (void)painter;
    const auto& ur = _window->_update_region;
    XPutImage(ui->display, _window->_xwindow, DefaultGC(ui->display, 0), _window->_image, ur.l, ur.t, ur.l, ur.t,
              UI_RECT_SIZE(_window->_update_region));
 }
 
-void UIWindow::GetScreenPosition(int* _x, int* _y) {
+void UIWindow::get_screen_position(int* _x, int* _y) {
    Window child;
    XTranslateCoordinates(ui->display, _window->_xwindow, DefaultRootWindow(ui->display), 0, 0, _x, _y, &child);
 }
@@ -5436,7 +5436,7 @@ bool _UIProcessEvent(XEvent* event) {
          return false;
       window->_cursor.x = event->xmotion.x;
       window->_cursor.y = event->xmotion.y;
-      window->InputEvent(UIMessage::MOUSE_MOVE, 0, 0);
+      window->input_event(UIMessage::MOUSE_MOVE, 0, 0);
    } else if (event->type == LeaveNotify) {
       UIWindow* window = _UIFindWindow(event->xcrossing.window);
       if (!window)
@@ -5447,7 +5447,7 @@ bool _UIProcessEvent(XEvent* event) {
          window->_cursor.y = -1;
       }
 
-      window->InputEvent(UIMessage::MOUSE_MOVE, 0, 0);
+      window->input_event(UIMessage::MOUSE_MOVE, 0, 0);
    } else if (event->type == ButtonPress || event->type == ButtonRelease) {
       UIWindow* window = _UIFindWindow(event->xbutton.window);
       if (!window)
@@ -5456,14 +5456,14 @@ bool _UIProcessEvent(XEvent* event) {
       window->_cursor.y = event->xbutton.y;
 
       if (event->xbutton.button >= 1 && event->xbutton.button <= 3) {
-         window->InputEvent(
+         window->input_event(
             (UIMessage)((uint32_t)(event->type == ButtonPress ? UIMessage::LEFT_DOWN : UIMessage::LEFT_UP) +
                         event->xbutton.button * 2 - 2),
             0, 0);
       } else if (event->xbutton.button == 4) {
-         window->InputEvent(UIMessage::MOUSE_WHEEL, -72, 0);
+         window->input_event(UIMessage::MOUSE_WHEEL, -72, 0);
       } else if (event->xbutton.button == 5) {
-         window->InputEvent(UIMessage::MOUSE_WHEEL, 72, 0);
+         window->input_event(UIMessage::MOUSE_WHEEL, 72, 0);
       }
 
       ui->InspectorSetFocusedWindow(window);
@@ -5494,15 +5494,15 @@ bool _UIProcessEvent(XEvent* event) {
          if (symbol == XK_Control_L || symbol == XK_Control_R) {
             window->_ctrl      = true;
             window->_ctrl_code = event->xkey.keycode;
-            window->InputEvent(UIMessage::MOUSE_MOVE, 0, 0);
+            window->input_event(UIMessage::MOUSE_MOVE, 0, 0);
          } else if (symbol == XK_Shift_L || symbol == XK_Shift_R) {
             window->_shift      = true;
             window->_shift_code = event->xkey.keycode;
-            window->InputEvent(UIMessage::MOUSE_MOVE, 0, 0);
+            window->input_event(UIMessage::MOUSE_MOVE, 0, 0);
          } else if (symbol == XK_Alt_L || symbol == XK_Alt_R) {
             window->_alt      = true;
             window->_alt_code = event->xkey.keycode;
-            window->InputEvent(UIMessage::MOUSE_MOVE, 0, 0);
+            window->input_event(UIMessage::MOUSE_MOVE, 0, 0);
          } else if (symbol == XK_KP_Left) {
             m.code = UIKeycode::LEFT;
          } else if (symbol == XK_KP_Right) {
@@ -5525,7 +5525,7 @@ bool _UIProcessEvent(XEvent* event) {
             m.code = UIKeycode::DOWN;
          }
 
-         window->InputEvent(UIMessage::KEY_TYPED, 0, &m);
+         window->input_event(UIMessage::KEY_TYPED, 0, &m);
       }
    } else if (event->type == KeyRelease) {
       UIWindow* window = _UIFindWindow(event->xkey.window);
@@ -5534,13 +5534,13 @@ bool _UIProcessEvent(XEvent* event) {
 
       if (event->xkey.keycode == window->_ctrl_code) {
          window->_ctrl = false;
-         window->InputEvent(UIMessage::MOUSE_MOVE, 0, 0);
+         window->input_event(UIMessage::MOUSE_MOVE, 0, 0);
       } else if (event->xkey.keycode == window->_shift_code) {
          window->_shift = false;
-         window->InputEvent(UIMessage::MOUSE_MOVE, 0, 0);
+         window->input_event(UIMessage::MOUSE_MOVE, 0, 0);
       } else if (event->xkey.keycode == window->_alt_code) {
          window->_alt = false;
-         window->InputEvent(UIMessage::MOUSE_MOVE, 0, 0);
+         window->input_event(UIMessage::MOUSE_MOVE, 0, 0);
       } else {
          char       text[32];
          KeySym     symbol = NoSymbol;
@@ -5549,7 +5549,7 @@ bool _UIProcessEvent(XEvent* event) {
          auto       sz = Xutf8LookupString(window->_xic, &event->xkey, text, sizeof(text) - 1, &symbol, &status);
          m.text        = {text, static_cast<size_t>(sz)};
          m.code        = (UIKeycode)XLookupKeysym(&event->xkey, 0);
-         window->InputEvent(UIMessage::KEY_RELEASED, 0, &m);
+         window->input_event(UIMessage::KEY_RELEASED, 0, &m);
       }
    } else if (event->type == FocusIn) {
       UIWindow* window = _UIFindWindow(event->xfocus.window);
