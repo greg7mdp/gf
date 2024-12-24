@@ -3549,14 +3549,15 @@ int UIMDIChild::_ClassMessageProc(UIElement* element, UIMessage message, int di,
    } else if (message == UIMessage::MOUSE_DRAG) {
       if (mdiChild->_drag_hit_test > 0) {
 
-#define _UI_MDI_CHILD_MOVE_EDGE(bit, edge, cursor, size, opposite, negate, minimum, offset)                         \
-   if (mdiChild->_drag_hit_test & bit)                                                                                 \
-      mdiChild->_mdi_bounds.edge = mdiChild->_drag_offset.edge + element->_window->cursor - element->_parent->_bounds.offset; \
-   if ((mdiChild->_drag_hit_test & bit) && mdiChild->_mdi_bounds.size() < minimum)                                          \
+#define _UI_MDI_CHILD_MOVE_EDGE(bit, edge, cursor, size, opposite, negate, minimum, offset)         \
+   if (mdiChild->_drag_hit_test & bit)                                                              \
+      mdiChild->_mdi_bounds.edge =                                                                  \
+         mdiChild->_drag_offset.edge + element->_window->cursor - element->_parent->_bounds.offset; \
+   if ((mdiChild->_drag_hit_test & bit) && mdiChild->_mdi_bounds.size() < minimum)                  \
       mdiChild->_mdi_bounds.edge = mdiChild->_mdi_bounds.opposite negate minimum;
 
-         _UI_MDI_CHILD_MOVE_EDGE(0b1000, l, _cursor.x, width, r, -, ui_size::MDI_CHILD_MINIMUM_WIDTH, l);
-         _UI_MDI_CHILD_MOVE_EDGE(0b0100, r, _cursor.x, width, l, +, ui_size::MDI_CHILD_MINIMUM_WIDTH, l);
+         _UI_MDI_CHILD_MOVE_EDGE(0b1000, l, _cursor.x, width,  r, -, ui_size::MDI_CHILD_MINIMUM_WIDTH, l);
+         _UI_MDI_CHILD_MOVE_EDGE(0b0100, r, _cursor.x, width,  l, +, ui_size::MDI_CHILD_MINIMUM_WIDTH, l);
          _UI_MDI_CHILD_MOVE_EDGE(0b0010, t, _cursor.y, height, b, -, ui_size::MDI_CHILD_MINIMUM_HEIGHT, t);
          _UI_MDI_CHILD_MOVE_EDGE(0b0001, b, _cursor.y, height, t, +, ui_size::MDI_CHILD_MINIMUM_HEIGHT, t);
          element->_parent->Refresh();
