@@ -4120,7 +4120,7 @@ const char* UI::DialogShow(UIWindow* window, uint32_t flags, const char* format,
 // Menus (common).
 // --------------------------------------------------
 
-bool UI::_MenusClose() {
+bool _UIMenusClose() {
    bool anyClosed = false;
 
    if (ui) {
@@ -4144,7 +4144,7 @@ bool UI::_MenusClose() {
 
 int UI::_MenuItemMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::CLICKED) {
-      _MenusClose();
+      _UIMenusClose();
    }
 
    return 0;
@@ -4201,7 +4201,7 @@ int UI::_MenuMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
       if (m->code == UIKeycode::ESCAPE) {
-         _MenusClose();
+         _UIMenusClose();
          return 1;
       }
    } else if (msg == UIMessage::MOUSE_WHEEL) {
@@ -4434,17 +4434,17 @@ bool UIWindow::input_event(UIMessage msg, int di, void* dp) {
             set_cursor(cursor);
          }
       } else if (msg == UIMessage::LEFT_DOWN) {
-         if ((_flags & UIWindow::MENU) || !UI::_MenusClose()) {
+         if ((_flags & UIWindow::MENU) || !_UIMenusClose()) {
             set_pressed(loc, 1);
             loc->message(UIMessage::LEFT_DOWN, di, dp);
          }
       } else if (msg == UIMessage::MIDDLE_DOWN) {
-         if ((_flags & UIWindow::MENU) || !UI::_MenusClose()) {
+         if ((_flags & UIWindow::MENU) || !_UIMenusClose()) {
             set_pressed(loc, 2);
             loc->message(UIMessage::MIDDLE_DOWN, di, dp);
          }
       } else if (msg == UIMessage::RIGHT_DOWN) {
-         if ((_flags & UIWindow::MENU) || !UI::_MenusClose()) {
+         if ((_flags & UIWindow::MENU) || !_UIMenusClose()) {
             set_pressed(loc, 3);
             loc->message(UIMessage::RIGHT_DOWN, di, dp);
          }
@@ -5088,7 +5088,7 @@ int UIWindow::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) 
 }
 
 UIWindow& UIWindow::Create(UIWindow* owner, uint32_t flags, const char* cTitle, int _width, int _height) {
-   UI::_MenusClose();
+   _UIMenusClose();
 
    UIWindow* window = new UIWindow(NULL, flags | UIElement::window_flag, UIWindow::_ClassMessageProc, "Window");
    _UIWindowAdd(window);
@@ -5448,7 +5448,7 @@ void UIWindowPack(UIWindow* window, int _width) {
 
 // return true if we should exit, normally return false
 // ----------------------------------------------------
-bool UI::_ProcessEvent(XEvent* event) {
+bool _UIProcessEvent(XEvent* event) {
    if (event->type == ClientMessage && (Atom)event->xclient.data.l[0] == ui->windowClosedID) {
       UIWindow* window = _UIFindWindow(event->xclient.window);
       if (!window)
@@ -5616,7 +5616,7 @@ bool UI::_ProcessEvent(XEvent* event) {
       window->_ctrl = window->_shift = window->_alt = false;
       window->message(UIMessage::WINDOW_ACTIVATE, 0, 0);
    } else if (event->type == FocusOut || event->type == ResizeRequest) {
-      UI::_MenusClose();
+      _UIMenusClose();
       UI::Update();
    } else if (event->type == ClientMessage && event->xclient.message_type == ui->dndEnterID) {
       UIWindow* window = _UIFindWindow(event->xclient.window);
@@ -5824,7 +5824,7 @@ bool UI::MessageLoopSingle(int* result) {
          continue;
       }
 
-      if (UI::_ProcessEvent(events + i)) {
+      if (_UIProcessEvent(events + i)) {
          return false;
       }
    }
@@ -5972,7 +5972,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
       ::SetCursor(ui->cursors[window->_cursor_style]);
       return 1;
    } else if (msg == WM_SETFOCUS || msg == WM_KILLFOCUS) {
-      UI::_MenusClose();
+      _UIMenusClose();
 
       if (msg == WM_SETFOCUS) {
          ui->inspector.set_focused_window(window);
@@ -6004,7 +6004,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
    } else {
       if (msg == WM_NCLBUTTONDOWN || msg == WM_NCMBUTTONDOWN || msg == WM_NCRBUTTONDOWN) {
          if (~window->_flags & UIWindow::MENU) {
-            UI::_MenusClose();
+            _UIMenusClose();
             UI::Update();
          }
       }
@@ -6083,7 +6083,7 @@ bool UI::MessageLoopSingle(int* result) {
    return true;
 }
 
-void UIMenu::show() {
+UIMenu& UIMenu::show() {
    int width, height;
    _prepare(&width, &height);
    MoveWindow(_window->_hwnd, pointX, pointY, width, height, FALSE);
@@ -6091,8 +6091,8 @@ void UIMenu::show() {
    return *this;
 }
 
-UIWindow* UIWindow::Create(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height) {
-   UI::_MenusClose();
+UIWindow& UIWindow::Create(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height) {
+   _UIMenusClose();
 
    UIWindow* window = new UIWindow(NULL, flags | UIElement::window_flag, UIWindow::_ClassMessageProc, "Window");
    _UIWindowAdd(window);
@@ -6117,7 +6117,7 @@ UIWindow* UIWindow::Create(UIWindow* owner, uint32_t flags, const char* cTitle, 
       PostMessage(window->_hwnd, WM_SIZE, 0, 0);
    }
 
-   return window;
+   return *window;
 }
 
 void UIWindow::endpaint(UIPainter* painter) {

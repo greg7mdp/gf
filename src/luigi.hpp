@@ -1370,8 +1370,6 @@ private:
    static int         _DialogTextboxMessage(UIElement* el, UIMessage msg, int di, void* dp);
    static int         _MenuMessage(UIElement* el, UIMessage msg, int di, void* dp);
    static int         _MenuItemMessage(UIElement* el, UIMessage msg, int di, void* dp);
-   static bool        _ProcessEvent(XEvent* event);
-   static bool        _MenusClose();
 
 public:
    static void        ClipboardWriteText(UIWindow* window, std::string text, sel_target_t t);
