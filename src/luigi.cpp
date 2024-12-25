@@ -2,6 +2,7 @@
 
 #ifdef _MSC_VER
    #pragma warning(disable : 4100) // unreferenced formal parameter
+   #pragma warning(disable : 4127) // get_screen_position
    #pragma warning(disable : 4244) // 'initializing': conversion from 'int64_t' to 'int', possible loss of data
    #pragma warning(disable : 4267) // conversion from 'size_t' to '_Ty', possible loss of data
    #pragma warning(disable : 4996) // This function or variable may be unsafe. Consider using ... instead.
@@ -5989,7 +5990,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
       _UIMenusClose();
 
       if (msg == WM_SETFOCUS) {
-         ui->InspectorSetFocusedWindow(window);
+         ui->inspector.set_focused_window(window);
          window->message(UIMessage::WINDOW_ACTIVATE, 0, 0);
       }
    } else if (msg == WM_MOUSEACTIVATE && (window->_flags & UIWindow::MENU)) {
@@ -6064,7 +6065,7 @@ unique_ptr<UI> UIInitialise(const UIConfig& cfg) {
    windowClass.lpszClassName = "shadow";
    RegisterClass(&windowClass);
 
-   ui->InspectorCreate();
+   ui->inspector.create();
 
    return unique_ptr<UI>{ui};
 }
