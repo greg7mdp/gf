@@ -47,10 +47,10 @@ void MyMenuCallback(const char* cp) {
 
 int MyButton2Message(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::CLICKED) {
-      UIMenu* menu = UIMenuCreate(el, 0);
-      UIMenuAddItem(menu, 0, "Item 1\tCtrl+F5", []() { MyMenuCallback("Item 1 clicked!"); });
-      UIMenuAddItem(menu, 0, "Item 2\tF6", []() { MyMenuCallback("Item 2 clicked!"); });
-      UIMenuShow(menu);
+      UI::MenuCreate(el, 0)
+         .add_item(0, "Item 1\tCtrl+F5", []() { MyMenuCallback("Item 1 clicked!"); })
+         .add_item(0, "Item 2\tF6", []() { MyMenuCallback("Item 2 clicked!"); })
+         .show();
    }
 
    return 0;
@@ -226,5 +226,5 @@ int main(int argc, char** argv) {
          .add_button(0, "giant button!!");
    }
 
-   return UIMessageLoop();
+   return UI::MessageLoop();
 }

@@ -777,6 +777,8 @@ public:
    UIWindow(UIElement* parent, uint32_t flags, message_proc_t message_proc, const char* cClassName);
    virtual ~UIWindow();
 
+   static UIWindow& Create(UIWindow* owner, uint32_t flags, const char* cTitle, int _width, int _height);
+   
    void endpaint(UIPainter* painter);
    void set_cursor(int cursor);
    void get_screen_position(int* _x, int* _y);
@@ -1152,6 +1154,10 @@ struct UITextbox : public UIElementCast<UITextbox> {
 
 // ------------------------------------------------------------------------------------------
 struct UIMenu : public UIElementCast<UIMenu> {
+private:
+   void _prepare(int* width, int* height);
+
+public:
    enum {
       PLACE_ABOVE = 1 << 0,
       NO_SCROLL   = 1 << 1
@@ -1163,6 +1169,9 @@ struct UIMenu : public UIElementCast<UIMenu> {
    UIWindow*    parentWindow;
 
    UIMenu(UIElement* parent, uint32_t flags);
+
+   UIMenu& add_item(uint32_t flags, std::string_view label, std::function<void()> invoke);
+   UIMenu& show();
 };
 
 struct UIMDIChild;
@@ -1282,9 +1291,6 @@ void      UIWindowPack(UIWindow* window, int width); // Change the size of the w
 typedef void (*UIDialogUserCallback)(UIElement*);
 const char* UIDialogShow(UIWindow* window, uint32_t flags, const char* format, ...);
 
-UIMenu* UIMenuCreate(UIElement* parent, uint32_t flags);
-void    UIMenuAddItem(UIMenu* menu, uint32_t flags, std::string_view label, std::function<void ()> invoke);
-void    UIMenuShow(UIMenu* menu);
 bool    UIMenusOpen();
 
 UITextbox* UITextboxCreate(UIElement* parent, uint32_t flags);
@@ -1338,6 +1344,7 @@ char* UIStringCopy(const char* in, ptrdiff_t inBytes);
 UIFont* UIFontCreate(const char* cPath, uint32_t size);
 UIFont* UIFontActivate(UIFont* font); // Returns the previously active font.
 
+// ------------------------------------------------------------------------------------------
 struct UIInspector {
    static constexpr bool _enabled = (bool)UI_DEBUG;
    UIWindow* _inspector = nullptr;
@@ -1352,14 +1359,32 @@ struct UIInspector {
    void refresh();
 };
 
+// ------------------------------------------------------------------------------------------
 struct UI {
+   friend struct UIMenu;
+   friend struct UIWindow;
+   
+private:
+   static void        InspectorRefresh();
+   static bool        MessageLoopSingle(int* result);
+   static int         _DialogTextboxMessage(UIElement* el, UIMessage msg, int di, void* dp);
+   static int         _MenuMessage(UIElement* el, UIMessage msg, int di, void* dp);
+   static int         _MenuItemMessage(UIElement* el, UIMessage msg, int di, void* dp);
+   static bool        _ProcessEvent(XEvent* event);
+   static bool        _MenusClose();
+
 public:
    static void        ClipboardWriteText(UIWindow* window, std::string text, sel_target_t t);
    static std::string ClipboardReadText(UIWindow* window, sel_target_t t);
-   static bool        MessageLoopSingle(int* result);
-   static void        InspectorRefresh();
+
+   static int         MessageLoop();
    static void        Update();
    static void        ProcessAnimations();
+
+   static UIMenu&     MenuCreate(UIElement* parent, uint32_t flags);
+   static void        MenuAddItem(UIMenu* menu, uint32_t flags, std::string_view label, std::function<void()> invoke);
+
+   static const char* DialogShow(UIWindow* window, uint32_t flags, const char* format, ...);
 
    static int byte_to_column(std::string_view string, size_t byte, size_t tabSize);
    static int column_to_byte(std::string_view string, size_t column, size_t tabSize);

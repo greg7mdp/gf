@@ -1243,7 +1243,7 @@ UICode& UIElement::add_code(uint32_t flags) {
 }
 
 UIWindow& UI::add_window(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height) {
-   return *UIWindowCreate(owner, flags, cTitle, width, height);
+   return UIWindow::Create(owner, flags, cTitle, width, height);
 }
 
 // --------------------------------------------------
@@ -2807,13 +2807,12 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
 
       if (hitTest > 0 && (_flags & UICode::SELECTABLE)) {
          focus();
-         UIMenu* menu = UIMenuCreate(_window, UIMenu::NO_SCROLL);
-         UIMenuAddItem(menu,
-                       (_selection[0].line == _selection[1].line && _selection[0].offset == _selection[1].offset)
-                          ? disabled_flag
-                          : 0,
-                       "Copy", [this]() { copy_text(sel_target_t::clipboard); });
-         UIMenuShow(menu);
+         UI::MenuCreate(_window, UIMenu::NO_SCROLL)
+            .add_item((_selection[0].line == _selection[1].line && _selection[0].offset == _selection[1].offset)
+                         ? disabled_flag
+                         : 0,
+                      "Copy", [this]() { copy_text(sel_target_t::clipboard); })
+            .show();
       }
    } else if (msg == UIMessage::UPDATE) {
       repaint(NULL);
@@ -3484,13 +3483,13 @@ int _UITextboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          textbox->carets[1] = c1; // Only move caret if clicking outside the existing selection.
       }
 
-      UIMenu* menu = UIMenuCreate(el->_window, UIMenu::NO_SCROLL);
-      UIMenuAddItem(menu, textbox->carets[0] == textbox->carets[1] ? UIElement::disabled_flag : 0, "Copy",
-                    [=]() { UITextboxCopyText(textbox); });
       std::string paste = UI::ClipboardReadText(textbox->_window, sel_target_t::clipboard);
-      UIMenuAddItem(menu, paste.empty() ? UIElement::disabled_flag : 0, "Paste",
-                    [=]() { UITextboxPasteText(textbox, sel_target_t::clipboard); });
-      UIMenuShow(menu);
+      UI::MenuCreate(el->_window, UIMenu::NO_SCROLL)
+         .add_item(textbox->carets[0] == textbox->carets[1] ? UIElement::disabled_flag : 0, "Copy",
+                   [=]() { UITextboxCopyText(textbox); })
+         .add_item(paste.empty() ? UIElement::disabled_flag : 0, "Paste",
+                   [=]() { UITextboxPasteText(textbox, sel_target_t::clipboard); })
+         .show();
    } else if (msg == UIMessage::MIDDLE_DOWN) {
       UITextboxPasteText(textbox, sel_target_t::primary);
       el->repaint(NULL);
@@ -3980,7 +3979,7 @@ int _UIDialogDefaultButtonMessage(UIElement* el, UIMessage msg, int di, void* dp
    return 0;
 }
 
-int _UIDialogTextboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+int UI::_DialogTextboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    UITextbox*       textbox = (UITextbox*)el;
    std::string_view text    = textbox->text();
 
@@ -4001,7 +4000,7 @@ int _UIDialogTextboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    return 0;
 }
 
-const char* UIDialogShow(UIWindow* window, uint32_t flags, const char* format, ...) {
+const char* UI::DialogShow(UIWindow* window, uint32_t flags, const char* format, ...) {
    // Create the dialog wrapper and panel.
 
    UI_ASSERT(!window->_dialog);
@@ -4055,7 +4054,7 @@ const char* UIDialogShow(UIWindow* window, uint32_t flags, const char* format, .
             if (*buffer)
                UITextboxReplace(textbox, *buffer, false);
             textbox->_cp = buffer; // when the textbox text is updated, `*buffer` will contain a `char*` to the string
-            textbox->_user_proc = _UIDialogTextboxMessage;
+            textbox->_user_proc = _DialogTextboxMessage;
          } else if (format[i] == 'f' /* horizontal fill */) {
             UISpacerCreate(row, UIElement::h_fill, 0, 0);
          } else if (format[i] == 'l' /* horizontal line */) {
@@ -4121,7 +4120,7 @@ const char* UIDialogShow(UIWindow* window, uint32_t flags, const char* format, .
 // Menus (common).
 // --------------------------------------------------
 
-bool _UIMenusClose() {
+bool UI::_MenusClose() {
    bool anyClosed = false;
 
    if (ui) {
@@ -4143,15 +4142,15 @@ bool _UIMenusClose() {
    return anyClosed;
 }
 
-int _UIMenuItemMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+int UI::_MenuItemMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::CLICKED) {
-      _UIMenusClose();
+      _MenusClose();
    }
 
    return 0;
 }
 
-int _UIMenuMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+int UI::_MenuMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    UIMenu* menu = (UIMenu*)el;
 
    if (msg == UIMessage::GET_WIDTH) {
@@ -4202,7 +4201,7 @@ int _UIMenuMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
       if (m->code == UIKeycode::ESCAPE) {
-         _UIMenusClose();
+         _MenusClose();
          return 1;
       }
    } else if (msg == UIMessage::MOUSE_WHEEL) {
@@ -4214,23 +4213,24 @@ int _UIMenuMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    return 0;
 }
 
-void UIMenuAddItem(UIMenu* menu, uint32_t flags, std::string_view label, std::function<void()> invoke) {
-   UIButton* button   = UIButtonCreate(menu, flags | UIButton::MENU_ITEM, label);
+UIMenu& UIMenu::add_item(uint32_t flags, std::string_view label, std::function<void()> invoke) {
+   UIButton* button   = UIButtonCreate(this, flags | UIButton::MENU_ITEM, label);
    button->invoke     = std::move(invoke);
-   button->_user_proc = _UIMenuItemMessage;
+   button->_user_proc = UI::_MenuItemMessage;
+   return *this;
 }
 
-void _UIMenuPrepare(UIMenu* menu, int* width, int* height) {
-   *width  = menu->message(UIMessage::GET_WIDTH, 0, 0);
-   *height = menu->message(UIMessage::GET_HEIGHT, 0, 0);
+void UIMenu::_prepare(int* width, int* height) {
+   *width  = message(UIMessage::GET_WIDTH, 0, 0);
+   *height = message(UIMessage::GET_HEIGHT, 0, 0);
 
-   if (menu->_flags & UIMenu::PLACE_ABOVE) {
-      menu->pointY -= *height;
+   if (_flags & UIMenu::PLACE_ABOVE) {
+      pointY -= *height;
    }
 }
 
 UIMenu::UIMenu(UIElement* parent, uint32_t flags)
-   : UIElementCast<UIMenu>(UIWindowCreate(parent->_window, UIWindow::MENU, 0, 0, 0), flags, _UIMenuMessage, "Menu")
+   : UIElementCast<UIMenu>(&UIWindow::Create(parent->_window, UIWindow::MENU, 0, 0, 0), flags, UI::_MenuMessage, "Menu")
    , vScroll(UIScrollBarCreate(this, non_client_flag))
    , parentWindow(parent->_window) {
    if (parent->_parent) {
@@ -4246,8 +4246,8 @@ UIMenu::UIMenu(UIElement* parent, uint32_t flags)
    }
 }
 
-UIMenu* UIMenuCreate(UIElement* parent, uint32_t flags) {
-   return new UIMenu(parent, flags);
+UIMenu& UI::MenuCreate(UIElement* parent, uint32_t flags) {
+   return *new UIMenu(parent, flags);
 }
 
 // --------------------------------------------------
@@ -4434,17 +4434,17 @@ bool UIWindow::input_event(UIMessage msg, int di, void* dp) {
             set_cursor(cursor);
          }
       } else if (msg == UIMessage::LEFT_DOWN) {
-         if ((_flags & UIWindow::MENU) || !_UIMenusClose()) {
+         if ((_flags & UIWindow::MENU) || !UI::_MenusClose()) {
             set_pressed(loc, 1);
             loc->message(UIMessage::LEFT_DOWN, di, dp);
          }
       } else if (msg == UIMessage::MIDDLE_DOWN) {
-         if ((_flags & UIWindow::MENU) || !_UIMenusClose()) {
+         if ((_flags & UIWindow::MENU) || !UI::_MenusClose()) {
             set_pressed(loc, 2);
             loc->message(UIMessage::MIDDLE_DOWN, di, dp);
          }
       } else if (msg == UIMessage::RIGHT_DOWN) {
-         if ((_flags & UIWindow::MENU) || !_UIMenusClose()) {
+         if ((_flags & UIWindow::MENU) || !UI::_MenusClose()) {
             set_pressed(loc, 3);
             loc->message(UIMessage::RIGHT_DOWN, di, dp);
          }
@@ -4852,7 +4852,7 @@ void UIInspector::create() {
    if (!_enabled || _inspector)
       return;
 
-   _inspector             = UIWindowCreate(0, UIWindow::INSPECTOR, "Inspector", 0, 0);
+   _inspector             = &UIWindow::Create(0, UIWindow::INSPECTOR, "Inspector", 0, 0);
    UISplitPane* splitPane = UISplitPaneCreate(_inspector, 0, 0.5f);
    _table                 = UITableCreate(splitPane, 0, "Class\tBounds\tID");
    _table->_user_proc     = _UIInspectorTableMessage;
@@ -5034,7 +5034,7 @@ int UIWindow::_ClassMessageProcCommon(UIElement* el, UIMessage msg, int di, void
    return 0;
 }
 
-int UIMessageLoop() {
+int UI::MessageLoop() {
    UI::Update();
 #ifdef UI_AUTOMATION_TESTS
    return UIAutomationRunTests();
@@ -5087,8 +5087,8 @@ int UIWindow::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) 
    return UIWindow::_ClassMessageProcCommon(el, msg, di, dp);
 }
 
-UIWindow* UIWindowCreate(UIWindow* owner, uint32_t flags, const char* cTitle, int _width, int _height) {
-   _UIMenusClose();
+UIWindow& UIWindow::Create(UIWindow* owner, uint32_t flags, const char* cTitle, int _width, int _height) {
+   UI::_MenusClose();
 
    UIWindow* window = new UIWindow(NULL, flags | UIElement::window_flag, UIWindow::_ClassMessageProc, "Window");
    _UIWindowAdd(window);
@@ -5138,7 +5138,7 @@ UIWindow* UIWindowCreate(UIWindow* owner, uint32_t flags, const char* cTitle, in
    XChangeProperty(ui->display, window->_xwindow, ui->dndAwareID, XA_ATOM, 32 /* bits */, PropModeReplace,
                    (uint8_t*)&dndVersion, 1);
 
-   return window;
+   return *window;
 }
 
 Display* _UIX11GetDisplay() {
@@ -5355,7 +5355,7 @@ void UIWindow::get_screen_position(int* _x, int* _y) {
    XTranslateCoordinates(ui->display, _window->_xwindow, DefaultRootWindow(ui->display), 0, 0, _x, _y, &child);
 }
 
-void UIMenuShow(UIMenu* menu) {
+UIMenu& UIMenu::show() {
    Window child;
 
    // Find the screen that contains the point the menu was created at.
@@ -5367,8 +5367,8 @@ void UIMenuShow(UIMenu* menu) {
       int     x, y;
       XTranslateCoordinates(ui->display, screen->root, DefaultRootWindow(ui->display), 0, 0, &x, &y, &child);
 
-      if (menu->pointX >= x && menu->pointX < x + screen->width && menu->pointY >= y &&
-          menu->pointY < y + screen->height) {
+      if (pointX >= x && pointX < x + screen->width && pointY >= y &&
+          pointY < y + screen->height) {
          menuScreen = screen;
          screenX = x, screenY = y;
          break;
@@ -5376,40 +5376,40 @@ void UIMenuShow(UIMenu* menu) {
    }
 
    int width, height;
-   _UIMenuPrepare(menu, &width, &height);
+   _prepare(&width, &height);
 
    {
       // Clamp the menu to the bounds of the window.
       // This step shouldn't be necessary with the screen clamping below, but there are some buggy X11 drivers that
       // report screen sizes incorrectly.
       int       wx, wy;
-      UIWindow* parentWindow = menu->parentWindow;
+      UIWindow* parentWindow = this->parentWindow;
       XTranslateCoordinates(ui->display, parentWindow->_xwindow, DefaultRootWindow(ui->display), 0, 0, &wx, &wy,
                             &child);
-      if (menu->pointX + width > wx + (int)parentWindow->_width)
-         menu->pointX = wx + parentWindow->_width - width;
-      if (menu->pointY + height > wy + (int)parentWindow->_height)
-         menu->pointY = wy + parentWindow->_height - height;
-      if (menu->pointX < wx)
-         menu->pointX = wx;
-      if (menu->pointY < wy)
-         menu->pointY = wy;
+      if (pointX + width > wx + (int)parentWindow->_width)
+         pointX = wx + parentWindow->_width - width;
+      if (pointY + height > wy + (int)parentWindow->_height)
+         pointY = wy + parentWindow->_height - height;
+      if (pointX < wx)
+         pointX = wx;
+      if (pointY < wy)
+         pointY = wy;
    }
 
    if (menuScreen) {
       // Clamp to the bounds of the screen.
-      if (menu->pointX + width > screenX + menuScreen->width)
-         menu->pointX = screenX + menuScreen->width - width;
-      if (menu->pointY + height > screenY + menuScreen->height)
-         menu->pointY = screenY + menuScreen->height - height;
-      if (menu->pointX < screenX)
-         menu->pointX = screenX;
-      if (menu->pointY < screenY)
-         menu->pointY = screenY;
-      if (menu->pointX + width > screenX + menuScreen->width)
-         width = screenX + menuScreen->width - menu->pointX;
-      if (menu->pointY + height > screenY + menuScreen->height)
-         height = screenY + menuScreen->height - menu->pointY;
+      if (pointX + width > screenX + menuScreen->width)
+         pointX = screenX + menuScreen->width - width;
+      if (pointY + height > screenY + menuScreen->height)
+         pointY = screenY + menuScreen->height - height;
+      if (pointX < screenX)
+         pointX = screenX;
+      if (pointY < screenY)
+         pointY = screenY;
+      if (pointX + width > screenX + menuScreen->width)
+         width = screenX + menuScreen->width - pointX;
+      if (pointY + height > screenY + menuScreen->height)
+         height = screenY + menuScreen->height - pointY;
    }
 
    Atom properties[] = {
@@ -5418,9 +5418,9 @@ void UIMenuShow(UIMenu* menu) {
       XInternAtom(ui->display, "_MOTIF_WM_HINTS", true),
    };
 
-   XChangeProperty(ui->display, menu->_window->_xwindow, properties[0], XA_ATOM, 32, PropModeReplace,
+   XChangeProperty(ui->display, _window->_xwindow, properties[0], XA_ATOM, 32, PropModeReplace,
                    (uint8_t*)properties, 2);
-   XSetTransientForHint(ui->display, menu->_window->_xwindow, DefaultRootWindow(ui->display));
+   XSetTransientForHint(ui->display, _window->_xwindow, DefaultRootWindow(ui->display));
 
    struct Hints {
       int flags;
@@ -5432,11 +5432,12 @@ void UIMenuShow(UIMenu* menu) {
 
    struct Hints hints = {0};
    hints.flags        = 2;
-   XChangeProperty(ui->display, menu->_window->_xwindow, properties[2], properties[2], 32, PropModeReplace,
+   XChangeProperty(ui->display, _window->_xwindow, properties[2], properties[2], 32, PropModeReplace,
                    (uint8_t*)&hints, 5);
 
-   XMapWindow(ui->display, menu->_window->_xwindow);
-   XMoveResizeWindow(ui->display, menu->_window->_xwindow, menu->pointX, menu->pointY, width, height);
+   XMapWindow(ui->display, _window->_xwindow);
+   XMoveResizeWindow(ui->display, _window->_xwindow, pointX, pointY, width, height);
+   return *this;
 }
 
 void UIWindowPack(UIWindow* window, int _width) {
@@ -5447,7 +5448,7 @@ void UIWindowPack(UIWindow* window, int _width) {
 
 // return true if we should exit, normally return false
 // ----------------------------------------------------
-bool _UIProcessEvent(XEvent* event) {
+bool UI::_ProcessEvent(XEvent* event) {
    if (event->type == ClientMessage && (Atom)event->xclient.data.l[0] == ui->windowClosedID) {
       UIWindow* window = _UIFindWindow(event->xclient.window);
       if (!window)
@@ -5615,7 +5616,7 @@ bool _UIProcessEvent(XEvent* event) {
       window->_ctrl = window->_shift = window->_alt = false;
       window->message(UIMessage::WINDOW_ACTIVATE, 0, 0);
    } else if (event->type == FocusOut || event->type == ResizeRequest) {
-      _UIMenusClose();
+      UI::_MenusClose();
       UI::Update();
    } else if (event->type == ClientMessage && event->xclient.message_type == ui->dndEnterID) {
       UIWindow* window = _UIFindWindow(event->xclient.window);
@@ -5823,7 +5824,7 @@ bool UI::MessageLoopSingle(int* result) {
          continue;
       }
 
-      if (_UIProcessEvent(events + i)) {
+      if (UI::_ProcessEvent(events + i)) {
          return false;
       }
    }
@@ -5971,7 +5972,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
       ::SetCursor(ui->cursors[window->_cursor_style]);
       return 1;
    } else if (msg == WM_SETFOCUS || msg == WM_KILLFOCUS) {
-      _UIMenusClose();
+      UI::_MenusClose();
 
       if (msg == WM_SETFOCUS) {
          ui->inspector.set_focused_window(window);
@@ -6003,7 +6004,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
    } else {
       if (msg == WM_NCLBUTTONDOWN || msg == WM_NCMBUTTONDOWN || msg == WM_NCRBUTTONDOWN) {
          if (~window->_flags & UIWindow::MENU) {
-            _UIMenusClose();
+            UI::_MenusClose();
             UI::Update();
          }
       }
@@ -6082,15 +6083,16 @@ bool UI::MessageLoopSingle(int* result) {
    return true;
 }
 
-void UIMenuShow(UIMenu* menu) {
+void UIMenu::show() {
    int width, height;
-   _UIMenuPrepare(menu, &width, &height);
-   MoveWindow(menu->_window->_hwnd, menu->pointX, menu->pointY, width, height, FALSE);
-   ShowWindow(menu->_window->_hwnd, SW_SHOWNOACTIVATE);
+   _prepare(&width, &height);
+   MoveWindow(_window->_hwnd, pointX, pointY, width, height, FALSE);
+   ShowWindow(_window->_hwnd, SW_SHOWNOACTIVATE);
+   return *this;
 }
 
-UIWindow* UIWindowCreate(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height) {
-   _UIMenusClose();
+UIWindow* UIWindow::Create(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height) {
+   UI::_MenusClose();
 
    UIWindow* window = new UIWindow(NULL, flags | UIElement::window_flag, UIWindow::_ClassMessageProc, "Window");
    _UIWindowAdd(window);
