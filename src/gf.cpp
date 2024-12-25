@@ -2894,7 +2894,7 @@ void WatchEnsureRowVisible(WatchWindow* w, size_t index) {
    if (w->selectedRow > w->rows.size())
       w->selectedRow = w->rows.size();
    UIScrollBar* scroll    = ((UIPanel*)w->_parent)->_scrollBar;
-   int          rowHeight = (int)(ui_size::TEXTBOX_HEIGHT * w->_window->_scale);
+   int          rowHeight = (int)(ui_size::textbox_height * w->_window->_scale);
    int          start = index * rowHeight, end = (index + 1) * rowHeight, height = w->_parent->_bounds.height();
    bool         unchanged = false;
    if (end >= scroll->_position + height)
@@ -3248,7 +3248,7 @@ bool WatchLoggerUpdate(std::string _data) {
 }
 
 void WatchCreateTextboxForRow(WatchWindow* w, bool addExistingText) {
-   int         rowHeight = (int)(ui_size::TEXTBOX_HEIGHT * w->_window->_scale);
+   int         rowHeight = (int)(ui_size::textbox_height * w->_window->_scale);
    UIRectangle row       = w->_bounds;
    row.t += w->selectedRow * rowHeight, row.b = row.t + rowHeight;
    w->textbox             = UITextboxCreate(w, 0);
@@ -3410,7 +3410,7 @@ void CommandWatchCopyValueToClipboard(WatchWindow* w) {
 
 int WatchWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    WatchWindow* w         = (WatchWindow*)el->_cp;
-   int          rowHeight = (int)(ui_size::TEXTBOX_HEIGHT * el->_window->_scale);
+   int          rowHeight = (int)(ui_size::textbox_height * el->_window->_scale);
    int          result    = 0;
 
    if (msg == UIMessage::PAINT) {
@@ -3430,8 +3430,8 @@ int WatchWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
             UIDrawBlock(painter, row, ui->theme.selected);
          UIDrawBorder(painter, row, ui->theme.border, UIRectangle(0, 1, 0, 1));
 
-         row.l += ui_size::TEXTBOX_MARGIN;
-         row.r -= ui_size::TEXTBOX_MARGIN;
+         row.l += ui_size::textbox_margin;
+         row.r -= ui_size::textbox_margin;
 
          if (i < w->rows.size()) {
             const shared_ptr<Watch>& watch = w->rows[i];
@@ -4209,7 +4209,7 @@ int FilesButtonMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       int        i       = (el == el->_window->_pressed) + (el == el->_window->_hovered);
       if (i)
          UIDrawBlock(painter, el->_bounds, i == 2 ? ui->theme.buttonPressed : ui->theme.buttonHovered);
-      UIDrawString(painter, el->_bounds + UIRectangle(ui_size::BUTTON_PADDING, 0, 0, 0), button->label,
+      UIDrawString(painter, el->_bounds + UIRectangle(ui_size::button_padding, 0, 0, 0), button->label,
                    button->_flags & UIButton::CHECKED ? ui->theme.codeNumber : ui->theme.codeDefault, UIAlign::left,
                    NULL);
       return 1;
@@ -5428,7 +5428,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
                                                                    : (int)UICursor::arrow;
    } else if (msg == UIMessage::LAYOUT) {
       UIRectangle scrollBarBounds = el->_bounds;
-      scrollBarBounds.l           = scrollBarBounds.r - ui_size::SCROLL_BAR * el->_window->_scale;
+      scrollBarBounds.l           = scrollBarBounds.r - ui_size::scroll_bar * el->_window->_scale;
       report->vScroll->set_page(el->_bounds.height() - profZoomBarHeight);
       report->vScroll->move(scrollBarBounds, true);
       report->client   = el->_bounds;
@@ -6208,20 +6208,20 @@ int ViewWindowMatrixGridMessage(UIElement* el, UIMessage msg, int di, void* dp) 
          }
       }
 
-      int scrollBarSize = ui_size::SCROLL_BAR * el->_window->_scale;
+      int scrollBarSize = ui_size::scroll_bar * el->_window->_scale;
       UIDrawBlock(
          painter,
          UIRectangle(el->_bounds.r - scrollBarSize, el->_bounds.r, el->_bounds.b - scrollBarSize, el->_bounds.b),
          ui->theme.panel1);
    } else if (msg == UIMessage::LAYOUT) {
       UIRectangle scrollBarBounds = el->_bounds;
-      scrollBarBounds.l           = scrollBarBounds.r - ui_size::SCROLL_BAR * el->_window->_scale;
-      scrollBarBounds.b -= ui_size::SCROLL_BAR * el->_window->_scale;
+      scrollBarBounds.l           = scrollBarBounds.r - ui_size::scroll_bar * el->_window->_scale;
+      scrollBarBounds.b -= ui_size::scroll_bar * el->_window->_scale;
       grid->vScroll->set_page(scrollBarBounds.height());
       grid->vScroll->move(scrollBarBounds, true);
       scrollBarBounds   = el->_bounds;
-      scrollBarBounds.t = scrollBarBounds.b - ui_size::SCROLL_BAR * el->_window->_scale;
-      scrollBarBounds.r -= ui_size::SCROLL_BAR * el->_window->_scale;
+      scrollBarBounds.t = scrollBarBounds.b - ui_size::scroll_bar * el->_window->_scale;
+      scrollBarBounds.r -= ui_size::scroll_bar * el->_window->_scale;
       grid->hScroll->set_page(scrollBarBounds.width());
       grid->hScroll->move(scrollBarBounds, true);
    } else if (msg == UIMessage::SCROLLED) {
@@ -6233,7 +6233,7 @@ int ViewWindowMatrixGridMessage(UIElement* el, UIMessage msg, int di, void* dp) 
 
 int ViewWindowStringLayout(ViewWindowString* display, UIPainter* painter, int offset) {
    UIRectangle clientBounds = display->_bounds;
-   clientBounds.r -= ui_size::SCROLL_BAR * display->_window->_scale;
+   clientBounds.r -= ui_size::scroll_bar * display->_window->_scale;
    int x = clientBounds.l, y = clientBounds.t - offset;
    int glyphWidth = UIMeasureStringWidth("a"), glyphHeight = UIMeasureStringHeight();
 
@@ -6293,9 +6293,9 @@ int ViewWindowStringMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       display->data.reset();
    } else if (msg == UIMessage::LAYOUT) {
       UIRectangle scrollBarBounds = el->_bounds;
-      scrollBarBounds.l           = scrollBarBounds.r - ui_size::SCROLL_BAR * el->_window->_scale;
+      scrollBarBounds.l           = scrollBarBounds.r - ui_size::scroll_bar * el->_window->_scale;
       UIRectangle clientBounds    = el->_bounds;
-      clientBounds.r -= ui_size::SCROLL_BAR * el->_window->_scale;
+      clientBounds.r -= ui_size::scroll_bar * el->_window->_scale;
       display->vScroll->set_maximum(ViewWindowStringLayout(display, nullptr, 0));
       display->vScroll->set_page(el->_bounds.height());
       display->vScroll->move(scrollBarBounds, true);
@@ -6596,7 +6596,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          display->samplesOnScreen = display->sampleCount;
       }
 
-      int         scrollBarHeight = ui_size::SCROLL_BAR * el->_window->_scale;
+      int         scrollBarHeight = ui_size::scroll_bar * el->_window->_scale;
       UIRectangle scrollBarBounds = el->_bounds;
       scrollBarBounds.t           = scrollBarBounds.b - scrollBarHeight;
       display->scrollBar->set_maximum(display->sampleCount);

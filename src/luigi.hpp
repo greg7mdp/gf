@@ -178,55 +178,55 @@ std::string LoadFile(const char* path); // load whole file into string
 
 namespace ui_size {
 
-inline constexpr int BUTTON_MINIMUM_WIDTH = 100;
-inline constexpr int BUTTON_PADDING       = 16;
-inline constexpr int BUTTON_HEIGHT        = 27;
-inline constexpr int BUTTON_CHECKED_AREA  = 4;
+inline constexpr int button_minimum_width = 100;
+inline constexpr int button_padding       = 16;
+inline constexpr int button_height        = 27;
+inline constexpr int button_checked_area  = 4;
 
-inline constexpr int CHECKBOX_BOX = 14;
-inline constexpr int CHECKBOX_GAP = 8;
+inline constexpr int checkbox_box = 14;
+inline constexpr int checkbox_gap = 8;
 
-inline constexpr int MENU_ITEM_HEIGHT        = 24;
-inline constexpr int MENU_ITEM_MINIMUM_WIDTH = 160;
-inline constexpr int MENU_ITEM_MARGIN        = 9;
+inline constexpr int menu_item_height        = 24;
+inline constexpr int menu_item_minimum_width = 160;
+inline constexpr int menu_item_margin        = 9;
 
-inline constexpr int GAUGE_WIDTH  = 200;
-inline constexpr int GAUGE_HEIGHT = 22;
+inline constexpr int gauge_width  = 200;
+inline constexpr int gauge_height = 22;
 
-inline constexpr int SLIDER_WIDTH  = 200;
-inline constexpr int SLIDER_HEIGHT = 25;
-inline constexpr int SLIDER_THUMB  = 15;
-inline constexpr int SLIDER_TRACK  = 5;
+inline constexpr int slider_width  = 200;
+inline constexpr int slider_height = 25;
+inline constexpr int slider_thumb  = 15;
+inline constexpr int slider_track  = 5;
 
-inline constexpr int TEXTBOX_MARGIN = 3;
-inline constexpr int TEXTBOX_WIDTH  = 200;
-inline constexpr int TEXTBOX_HEIGHT = 27;
+inline constexpr int textbox_margin = 3;
+inline constexpr int textbox_width  = 200;
+inline constexpr int textbox_height = 27;
 
-inline constexpr int TAB_PANE_SPACE_TOP  = 2;
-inline constexpr int TAB_PANE_SPACE_LEFT = 4;
+inline constexpr int tab_pane_space_top  = 2;
+inline constexpr int tab_pane_space_left = 4;
 
-inline constexpr int SPLITTER = 8;
+inline constexpr int splitter = 8;
 
-inline constexpr int SCROLL_BAR           = 16;
-inline constexpr int SCROLL_MINIMUM_THUMB = 20;
+inline constexpr int scroll_bar           = 16;
+inline constexpr int scroll_minimum_thumb = 20;
 
-inline constexpr int TABLE_HEADER     = 26;
-inline constexpr int TABLE_COLUMN_GAP = 20;
-inline constexpr int TABLE_ROW        = 20;
+inline constexpr int table_header     = 26;
+inline constexpr int table_column_gap = 20;
+inline constexpr int table_row        = 20;
 
-inline constexpr int PANE_LARGE_BORDER  = 20;
-inline constexpr int PANE_LARGE_GAP     = 10;
-inline constexpr int PANE_MEDIUM_BORDER = 5;
-inline constexpr int PANE_MEDIUM_GAP    = 5;
-inline constexpr int PANE_SMALL_BORDER  = 3;
-inline constexpr int PANE_SMALL_GAP     = 3;
+inline constexpr int pane_large_border  = 20;
+inline constexpr int pane_large_gap     = 10;
+inline constexpr int pane_medium_border = 5;
+inline constexpr int pane_medium_gap    = 5;
+inline constexpr int pane_small_border  = 3;
+inline constexpr int pane_small_gap     = 3;
 
-inline constexpr int MDI_CHILD_BORDER         = 6;
-inline constexpr int MDI_CHILD_TITLE          = 30;
-inline constexpr int MDI_CHILD_CORNER         = 12;
-inline constexpr int MDI_CHILD_MINIMUM_WIDTH  = 100;
-inline constexpr int MDI_CHILD_MINIMUM_HEIGHT = 50;
-inline constexpr int MDI_CASCADE              = 30;
+inline constexpr int mdi_child_border         = 6;
+inline constexpr int mdi_child_title          = 30;
+inline constexpr int mdi_child_corner         = 12;
+inline constexpr int mdi_child_minimum_width  = 100;
+inline constexpr int mdi_child_minimum_height = 50;
+inline constexpr int mdi_cascade              = 30;
 
 } // namespace ui_size
 
