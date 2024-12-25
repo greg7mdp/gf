@@ -594,13 +594,6 @@ enum class UIAlign : uint32_t {
    center = 3,
 };
 
-struct UIWindow;
-struct UIRectangle;
-struct UIScrollBar;
-struct UIMDIChild;
-struct UIMDIClient;
-struct UIElement;
-
 using  message_proc_t = int(*)(UIElement*, UIMessage msg, int di, void* dp); // data integer, data pointer
 
 // ------------------------------------------------------------------------------------------
@@ -698,6 +691,19 @@ public:
 };
 
 // ------------------------------------------------------------------------------------------
+// Class used for the `set_` functions which return the object itself. This uses `crtp` so
+// that a reference to the derived type is returned, not to `UIElement`.
+// ------------------------------------------------------------------------------------------
+template <class Derived>
+struct UIElementCast : public UIElement{
+   UIElementCast(UIElement* parent, uint32_t flags, message_proc_t message_proc, const char* cClassName) :
+      UIElement(parent, flags, message_proc, cClassName)
+   {}
+
+   Derived& set_user_proc(message_proc_t proc) { return static_cast<Derived&>(UIElement::set_user_proc(proc)); }
+};
+
+// ------------------------------------------------------------------------------------------
 struct UIConfig {
    std::string font_path;
    uint32_t    default_font_size = 13;
@@ -707,7 +713,7 @@ struct UIConfig {
 enum class sel_target_t { primary, clipboard };
 
 // ------------------------------------------------------------------------------------------
-struct UIWindow : public UIElement {
+struct UIWindow : public UIElementCast<UIWindow> {
 private:
    static int _ClassMessageProcCommon(UIElement* el, UIMessage msg, int di, void* dp);
 
@@ -776,7 +782,7 @@ public:
 inline int UIElement::scale(auto sz) const { return (int)((float)sz * _window->_scale); }
 
 // ------------------------------------------------------------------------------------------
-struct UIPanel : public UIElement {
+struct UIPanel : public UIElementCast<UIPanel> {
 private:
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
 
@@ -806,7 +812,7 @@ public:
 };
 
 // ------------------------------------------------------------------------------------------
-struct UIButton : public UIElement {
+struct UIButton : public UIElementCast<UIButton> {
 public:
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
 
@@ -825,7 +831,7 @@ public:
 };
 
 // ------------------------------------------------------------------------------------------
-struct UICheckbox : public UIElement {
+struct UICheckbox : public UIElementCast<UICheckbox> {
 private:
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
 
@@ -844,7 +850,7 @@ public:
 };
 
 // ------------------------------------------------------------------------------------------
-struct UILabel : public UIElement {
+struct UILabel : public UIElementCast<UILabel> {
 private:
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
    
@@ -855,7 +861,7 @@ public:
 };
 
 // ------------------------------------------------------------------------------------------
-struct UISpacer : public UIElement {
+struct UISpacer : public UIElementCast<UISpacer> {
 private:
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
 
@@ -867,7 +873,7 @@ public:
 };
 
 // ------------------------------------------------------------------------------------------
-struct UISplitPane : public UIElement {
+struct UISplitPane : public UIElementCast<UISplitPane> {
 private:
 public:
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
@@ -884,7 +890,7 @@ struct UISplitter {
 };
 
 // ------------------------------------------------------------------------------------------
-struct UITabPane : public UIElement {
+struct UITabPane : public UIElementCast<UITabPane> {
 private:
    std::string _tabs;
    uint32_t    _active;
@@ -915,7 +921,7 @@ public:
 };
 
 // ------------------------------------------------------------------------------------------
-struct UIScrollBar : public UIElement {
+struct UIScrollBar : public UIElementCast<UIScrollBar> {
 private:
    int64_t    _maximum;
    int64_t    _page;
@@ -961,7 +967,7 @@ public:
 };
 
 // ------------------------------------------------------------------------------------------
-struct UICode : public UIElement, public UIScrollbarPair {
+struct UICode : public UIElementCast<UICode>, public UIScrollbarPair {
 private:
    struct code_pos {
       size_t line   = 0;
@@ -1058,7 +1064,7 @@ public:
 };
 
 // ------------------------------------------------------------------------------------------
-struct UIGauge : public UIElement {
+struct UIGauge : public UIElementCast<UIGauge> {
    double _position;
    bool   _vertical;
 
@@ -1071,7 +1077,7 @@ struct UIGauge : public UIElement {
 };
 
 // ------------------------------------------------------------------------------------------
-struct UISlider : public UIElement {
+struct UISlider : public UIElementCast<UISlider> {
    double _position;
    int    _steps;
    bool   _vertical;
@@ -1088,7 +1094,7 @@ struct UISlider : public UIElement {
 };
 
 // ------------------------------------------------------------------------------------------
-struct UITable : public UIElement, public UIScrollbarPair {
+struct UITable : public UIElementCast<UITable>, public UIScrollbarPair {
 private:
    size_t              _num_items;
    std::string         _columns;       // list of column headers separated by '\t' characters
@@ -1121,7 +1127,7 @@ public:
 };
 
 // ------------------------------------------------------------------------------------------
-struct UITextbox : public UIElement {
+struct UITextbox : public UIElementCast<UITextbox> {
    std::string        buffer;
    std::array<int, 2> carets{};
    int                scroll;
@@ -1133,7 +1139,7 @@ struct UITextbox : public UIElement {
 };
 
 // ------------------------------------------------------------------------------------------
-struct UIMenu : public UIElement {
+struct UIMenu : public UIElementCast<UIMenu> {
    enum {
       PLACE_ABOVE = 1 << 0,
       NO_SCROLL   = 1 << 1
@@ -1150,7 +1156,7 @@ struct UIMenu : public UIElement {
 struct UIMDIChild;
 
 // ------------------------------------------------------------------------------------------
-struct UIMDIClient : public UIElement {
+struct UIMDIClient : public UIElementCast<UIMDIClient> {
 private:
    UIMDIChild* _active;
    int         _cascade;
@@ -1165,7 +1171,7 @@ public:
 };
 
 // ------------------------------------------------------------------------------------------
-struct UIMDIChild : public UIElement {
+struct UIMDIChild : public UIElementCast<UIMDIChild> {
 private:
    UIRectangle _mdi_bounds;
    std::string _title;
@@ -1182,7 +1188,7 @@ public:
 };
 
 // ------------------------------------------------------------------------------------------
-struct UIImageDisplay : public UIElement {
+struct UIImageDisplay : public UIElementCast<UIImageDisplay> {
    enum { INTERACTIVE = (1 << 0), ZOOM_FIT = (1 << 1) };
 
    uint32_t* bits;
@@ -1202,7 +1208,7 @@ struct UIImageDisplay : public UIElement {
 };
 
 // ------------------------------------------------------------------------------------------
-struct UIWrapPanel : public UIElement {
+struct UIWrapPanel : public UIElementCast<UIWrapPanel> {
 private:
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
 
@@ -1211,7 +1217,7 @@ public:
 };
 
 // ------------------------------------------------------------------------------------------
-struct UISwitcher : public UIElement {
+struct UISwitcher : public UIElementCast<UISwitcher> {
 private:
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
 

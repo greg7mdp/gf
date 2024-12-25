@@ -1634,7 +1634,7 @@ int UIPanel::_ClassMessageProc(UIElement* element, UIMessage msg, int di, void* 
 }
 
 UIPanel::UIPanel(UIElement* parent, uint32_t flags)
-   : UIElement(parent, flags, UIPanel::_ClassMessageProc, "Panel")
+   : UIElementCast<UIPanel>(parent, flags, UIPanel::_ClassMessageProc, "Panel")
    , _scrollBar(nullptr)
    , _border(0)
    , _gap(0) {
@@ -1720,7 +1720,7 @@ int UIWrapPanel::_ClassMessageProc(UIElement* element, UIMessage msg, int di, vo
 }
 
 UIWrapPanel::UIWrapPanel(UIElement* parent, uint32_t flags)
-   : UIElement(parent, flags, UIWrapPanel::_ClassMessageProc, "Wrap Panel") {}
+   : UIElementCast<UIWrapPanel>(parent, flags, UIWrapPanel::_ClassMessageProc, "Wrap Panel") {}
 
 UIWrapPanel* UIWrapPanelCreate(UIElement* parent, uint32_t flags) {
    return new UIWrapPanel(parent, flags);
@@ -1751,7 +1751,7 @@ void UISwitcherSwitchTo(UISwitcher* switcher, UIElement* child) {
 }
 
 UISwitcher::UISwitcher(UIElement* parent, uint32_t flags)
-   : UIElement(parent, flags, UISwitcher::_ClassMessageProc, "Switcher")
+   : UIElementCast<UISwitcher>(parent, flags, UISwitcher::_ClassMessageProc, "Switcher")
    , active(nullptr) {}
 
 UISwitcher* UISwitcherCreate(UIElement* parent, uint32_t flags) {
@@ -1820,7 +1820,7 @@ void UIButtonSetLabel(UIButton* button, std::string_view string) {
 }
 
 UIButton::UIButton(UIElement* parent, uint32_t flags, std::string_view label)
-   : UIElement(parent, flags | UIElement::TAB_STOP, UIButton::_ClassMessageProc, "Button")
+   : UIElementCast<UIButton>(parent, flags | UIElement::TAB_STOP, UIButton::_ClassMessageProc, "Button")
    , label(label) {}
 
 UIButton* UIButtonCreate(UIElement* parent, uint32_t flags, std::string_view label) {
@@ -1870,7 +1870,7 @@ void UICheckbox::set_label(std::string_view new_label) {
 }
 
 UICheckbox::UICheckbox(UIElement* parent, uint32_t flags, std::string_view label)
-   : UIElement(parent, flags | UIElement::TAB_STOP, UICheckbox::_ClassMessageProc, "Checkbox")
+   : UIElementCast<UICheckbox>(parent, flags | UIElement::TAB_STOP, UICheckbox::_ClassMessageProc, "Checkbox")
    , check(0)
    , label(label) {}
 
@@ -1906,7 +1906,7 @@ void UILabelSetContent(UILabel* label, std::string_view str) {
 }
 
 UILabel::UILabel(UIElement* parent, uint32_t flags, std::string_view label)
-   : UIElement(parent, flags | UIElement::TAB_STOP, UILabel::_ClassMessageProc, "Label")
+   : UIElementCast<UILabel>(parent, flags | UIElement::TAB_STOP, UILabel::_ClassMessageProc, "Label")
    , _label(label) {}
 
 UILabel* UILabelCreate(UIElement* parent, uint32_t flags, std::string_view label) {
@@ -1992,7 +1992,7 @@ int UISplitPane::_ClassMessageProc(UIElement* element, UIMessage msg, int di, vo
 }
 
 UISplitPane::UISplitPane(UIElement* parent, uint32_t flags, float weight)
-   : UIElement(parent, flags, UISplitPane::_ClassMessageProc, "Split Pane")
+   : UIElementCast<UISplitPane>(parent, flags, UISplitPane::_ClassMessageProc, "Split Pane")
    , _weight(weight) {
    UIElementCreate(sizeof(UIElement), this, 0, UISplitter::_ClassMessageProc, "Splitter");
 }
@@ -2076,7 +2076,7 @@ int UITabPane::_ClassMessageProc(UIElement* element, UIMessage msg, int di, void
 }
 
 UITabPane::UITabPane(UIElement* parent, uint32_t flags, const char* tabs)
-   : UIElement(parent, flags, UITabPane::_ClassMessageProc, "Tab Pane")
+   : UIElementCast<UITabPane>(parent, flags, UITabPane::_ClassMessageProc, "Tab Pane")
    , _tabs(tabs)
    , _active(0) {}
 
@@ -2101,7 +2101,7 @@ int UISpacer::_ClassMessageProc(UIElement* element, UIMessage msg, int di, void*
 }
 
 UISpacer::UISpacer(UIElement* parent, uint32_t flags, int width, int height)
-   : UIElement(parent, flags, UISpacer::_ClassMessageProc, "Spacer")
+   : UIElementCast<UISpacer>(parent, flags, UISpacer::_ClassMessageProc, "Spacer")
    , _width(width)
    , _height(height) {}
 
@@ -2261,7 +2261,7 @@ int _UIScrollThumbMessageProc(UIElement* element, UIMessage msg, int di, void* d
 }
 
 UIScrollBar::UIScrollBar(UIElement* parent, uint32_t flags)
-   : UIElement(parent, flags, UIScrollBar::_ClassMessageProc, "Scroll Bar")
+   : UIElementCast<UIScrollBar>(parent, flags, UIScrollBar::_ClassMessageProc, "Scroll Bar")
    , _maximum(0)
    , _page(0)
    , _drag_offset(0)
@@ -2941,7 +2941,7 @@ UICode& UICode::insert_content(std::string_view new_content, bool replace) {
 }
 
 UICode::UICode(UIElement* parent, uint32_t flags)
-   : UIElement(parent, flags, UICode::_ClassMessageProc, "Code")
+   : UIElementCast<UICode>(parent, flags, UICode::_ClassMessageProc, "Code")
    , UIScrollbarPair(this)
    , _font(ui->activeFont) {}
 
@@ -2979,7 +2979,7 @@ UIGauge& UIGauge::set_position(double new_pos) {
 }
 
 UIGauge::UIGauge(UIElement* parent, uint32_t flags)
-   : UIElement(parent, flags, _UIGaugeMessage, "Gauge")
+   : UIElementCast<UIGauge>(parent, flags, _UIGaugeMessage, "Gauge")
    , _position(0)
    , _vertical(!!(flags & UIElement::VERTICAL)) {}
 
@@ -3037,7 +3037,7 @@ UISlider& UISlider::set_position(double new_pos) {
 }
 
 UISlider::UISlider(UIElement* parent, uint32_t flags)
-   : UIElement(parent, flags, _UISliderMessage, "Slider")
+   : UIElementCast<UISlider>(parent, flags, _UISliderMessage, "Slider")
    , _position(0)
    , _steps(0)
    , _vertical(!!(flags & UIElement::VERTICAL)) {}
@@ -3290,7 +3290,7 @@ int UITable::_ClassMessageProc(UIElement* element, UIMessage msg, int di, void* 
 }
 
 UITable::UITable(UIElement* parent, uint32_t flags, const char* columns)
-   : UIElement(parent, flags, UITable::_ClassMessageProc, "Table")
+   : UIElementCast<UITable>(parent, flags, UITable::_ClassMessageProc, "Table")
    , UIScrollbarPair(this)
    , _num_items(0)
    , _columns(columns)
@@ -3531,7 +3531,7 @@ int _UITextboxMessage(UIElement* element, UIMessage msg, int di, void* dp) {
 }
 
 UITextbox::UITextbox(UIElement* parent, uint32_t flags)
-   : UIElement(parent, flags | UIElement::TAB_STOP, _UITextboxMessage, "Textbox")
+   : UIElementCast<UITextbox>(parent, flags | UIElement::TAB_STOP, _UITextboxMessage, "Textbox")
    , carets({0, 0})
    , scroll(0)
    , rejectNextKey(false) {}
@@ -3723,7 +3723,7 @@ int UIMDIClient::_ClassMessageProc(UIElement* element, UIMessage msg, int di, vo
 }
 
 UIMDIChild::UIMDIChild(UIElement* parent, uint32_t flags, const UIRectangle& initialBounds, std::string_view title)
-   : UIElement(parent, flags, UIMDIChild::_ClassMessageProc, "MDIChild")
+   : UIElementCast<UIMDIChild>(parent, flags, UIMDIChild::_ClassMessageProc, "MDIChild")
    , _mdi_bounds(initialBounds)
    , _title(title)
    , _drag_hit_test(0)
@@ -3744,7 +3744,7 @@ UIMDIChild* UIMDIChildCreate(UIElement* parent, uint32_t flags, UIRectangle init
 }
 
 UIMDIClient::UIMDIClient(UIElement* parent, uint32_t flags)
-   : UIElement(parent, flags, UIMDIClient::_ClassMessageProc, "MDIClient")
+   : UIElementCast<UIMDIClient>(parent, flags, UIMDIClient::_ClassMessageProc, "MDIClient")
    , _active(nullptr)
    , _cascade(0) {}
 
@@ -3904,7 +3904,7 @@ void UIImageDisplaySetContent(UIImageDisplay* display, uint32_t* bits, size_t wi
 
 UIImageDisplay::UIImageDisplay(UIElement* parent, uint32_t flags, uint32_t* bits, size_t width, size_t height,
                                size_t stride)
-   : UIElement(parent, flags, _UIImageDisplayMessage, "ImageDisplay")
+   : UIElementCast<UIImageDisplay>(parent, flags, _UIImageDisplayMessage, "ImageDisplay")
    , bits(bits)
    , width(width)
    , height(height)
@@ -4265,7 +4265,7 @@ void _UIMenuPrepare(UIMenu* menu, int* width, int* height) {
 }
 
 UIMenu::UIMenu(UIElement* parent, uint32_t flags)
-   : UIElement(UIWindowCreate(parent->_window, UIWindow::MENU, 0, 0, 0), flags, _UIMenuMessage, "Menu")
+   : UIElementCast<UIMenu>(UIWindowCreate(parent->_window, UIWindow::MENU, 0, 0, 0), flags, _UIMenuMessage, "Menu")
    , vScroll(UIScrollBarCreate(this, UIElement::NON_CLIENT))
    , parentWindow(parent->_window) {
    if (parent->_parent) {
@@ -5082,7 +5082,7 @@ int UIMessageLoop() {
 }
 
 UIWindow::UIWindow(UIElement* parent, uint32_t flags, message_proc_t message_proc, const char* cClassName)
-   : UIElement(parent, flags, message_proc, cClassName)
+   : UIElementCast<UIWindow>(parent, flags, message_proc, cClassName)
    , _dialog(nullptr)
    , _scale(0)
    , _width(0)

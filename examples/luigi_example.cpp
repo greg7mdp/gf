@@ -195,9 +195,10 @@ int main(int argc, char** argv) {
       UITabPane& tabPane = uisplit_bottom_leftright.add_tabpane(0, "Tab 1\tMiddle Tab\tTab 3");
 
       // First tab in tabPane
-      UITable& table   = tabPane.add_table(0, "Column 1\tColumn 2").set_num_items(100000);
-      table.set_user_proc(MyTableMessage);
-      table.resize_columns();
+      UITable& table = tabPane.add_table(0, "Column 1\tColumn 2")
+                          .set_num_items(100000)
+                          .set_user_proc(MyTableMessage)
+                          .resize_columns();
 
       // Second tab
       tabPane.add_panel(UIPanel::COLOR_1).add_label(0, "you're in tab 2, bucko");
