@@ -234,10 +234,10 @@ inline constexpr int mdi_cascade              = 30;
 // --------------------
 namespace UIUpdate {
    enum {
-      HOVERED  = 1,
-      PRESSED  = 2,
-      FOCUSED  = 3,
-      DISABLED = 4
+      hovered  = 1,
+      pressed  = 2,
+      focused  = 3,
+      disabled = 4
    };
 }
 

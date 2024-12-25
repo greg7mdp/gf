@@ -1149,7 +1149,7 @@ void UIElement::set_disabled(bool disabled) {
    else
       _flags &= ~UIElement::DISABLED;
 
-   message(UIMessage::UPDATE, UIUpdate::DISABLED, 0);
+   message(UIMessage::UPDATE, UIUpdate::disabled, 0);
 }
 
 void UIElement::focus() {
@@ -1158,8 +1158,8 @@ void UIElement::focus() {
       return;
    _window->_focused = this;
    if (previous)
-      previous->message(UIMessage::UPDATE, UIUpdate::FOCUSED, 0);
-   this->message(UIMessage::UPDATE, UIUpdate::FOCUSED, 0);
+      previous->message(UIMessage::UPDATE, UIUpdate::focused, 0);
+   this->message(UIMessage::UPDATE, UIUpdate::focused, 0);
 
    if constexpr (UIInspector::enabled())
       ui->inspector.refresh();
@@ -4007,7 +4007,7 @@ int _UIDialogTextboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       for (size_t i = 0; i < sz; i++)
          (*buffer)[i] = text[i];
       (*buffer)[sz] = 0;
-   } else if (msg == UIMessage::UPDATE && di == UIUpdate::FOCUSED && el->_window->_focused == el) {
+   } else if (msg == UIMessage::UPDATE && di == UIUpdate::focused && el->_window->_focused == el) {
       textbox->carets[1] = 0;
       textbox->carets[0] = text.size();
       el->repaint(NULL);
@@ -4330,9 +4330,9 @@ void UIWindow::set_pressed(UIElement* el, int button) {
    _pressed            = el;
    _pressed_button     = button;
    if (previous)
-      previous->message(UIMessage::UPDATE, UIUpdate::PRESSED, 0);
+      previous->message(UIMessage::UPDATE, UIUpdate::pressed, 0);
    if (el)
-      el->message(UIMessage::UPDATE, UIUpdate::PRESSED, 0);
+      el->message(UIMessage::UPDATE, UIUpdate::pressed, 0);
 
    UIElement* ancestor = el;
    UIElement* child    = NULL;
@@ -4426,10 +4426,10 @@ bool UIWindow::input_event(UIMessage msg, int di, void* dp) {
 
       if (inside && _hovered == _window) {
          _hovered = _pressed;
-         _pressed->message(UIMessage::UPDATE, UIUpdate::HOVERED, 0);
+         _pressed->message(UIMessage::UPDATE, UIUpdate::hovered, 0);
       } else if (!inside && _hovered == _pressed) {
          _hovered = _window;
-         _pressed->message(UIMessage::UPDATE, UIUpdate::HOVERED, 0);
+         _pressed->message(UIMessage::UPDATE, UIUpdate::hovered, 0);
       }
 
       if (ui->quit || ui->dialogResult)
@@ -4547,8 +4547,8 @@ bool UIWindow::input_event(UIMessage msg, int di, void* dp) {
       if (loc != _hovered) {
          UIElement* previous = _hovered;
          _hovered            = loc;
-         previous->message(UIMessage::UPDATE, UIUpdate::HOVERED, 0);
-         _hovered->message(UIMessage::UPDATE, UIUpdate::HOVERED, 0);
+         previous->message(UIMessage::UPDATE, UIUpdate::hovered, 0);
+         _hovered->message(UIMessage::UPDATE, UIUpdate::hovered, 0);
       }
    }
 
