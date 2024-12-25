@@ -2297,7 +2297,7 @@ int DataViewerAutoUpdateButtonMessage(UIElement* el, UIMessage msg, int di, void
 }
 
 void DataViewersUpdateAll() {
-   if (~dataTab->_flags & UIElement::HIDE) {
+   if (~dataTab->_flags & UIElement::hide_flag) {
       for (const auto& auv : autoUpdateViewers) {
          auv.callback(auv.el);
       }
@@ -2461,10 +2461,10 @@ void BitmapViewerUpdate(std::string pointerString, std::string widthString, std:
       UIMDIChild* window             = UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Bitmap");
       window->_user_proc             = BitmapViewerWindowMessage;
       window->_cp                    = bitmap;
-      bitmap->autoToggle             = UIButtonCreate(window, UIButton::SMALL | UIElement::non_client, "Auto");
+      bitmap->autoToggle             = UIButtonCreate(window, UIButton::SMALL | UIElement::non_client_flag, "Auto");
       bitmap->autoToggle->_cp        = (void*)BitmapViewerAutoUpdateCallback;
       bitmap->autoToggle->_user_proc = DataViewerAutoUpdateButtonMessage;
-      UIButtonCreate(window, UIButton::SMALL | UIElement::non_client, "Refresh")->_user_proc =
+      UIButtonCreate(window, UIButton::SMALL | UIElement::non_client_flag, "Refresh")->_user_proc =
          BitmapViewerRefreshMessage;
       owner = window;
 
@@ -2482,9 +2482,9 @@ void BitmapViewerUpdate(std::string pointerString, std::string widthString, std:
    if (error)
       UILabelSetContent(bitmap->label, error);
    if (error)
-      bitmap->labelPanel->_flags &= ~UIElement::HIDE, bitmap->display->_flags |= UIElement::HIDE;
+      bitmap->labelPanel->_flags &= ~UIElement::hide_flag, bitmap->display->_flags |= UIElement::hide_flag;
    else
-      bitmap->labelPanel->_flags |= UIElement::HIDE, bitmap->display->_flags &= ~UIElement::HIDE;
+      bitmap->labelPanel->_flags |= UIElement::hide_flag, bitmap->display->_flags &= ~UIElement::hide_flag;
    bitmap->labelPanel->_parent->refresh();
    owner->refresh();
    dataWindow->refresh();
@@ -3120,7 +3120,7 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
 
    WatchLogger* logger = new WatchLogger;
 
-   UIButton* button = UIButtonCreate(child, UIButton::SMALL | UIElement::non_client, "Resize columns");
+   UIButton* button = UIButtonCreate(child, UIButton::SMALL | UIElement::non_client_flag, "Resize columns");
    button->invoke   = [logger]() { WatchLoggerResizeColumns(logger); };
 
    uintptr_t position = 0;
@@ -3681,7 +3681,7 @@ WatchWindow::WatchWindow(UIElement* parent, uint32_t flags, const char* name)
 
 UIElement* WatchWindowCreate(UIElement* parent) {
    UIPanel*     panel = UIPanelCreate(parent, UIPanel::SCROLL | UIPanel::COLOR_1);
-   WatchWindow* w     = new WatchWindow(panel, UIElement::h_fill | UIElement::tab_stop, "Watch");
+   WatchWindow* w     = new WatchWindow(panel, UIElement::h_fill | UIElement::tab_stop_flag, "Watch");
    panel->_user_proc  = WatchPanelMessage;
    panel->_cp         = w;
 
@@ -3694,7 +3694,7 @@ UIElement* WatchWindowCreate(UIElement* parent) {
 
 UIElement* LocalsWindowCreate(UIElement* parent) {
    UIPanel*     panel = UIPanelCreate(parent, UIPanel::SCROLL | UIPanel::COLOR_1);
-   WatchWindow* w     = new WatchWindow(panel, UIElement::h_fill | UIElement::tab_stop, "Locals");
+   WatchWindow* w     = new WatchWindow(panel, UIElement::h_fill | UIElement::tab_stop_flag, "Locals");
    panel->_user_proc  = WatchPanelMessage;
    panel->_cp         = w;
    w->mode            = WATCH_LOCALS;
@@ -4236,7 +4236,7 @@ bool FilesPanelPopulate(FilesWindow* window) {
    for (auto name : names) {
       if (name[0] != '.' || name[1] != 0) {
          UIButton* button = UIButtonCreate(window->panel, 0, name);
-         button->_flags &= ~UIElement::tab_stop;
+         button->_flags &= ~UIElement::tab_stop_flag;
          button->_cp        = window;
          button->_user_proc = FilesButtonMessage;
 
@@ -5451,11 +5451,11 @@ int ProfReportWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
    if (msg == UIMessage::LAYOUT) {
       if (report->showingTable) {
-         report->_flags |= UIElement::HIDE;
-         report->table->_flags &= ~UIElement::HIDE;
+         report->_flags |= UIElement::hide_flag;
+         report->table->_flags &= ~UIElement::hide_flag;
       } else {
-         report->_flags &= ~UIElement::HIDE;
-         report->table->_flags |= UIElement::HIDE;
+         report->_flags &= ~UIElement::hide_flag;
+         report->table->_flags |= UIElement::hide_flag;
       }
       el->_class_proc(el, msg, di, dp);
       report->table->move(report->_bounds, false);
@@ -5682,7 +5682,7 @@ void ProfLoadProfileData(void* _window) {
    }
 
    UIMDIChild* window = UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, ui_rect_2s(800, 600), "Flame graph");
-   UIButton*   switchViewButton = UIButtonCreate(window, UIButton::SMALL | UIElement::non_client, "Table view");
+   UIButton*   switchViewButton = UIButtonCreate(window, UIButton::SMALL | UIElement::non_client_flag, "Table view");
    UITable*    table            = UITableCreate(window, 0, "Name\tTime spent (ms)\tCall count\tAverage per call (ms)");
    ProfFlameGraphReport* report = new ProfFlameGraphReport(window, 0);
 
@@ -6548,7 +6548,7 @@ struct WaveformDisplay : public UIElement {
       , channels(0)
       , samplesOnScreen(0)
       , minimumZoom(0)
-      , scrollBar(new UIScrollBar(this, UIElement::non_client | UIScrollBar::HORIZONTAL))
+      , scrollBar(new UIScrollBar(this, UIElement::non_client_flag | UIScrollBar::HORIZONTAL))
       , zoomOut(new UIButton(this, UIButton::SMALL, "-"))
       , zoomIn(new UIButton(this, UIButton::SMALL, "+"))
       , normalize(new UIButton(this, UIButton::SMALL, "Norm"))
@@ -7003,10 +7003,10 @@ void WaveformViewerUpdate(const char* pointerString, const char* sampleCountStri
       UIMDIChild* window      = UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Waveform");
       window->_user_proc      = WaveformViewerWindowMessage;
       window->_cp             = viewer;
-      viewer->autoToggle      = UIButtonCreate(window, UIButton::SMALL | UIElement::non_client, "Auto");
+      viewer->autoToggle      = UIButtonCreate(window, UIButton::SMALL | UIElement::non_client_flag, "Auto");
       viewer->autoToggle->_cp = (void*)WaveformViewerAutoUpdateCallback;
       viewer->autoToggle->_user_proc = DataViewerAutoUpdateButtonMessage;
-      UIButtonCreate(window, UIButton::SMALL | UIElement::non_client, "Refresh")->_user_proc =
+      UIButtonCreate(window, UIButton::SMALL | UIElement::non_client_flag, "Refresh")->_user_proc =
          WaveformViewerRefreshMessage;
       owner = window;
 
@@ -7022,11 +7022,11 @@ void WaveformViewerUpdate(const char* pointerString, const char* sampleCountStri
 
    if (error) {
       UILabelSetContent(viewer->label, error);
-      viewer->labelPanel->_flags &= ~UIElement::HIDE;
-      viewer->display->_flags |= UIElement::HIDE;
+      viewer->labelPanel->_flags &= ~UIElement::hide_flag;
+      viewer->display->_flags |= UIElement::hide_flag;
    } else {
-      viewer->labelPanel->_flags |= UIElement::HIDE;
-      viewer->display->_flags &= ~UIElement::HIDE;
+      viewer->labelPanel->_flags |= UIElement::hide_flag;
+      viewer->display->_flags &= ~UIElement::hide_flag;
       WaveformDisplaySetContent(viewer->display, samples, sampleCount, channels);
    }
 
@@ -7079,7 +7079,7 @@ void Context::RegisterExtensions() {
 
 bool ElementHidden(UIElement* el) {
    while (el) {
-      if (el->_flags & UIElement::HIDE) {
+      if (el->_flags & UIElement::hide_flag) {
          return true;
       } else {
          el = el->_parent;
@@ -7312,7 +7312,7 @@ UIElement* Context::InterfaceWindowSwitchToAndFocus(string_view target_name) {
       if (target_name != name)
          continue;
 
-      if ((w.el->_flags & UIElement::HIDE) && w.el->_parent->get_class_proc() == UITabPane::_ClassMessageProc) {
+      if ((w.el->_flags & UIElement::hide_flag) && w.el->_parent->get_class_proc() == UITabPane::_ClassMessageProc) {
          UITabPane* tabPane = (UITabPane*)w.el->_parent;
 
          for (uint32_t i = 0; i < tabPane->_children.size(); i++) {
@@ -7327,7 +7327,7 @@ UIElement* Context::InterfaceWindowSwitchToAndFocus(string_view target_name) {
 
       if (w.focus) {
          w.focus(w.el);
-      } else if (w.el->_flags & UIElement::tab_stop) {
+      } else if (w.el->_flags & UIElement::tab_stop_flag) {
          w.el->focus();
       }
 
@@ -7358,7 +7358,7 @@ int InterfaceTabPaneMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       el->_class_proc(el, msg, di, dp);
 
       for (auto& [name, w] : ctx.interfaceWindows) {
-         if (w.el && (~w.el->_flags & UIElement::HIDE) && w.queuedUpdate) {
+         if (w.el && (~w.el->_flags & UIElement::hide_flag) && w.queuedUpdate) {
             w.queuedUpdate = false;
             w.update("", w.el);
             w.el->move(w.el->_bounds, false);
@@ -7430,7 +7430,7 @@ void Context::InterfaceLayoutCreate(UIElement* parent) {
    if (0 == strcmp("h", token) || 0 == strcmp("v", token)) {
       uint32_t flags = UIElement::v_fill | UIElement::h_fill;
       if (*token == 'v')
-         flags |= UIElement::VERTICAL;
+         flags |= UIElement::vertical_flag;
       InterfaceLayoutNextToken("(");
       UIElement* container = UISplitPaneCreate(parent, flags, sv_atoi(InterfaceLayoutNextToken("#")) * 0.01f);
       InterfaceLayoutNextToken(",");

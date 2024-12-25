@@ -605,22 +605,22 @@ private:
 
 public:
    enum {
-      v_fill      = 1 << 16,
-      h_fill      = 1 << 17,
-      fill        = v_fill | h_fill,
-      window      = 1 << 18,
-      parent_push = 1 << 19,
-      tab_stop    = 1 << 20,
-      non_client  = 1 << 21, // Don't destroy in UIElementDestroyDescendents, like scroll bars.
-      disabled    = 1 << 22, // Don't receive input events.
-      border      = 1 << 23,
-      VERTICAL    = 1 << 24,
+      v_fill           = 1 << 16,
+      h_fill           = 1 << 17,
+      hv_fill          = v_fill | h_fill,
+      window_flag      = 1 << 18,
+      parent_push_flag = 1 << 19,
+      tab_stop_flag    = 1 << 20,
+      non_client_flag  = 1 << 21, // Don't destroy in UIElementDestroyDescendents, like scroll bars.
+      disabled_flag    = 1 << 22, // Don't receive input events.
+      border_flag      = 1 << 23,
+      vertical_flag    = 1 << 24,
 
-      HIDE                = 1 << 27,
-      RELAYOUT            = 1 << 28,
-      RELAYOUT_DESCENDENT = 1 << 29,
-      DESTROY             = 1 << 30,
-      DESTROY_DESCENDENT  = 1 << 31
+      hide_flag                = 1 << 27,
+      relayout_flag            = 1 << 28,
+      relayout_descendent_flag = 1 << 29,
+      destroy_flag             = 1 << 30,
+      destroy_descendent_flag  = 1 << 31
    };
 
    uint32_t                _flags   = 0; // First 16 bits are element specific.
@@ -648,6 +648,7 @@ public:
    UIElement*     change_parent(UIElement* newParent, UIElement* insertBefore);
    UIElement*     next_or_previous_sibling(bool previous);
    UIElement&     parent() { return *_parent; }
+   void           measurements_changed(int which);
 
    void           refresh();
    void           relayout();
@@ -1314,8 +1315,6 @@ int UIMeasureStringWidth(std::string_view string);
 int UIMeasureStringHeight();
 
 uint64_t UIAnimateClock(); // In ms.
-
-void       UIElementMeasurementsChanged(UIElement* el, int which);
 
 UIElement* UIParentPush(UIElement* el);
 UIElement* UIParentPop();

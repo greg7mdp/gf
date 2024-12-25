@@ -131,7 +131,7 @@ int main(int argc, char** argv) {
    UIWindow& window = ui->add_window(0, 0, "luigi2 - Example Application", 0, 0);
 
    // Split window (vertically) into top/bottom panes.
-   UISplitPane& uisplit_topbottom = window.add_splitpane(UIElement::VERTICAL, 0.75f);
+   UISplitPane& uisplit_topbottom = window.add_splitpane(UIElement::vertical_flag, 0.75f);
 
    // Split top pane (horizontally) into left/right panes.
    UISplitPane& uisplit_top_leftright = uisplit_topbottom.add_splitpane(0, 0.3f);
@@ -149,9 +149,9 @@ int main(int argc, char** argv) {
       // The left side will layout elements horizontally, with custom borders and gap.
       UIPanel& sub_left =
          subpanel.add_panel(UIPanel::COLOR_1 | UIPanel::HORIZONTAL).set_border(ui_rect_1(10)).set_gap(2);
-      gauge_vert1 = &sub_left.add_gauge(UIElement::VERTICAL);
-      gauge_vert2 = &sub_left.add_gauge(UIElement::VERTICAL);
-      slider_vert = &sub_left.add_slider(UIElement::VERTICAL);
+      gauge_vert1 = &sub_left.add_gauge(UIElement::vertical_flag);
+      gauge_vert2 = &sub_left.add_gauge(UIElement::vertical_flag);
+      slider_vert = &sub_left.add_slider(UIElement::vertical_flag);
       slider_vert->set_user_proc(MySliderVMessage);
 
       // The right side will lay out elements vertically (the default), with default medium spacing.
