@@ -605,15 +605,15 @@ private:
 
 public:
    enum {
-      V_FILL      = 1 << 16,
-      H_FILL      = 1 << 17,
-      FILL        = V_FILL | H_FILL,
-      WINDOW      = 1 << 18,
-      PARENT_PUSH = 1 << 19,
-      TAB_STOP    = 1 << 20,
-      NON_CLIENT  = 1 << 21, // Don't destroy in UIElementDestroyDescendents, like scroll bars.
-      DISABLED    = 1 << 22, // Don't receive input events.
-      BORDER      = 1 << 23,
+      v_fill      = 1 << 16,
+      h_fill      = 1 << 17,
+      fill        = v_fill | h_fill,
+      window      = 1 << 18,
+      parent_push = 1 << 19,
+      tab_stop    = 1 << 20,
+      non_client  = 1 << 21, // Don't destroy in UIElementDestroyDescendents, like scroll bars.
+      disabled    = 1 << 22, // Don't receive input events.
+      border      = 1 << 23,
       VERTICAL    = 1 << 24,
 
       HIDE                = 1 << 27,

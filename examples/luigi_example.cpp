@@ -187,7 +187,7 @@ int main(int argc, char** argv) {
       // Bottom-Left pane.
       UIPanel& panel = uisplit_bottom_leftright.add_panel(UIPanel::COLOR_2).set_border(UIRectangle(5)).set_gap(5);
       panel.add_button(0, "It's a button??").set_user_proc(MyButton2Message);
-      label = &panel.add_label(UIElement::H_FILL, "Hello, I am a label!");
+      label = &panel.add_label(UIElement::h_fill, "Hello, I am a label!");
    }
 
    {
