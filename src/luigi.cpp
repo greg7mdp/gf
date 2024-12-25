@@ -2885,7 +2885,7 @@ UICode& UICode::move_caret(bool backward, bool word) {
 }
 
 // Line numbers are 1-indexed!!
-UICode&  UICode::set_focus_line(size_t index) {
+UICode& UICode::set_focus_line(size_t index) {
    _focus_line                       = index;
    _move_scroll_to_focus_next_layout = true;
    refresh();
@@ -3000,7 +3000,8 @@ int _UISliderMessage(UIElement* element, UIMessage msg, int di, void* dp) {
       return element->scale(slider->_vertical ? ui_size::SLIDER_HEIGHT : ui_size::SLIDER_WIDTH);
    } else if (msg == UIMessage::PAINT) {
       UIDrawControl((UIPainter*)dp, element->_bounds,
-                    UI_DRAW_CONTROL_SLIDER | element->state() | (slider->_vertical ? UI_DRAW_CONTROL_STATE_VERTICAL : 0),
+                    UI_DRAW_CONTROL_SLIDER | element->state() |
+                       (slider->_vertical ? UI_DRAW_CONTROL_STATE_VERTICAL : 0),
                     {}, slider->_position, element->_window->_scale);
    } else if (msg == UIMessage::LEFT_DOWN || (msg == UIMessage::MOUSE_DRAG && element->_window->_pressed_button == 1)) {
       UIRectangle bounds    = element->_bounds;
@@ -4040,7 +4041,7 @@ const char* UIDialogShow(UIWindow* window, uint32_t flags, const char* format, .
    UI_ASSERT(!window->_dialog);
    window->_dialog = UIElementCreate(sizeof(UIElement), window, 0, _UIDialogWrapperMessage, "DialogWrapper");
    UIPanel* panel  = UIPanelCreate(window->_dialog, UIPanel::MEDIUM_SPACING | UIPanel::COLOR_1);
-   panel->_border   = UIRectangle(ui_size::PANE_MEDIUM_BORDER * 2);
+   panel->_border  = UIRectangle(ui_size::PANE_MEDIUM_BORDER * 2);
    window->_children[0]->_flags |= UIElement::DISABLED;
 
    // Create the dialog contents.
@@ -4055,7 +4056,7 @@ const char* UIDialogShow(UIWindow* window, uint32_t flags, const char* format, .
 
    for (int i = 0; format[i]; i++) {
       if (i == 0 || format[i - 1] == '\n') {
-         row      = UIPanelCreate(panel, UIPanel::HORIZONTAL | UIElement::H_FILL);
+         row       = UIPanelCreate(panel, UIPanel::HORIZONTAL | UIElement::H_FILL);
          row->_gap = ui_size::PANE_SMALL_GAP;
       }
 
@@ -4162,6 +4163,9 @@ bool _UIMenusClose() {
 
       while (window) {
          if (window->_flags & UIWindow::MENU) {
+            if constexpr (UIInspector::enabled())
+               ui->inspector.notify_destroyed_window(window);
+
             window->destroy();
             anyClosed = true;
          }
@@ -4821,7 +4825,7 @@ std::pair<UIElement*, size_t> _UIInspectorFindNthElement(UIElement* element, int
       if (!(child->_flags & (UIElement::DESTROY | UIElement::HIDE))) {
          auto [result, depth] = _UIInspectorFindNthElement(child, index);
          if (result)
-            return { result, depth + 1 };
+            return {result, depth + 1};
       }
    }
 
@@ -4834,8 +4838,8 @@ int _UIInspectorTableMessage(UIElement* table, UIMessage msg, int di, void* dp) 
    }
 
    if (msg == UIMessage::TABLE_GET_ITEM) {
-      UITableGetItem* m       = (UITableGetItem*)dp;
-      int             index   = m->index;
+      UITableGetItem* m     = (UITableGetItem*)dp;
+      int             index = m->index;
       auto [element, depth] = _UIInspectorFindNthElement(ui->inspector._target, &index);
       if (!element)
          return 0;
@@ -4906,6 +4910,7 @@ int _UIInspectorCountElements(UIElement* element) {
 void UIInspector::refresh() {
    if (!_enabled || !_target || !_inspector || !_table)
       return;
+
    _table->set_num_items(_UIInspectorCountElements(_target));
    _table->resize_columns();
    _table->refresh();
@@ -4926,8 +4931,11 @@ void UIInspector::set_focused_window(UIWindow* window) {
 }
 
 void UIInspector::notify_destroyed_window(UIWindow* window) {
-   if (!_enabled || _target == window)
-      _target = nullptr;
+   if (!_enabled || _target != window)
+      return;
+   _table->set_num_items(0);
+   _table->refresh();
+   _target = nullptr;
 }
 
 // --------------------------------------------------
