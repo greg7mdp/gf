@@ -5886,7 +5886,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
 
    if (msg == WM_CLOSE) {
       if (window->message(UIMessage::WINDOW_CLOSE, 0, 0)) {
-         UI::Update();
+         UI::update();
          return 0;
       } else {
          PostQuitMessage(0);
@@ -5900,7 +5900,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
       window->_bounds = ui_rect_2s(window->_width, window->_height);
       window->_clip   = ui_rect_2s(window->_width, window->_height);
       window->relayout();
-      UI::Update();
+      UI::update();
    } else if (msg == WM_MOUSEMOVE) {
       if (!window->_tracking_leave) {
          window->_tracking_leave = true;
@@ -6001,15 +6001,15 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
          free(files[i]);
       free(files);
       DragFinish(drop);
-      UI::Update();
+      UI::update();
    } else if (msg == WM_APP + 1) {
       window->message((UIMessage)wParam, 0, (void*)lParam);
-      UI::Update();
+      UI::update();
    } else {
       if (msg == WM_NCLBUTTONDOWN || msg == WM_NCMBUTTONDOWN || msg == WM_NCRBUTTONDOWN) {
          if (~window->_flags & UIWindow::MENU) {
             _UIMenusClose();
-            UI::Update();
+            UI::update();
          }
       }
 
@@ -6072,7 +6072,7 @@ bool UI::_message_loop_single(int* result) {
          TranslateMessage(&msg);
          DispatchMessage(&msg);
       } else {
-         UI::ProcessAnimations();
+         UI::process_animations();
       }
    } else {
       if (!GetMessage(&msg, NULL, 0, 0)) {
@@ -6153,7 +6153,7 @@ void UIWindowPostMessage(UIWindow* window, UIMessage msg, void* _dp) {
    PostMessage(window->_hwnd, WM_APP + 1, (WPARAM)msg, (LPARAM)_dp);
 }
 
-void UI::ClipboardWriteText(UIWindow* window, std::string text, sel_target_t) {
+void UI::write_clipboard_text(UIWindow* window, std::string text, sel_target_t) {
    if (OpenClipboard(window->_hwnd)) {
       EmptyClipboard();
       HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, text.size() + 1);
@@ -6165,7 +6165,7 @@ void UI::ClipboardWriteText(UIWindow* window, std::string text, sel_target_t) {
    }
 }
 
-std::string UI::ClipboardReadText(UIWindow* window, sel_target_t) {
+std::string UI::read_clipboard_text(UIWindow* window, sel_target_t) {
    std::string res;
 
    if (!OpenClipboard(window->_hwnd)) {
