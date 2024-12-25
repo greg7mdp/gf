@@ -2048,7 +2048,7 @@ void SourceWindowUpdate(const char* data, UIElement* el) {
 
          while (position2 < bytes) {
             char c = text[position2];
-            if (!UI::CharIsAlphaOrDigitOrUnderscore(c))
+            if (!UI::is_alnum_or_underscore(c))
                break;
             else
                position2++;
@@ -2069,7 +2069,7 @@ void SourceWindowUpdate(const char* data, UIElement* el) {
 
          if (position2 == bytes)
             goto noTypeName;
-         if (!UI::CharIsAlphaOrDigitOrUnderscore(text[position2]))
+         if (!UI::is_alnum_or_underscore(text[position2]))
             goto noTypeName;
 
          position = expressionStart = position2;
@@ -2078,7 +2078,7 @@ void SourceWindowUpdate(const char* data, UIElement* el) {
 
       while (position < bytes) {
          char c = text[position];
-         if (!UI::CharIsAlphaOrDigitOrUnderscore(c) && c != '[' && c != ']' && c != ' ' && c != '.' && c != '-' &&
+         if (!UI::is_alnum_or_underscore(c) && c != '[' && c != ']' && c != ' ' && c != '.' && c != '-' &&
              c != '>')
             break;
          else

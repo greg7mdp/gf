@@ -173,7 +173,7 @@ inline bool _ui_move_caret_by_word(std::string_view text, size_t offset) {
    const char* prev = Utf8GetPreviousChar(&text[0], &text[offset]);
    int         c1   = Utf8GetCodePoint(prev, text.size() - (prev - &text[0]), nullptr);
    int         c2   = Utf8GetCodePoint(&text[offset], text.size() - offset, nullptr);
-   return UI::CharIsAlphaOrDigitOrUnderscore(c1) != UI::CharIsAlphaOrDigitOrUnderscore(c2);
+   return UI::is_alnum_or_underscore(c1) != UI::is_alnum_or_underscore(c2);
 }
 
 #else
@@ -351,7 +351,7 @@ char* UIStringCopy(const char* in, ptrdiff_t inBytes) {
    return buffer;
 }
 
-int UI::ByteToColumn(std::string_view string, size_t byte, size_t tabSize) {
+int UI::byte_to_column(std::string_view string, size_t byte, size_t tabSize) {
    size_t ti = 0, i = 0;
    size_t bytes = string.size();
 
@@ -364,7 +364,7 @@ int UI::ByteToColumn(std::string_view string, size_t byte, size_t tabSize) {
    return (int)ti;
 }
 
-int UI::ColumnToByte(std::string_view string, size_t column, size_t tabSize) {
+int UI::column_to_byte(std::string_view string, size_t column, size_t tabSize) {
    size_t byte = 0, ti = 0;
    size_t bytes = string.size();
 
@@ -2318,11 +2318,11 @@ inline void UIScrollbarPair::key_input_vscroll(UIKeyTyped* m, int rowHeight, int
 // --------------------------------------------------
 
 int UICode::column_to_byte(size_t ln, size_t column) const {
-   return UI::ColumnToByte(line(ln), column, tab_columns());
+   return UI::column_to_byte(line(ln), column, tab_columns());
 }
 
 int UICode::byte_to_column(size_t ln, size_t byte) const {
-   return UI::ByteToColumn(line(ln), byte, tab_columns());
+   return UI::byte_to_column(line(ln), byte, tab_columns());
 }
 
 UICode& UICode::clear() {
@@ -2437,7 +2437,7 @@ int UIDrawStringHighlighted(UIPainter* painter, UIRectangle lineBounds, std::str
             inComment = false;
          }
       } else if (tokenType == UI_CODE_TOKEN_TYPE_NUMBER) {
-         if (!_UICharIsAlpha(c) && !_UICharIsDigit(c)) {
+         if (!UI::is_alnum(c)) {
             tokenType = UI_CODE_TOKEN_TYPE_DEFAULT;
          }
       } else if (tokenType == UI_CODE_TOKEN_TYPE_STRING) {
@@ -2468,9 +2468,9 @@ int UIDrawStringHighlighted(UIPainter* painter, UIRectangle lineBounds, std::str
             tokenType     = UI_CODE_TOKEN_TYPE_STRING;
             inChar        = true;
             startedString = true;
-         } else if (_UICharIsDigit(c) && !inIdentifier) {
+         } else if (UI::is_digit(c) && !inIdentifier) {
             tokenType = UI_CODE_TOKEN_TYPE_NUMBER;
-         } else if (!_UICharIsAlpha(c) && !_UICharIsDigit(c)) {
+         } else if (!UI::is_alnum(c)) {
             tokenType    = UI_CODE_TOKEN_TYPE_OPERATOR;
             inIdentifier = false;
          } else {
@@ -3295,11 +3295,11 @@ UITable* UITableCreate(UIElement* parent, uint32_t flags, const char* columns) {
 // --------------------------------------------------
 
 int _UITextboxByteToColumn(std::string_view string, int byte) {
-   return UI::ByteToColumn(string, byte, 4);
+   return UI::byte_to_column(string, byte, 4);
 }
 
 int _UITextboxColumnToByte(std::string_view string, int column) {
-   return UI::ColumnToByte(string, column, 4);
+   return UI::column_to_byte(string, column, 4);
 }
 
 void UITextboxReplace(UITextbox* textbox, std::string_view text, bool sendChangedMessage) {

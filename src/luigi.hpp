@@ -1334,18 +1334,6 @@ char* UIStringCopy(const char* in, ptrdiff_t inBytes);
 UIFont* UIFontCreate(const char* cPath, uint32_t size);
 UIFont* UIFontActivate(UIFont* font); // Returns the previously active font.
 
-inline bool _UICharIsDigit(int c) {
-   return c >= '0' && c <= '9';
-}
-
-inline bool _UICharIsAlpha(int c) {
-   return (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') || c > 127);
-}
-
-inline bool _UICharIsAlphaOrDigitOrUnderscore(int c) {
-   return _UICharIsAlpha(c) || _UICharIsDigit(c) || c == '_';
-}
-
 struct UIInspector {
    static constexpr bool _enabled = (bool)UI_DEBUG;
    UIWindow* _inspector = nullptr;
@@ -1369,16 +1357,13 @@ public:
    static void        Update();
    static void        ProcessAnimations();
 
-   static int ByteToColumn(std::string_view string, size_t byte, size_t tabSize);
-   static int ColumnToByte(std::string_view string, size_t column, size_t tabSize);
+   static int byte_to_column(std::string_view string, size_t byte, size_t tabSize);
+   static int column_to_byte(std::string_view string, size_t column, size_t tabSize);
 
-   static bool CharIsAlpha(int c) {
-      return (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') || c > 127);
-   }
-
-   static bool CharIsAlphaOrDigitOrUnderscore(int c) {
-      return _UICharIsAlpha(c) || _UICharIsDigit(c) || c == '_';
-   }
+   static bool is_digit(int c) { return std::isdigit(c); }
+   static bool is_alpha(int c) { return std::isalpha(c) || c > 127; }
+   static bool is_alnum(int c) { return std::isalnum(c) || c > 127; }
+   static bool is_alnum_or_underscore(int c) { return is_alnum(c) || c == '_'; }
 
 public:
    UIWindow* windows = nullptr;
