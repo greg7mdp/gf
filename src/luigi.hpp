@@ -1002,7 +1002,11 @@ private:
    UICode& _set_vertical_motion_column(bool restore);
    UICode& _update_selection();
 
-   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
+   int _class_message_proc(UIMessage msg, int di, void* dp);
+   
+   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<UICode*>(el)->_class_message_proc(msg, di, dp);
+   }
 
 public:
    enum { NO_MARGIN = 1 << 0, SELECTABLE = 1 << 1 };
