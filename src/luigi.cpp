@@ -173,7 +173,7 @@ inline bool _ui_move_caret_by_word(std::string_view text, size_t offset) {
    const char* prev = Utf8GetPreviousChar(&text[0], &text[offset]);
    int         c1   = Utf8GetCodePoint(prev, text.size() - (prev - &text[0]), nullptr);
    int         c2   = Utf8GetCodePoint(&text[offset], text.size() - offset, nullptr);
-   return _UICharIsAlphaOrDigitOrUnderscore(c1) != _UICharIsAlphaOrDigitOrUnderscore(c2);
+   return UI::CharIsAlphaOrDigitOrUnderscore(c1) != UI::CharIsAlphaOrDigitOrUnderscore(c2);
 }
 
 #else
@@ -204,7 +204,7 @@ inline void _ui_move_caret_forward(T& caret, [[maybe_unused]] std::string_view t
 inline bool _ui_move_caret_by_word(std::string_view text, size_t offset) {
    char c1 = (text)[offset - 1];
    char c2 = (text)[offset];
-   return (_UICharIsAlphaOrDigitOrUnderscore(c1) != _UICharIsAlphaOrDigitOrUnderscore(c2));
+   return (UI::CharIsAlphaOrDigitOrUnderscore(c1) != UI::CharIsAlphaOrDigitOrUnderscore(c2));
 }
 
 #endif // UI_UNICODE
@@ -351,7 +351,7 @@ char* UIStringCopy(const char* in, ptrdiff_t inBytes) {
    return buffer;
 }
 
-int _UIByteToColumn(std::string_view string, size_t byte, size_t tabSize) {
+int UI::ByteToColumn(std::string_view string, size_t byte, size_t tabSize) {
    size_t ti = 0, i = 0;
    size_t bytes = string.size();
 
@@ -364,7 +364,7 @@ int _UIByteToColumn(std::string_view string, size_t byte, size_t tabSize) {
    return (int)ti;
 }
 
-int _UIColumnToByte(std::string_view string, size_t column, size_t tabSize) {
+int UI::ColumnToByte(std::string_view string, size_t column, size_t tabSize) {
    size_t byte = 0, ti = 0;
    size_t bytes = string.size();
 
@@ -494,14 +494,14 @@ uint64_t UIAnimateClock() {
    return (uint64_t)UI_CLOCK() * 1000 / UI_CLOCKS_PER_SECOND;
 }
 
-void _UIProcessAnimations() {
+void UI::ProcessAnimations() {
    bool update = !ui->animating.empty();
 
    for (auto el : ui->animating)
       el->message(UIMessage::ANIMATE, 0, 0);
 
    if (update) {
-      _UIUpdate();
+      UI::Update();
    }
 }
 
@@ -1372,50 +1372,50 @@ void UIElement::paint(UIPainter* painter) {
    }
 }
 
-bool _UIDestroy(UIElement* el) {
-   if (el->_flags & UIElement::destroy_descendent_flag) {
-      el->_flags &= ~UIElement::destroy_descendent_flag;
+bool UIElement::_destroy() {
+   if (_flags & UIElement::destroy_descendent_flag) {
+      _flags &= ~UIElement::destroy_descendent_flag;
 #if 1
-      intptr_t num_children = (intptr_t)el->_children.size();
+      intptr_t num_children = (intptr_t)_children.size();
       for (intptr_t i = 0; i < num_children; i++) {
-         if (_UIDestroy(el->_children[i])) {
-            el->_children.erase(el->_children.begin() + i);
+         if (_children[i]->_destroy()) {
+            _children.erase(_children.begin() + i);
             --num_children;
             --i;
          }
       }
 #else
       // not sure why this does not work. crash when clicking on file in "Files" tab
-      auto                    filtered     = el->children | views::filter([](UIElement* c) { return !_UIDestroy(c); });
+      auto                    filtered     = _children | views::filter([](UIElement* c) { return !c->destroy(); });
       std::vector<UIElement*> new_children = {filtered.begin(), filtered.end()};
-      el->children                         = std::move(new_children);
+      _children                         = std::move(new_children);
 #endif
    }
 
-   if (el->_flags & UIElement::destroy_flag) {
-      el->message(UIMessage::DEALLOCATE, 0, 0);
+   if (_flags & UIElement::destroy_flag) {
+      message(UIMessage::DEALLOCATE, 0, 0);
 
-      auto win = el->_window;
+      auto win = _window;
 
-      if (win->_pressed == el) {
+      if (win->_pressed == this) {
          win->set_pressed(NULL, 0);
       }
 
-      if (win->_hovered == el) {
+      if (win->_hovered == this) {
          win->_hovered = win;
       }
 
-      if (win->_focused == el) {
+      if (win->_focused == this) {
          win->_focused = NULL;
       }
 
-      if (win->_dialog_old_focus == el) {
+      if (win->_dialog_old_focus == this) {
          win->_dialog_old_focus = NULL;
       }
 
-      el->animate(true);
+      animate(true);
 
-      delete el;
+      delete this;
       return true;
    } else {
       return false;
@@ -2317,12 +2317,12 @@ inline void UIScrollbarPair::key_input_vscroll(UIKeyTyped* m, int rowHeight, int
 // Code views.
 // --------------------------------------------------
 
-int _UICodeColumnToByte(UICode* code, size_t line, size_t column) {
-   return _UIColumnToByte(code->line(line), column, code->tab_columns());
+int UICode::column_to_byte(size_t ln, size_t column) const {
+   return UI::ColumnToByte(line(ln), column, tab_columns());
 }
 
-int _UICodeByteToColumn(UICode* code, size_t line, size_t byte) {
-   return _UIByteToColumn(code->line(line), byte, code->tab_columns());
+int UICode::byte_to_column(size_t ln, size_t byte) const {
+   return UI::ByteToColumn(line(ln), byte, tab_columns());
 }
 
 UICode& UICode::clear() {
@@ -2353,7 +2353,7 @@ UICode& UICode::position_to_byte(int x, int y, size_t* line, size_t* byte) {
    if (~_flags & UICode::NO_MARGIN)
       column -= (ui->code_margin() + ui->code_margin_gap()) / ui->activeFont->glyphWidth;
    UIFontActivate(previousFont);
-   *byte = _UICodeColumnToByte(this, *line, column);
+   *byte = column_to_byte(*line, column);
    return *this;
 }
 
@@ -2518,7 +2518,7 @@ UICode& UICode::copy_text(sel_target_t t) {
       pasteText.resize(to - from);
       for (size_t i = from; i < to; i++)
          pasteText[i - from] = (*this)[i];
-      _UIClipboardWriteText(_window, std::move(pasteText), t);
+      UI::ClipboardWriteText(_window, std::move(pasteText), t);
    }
    return *this;
 }
@@ -2536,10 +2536,10 @@ UICode& UICode::_update_selection() {
 
 UICode& UICode::_set_vertical_motion_column(bool restore) {
    if (restore) {
-      _selection[3].offset = _UICodeColumnToByte(this, _selection[3].line, _vertical_motion_column);
+      _selection[3].offset = column_to_byte(_selection[3].line, _vertical_motion_column);
    } else if (!_use_vertical_motion_column) {
       _use_vertical_motion_column = true;
-      _vertical_motion_column     = _UICodeByteToColumn(this, _selection[3].line, _selection[3].offset);
+      _vertical_motion_column     = byte_to_column(_selection[3].line, _selection[3].offset);
    }
    return *this;
 }
@@ -2640,8 +2640,8 @@ int UICode::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
          if (code->_hscroll)
             lineBounds.l -= (int64_t)code->_hscroll->_position;
          selection.carets[0] =
-            i == code->_selection[0].line ? _UICodeByteToColumn(code, i, code->_selection[0].offset) : 0;
-         selection.carets[1] = i == code->_selection[1].line ? _UICodeByteToColumn(code, i, code->_selection[1].offset)
+            i == code->_selection[0].line ? code->byte_to_column(i, code->_selection[0].offset) : 0;
+         selection.carets[1] = i == code->_selection[1].line ? code->byte_to_column(i, code->_selection[1].offset)
                                                              : (int)code->line(i).size();
 
          bool selected = el->_window->_focused == el && i >= code->_selection[0].line && i <= code->_selection[1].line;
@@ -3295,11 +3295,11 @@ UITable* UITableCreate(UIElement* parent, uint32_t flags, const char* columns) {
 // --------------------------------------------------
 
 int _UITextboxByteToColumn(std::string_view string, int byte) {
-   return _UIByteToColumn(string, byte, 4);
+   return UI::ByteToColumn(string, byte, 4);
 }
 
 int _UITextboxColumnToByte(std::string_view string, int column) {
-   return _UIColumnToByte(string, column, 4);
+   return UI::ColumnToByte(string, column, 4);
 }
 
 void UITextboxReplace(UITextbox* textbox, std::string_view text, bool sendChangedMessage) {
@@ -3365,13 +3365,13 @@ void UITextboxCopyText(void* cp) {
       pasteText.resize(to - from);
       for (int i = from; i < to; i++)
          pasteText[i - from] = text[i];
-      _UIClipboardWriteText(textbox->_window, std::move(pasteText), sel_target_t::clipboard);
+      UI::ClipboardWriteText(textbox->_window, std::move(pasteText), sel_target_t::clipboard);
    }
 }
 
 void UITextboxPasteText(void* cp, sel_target_t t) {
    UITextbox*  textbox = (UITextbox*)cp;
-   std::string text    = _UIClipboardReadText(textbox->_window, t);
+   std::string text    = UI::ClipboardReadText(textbox->_window, t);
 
    if (!text.empty()) {
       for (auto& c : text)
@@ -3505,7 +3505,7 @@ int _UITextboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       UIMenu* menu = UIMenuCreate(el->_window, UIMenu::NO_SCROLL);
       UIMenuAddItem(menu, textbox->carets[0] == textbox->carets[1] ? UIElement::disabled_flag : 0, "Copy",
                     [=]() { UITextboxCopyText(textbox); });
-      std::string paste = _UIClipboardReadText(textbox->_window, sel_target_t::clipboard);
+      std::string paste = UI::ClipboardReadText(textbox->_window, sel_target_t::clipboard);
       UIMenuAddItem(menu, paste.empty() ? UIElement::disabled_flag : 0, "Paste",
                     [=]() { UITextboxPasteText(textbox, sel_target_t::clipboard); });
       UIMenuShow(menu);
@@ -4104,8 +4104,8 @@ const char* UIDialogShow(UIWindow* window, uint32_t flags, const char* format, .
    for (int i = 1; i <= 3; i++)
       window->set_pressed(NULL, i);
    window->refresh();
-   _UIUpdate();
-   while (!ui->dialogResult && _UIMessageLoopSingle(&result))
+   UI::Update();
+   while (!ui->dialogResult && UI::MessageLoopSingle(&result))
       ;
    ui->quit = !ui->dialogResult;
 
@@ -4282,7 +4282,7 @@ void UIWindowRegisterShortcut(UIWindow* window, UIShortcut shortcut) {
    window->_shortcuts.push_back(std::move(shortcut));
 }
 
-void _UIUpdate() {
+void UI::Update() {
    UIWindow*  window = ui->windows;
    UIWindow** link   = &ui->windows;
 
@@ -4292,7 +4292,7 @@ void _UIUpdate() {
       window->message(UIMessage::WINDOW_UPDATE_START, 0, 0);
       window->message(UIMessage::WINDOW_UPDATE_BEFORE_DESTROY, 0, 0);
 
-      if (_UIDestroy(window)) {
+      if (window->_destroy()) {
          *link = next;
       } else {
          link = &window->_next;
@@ -4556,7 +4556,7 @@ bool UIWindow::input_event(UIMessage msg, int di, void* dp) {
    }
 
 end:
-   _UIUpdate();
+   UI::Update();
    return handled;
 }
 
@@ -4931,7 +4931,7 @@ int UIAutomationRunTests();
 
 void UIAutomationProcessMessage() {
    int result;
-   _UIMessageLoopSingle(&result);
+   UI::MessageLoopSingle(&result);
 }
 
 void UIAutomationKeyboardTypeSingle(intptr_t code, bool ctrl, bool shift, bool alt) {
@@ -5053,12 +5053,12 @@ int UIWindow::_ClassMessageProcCommon(UIElement* el, UIMessage msg, int di, void
 }
 
 int UIMessageLoop() {
-   _UIUpdate();
+   UI::Update();
 #ifdef UI_AUTOMATION_TESTS
    return UIAutomationRunTests();
 #else
    int result = 0;
-   while (!ui->quit && _UIMessageLoopSingle(&result))
+   while (!ui->quit && UI::MessageLoopSingle(&result))
       ui->dialogResult = NULL;
    return result;
 #endif
@@ -5177,13 +5177,13 @@ UIWindow* _UIFindWindow(Window window) {
    return NULL;
 }
 
-void _UIClipboardWriteText(UIWindow* window, std::string text, sel_target_t t) {
+void UI::ClipboardWriteText(UIWindow* window, std::string text, sel_target_t t) {
    ui->pasteText = std::move(text);
    Atom atom     = (t == sel_target_t::clipboard) ? ui->clipboardID : ui->primaryID;
    XSetSelectionOwner(ui->display, atom, window->_xwindow, 0);
 }
 
-std::string _UIClipboardReadText(UIWindow* window, sel_target_t t) {
+std::string UI::ClipboardReadText(UIWindow* window, sel_target_t t) {
    Atom atom = (t == sel_target_t::clipboard) ? ui->clipboardID : ui->primaryID;
 
    Window clipboardOwner = XGetSelectionOwner(ui->display, atom);
@@ -5473,7 +5473,7 @@ bool _UIProcessEvent(XEvent* event) {
       bool exit = !window->message(UIMessage::WINDOW_CLOSE, 0, 0);
       if (exit)
          return true;
-      _UIUpdate();
+      UI::Update();
       return false;
    } else if (event->type == Expose) {
       UIWindow* window = _UIFindWindow(event->xexpose.window);
@@ -5502,7 +5502,7 @@ bool _UIProcessEvent(XEvent* event) {
             window->_bits[i] = 0xFF00FF;
    #endif
          window->relayout();
-         _UIUpdate();
+         UI::Update();
       }
    } else if (event->type == MotionNotify) {
       UIWindow* window = _UIFindWindow(event->xmotion.window);
@@ -5555,7 +5555,7 @@ bool _UIProcessEvent(XEvent* event) {
          p |= (uintptr_t)(event->xkey.time & 0xFFFFFFFF) << 32;
    #endif
          window->message((UIMessage)event->xkey.state, 0, (void*)p);
-         _UIUpdate();
+         UI::Update();
       } else {
          char   text[32];
          KeySym symbol = NoSymbol;
@@ -5634,7 +5634,7 @@ bool _UIProcessEvent(XEvent* event) {
       window->message(UIMessage::WINDOW_ACTIVATE, 0, 0);
    } else if (event->type == FocusOut || event->type == ResizeRequest) {
       _UIMenusClose();
-      _UIUpdate();
+      UI::Update();
    } else if (event->type == ClientMessage && event->xclient.message_type == ui->dndEnterID) {
       UIWindow* window = _UIFindWindow(event->xclient.window);
       if (!window)
@@ -5753,7 +5753,7 @@ bool _UIProcessEvent(XEvent* event) {
       XFlush(ui->display);
 
       window->_drag_source = 0; // Drag complete.
-      _UIUpdate();
+      UI::Update();
    } else if (event->type == SelectionRequest) {
       UIWindow* window = _UIFindWindow(event->xclient.window);
       if (!window)
@@ -5800,14 +5800,14 @@ bool _UIProcessEvent(XEvent* event) {
 
 // return true if events processed without problem, false otherwise
 // ----------------------------------------------------------------
-bool _UIMessageLoopSingle(int* result) {
+bool UI::MessageLoopSingle(int* result) {
    XEvent events[64];
 
    if (!ui->animating.empty()) {
       if (XPending(ui->display)) {
          XNextEvent(ui->display, events + 0);
       } else {
-         _UIProcessAnimations();
+         UI::ProcessAnimations();
          return true;
       }
    } else {
@@ -5899,7 +5899,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
 
    if (msg == WM_CLOSE) {
       if (window->message(UIMessage::WINDOW_CLOSE, 0, 0)) {
-         _UIUpdate();
+         UI::Update();
          return 0;
       } else {
          PostQuitMessage(0);
@@ -5913,7 +5913,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
       window->_bounds = ui_rect_2s(window->_width, window->_height);
       window->_clip   = ui_rect_2s(window->_width, window->_height);
       window->relayout();
-      _UIUpdate();
+      UI::Update();
    } else if (msg == WM_MOUSEMOVE) {
       if (!window->_tracking_leave) {
          window->_tracking_leave = true;
@@ -5989,7 +5989,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
       ::SetCursor(ui->cursors[window->_cursor_style]);
       return 1;
    } else if (msg == WM_SETFOCUS || msg == WM_KILLFOCUS) {
-      _UIMenusClose();
+      UI::MenusClose();
 
       if (msg == WM_SETFOCUS) {
          ui->inspector.set_focused_window(window);
@@ -6014,15 +6014,15 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
          free(files[i]);
       free(files);
       DragFinish(drop);
-      _UIUpdate();
+      UI::Update();
    } else if (msg == WM_APP + 1) {
       window->message((UIMessage)wParam, 0, (void*)lParam);
-      _UIUpdate();
+      UI::Update();
    } else {
       if (msg == WM_NCLBUTTONDOWN || msg == WM_NCMBUTTONDOWN || msg == WM_NCRBUTTONDOWN) {
          if (~window->_flags & UIWindow::MENU) {
             _UIMenusClose();
-            _UIUpdate();
+            UI::Update();
          }
       }
 
@@ -6085,7 +6085,7 @@ bool _UIMessageLoopSingle(int* result) {
          TranslateMessage(&msg);
          DispatchMessage(&msg);
       } else {
-         _UIProcessAnimations();
+         UI::ProcessAnimations();
       }
    } else {
       if (!GetMessage(&msg, NULL, 0, 0)) {
@@ -6102,7 +6102,7 @@ bool _UIMessageLoopSingle(int* result) {
 
 void UIMenuShow(UIMenu* menu) {
    int width, height;
-   _UIMenuPrepare(menu, &width, &height);
+   UI::MenuPrepare(menu, &width, &height);
    MoveWindow(menu->_window->_hwnd, menu->pointX, menu->pointY, width, height, FALSE);
    ShowWindow(menu->_window->_hwnd, SW_SHOWNOACTIVATE);
 }
@@ -6165,7 +6165,7 @@ void UIWindowPostMessage(UIWindow* window, UIMessage msg, void* _dp) {
    PostMessage(window->_hwnd, WM_APP + 1, (WPARAM)msg, (LPARAM)_dp);
 }
 
-void _UIClipboardWriteText(UIWindow* window, std::string text, sel_target_t) {
+void UI::ClipboardWriteText(UIWindow* window, std::string text, sel_target_t) {
    if (OpenClipboard(window->_hwnd)) {
       EmptyClipboard();
       HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, text.size() + 1);
@@ -6177,7 +6177,7 @@ void _UIClipboardWriteText(UIWindow* window, std::string text, sel_target_t) {
    }
 }
 
-std::string _UIClipboardReadText(UIWindow* window, sel_target_t) {
+std::string UI::ClipboardReadText(UIWindow* window, sel_target_t) {
    std::string res;
 
    if (!OpenClipboard(window->_hwnd)) {

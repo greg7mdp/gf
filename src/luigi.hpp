@@ -600,8 +600,9 @@ using  message_proc_t = int(*)(UIElement*, UIMessage msg, int di, void* dp); // 
 
 // ------------------------------------------------------------------------------------------
 struct UIElement {
-private:
+protected:
    void _destroy_descendents(bool topLevel);
+   bool _destroy();
 
 public:
    enum {
@@ -611,7 +612,7 @@ public:
       window_flag      = 1 << 18,
       parent_push_flag = 1 << 19,
       tab_stop_flag    = 1 << 20,
-      non_client_flag  = 1 << 21, // Don't destroy in UIElementDestroyDescendents, like scroll bars.
+      non_client_flag  = 1 << 21, // Don't destroy in destroy_descendents(), like scroll bars.
       disabled_flag    = 1 << 22, // Don't receive input events.
       border_flag      = 1 << 23,
       vertical_flag    = 1 << 24,
@@ -642,8 +643,8 @@ public:
    uint32_t       state() const;
 
    bool           animate(bool stop);
-   void           destroy();
-   void           destroy_descendents();
+   void           destroy();                  // really just set flags so they'll be destroyed in `_UIUpdate`
+   void           destroy_descendents();      // really just set flags so they'll be destroyed in `_UIUpdate`
    int            message(UIMessage msg, int di, void* dp);
    UIElement*     change_parent(UIElement* newParent, UIElement* insertBefore);
    UIElement*     next_or_previous_sibling(bool previous);
@@ -719,6 +720,7 @@ enum class sel_target_t { primary, clipboard };
 struct UIWindow : public UIElementCast<UIWindow> {
 private:
    static int _ClassMessageProcCommon(UIElement* el, UIMessage msg, int di, void* dp);
+   friend struct UI;
 
 public:
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
@@ -1064,6 +1066,9 @@ public:
    UIFont*    font() const { return _font; }
 
    UICode&    copy_text(sel_target_t t);
+
+   int        column_to_byte(size_t ln, size_t column) const;
+   int        byte_to_column(size_t ln, size_t byte) const;
 };
 
 // ------------------------------------------------------------------------------------------
@@ -1356,6 +1361,26 @@ struct UIInspector {
 };
 
 struct UI {
+public:
+   static void        ClipboardWriteText(UIWindow* window, std::string text, sel_target_t t);
+   static std::string ClipboardReadText(UIWindow* window, sel_target_t t);
+   static bool        MessageLoopSingle(int* result);
+   static void        InspectorRefresh();
+   static void        Update();
+   static void        ProcessAnimations();
+
+   static int ByteToColumn(std::string_view string, size_t byte, size_t tabSize);
+   static int ColumnToByte(std::string_view string, size_t column, size_t tabSize);
+
+   static bool CharIsAlpha(int c) {
+      return (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') || c > 127);
+   }
+
+   static bool CharIsAlphaOrDigitOrUnderscore(int c) {
+      return _UICharIsAlpha(c) || _UICharIsDigit(c) || c == '_';
+   }
+
+public:
    UIWindow* windows = nullptr;
    UITheme   theme;
 
@@ -1415,6 +1440,8 @@ struct UI {
    int code_margin_gap() { return activeFont->glyphWidth * 1; }
 
    UIWindow& add_window(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height);
+
+   
 };
 
 // ----------------------------------------
@@ -1432,12 +1459,6 @@ void UIInspectorLog(UI* ui, std::format_string<Args...> fmt, Args&&... args ) {
 //      Forward declarations.
 // ----------------------------------------
 
-void        _UIClipboardWriteText(UIWindow* window, std::string text, sel_target_t t);
-std::string _UIClipboardReadText(UIWindow* window, sel_target_t t);
-bool        _UIMessageLoopSingle(int* result);
-void        _UIInspectorRefresh();
-void        _UIUpdate();
-
 #if defined(UI_LINUX)
 inline UI_CLOCK_T _UIClock() {
    struct timespec spec;
@@ -1453,11 +1474,6 @@ void* _UIMemmove(void* dest, const void* src, size_t n);
 #undef min
 #endif
 
-
-int _UICodeColumnToByte(UICode* code, size_t line, size_t column);
-int _UICodeByteToColumn(UICode* code, size_t line, size_t byte);
-
-int _UITabPaneMessage(UIElement* el, UIMessage msg, int di, void* dp);
 
 // ----------------------------------------
 //      Variables

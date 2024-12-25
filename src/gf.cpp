@@ -1938,8 +1938,8 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       }
 
       if (m->index == ifConditionLine && ifConditionEvaluation) {
-         int columnFrom = _UICodeByteToColumn(code, ifConditionLine, ifConditionFrom);
-         int columnTo   = _UICodeByteToColumn(code, ifConditionLine, ifConditionTo);
+         int columnFrom = code->byte_to_column(ifConditionLine, ifConditionFrom);
+         int columnTo   = code->byte_to_column(ifConditionLine, ifConditionTo);
          UIDrawBlock(m->painter,
                      UIRectangle(m->bounds.l + columnFrom * ui->activeFont->glyphWidth,
                                  m->bounds.l + columnTo * ui->activeFont->glyphWidth, m->bounds.b - 2, m->bounds.b),
@@ -2048,7 +2048,7 @@ void SourceWindowUpdate(const char* data, UIElement* el) {
 
          while (position2 < bytes) {
             char c = text[position2];
-            if (!_UICharIsAlphaOrDigitOrUnderscore(c))
+            if (!UI::CharIsAlphaOrDigitOrUnderscore(c))
                break;
             else
                position2++;
@@ -2069,7 +2069,7 @@ void SourceWindowUpdate(const char* data, UIElement* el) {
 
          if (position2 == bytes)
             goto noTypeName;
-         if (!_UICharIsAlphaOrDigitOrUnderscore(text[position2]))
+         if (!UI::CharIsAlphaOrDigitOrUnderscore(text[position2]))
             goto noTypeName;
 
          position = expressionStart = position2;
@@ -2078,7 +2078,7 @@ void SourceWindowUpdate(const char* data, UIElement* el) {
 
       while (position < bytes) {
          char c = text[position];
-         if (!_UICharIsAlphaOrDigitOrUnderscore(c) && c != '[' && c != ']' && c != ' ' && c != '.' && c != '-' &&
+         if (!UI::CharIsAlphaOrDigitOrUnderscore(c) && c != '[' && c != ']' && c != ' ' && c != '.' && c != '-' &&
              c != '>')
             break;
          else
@@ -3404,7 +3404,7 @@ void CommandWatchCopyValueToClipboard(WatchWindow* w) {
    auto res = WatchEvaluate("gf_valueof", watch);
    if (!res.empty()) {
       resize_to_lf(res);
-      _UIClipboardWriteText(w->_window, strdup(res.c_str()), sel_target_t::clipboard);
+      UI::ClipboardWriteText(w->_window, strdup(res.c_str()), sel_target_t::clipboard);
    }
 }
 
@@ -4224,14 +4224,13 @@ bool FilesPanelPopulate(FilesWindow* window) {
    struct dirent* entry;
    if (!directory)
       return false;
-   vector<char*> names = {};
+   vector<std::string> names = {};
    while ((entry = readdir(directory)))
-      names.push_back(strdup(entry->d_name));
+      names.push_back(entry->d_name);
    closedir(directory);
    window->panel->destroy_descendents();
 
-   qsort(names.data(), names.size(), sizeof(char*),
-         [](const void* a, const void* b) { return strcmp(*(const char**)a, *(const char**)b); });
+   std::sort(names.begin(), names.end());
 
    for (auto name : names) {
       if (name[0] != '.' || name[1] != 0) {
@@ -4246,18 +4245,13 @@ bool FilesPanelPopulate(FilesWindow* window) {
 
          window->directory[oldLength] = 0;
       }
-
-      free(name);
    }
 
-   names.clear();
    window->panel->refresh();
 
-   {
-      char path[PATH_MAX];
-      realpath(window->directory, path);
-      UILabelSetContent(window->path, path);
-   }
+   char path[PATH_MAX];
+   realpath(window->directory, path);
+   UILabelSetContent(window->path, path);
 
    return true;
 }
