@@ -6110,7 +6110,7 @@ void UIMenuShow(UIMenu* menu) {
 UIWindow* UIWindowCreate(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height) {
    _UIMenusClose();
 
-   UIWindow* window = new UIWindow(NULL, flags | UIElement::window, UIWindow::_ClassMessageProc, "Window");
+   UIWindow* window = new UIWindow(NULL, flags | UIElement::window_flag, UIWindow::_ClassMessageProc, "Window");
    _UIWindowAdd(window);
    if (owner)
       window->_scale = owner->_scale;
