@@ -1878,13 +1878,13 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
       for (const auto& bp : breakpoints) {
          if (bp.line == -result && 0 == strcmp(bp.fileFull, currentFileFull)) {
-            UIMenu& menu = UI::create_menu(el->_window, UIMenu::NO_SCROLL).add_item(0, "Delete", [=]() {
+            UIMenu& menu = UI::create_menu(el->_window, UIMenu::NO_SCROLL).add_item(0, "Delete", [=](UIButton&) {
                CommandDeleteAllBreakpointsOnLine(-result);
             });
             if (atLeastOneBreakpointEnabled)
-               menu.add_item(0, "Disable", [=]() { CommandDisableAllBreakpointsOnLine(-result); });
+               menu.add_item(0, "Disable", [=](UIButton&) { CommandDisableAllBreakpointsOnLine(-result); });
             else
-               menu.add_item(0, "Enable", [=]() { CommandEnableAllBreakpointsOnLine(-result); });
+               menu.add_item(0, "Enable", [=](UIButton&) { CommandEnableAllBreakpointsOnLine(-result); });
             menu.show();
          }
       }
@@ -2413,7 +2413,7 @@ int BitmapViewerDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::RIGHT_UP) {
       UI::create_menu(el->_window, UIMenu::NO_SCROLL)
          .add_item(0, "Save to file...",
-                   [el]() {
+                   [el](UIButton&) {
                       static char* path   = NULL;
                       const char*  result = UI::show_dialog(windowMain, 0, "Save to file       \nPath:\n%t\n%f%B%C",
                                                            &path, "Save", "Cancel");
@@ -2617,8 +2617,7 @@ UIElement* ConsoleWindowCreate(UIElement* parent) {
    panel3->_gap              = 5;
    trafficLight             = UISpacerCreate(panel3, 0, 30, 30);
    trafficLight->_user_proc = TrafficLightMessage;
-   UIButton* buttonMenu     = UIButtonCreate(panel3, 0, "Menu");
-   buttonMenu->invoke       = [buttonMenu]() { ctx.InterfaceShowMenu(buttonMenu); };
+   panel3->add_button(0, "Menu").on_click([](UIButton& buttonMenu) { ctx.InterfaceShowMenu(&buttonMenu); });
    textboxInput             = UITextboxCreate(panel3, UIElement::h_fill);
    textboxInput->_user_proc = TextboxInputMessage;
    textboxInput->focus();
@@ -3120,8 +3119,9 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
 
    WatchLogger* logger = new WatchLogger;
 
-   UIButton* button = UIButtonCreate(child, UIButton::SMALL | UIElement::non_client_flag, "Resize columns");
-   button->invoke   = [logger]() { WatchLoggerResizeColumns(logger); };
+   child->add_button(UIButton::SMALL | UIElement::non_client_flag, "Resize columns").on_click([logger](UIButton&) {
+      WatchLoggerResizeColumns(logger);
+   });
 
    uintptr_t position = 0;
    position += std_format_to_n(logger->columns + position, sizeof(logger->columns) - position, "New value\tWhere");
@@ -3503,17 +3503,17 @@ int WatchWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
             UIMenu& menu = UI::create_menu(el->_window, UIMenu::NO_SCROLL);
 
             if (w->mode == WATCH_NORMAL && !w->rows[index]->parent) {
-               menu.add_item(0, "Edit expression", [w]() { WatchCreateTextboxForRow(w, true); })
-                  .add_item(0, "Delete", [w]() {
+               menu.add_item(0, "Edit expression", [w](UIButton&) { WatchCreateTextboxForRow(w, true); })
+                  .add_item(0, "Delete", [w](UIButton&) {
                      WatchDeleteExpression(w);
                      w->_parent->refresh();
                      w->refresh();
                   });
             }
 
-            menu.add_item(0, "Copy value to clipboard\tCtrl+C", [w]() { CommandWatchCopyValueToClipboard(w); })
-               .add_item(0, "Log writes to address...", [w]() { WatchChangeLoggerCreate(w); })
-               .add_item(0, "Break on writes to address", [w]() {
+            menu.add_item(0, "Copy value to clipboard\tCtrl+C", [w](UIButton&) { CommandWatchCopyValueToClipboard(w); })
+               .add_item(0, "Log writes to address...", [w](UIButton&) { WatchChangeLoggerCreate(w); })
+               .add_item(0, "Break on writes to address", [w](UIButton&) {
                   if (w->selectedRow == w->rows.size())
                      return;
                   auto res = WatchGetAddress(w->rows[w->selectedRow]);
@@ -3525,11 +3525,11 @@ int WatchWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
                });
 
             if (firstWatchWindow) {
-               menu.add_item(0, "Add entry for address\tCtrl+E", [w]() { CommandWatchAddEntryForAddress(w); });
+               menu.add_item(0, "Add entry for address\tCtrl+E", [w](UIButton&) { CommandWatchAddEntryForAddress(w); });
             }
 
-            menu.add_item(0, "View source at address\tCtrl+G", [w]() { CommandWatchViewSourceAtAddress(w); })
-               .add_item(0, "Save as...", [w]() { CommandWatchSaveAs(w); })
+            menu.add_item(0, "View source at address\tCtrl+G", [w](UIButton&) { CommandWatchViewSourceAtAddress(w); })
+               .add_item(0, "Save as...", [w](UIButton&) { CommandWatchSaveAs(w); })
                .show();
          }
       }
@@ -3979,17 +3979,17 @@ int TableBreakpointsMessage(UIElement* el, UIMessage msg, int di, void* dp) {
             }
 
          addMenuItems:
-            menu.add_item(0, "Delete", [data]() { CommandDeleteSelectedBreakpoints(data); });
+            menu.add_item(0, "Delete", [data](UIButton&) { CommandDeleteSelectedBreakpoints(data); });
 
             if (atLeastOneBreakpointDisabled)
-               menu.add_item(0, "Enable", [data]() { CommandEnableSelectedBreakpoints(data); });
+               menu.add_item(0, "Enable", [data](UIButton&) { CommandEnableSelectedBreakpoints(data); });
             else
-               menu.add_item(0, "Disable", [data]() { CommandDisableSelectedBreakpoints(data); });
+               menu.add_item(0, "Disable", [data](UIButton&) { CommandDisableSelectedBreakpoints(data); });
          } else {
-            menu.add_item(0, "Delete", [index]() { CommandDeleteBreakpoint(index); });
+            menu.add_item(0, "Delete", [index](UIButton&) { CommandDeleteBreakpoint(index); });
 
             if (breakpoints[index].enabled)
-               menu.add_item(0, "Enable", [index]() { CommandEnableBreakpoint(index); });
+               menu.add_item(0, "Enable", [index](UIButton&) { CommandEnableBreakpoint(index); });
          }
 
          menu.show();
@@ -4099,18 +4099,15 @@ void CommandToggleFillDataTab() {
 }
 
 UIElement* DataWindowCreate(UIElement* parent) {
-   dataTab                  = UIPanelCreate(parent, UIPanel::EXPAND);
-   UIPanel* panel5          = UIPanelCreate(dataTab, UIPanel::COLOR_1 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
-   buttonFillWindow         = UIButtonCreate(panel5, UIButton::SMALL, "Fill window");
-   buttonFillWindow->invoke = []() { CommandToggleFillDataTab(); };
+   dataTab         = UIPanelCreate(parent, UIPanel::EXPAND);
+   UIPanel* panel5 = UIPanelCreate(dataTab, UIPanel::COLOR_1 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
 
+   panel5->add_button(UIButton::SMALL, "Fill window").on_click([](UIButton&) { CommandToggleFillDataTab(); });
    for (const auto& idw : ctx.interfaceDataViewers) {
-      UIButton* b = UIButtonCreate(panel5, UIButton::SMALL, idw.addButtonLabel);
-      b->invoke   = [&]() { idw.addButtonCallback(); };
+      panel5->add_button(UIButton::SMALL, idw.addButtonLabel).on_click([&](UIButton&) { idw.addButtonCallback(); });
    }
 
-   dataWindow          = UIMDIClientCreate(dataTab, UIElement::v_fill);
-   dataTab->_user_proc = DataTabMessage;
+   dataTab->add_mdiclient(UIElement::v_fill).set_user_proc(DataTabMessage);
    return dataTab;
 }
 
@@ -4274,11 +4271,11 @@ UIElement* FilesWindowCreate(UIElement* parent) {
    window->panel->_cp = window;
    UIPanel* row       = UIPanelCreate(container, UIPanel::COLOR_2 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
 
-   UIButton* button = UIButtonCreate(row, UIButton::SMALL, "-> cwd");
-   button->invoke   = [window]() { FilesNavigateToCWD(window); };
+   row->add_button(UIButton::SMALL, "-> cwd").on_click([window](UIButton&) { FilesNavigateToCWD(window); });
 
-   button         = UIButtonCreate(row, UIButton::SMALL, "-> active file");
-   button->invoke = [window]() { FilesNavigateToActiveFile(window); };
+   row->add_button(UIButton::SMALL, "-> active file").on_click([window](UIButton&) {
+      FilesNavigateToActiveFile(window);
+   });
 
    window->path = UILabelCreate(row, UIElement::h_fill, "");
    FilesNavigateToCWD(window);
@@ -4395,8 +4392,9 @@ UIElement* CommandsWindowCreate(UIElement* parent) {
       UILabelCreate(panel, 0, "No preset commands found in config file!");
 
    for (const auto& cmd : presetCommands) {
-      UIButton* button = UIButtonCreate(panel, 0, cmd.key);
-      button->invoke   = [command = std::format("gf-command {}", cmd.key)]() { CommandSendToGDB(command); };
+      panel->add_button(0, cmd.key).on_click([command = std::format("gf-command {}", cmd.key)](UIButton&) {
+         CommandSendToGDB(command);
+      });
    }
 
    return panel;
@@ -4620,16 +4618,10 @@ UIElement* ExecutableWindowCreate(UIElement* parent) {
    window->askDirectory->check = executableAskDirectory ? UICheckbox::CHECKED : UICheckbox::UNCHECKED;
    UIPanel* row                = UIPanelCreate(panel, UIPanel::HORIZONTAL);
 
-   UIButton* button = UIButtonCreate(row, 0, "Run");
-   button->invoke   = [window]() { ExecutableWindowRunButton(window); };
-
-   button         = UIButtonCreate(row, 0, "Start");
-   button->invoke = [window]() { ExecutableWindowStartButton(window); };
-
-   UISpacerCreate(row, 0, 10, 0);
-
-   button         = UIButtonCreate(row, 0, "Save to .project.gf");
-   button->invoke = [window]() { ExecutableWindowSaveButton(window); };
+   row->add_button(0, "Run").on_click([window](UIButton&) { ExecutableWindowRunButton(window); });
+   row->add_button(0, "Start").on_click([window](UIButton&) { ExecutableWindowStartButton(window); });
+   row->add_spacer(0, 10, 0);
+   row->add_button(0, "Save to .project.gf").on_click([window](UIButton&) { ExecutableWindowSaveButton(window); });
    return panel;
 }
 
@@ -5327,9 +5319,9 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       } else if (!report->dragStarted && msg == UIMessage::RIGHT_UP && report->hover) {
          report->menuItem = report->hover;
          UI::create_menu(el->_window, UIMenu::NO_SCROLL)
-            .add_item(0, "Show source", [report]() { ProfShowSource(report); })
-            .add_item(0, "Add breakpoint", [report]() { ProfAddBreakpoint(report->hover); })
-            .add_item(0, "Fill view", [report]() { ProfFillView(report); })
+            .add_item(0, "Show source", [report](UIButton&) { ProfShowSource(report); })
+            .add_item(0, "Add breakpoint", [report](UIButton&) { ProfAddBreakpoint(report->hover); })
+            .add_item(0, "Fill view", [report](UIButton&) { ProfFillView(report); })
             .show();
       } else if (!report->dragStarted && msg == UIMessage::MIDDLE_UP && report->hover) {
          report->menuItem = report->hover;
@@ -5681,7 +5673,7 @@ void ProfLoadProfileData(void* _window) {
    window->_user_proc = ProfReportWindowMessage;
 
    switchViewButton->_cp    = report;
-   switchViewButton->invoke = [report]() { ProfSwitchView(report); };
+   switchViewButton->on_click([report](UIButton&) { ProfSwitchView(report); });
    table->_cp               = report;
    table->_user_proc        = ProfTableMessage;
    report->switchViewButton = switchViewButton;
@@ -5838,8 +5830,9 @@ UIElement* ProfWindowCreate(UIElement* parent) {
    window->fontFlameGraph         = UIFontCreate(ui->default_font_path.c_str(), fontSizeFlameGraph);
    UIPanel* panel                 = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
    panel->_cp                     = window;
-   UIButton* button               = UIButtonCreate(panel, UIElement::v_fill, "Step over profiled");
-   button->invoke                 = [window]() { ProfStepOverProfiled(window); };
+   panel->add_button(UIElement::v_fill, "Step over profiled").on_click([window](UIButton&) {
+      ProfStepOverProfiled(window);
+   });
 
 #ifdef UI_FREETYPE
    // Since we will do multithreaded painting with fontFlameGraph, we need to make sure all its glyphs are ready to go.
@@ -5876,7 +5869,7 @@ struct MemoryWindow : public UIElement {
    MemoryWindow(UIElement* parent)
       : UIElement(parent, 0, MemoryWindowMessage, "memory window")
       , gotoButton(UIButtonCreate(this, UIButton::SMALL, "&")) {
-      gotoButton->invoke = [this]() { MemoryWindowGotoButtonInvoke(this); };
+      gotoButton->on_click([this](UIButton&) { MemoryWindowGotoButtonInvoke(this); });
    }
 };
 
@@ -6320,8 +6313,7 @@ void ViewWindowView(void* cp) {
    // Destroy the previous panel contents.
    UIElement* panel = (UIElement*)cp;
    panel->destroy_descendents();
-   UIButton* button = UIButtonCreate(panel, 0, "View (Ctrl+Shift+V)");
-   button->invoke   = [panel]() { ViewWindowView(panel); };
+   panel->add_button(0, "View (Ctrl+Shift+V)").on_click([panel](UIButton&) { ViewWindowView(panel); });
 
    // Get information about the watch expression.
    char type[256], buffer[256];
@@ -6506,9 +6498,8 @@ void ViewWindowUpdate(const char* data, UIElement* el) {}
 
 UIElement* ViewWindowCreate(UIElement* parent) {
    UIPanel*  panel  = UIPanelCreate(parent, UIPanel::EXPAND | UIPanel::COLOR_1);
-   UIButton* button = UIButtonCreate(panel, 0, "View (Ctrl+Shift+V)");
-   button->invoke   = [panel]() { ViewWindowView(panel); };
-   UILabelCreate(panel, 0, "Select a watch expression, then click View.");
+   panel->add_button(0, "View (Ctrl+Shift+V)").on_click([panel](UIButton&) { ViewWindowView(panel); });
+   panel->add_label(0, "Select a watch expression, then click View.");
    return panel;
 }
 
@@ -6964,7 +6955,7 @@ void WaveformViewerSaveToFile(WaveformDisplay* display) {
 int WaveformViewerDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::RIGHT_UP) {
       WaveformDisplay* display = (WaveformDisplay*)el;
-      UI::create_menu(el->_window, UIMenu::NO_SCROLL).add_item(0, "Save to .wav...", [display]() {
+      UI::create_menu(el->_window, UIMenu::NO_SCROLL).add_item(0, "Save to .wav...", [display](UIButton&) {
          WaveformViewerSaveToFile(display);
       }).show();
    }
@@ -7286,7 +7277,7 @@ void Context::InterfaceShowMenu(UIButton* self) {
 
    for (const auto& ic : interfaceCommands) {
       if (ic.label)
-         menu.add_item(0, ic.label, ic.shortcut.invoke);
+         menu.add_item(0, ic.label, [&](UIButton&) { ic.shortcut.invoke(); });
    }
    menu.show();
 }

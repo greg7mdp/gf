@@ -832,9 +832,11 @@ public:
    };
 
    std::string           label;
-   std::function<void()> invoke;
+   std::function<void(UIButton&)> _on_click;
 
    UIButton(UIElement* parent, uint32_t flags, std::string_view label);
+
+   UIButton& on_click(std::function<void(UIButton&)> f) { _on_click = std::move(f); return *this; }
 };
 
 // ------------------------------------------------------------------------------------------
@@ -849,11 +851,13 @@ public:
 
    uint8_t               check;
    std::string           label;
-   std::function<void()> invoke;
+   std::function<void(UICheckbox&)> _on_click;
 
    UICheckbox(UIElement* parent, uint32_t flags, std::string_view label);
 
    void set_label(std::string_view label);
+   UICheckbox& on_click(std::function<void(UICheckbox&)> f) { _on_click = std::move(f); return *this; }
+
 };
 
 // ------------------------------------------------------------------------------------------
@@ -1092,9 +1096,10 @@ struct UIGauge : public UIElementCast<UIGauge> {
 
 // ------------------------------------------------------------------------------------------
 struct UISlider : public UIElementCast<UISlider> {
-   double _position;
-   int    _steps;
-   bool   _vertical;
+   double                         _position;
+   int                            _steps;
+   bool                           _vertical;
+   std::function<void(UISlider&)> _on_value_change;
 
    UISlider(UIElement* parent, uint32_t flags);
 
@@ -1105,6 +1110,8 @@ struct UISlider : public UIElementCast<UISlider> {
 
    UISlider& set_steps(int steps) { _steps = steps; return *this; }
    int       steps() const { return _steps; }
+
+   UISlider& on_value_change(std::function<void(UISlider&)> f) { _on_value_change = std::move(f); return *this; }
 };
 
 // ------------------------------------------------------------------------------------------
@@ -1170,7 +1177,7 @@ public:
 
    UIMenu(UIElement* parent, uint32_t flags);
 
-   UIMenu& add_item(uint32_t flags, std::string_view label, std::function<void()> invoke);
+   UIMenu& add_item(uint32_t flags, std::string_view label, std::function<void(UIButton&)> invoke);
    UIMenu& show();
 };
 
@@ -1372,26 +1379,6 @@ private:
    static int         _MenuItemMessage(UIElement* el, UIMessage msg, int di, void* dp);
 
 public:
-   static void        write_clipboard_text(UIWindow* window, std::string text, sel_target_t t);
-   static std::string read_clipboard_text(UIWindow* window, sel_target_t t);
-
-   static int         message_loop();
-   static void        update();
-   static void        process_animations();
-
-   static UIMenu&     create_menu(UIElement* parent, uint32_t flags);
-
-   static const char* show_dialog(UIWindow* window, uint32_t flags, const char* format, ...);
-
-   static int byte_to_column(std::string_view string, size_t byte, size_t tabSize);
-   static int column_to_byte(std::string_view string, size_t column, size_t tabSize);
-
-   static bool is_digit(int c) { return std::isdigit(c); }
-   static bool is_alpha(int c) { return std::isalpha(c) || c > 127; }
-   static bool is_alnum(int c) { return std::isalnum(c) || c > 127; }
-   static bool is_alnum_or_underscore(int c) { return is_alnum(c) || c == '_'; }
-
-public:
    UIWindow* windows = nullptr;
    UITheme   theme;
 
@@ -1450,7 +1437,26 @@ public:
    int code_margin() { return activeFont->glyphWidth * 5; }
    int code_margin_gap() { return activeFont->glyphWidth * 1; }
 
-   UIWindow& add_window(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height);
+   static void        write_clipboard_text(UIWindow* window, std::string text, sel_target_t t);
+   static std::string read_clipboard_text(UIWindow* window, sel_target_t t);
+
+   static int         message_loop();
+   static void        update();
+   static void        process_animations();
+
+   static UIMenu&     create_menu(UIElement* parent, uint32_t flags);
+   static UIWindow&   create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height);
+
+   static const char* show_dialog(UIWindow* window, uint32_t flags, const char* format, ...);
+
+   static int byte_to_column(std::string_view string, size_t byte, size_t tabSize);
+   static int column_to_byte(std::string_view string, size_t column, size_t tabSize);
+
+   static bool is_digit(int c) { return std::isdigit(c); }
+   static bool is_alpha(int c) { return std::isalpha(c) || c > 127; }
+   static bool is_alnum(int c) { return std::isalnum(c) || c > 127; }
+   static bool is_alnum_or_underscore(int c) { return is_alnum(c) || c == '_'; }
+
 
    
 };

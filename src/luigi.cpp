@@ -1242,7 +1242,7 @@ UICode& UIElement::add_code(uint32_t flags) {
    return *new UICode(this, flags);
 }
 
-UIWindow& UI::add_window(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height) {
+UIWindow& UI::create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height) {
    return UIWindow::Create(owner, flags, cTitle, width, height);
 }
 
@@ -1807,8 +1807,8 @@ int UIButton::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) 
          return 1;
       }
    } else if (msg == UIMessage::CLICKED) {
-      if (button->invoke) {
-         button->invoke();
+      if (button->_on_click) {
+         button->_on_click(*button);
       }
    }
 
@@ -1858,8 +1858,8 @@ int UICheckbox::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp
    } else if (msg == UIMessage::CLICKED) {
       box->check = (box->check + 1) % ((el->_flags & UICheckbox::ALLOW_INDETERMINATE) ? 3 : 2);
       el->repaint(NULL);
-      if (box->invoke)
-         box->invoke();
+      if (box->_on_click)
+         box->_on_click(*box);
    }
 
    return 0;
@@ -2811,7 +2811,7 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
             .add_item((_selection[0].line == _selection[1].line && _selection[0].offset == _selection[1].offset)
                          ? disabled_flag
                          : 0,
-                      "Copy", [this]() { copy_text(sel_target_t::clipboard); })
+                      "Copy", [this](UIButton&) { copy_text(sel_target_t::clipboard); })
             .show();
       }
    } else if (msg == UIMessage::UPDATE) {
@@ -3486,9 +3486,9 @@ int _UITextboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       std::string paste = UI::read_clipboard_text(textbox->_window, sel_target_t::clipboard);
       UI::create_menu(el->_window, UIMenu::NO_SCROLL)
          .add_item(textbox->carets[0] == textbox->carets[1] ? UIElement::disabled_flag : 0, "Copy",
-                   [=]() { UITextboxCopyText(textbox); })
+                   [=](UIButton&) { UITextboxCopyText(textbox); })
          .add_item(paste.empty() ? UIElement::disabled_flag : 0, "Paste",
-                   [=]() { UITextboxPasteText(textbox, sel_target_t::clipboard); })
+                   [=](UIButton&) { UITextboxPasteText(textbox, sel_target_t::clipboard); })
          .show();
    } else if (msg == UIMessage::MIDDLE_DOWN) {
       UITextboxPasteText(textbox, sel_target_t::primary);
@@ -3701,7 +3701,7 @@ UIMDIChild::UIMDIChild(UIElement* parent, uint32_t flags, const UIRectangle& ini
 
    if (flags & UIMDIChild::CLOSE_BUTTON) {
       UIButton* closeButton = UIButtonCreate(this, UIButton::SMALL | non_client_flag, "X");
-      closeButton->invoke   = [this]() { _UIMDIChildCloseButton(this); };
+      closeButton->_on_click   = [this](UIButton&) { _UIMDIChildCloseButton(this); };
    }
 }
 
@@ -4040,7 +4040,7 @@ const char* UI::show_dialog(UIWindow* window, uint32_t flags, const char* format
             if (format[i] == 'C')
                cancelButton = button;
             buttonCount++;
-            button->invoke = [label]() { _UIDialogButtonInvoke(label); };
+            button->_on_click = [label](UIButton&) { _UIDialogButtonInvoke(label); };
             if (format[i] == 'B')
                button->_user_proc = _UIDialogDefaultButtonMessage;
          } else if (format[i] == 's' /* label from string */) {
@@ -4213,9 +4213,9 @@ int UI::_MenuMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    return 0;
 }
 
-UIMenu& UIMenu::add_item(uint32_t flags, std::string_view label, std::function<void()> invoke) {
+UIMenu& UIMenu::add_item(uint32_t flags, std::string_view label, std::function<void(UIButton&)> invoke) {
    UIButton* button   = UIButtonCreate(this, flags | UIButton::MENU_ITEM, label);
-   button->invoke     = std::move(invoke);
+   button->_on_click  = std::move(invoke);
    button->_user_proc = UI::_MenuItemMessage;
    return *this;
 }

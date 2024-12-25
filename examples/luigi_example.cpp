@@ -45,17 +45,6 @@ void MyMenuCallback(const char* cp) {
    label->refresh();
 }
 
-int MyButton2Message(UIElement* el, UIMessage msg, int di, void* dp) {
-   if (msg == UIMessage::CLICKED) {
-      UI::create_menu(el, 0)
-         .add_item(0, "Item 1\tCtrl+F5", []() { MyMenuCallback("Item 1 clicked!"); })
-         .add_item(0, "Item 2\tF6", []() { MyMenuCallback("Item 2 clicked!"); })
-         .show();
-   }
-
-   return 0;
-}
-
 int MySliderHMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::VALUE_CHANGED) {
       gauge_horiz2->set_position(slider_horiz->_position);
@@ -128,7 +117,7 @@ int main(int argc, char** argv) {
    auto        fontCode = UIFontCreate(fontPath.c_str(), 12);
    UIFontActivate(fontCode);
 
-   UIWindow& window = ui->add_window(0, 0, "luigi2 - Example Application", 0, 0);
+   UIWindow& window = ui->create_window(0, 0, "luigi2 - Example Application", 0, 0);
 
    // Split window (vertically) into top/bottom panes.
    UISplitPane& uisplit_topbottom = window.add_splitpane(UIElement::vertical_flag, 0.75f);
@@ -186,7 +175,12 @@ int main(int argc, char** argv) {
    {
       // Bottom-Left pane.
       UIPanel& panel = uisplit_bottom_leftright.add_panel(UIPanel::COLOR_2).set_border(UIRectangle(5)).set_gap(5);
-      panel.add_button(0, "It's a button??").set_user_proc(MyButton2Message);
+      panel.add_button(0, "It's a button??").on_click([&ui_ptr](UIButton& el) {
+         ui_ptr->create_menu(&el, 0)
+            .add_item(0, "Item 1\tCtrl+F5", [](UIButton&) { MyMenuCallback("Item 1 clicked!"); })
+            .add_item(0, "Item 2\tF6",      [](UIButton&) { MyMenuCallback("Item 2 clicked!"); })
+            .show();
+      });
       label = &panel.add_label(UIElement::h_fill, "Hello, I am a label!");
    }
 
@@ -212,7 +206,7 @@ int main(int argc, char** argv) {
 
    {
       // Create a separate window demonstrating the MDI element
-      UIMDIClient& client = ui->add_window(0, 0, "luigi 2 - MDI Example", 0, 0).add_mdiclient(0);
+      UIMDIClient& client = ui->create_window(0, 0, "luigi 2 - MDI Example", 0, 0).add_mdiclient(0);
 
       client.add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(10, 600, 10, 400), "My Window")
          .add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING)
@@ -226,5 +220,5 @@ int main(int argc, char** argv) {
          .add_button(0, "giant button!!");
    }
 
-   return UI::message_loop();
+   return ui->message_loop();
 }
