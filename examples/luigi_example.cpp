@@ -1,6 +1,6 @@
 #ifdef _MSC_VER
-    #pragma warning(disable: 4100) // unreferenced formal parameter
-    #pragma warning(disable: 4996) // This function or variable may be unsafe. Consider using ... instead.
+   #pragma warning(disable : 4100) // unreferenced formal parameter
+   #pragma warning(disable : 4996) // This function or variable may be unsafe. Consider using ... instead.
 #endif
 
 #include "../src/luigi.hpp"
@@ -104,7 +104,7 @@ int MyCheckboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::CLICKED) {
       auto cb = (UICheckbox*)el;
       cb->set_label(cb->check == UICheckbox::CHECKED ? "Off" : "On");
-      
+
       // Note, because this message function is run when the checkbox is
       // clicked _before_ the main checkbox update message is executed, the
       // UICheckbox->check is in the state _prior_ to the update taking place.
@@ -119,13 +119,13 @@ int MyCheckboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 int main(int argc, char** argv) {
    UIConfig cfg;
    auto     ui_ptr = UIInitialise(cfg);
-   
+
    if (!ui_ptr)
       return 1;
 
-   std::string home = getenv("HOME");
+   std::string home     = getenv("HOME");
    std::string fontPath = home + "/fonts/FiraCode-Regular.ttf";
-   auto fontCode = UIFontCreate(fontPath.c_str(), 12);
+   auto        fontCode = UIFontCreate(fontPath.c_str(), 12);
    UIFontActivate(fontCode);
 
    UIWindow& window = ui->add_window(0, 0, "luigi2 - Example Application", 0, 0);
@@ -149,13 +149,13 @@ int main(int argc, char** argv) {
       // The left side will layout elements horizontally, with custom borders and gap.
       UIPanel& sub_left =
          subpanel.add_panel(UIPanel::COLOR_1 | UIPanel::HORIZONTAL).set_border(ui_rect_1(10)).set_gap(2);
-      gauge_vert1             = &sub_left.add_gauge(UIElement::VERTICAL);
-      gauge_vert2             = &sub_left.add_gauge(UIElement::VERTICAL);
-      slider_vert             = &sub_left.add_slider(UIElement::VERTICAL);
+      gauge_vert1 = &sub_left.add_gauge(UIElement::VERTICAL);
+      gauge_vert2 = &sub_left.add_gauge(UIElement::VERTICAL);
+      slider_vert = &sub_left.add_slider(UIElement::VERTICAL);
       slider_vert->set_user_proc(MySliderVMessage);
 
       // The right side will lay out elements vertically (the default), with default medium spacing.
-      UIPanel& sub_right                      = subpanel.add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING);
+      UIPanel& sub_right = subpanel.add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING);
       sub_right.add_button(0, "1").set_user_proc(MyButtonMessage);
       sub_right.add_button(0, "2").set_user_proc(MyButtonMessage);
       sub_right.add_button(0, "3").set_user_proc(MyButtonMessage);
@@ -170,8 +170,8 @@ int main(int argc, char** argv) {
       slider_horiz             = &panel.add_slider(0);
       slider_horiz->_user_proc = MySliderHMessage;
       panel.add_textbox(0);
-      panel.add_textbox(0);  // UITextbox::HIDE_CHARACTERS);
-      
+      panel.add_textbox(0); // UITextbox::HIDE_CHARACTERS);
+
       // Set default slider positions.
       slider_vert->set_position(0.1);
       slider_horiz->set_position(0.3);
@@ -195,19 +195,15 @@ int main(int argc, char** argv) {
       UITabPane& tabPane = uisplit_bottom_leftright.add_tabpane(0, "Tab 1\tMiddle Tab\tTab 3");
 
       // First tab in tabPane
-      UITable& table = tabPane.add_table(0, "Column 1\tColumn 2")
-                          .set_num_items(100000)
-                          .set_user_proc(MyTableMessage)
-                          .resize_columns();
+      tabPane.add_table(0, "Column 1\tColumn 2").set_num_items(100000).set_user_proc(MyTableMessage).resize_columns();
 
       // Second tab
       tabPane.add_panel(UIPanel::COLOR_1).add_label(0, "you're in tab 2, bucko");
 
       // Third tab
-      UIPanel &settingsPanel = tabPane.add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING | UIPanel::HORIZONTAL);
+      UIPanel& settingsPanel = tabPane.add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING | UIPanel::HORIZONTAL);
       settingsPanel.add_label(0, "Delete top-left panel buttons on click:");
-      check_delete = &settingsPanel.add_checkbox(0, "Off");
-      check_delete->set_user_proc(MyCheckboxMessage);
+      check_delete = &settingsPanel.add_checkbox(0, "Off").set_user_proc(MyCheckboxMessage);
    }
 
    UIWindowRegisterShortcut(&window, UIShortcut{.code = UI_KEYCODE_LETTER('T'), .ctrl = true, .invoke = []() {
@@ -216,8 +212,7 @@ int main(int argc, char** argv) {
 
    {
       // Create a separate window demonstrating the MDI element
-      UIWindow&    mdi_window = ui->add_window(0, 0, "luigi 2 - MDI Example", 0, 0);
-      UIMDIClient& client     = mdi_window.add_mdiclient(0);
+      UIMDIClient& client = ui->add_window(0, 0, "luigi 2 - MDI Example", 0, 0).add_mdiclient(0);
 
       client.add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(10, 600, 10, 400), "My Window")
          .add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING)
@@ -227,8 +222,8 @@ int main(int argc, char** argv) {
          .add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING)
          .add_label(0, "the system is down");
 
-      client.add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(70, 670, 70, 470), "Third Window").
-         add_button(0, "giant button!!");
+      client.add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(70, 670, 70, 470), "Third Window")
+         .add_button(0, "giant button!!");
    }
 
    return UIMessageLoop();
