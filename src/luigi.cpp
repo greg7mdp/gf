@@ -2929,7 +2929,7 @@ UICode* UICodeCreate(UIElement* parent, uint32_t flags) {
 // Gauges.
 // --------------------------------------------------
 
-int _UIGaugeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+int UIGauge::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
    UIGauge* gauge = (UIGauge*)el;
 
    if (msg == UIMessage::GET_HEIGHT) {
@@ -2955,7 +2955,7 @@ UIGauge& UIGauge::set_position(double new_pos) {
 }
 
 UIGauge::UIGauge(UIElement* parent, uint32_t flags)
-   : UIElementCast<UIGauge>(parent, flags, _UIGaugeMessage, "Gauge")
+   : UIElementCast<UIGauge>(parent, flags, UIGauge::_ClassMessageProc, "Gauge")
    , _position(0)
    , _vertical(!!(flags & vertical_flag)) {}
 
@@ -2967,7 +2967,7 @@ UIGauge* UIGaugeCreate(UIElement* parent, uint32_t flags) {
 // Sliders.
 // --------------------------------------------------
 
-int _UISliderMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+int UISlider::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
    UISlider* slider = (UISlider*)el;
 
    if (msg == UIMessage::GET_HEIGHT) {
@@ -2995,6 +2995,10 @@ int _UISliderMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       el->repaint(NULL);
    } else if (msg == UIMessage::UPDATE) {
       el->repaint(NULL);
+   } else if (msg == UIMessage::VALUE_CHANGED) {
+      if (slider->_on_value_change) {
+         slider->_on_value_change(*slider);
+      }
    }
 
    return 0;
@@ -3012,7 +3016,7 @@ UISlider& UISlider::set_position(double new_pos) {
 }
 
 UISlider::UISlider(UIElement* parent, uint32_t flags)
-   : UIElementCast<UISlider>(parent, flags, _UISliderMessage, "Slider")
+   : UIElementCast<UISlider>(parent, flags, UISlider::_ClassMessageProc, "Slider")
    , _position(0)
    , _steps(0)
    , _vertical(!!(flags & vertical_flag)) {}

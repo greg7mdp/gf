@@ -47,8 +47,8 @@ void MyMenuCallback(const char* cp) {
 
 int MySliderHMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::VALUE_CHANGED) {
-      gauge_horiz2->set_position(slider_horiz->_position);
-      gauge_vert1->set_position(slider_horiz->_position);
+      gauge_horiz2->set_position(slider_horiz->position());
+      gauge_vert1->set_position(slider_horiz->position());
    }
 
    return 0;
@@ -56,8 +56,8 @@ int MySliderHMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
 int MySliderVMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::VALUE_CHANGED) {
-      gauge_vert2->set_position(slider_vert->_position);
-      gauge_horiz1->set_position(slider_vert->_position);
+      gauge_vert2->set_position(slider_vert->position());
+      gauge_horiz1->set_position(slider_vert->position());
    }
 
    return 0;

@@ -1083,9 +1083,13 @@ public:
 
 // ------------------------------------------------------------------------------------------
 struct UIGauge : public UIElementCast<UIGauge> {
+private:
    double _position;
    bool   _vertical;
 
+   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
+
+public:
    UIGauge(UIElement* parent, uint32_t flags);
 
    UIGauge& set_position(double position);
@@ -1096,11 +1100,15 @@ struct UIGauge : public UIElementCast<UIGauge> {
 
 // ------------------------------------------------------------------------------------------
 struct UISlider : public UIElementCast<UISlider> {
+private:
    double                         _position;
    int                            _steps;
    bool                           _vertical;
    std::function<void(UISlider&)> _on_value_change;
 
+   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
+
+public:
    UISlider(UIElement* parent, uint32_t flags);
 
    UISlider& set_position(double position);
