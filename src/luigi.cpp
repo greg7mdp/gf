@@ -1036,7 +1036,8 @@ void UIElement::_destroy_descendents(bool topLevel) {
          child->destroy();
    }
 
-   ui->InspectorRefresh();
+   if constexpr (UIInspector::enabled())
+      ui->inspector.refresh();
 }
 
 void UIElement::destroy_descendents() {
@@ -1160,7 +1161,8 @@ void UIElement::focus() {
       previous->message(UIMessage::UPDATE, UIUpdate::FOCUSED, 0);
    this->message(UIMessage::UPDATE, UIUpdate::FOCUSED, 0);
 
-   ui->InspectorRefresh();
+   if constexpr (UIInspector::enabled())
+      ui->inspector.refresh();
 }
 
 UIMDIChild& UIElement::add_mdichild(uint32_t flags, UIRectangle initialBounds, std::string_view title) {
@@ -1409,13 +1411,13 @@ bool _UIDestroy(UIElement* element) {
       }
 
       element->animate(true);
+
       delete element;
       return true;
    } else {
       return false;
    }
 }
-
 
 UIElement::UIElement(UIElement* parent, uint32_t flags, message_proc_t message_proc, const char* cClassName)
    : _flags(flags)
@@ -1442,7 +1444,8 @@ UIElement::UIElement(UIElement* parent, uint32_t flags, message_proc_t message_p
    static uint32_t s_id = 0;
    _id                  = ++s_id;
 
-   ui->InspectorRefresh();
+   if constexpr (UIInspector::enabled())
+      ui->inspector.refresh();
 
    if (flags & UIElement::PARENT_PUSH) {
       UIParentPush(this);
@@ -4807,48 +4810,38 @@ UIFont::~UIFont() {
 // --------------------------------------------------
 // Debugging.
 // --------------------------------------------------
-
-#ifdef UI_DEBUG
-
-UIElement* _UIInspectorFindNthElement(UIElement* element, int* index, int* depth) {
+std::pair<UIElement*, size_t> _UIInspectorFindNthElement(UIElement* element, int* index) {
    if (*index == 0) {
-      return element;
+      return {element, 0};
    }
 
    *index = *index - 1;
 
    for (auto child : element->_children) {
       if (!(child->_flags & (UIElement::DESTROY | UIElement::HIDE))) {
-         UIElement* result = _UIInspectorFindNthElement(child, index, depth);
-
-         if (result) {
-            if (depth) {
-               *depth = *depth + 1;
-            }
-
-            return result;
-         }
+         auto [result, depth] = _UIInspectorFindNthElement(child, index);
+         if (result)
+            return { result, depth + 1 };
       }
    }
 
-   return NULL;
+   return {nullptr, 0};
 }
 
 int _UIInspectorTableMessage(UIElement* table, UIMessage msg, int di, void* dp) {
-   if (!ui->inspectorTarget) {
+   if (!ui->inspector._target) {
       return 0;
    }
 
    if (msg == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m       = (UITableGetItem*)dp;
       int             index   = m->index;
-      int             depth   = 0;
-      UIElement*      element = _UIInspectorFindNthElement(ui->inspectorTarget, &index, &depth);
+      auto [element, depth] = _UIInspectorFindNthElement(ui->inspector._target, &index);
       if (!element)
          return 0;
 
       if (m->column == 0) {
-         return m->format_to("{:.{}}{}", "                ", depth * 2, element->_class_name);
+         return m->format_to("{}{}", std::string_view{"                ", depth * 2}, element->_class_name);
       } else if (m->column == 1) {
          const auto& b = element->_bounds;
          return m->format_to("{}:{}, {}:{}", b.l, b.r, b.t, b.b);
@@ -4856,11 +4849,11 @@ int _UIInspectorTableMessage(UIElement* table, UIMessage msg, int di, void* dp) 
          return m->format_to("{}{:c}", element->_id, element->_window->_focused == element ? '*' : ' ');
       }
    } else if (msg == UIMessage::MOUSE_MOVE) {
-      int        index   = ui->inspectorTable->hittest(table->_window->_cursor.x, table->_window->_cursor.y);
+      int        index   = ui->inspector._table->hittest(table->_window->_cursor.x, table->_window->_cursor.y);
       UIElement* element = NULL;
       if (index >= 0)
-         element = _UIInspectorFindNthElement(ui->inspectorTarget, &index, NULL);
-      UIWindow* window       = ui->inspectorTarget;
+         element = _UIInspectorFindNthElement(ui->inspector._target, &index).first;
+      UIWindow* window       = ui->inspector._target;
       UIPainter painter      = {0};
       window->_update_region = window->_bounds;
       painter.bits           = window->_bits.data();
@@ -4886,16 +4879,16 @@ int _UIInspectorTableMessage(UIElement* table, UIMessage msg, int di, void* dp) 
    return 0;
 }
 
-void UI::InspectorCreate() {
-   if (inspector)
+void UIInspector::create() {
+   if (!_enabled || _inspector)
       return;
 
-   inspector                  = UIWindowCreate(0, UIWindow::INSPECTOR, "Inspector", 0, 0);
-   UISplitPane* splitPane     = UISplitPaneCreate(inspector, 0, 0.5f);
-   inspectorTable             = UITableCreate(splitPane, 0, "Class\tBounds\tID");
-   inspectorTable->_user_proc = _UIInspectorTableMessage;
-   inspectorLog               = UICodeCreate(splitPane, 0);
-   inspectorLog->set_font(ui->defaultFont);
+   _inspector             = UIWindowCreate(0, UIWindow::INSPECTOR, "Inspector", 0, 0);
+   UISplitPane* splitPane = UISplitPaneCreate(_inspector, 0, 0.5f);
+   _table                 = UITableCreate(splitPane, 0, "Class\tBounds\tID");
+   _table->_user_proc     = _UIInspectorTableMessage;
+   _log                   = UICodeCreate(splitPane, 0);
+   _log->set_font(ui->defaultFont);
 }
 
 int _UIInspectorCountElements(UIElement* element) {
@@ -4910,35 +4903,32 @@ int _UIInspectorCountElements(UIElement* element) {
    return count;
 }
 
-void UI::InspectorRefresh() {
-   if (!inspectorTarget || !inspector || !inspectorTable)
+void UIInspector::refresh() {
+   if (!_enabled || !_target || !_inspector || !_table)
       return;
-   inspectorTable->set_num_items(_UIInspectorCountElements(inspectorTarget));
-   inspectorTable->resize_columns();
-   inspectorTable->refresh();
+   _table->set_num_items(_UIInspectorCountElements(_target));
+   _table->resize_columns();
+   _table->refresh();
 }
 
-void UI::InspectorSetFocusedWindow(UIWindow* window) {
-   if (!inspector || !inspectorTable)
+void UIInspector::set_focused_window(UIWindow* window) {
+   if (!_enabled || !_inspector || !_table)
       return;
 
    if (window->_flags & UIWindow::INSPECTOR) {
       return;
    }
 
-   if (inspectorTarget != window) {
-      inspectorTarget = window;
-      ui->InspectorRefresh();
+   if (_target != window) {
+      _target = window;
+      ui->inspector.refresh();
    }
 }
 
-#else
-
-void UI::InspectorCreate() {}
-void UI::InspectorSetFocusedWindow(UIWindow* window) {}
-void UI::InspectorRefresh() {}
-
-#endif // UI_DEBUG
+void UIInspector::notify_destroyed_window(UIWindow* window) {
+   if (!_enabled || _target == window)
+      _target = nullptr;
+}
 
 // --------------------------------------------------
 // Automation for tests.
@@ -5367,7 +5357,7 @@ unique_ptr<UI> UIInitialise(const UIConfig& cfg) {
       ui->xim = XOpenIM(ui->display, 0, 0, 0);
    }
 
-   ui->InspectorCreate();
+   ui->inspector.create();
 
    return unique_ptr<UI>{ui};
 }
@@ -5559,7 +5549,8 @@ bool _UIProcessEvent(XEvent* event) {
          window->input_event(UIMessage::MOUSE_WHEEL, 72, 0);
       }
 
-      ui->InspectorSetFocusedWindow(window);
+      if constexpr (UIInspector::enabled())
+         ui->inspector.set_focused_window(window);
    } else if (event->type == KeyPress) {
       UIWindow* window = _UIFindWindow(event->xkey.window);
       if (!window)

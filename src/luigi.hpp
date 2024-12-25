@@ -482,9 +482,9 @@ struct UIKeyTyped {
 // ------------------------------------------------------------------------------------------
 struct UITableGetItem {
    std::string buffer;
-   int    index       = 0;
-   int    column      = 0;
-   bool   isSelected  = false;
+   int         index      = 0;
+   int         column     = 0;
+   bool        isSelected = false;
 
    UITableGetItem(size_t buffer_size) {
       buffer.resize(buffer_size);
@@ -1334,6 +1334,20 @@ inline bool _UICharIsAlphaOrDigitOrUnderscore(int c) {
    return _UICharIsAlpha(c) || _UICharIsDigit(c) || c == '_';
 }
 
+struct UIInspector {
+   static constexpr bool _enabled = (bool)UI_DEBUG;
+   UIWindow* _inspector = nullptr;
+   UITable*  _table     = nullptr;
+   UIWindow* _target    = nullptr;
+   UICode*   _log       = nullptr;
+
+   static constexpr bool enabled() { return _enabled; }
+   void create();
+   void set_focused_window(UIWindow* window);
+   void notify_destroyed_window(UIWindow* window);
+   void refresh();
+};
+
 struct UI {
    UIWindow* windows = nullptr;
    UITheme   theme;
@@ -1352,13 +1366,8 @@ struct UI {
    UIFont*     activeFont  = nullptr;
    UIFont*     defaultFont = nullptr;
 
-#ifdef UI_DEBUG
-   UIWindow* inspector       = nullptr;
-   UITable*  inspectorTable  = nullptr;
-   UIWindow* inspectorTarget = nullptr;
-   UICode*   inspectorLog    = nullptr;
-#endif
-
+   UIInspector inspector;
+   
 #ifdef UI_LINUX
    using cursors_t   = std::array<Cursor, (uint32_t)UICursor::count>;
 
@@ -1395,10 +1404,6 @@ struct UI {
 #endif
    }
 
-   void InspectorCreate();
-   void InspectorRefresh();
-   void InspectorSetFocusedWindow(UIWindow* window);
-   
    int code_margin() { return activeFont->glyphWidth * 5; }
    int code_margin_gap() { return activeFont->glyphWidth * 1; }
 
@@ -1411,8 +1416,8 @@ template< class... Args >
 void UIInspectorLog(UI* ui, std::format_string<Args...> fmt, Args&&... args ) {
    char buffer[4096];
    std_format_to_n(buffer, sizeof(buffer), fmt, std::forward<Args>(args)...);
-   ui->inspectorLog->insert_content(buffer, false);
-   ui->inspectorLog->refresh();
+   ui->inspector._log->insert_content(buffer, false);
+   ui->inspector._log->refresh();
 }
 #endif
 
