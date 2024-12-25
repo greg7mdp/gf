@@ -204,7 +204,7 @@ inline void _ui_move_caret_forward(T& caret, [[maybe_unused]] std::string_view t
 inline bool _ui_move_caret_by_word(std::string_view text, size_t offset) {
    char c1 = (text)[offset - 1];
    char c2 = (text)[offset];
-   return (UI::CharIsAlphaOrDigitOrUnderscore(c1) != UI::CharIsAlphaOrDigitOrUnderscore(c2));
+   return (UI::is_alnum_or_underscore(c1) != UI::is_alnum_or_underscore(c2));
 }
 
 #endif // UI_UNICODE
@@ -5989,7 +5989,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
       ::SetCursor(ui->cursors[window->_cursor_style]);
       return 1;
    } else if (msg == WM_SETFOCUS || msg == WM_KILLFOCUS) {
-      UI::MenusClose();
+      _UIMenusClose();
 
       if (msg == WM_SETFOCUS) {
          ui->inspector.set_focused_window(window);
@@ -6072,7 +6072,7 @@ unique_ptr<UI> UIInitialise(const UIConfig& cfg) {
    return unique_ptr<UI>{ui};
 }
 
-bool _UIMessageLoopSingle(int* result) {
+bool UI::MessageLoopSingle(int* result) {
    MSG msg = {0};
 
    if (!ui->animating.empty()) {
@@ -6102,7 +6102,7 @@ bool _UIMessageLoopSingle(int* result) {
 
 void UIMenuShow(UIMenu* menu) {
    int width, height;
-   UI::MenuPrepare(menu, &width, &height);
+   _UIMenuPrepare(menu, &width, &height);
    MoveWindow(menu->_window->_hwnd, menu->pointX, menu->pointY, width, height, FALSE);
    ShowWindow(menu->_window->_hwnd, SW_SHOWNOACTIVATE);
 }
