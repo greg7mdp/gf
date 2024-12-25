@@ -4960,7 +4960,7 @@ void UIAutomationKeyboardTypeSingle(intptr_t code, bool ctrl, bool shift, bool a
    window->ctrl      = ctrl;
    window->alt       = alt;
    window->shift     = shift;
-   window->InputEvent(UIMessage::KEY_TYPED, 0, &m);
+   window->imput_event(UIMessage::KEY_TYPED, 0, &m);
    window->ctrl  = false;
    window->alt   = false;
    window->shift = false;
@@ -4986,7 +4986,7 @@ void UIAutomationKeyboardType(const char* string) {
                       : c[0] == ' '                  ? UIKeycode::SPACE
                       : (c[0] >= '0' && c[0] <= '9') ? UI_KEYCODE_DIGIT(c[0])
                                                      : 0;
-      window->InputEvent(UIMessage::KEY_TYPED, 0, &m);
+      window->input_event(UIMessage::KEY_TYPED, 0, &m);
    }
 
    window->ctrl  = false;
@@ -5019,7 +5019,7 @@ bool UIAutomationCheckTableItemMatches(UITable* table, int row, int column, cons
    UITableGetItem m(bytes + 1);
    m.column   = column;
    m.index    = row;
-   int length = &table->e->Message(UIMessage::TABLE_GET_ITEM, 0, &m);
+   int length = &table->e->message(UIMessage::TABLE_GET_ITEM, 0, &m);
    if (length != bytes)
       return false;
    auto buffer = m.buff(length);
@@ -5916,7 +5916,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
    }
 
    if (msg == WM_CLOSE) {
-      if (window->Message(UIMessage::WINDOW_CLOSE, 0, 0)) {
+      if (window->message(UIMessage::WINDOW_CLOSE, 0, 0)) {
          _UIUpdate();
          return 0;
       } else {
@@ -5930,7 +5930,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
       window->_bits.resize(window->_width * window->_height);
       window->_bounds = ui_rect_2s(window->_width, window->_height);
       window->_clip   = ui_rect_2s(window->_width, window->_height);
-      window->Relayout();
+      window->relayout();
       _UIUpdate();
    } else if (msg == WM_MOUSEMOVE) {
       if (!window->_tracking_leave) {
@@ -5947,7 +5947,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
       ScreenToClient(hwnd, &cursor);
       window->_cursor.x = cursor.x;
       window->_cursor.y = cursor.y;
-      window->InputEvent(UIMessage::MOUSE_MOVE, 0, 0);
+      window->input_event(UIMessage::MOUSE_MOVE, 0, 0);
    } else if (msg == WM_MOUSELEAVE) {
       window->_tracking_leave = false;
 
@@ -5956,43 +5956,43 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
          window->_cursor.y = -1;
       }
 
-      window->InputEvent(UIMessage::MOUSE_MOVE, 0, 0);
+      window->input_event(UIMessage::MOUSE_MOVE, 0, 0);
    } else if (msg == WM_LBUTTONDOWN) {
       SetCapture(hwnd);
-      window->InputEvent(UIMessage::LEFT_DOWN, 0, 0);
+      window->input_event(UIMessage::LEFT_DOWN, 0, 0);
    } else if (msg == WM_LBUTTONUP) {
       if (window->_pressed_button == 1)
          ReleaseCapture();
-      window->InputEvent(UIMessage::LEFT_UP, 0, 0);
+      window->input_event(UIMessage::LEFT_UP, 0, 0);
    } else if (msg == WM_MBUTTONDOWN) {
       SetCapture(hwnd);
-      window->InputEvent(UIMessage::MIDDLE_DOWN, 0, 0);
+      window->input_event(UIMessage::MIDDLE_DOWN, 0, 0);
    } else if (msg == WM_MBUTTONUP) {
       if (window->_pressed_button == 2)
          ReleaseCapture();
-      window->InputEvent(UIMessage::MIDDLE_UP, 0, 0);
+      window->input_event(UIMessage::MIDDLE_UP, 0, 0);
    } else if (msg == WM_RBUTTONDOWN) {
       SetCapture(hwnd);
-      window->InputEvent(UIMessage::RIGHT_DOWN, 0, 0);
+      window->input_event(UIMessage::RIGHT_DOWN, 0, 0);
    } else if (msg == WM_RBUTTONUP) {
       if (window->_pressed_button == 3)
          ReleaseCapture();
-      window->InputEvent(UIMessage::RIGHT_UP, 0, 0);
+      window->input_event(UIMessage::RIGHT_UP, 0, 0);
    } else if (msg == WM_MOUSEWHEEL) {
       int delta = (int)wParam >> 16;
-      window->InputEvent(UIMessage::MOUSE_WHEEL, -delta, 0);
+      window->input_event(UIMessage::MOUSE_WHEEL, -delta, 0);
    } else if (msg == WM_KEYDOWN) {
       window->_ctrl  = GetKeyState(VK_CONTROL) & 0x8000;
       window->_shift = GetKeyState(VK_SHIFT) & 0x8000;
       window->_alt   = GetKeyState(VK_MENU) & 0x8000;
 
       UIKeyTyped m{.code = (UIKeycode)wParam};
-      window->InputEvent(UIMessage::KEY_TYPED, 0, &m);
+      window->input_event(UIMessage::KEY_TYPED, 0, &m);
    } else if (msg == WM_CHAR) {
       UIKeyTyped m;
       char       c = (char)wParam;
       m.text       = {&c, 1};
-      window->InputEvent(UIMessage::KEY_TYPED, 0, &m);
+      window->input_event(UIMessage::KEY_TYPED, 0, &m);
    } else if (msg == WM_PAINT) {
       PAINTSTRUCT      paint;
       HDC              dc   = BeginPaint(hwnd, &paint);
@@ -6011,7 +6011,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
 
       if (msg == WM_SETFOCUS) {
          ui->InspectorSetFocusedWindow(window);
-         window->Message(UIMessage::WINDOW_ACTIVATE, 0, 0);
+         window->message(UIMessage::WINDOW_ACTIVATE, 0, 0);
       }
    } else if (msg == WM_MOUSEACTIVATE && (window->_flags & UIWindow::MENU)) {
       return MA_NOACTIVATE;
@@ -6027,14 +6027,14 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
          DragQueryFile(drop, i, files[i], length + 1);
       }
 
-      window->Message(UIMessage::WINDOW_DROP_FILES, count, files);
+      window->message(UIMessage::WINDOW_DROP_FILES, count, files);
       for (int i = 0; i < count; i++)
          free(files[i]);
       free(files);
       DragFinish(drop);
       _UIUpdate();
    } else if (msg == WM_APP + 1) {
-      window->Message((UIMessage)wParam, 0, (void*)lParam);
+      window->message((UIMessage)wParam, 0, (void*)lParam);
       _UIUpdate();
    } else {
       if (msg == WM_NCLBUTTONDOWN || msg == WM_NCMBUTTONDOWN || msg == WM_NCRBUTTONDOWN) {
@@ -6094,25 +6094,25 @@ bool _UIMessageLoopSingle(int* result) {
    MSG msg = {0};
 
    if (!ui->animating.empty()) {
-      if (PeekMessage(&message, NULL, 0, 0, PM_REMOVE)) {
+      if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
          if (msg.message == WM_QUIT) {
             *result = msg.wParam;
             return false;
          }
 
-         TranslateMessage(&message);
-         DispatchMessage(&message);
+         TranslateMessage(&msg);
+         DispatchMessage(&msg);
       } else {
          _UIProcessAnimations();
       }
    } else {
-      if (!GetMessage(&message, NULL, 0, 0)) {
+      if (!GetMessage(&msg, NULL, 0, 0)) {
          *result = msg.wParam;
          return false;
       }
 
-      TranslateMessage(&message);
-      DispatchMessage(&message);
+      TranslateMessage(&msg);
+      DispatchMessage(&msg);
    }
 
    return true;
@@ -6154,7 +6154,7 @@ UIWindow* UIWindowCreate(UIWindow* owner, uint32_t flags, const char* cTitle, in
    return window;
 }
 
-void UIWindow::EndPaint(UIPainter* painter) {
+void UIWindow::endpaint(UIPainter* painter) {
    HDC              dc   = GetDC(_hwnd);
    BITMAPINFOHEADER info = {0};
    info.biSize           = sizeof(info);
@@ -6166,11 +6166,11 @@ void UIWindow::EndPaint(UIPainter* painter) {
    ReleaseDC(_hwnd, dc);
 }
 
-void UIWindow::SetCursor(int cursor) {
+void UIWindow::set_cursor(int cursor) {
    ::SetCursor(ui->cursors[cursor]);
 }
 
-void UIWindow::GetScreenPosition(int* _x, int* _y) {
+void UIWindow::get_screen_position(int* _x, int* _y) {
    POINT p;
    p.x = 0;
    p.y = 0;
