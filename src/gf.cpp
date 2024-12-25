@@ -1111,7 +1111,7 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
          return {};
       }
 
-      UI::DialogShow(windowMain, 0, "Couldn't get the working directory.\n%f%B", "OK");
+      UI::show_dialog(windowMain, 0, "Couldn't get the working directory.\n%f%B", "OK");
    } else if (command.starts_with("gf-switch-to ")) {
       ctx.InterfaceWindowSwitchToAndFocus(command.substr(13));
    } else if (command.starts_with("gf-command ")) {
@@ -1150,9 +1150,9 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
       CommandInspectLine();
    } else if (command == "target remote :1234" && confirmCommandConnect &&
               0 == strcmp("Cancel",
-                          UI::DialogShow(windowMain, 0, "Connect to remote target?\n%f%B%C", "Connect", "Cancel"))) {
+                          UI::show_dialog(windowMain, 0, "Connect to remote target?\n%f%B%C", "Connect", "Cancel"))) {
    } else if (command == "kill" && confirmCommandKill &&
-              0 == strcmp("Cancel", UI::DialogShow(windowMain, 0, "Kill debugging target?\n%f%B%C", "Kill", "Cancel"))) {
+              0 == strcmp("Cancel", UI::show_dialog(windowMain, 0, "Kill debugging target?\n%f%B%C", "Kill", "Cancel"))) {
    } else {
       res = DebuggerSend(command, true, synchronous);
    }
@@ -1755,7 +1755,7 @@ void CommandToggleDisassembly() {
 }
 
 void CommandSetDisassemblyMode() {
-   const char* newMode = UI::DialogShow(windowMain, 0, "Select the disassembly mode:\n%b\n%b\n%b", "Disassembly only",
+   const char* newMode = UI::show_dialog(windowMain, 0, "Select the disassembly mode:\n%b\n%b\n%b", "Disassembly only",
                                       "With source", "Source centric");
 
    if (0 == strcmp(newMode, "Disassembly only"))
@@ -1878,7 +1878,7 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
       for (const auto& bp : breakpoints) {
          if (bp.line == -result && 0 == strcmp(bp.fileFull, currentFileFull)) {
-            UIMenu& menu = UI::MenuCreate(el->_window, UIMenu::NO_SCROLL).add_item(0, "Delete", [=]() {
+            UIMenu& menu = UI::create_menu(el->_window, UIMenu::NO_SCROLL).add_item(0, "Delete", [=]() {
                CommandDeleteAllBreakpointsOnLine(-result);
             });
             if (atLeastOneBreakpointEnabled)
@@ -2411,11 +2411,11 @@ const char* BitmapViewerGetBits(std::string pointerString, std::string widthStri
 
 int BitmapViewerDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::RIGHT_UP) {
-      UI::MenuCreate(el->_window, UIMenu::NO_SCROLL)
+      UI::create_menu(el->_window, UIMenu::NO_SCROLL)
          .add_item(0, "Save to file...",
                    [el]() {
                       static char* path   = NULL;
-                      const char*  result = UI::DialogShow(windowMain, 0, "Save to file       \nPath:\n%t\n%f%B%C",
+                      const char*  result = UI::show_dialog(windowMain, 0, "Save to file       \nPath:\n%t\n%f%B%C",
                                                            &path, "Save", "Cancel");
                       if (strcmp(result, "Save"))
                          return;
@@ -2495,7 +2495,7 @@ void BitmapViewerUpdate(std::string pointerString, std::string widthString, std:
 void BitmapAddDialog() {
    static char *pointer = nullptr, *width = nullptr, *height = nullptr, *stride = nullptr;
 
-   const char* result = UI::DialogShow(windowMain, 0,
+   const char* result = UI::show_dialog(windowMain, 0,
                                      "Add bitmap\n\n%l\n\nPointer to bits: (32bpp, RR GG BB "
                                      "AA)\n%t\nWidth:\n%t\nHeight:\n%t\nStride: (optional)\n%t\n\n%l\n\n%f%B%C",
                                      &pointer, &width, &height, &stride, "Add", "Cancel");
@@ -3061,13 +3061,13 @@ std::string WatchGetAddress(const shared_ptr<Watch>& watch) {
    auto res = WatchEvaluate("gf_addressof", watch);
 
    if (strstr(res.c_str(), "??")) {
-      UI::DialogShow(windowMain, 0, "Couldn't get the address of the variable.\n%f%B", "OK");
+      UI::show_dialog(windowMain, 0, "Couldn't get the address of the variable.\n%f%B", "OK");
       return {};
    }
 
    auto end = res.find_first_of(' ');
    if (end == npos) {
-      UI::DialogShow(windowMain, 0, "Couldn't get the address of the variable.\n%f%B", "OK");
+      UI::show_dialog(windowMain, 0, "Couldn't get the address of the variable.\n%f%B", "OK");
       return {};
    }
    res.resize(end);
@@ -3087,7 +3087,7 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
    }
 
    if (!dataTab) {
-      UI::DialogShow(windowMain, 0, "The data window is not open.\nThe watch log cannot be created.\n%f%B", "OK");
+      UI::show_dialog(windowMain, 0, "The data window is not open.\nThe watch log cannot be created.\n%f%B", "OK");
       return;
    }
 
@@ -3097,7 +3097,7 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
    }
 
    char*       expressionsToEvaluate = nullptr;
-   const char* result                = UI::DialogShow(
+   const char* result                = UI::show_dialog(
       windowMain, 0,
       "-- Watch logger settings --\nExpressions to evaluate (separate with semicolons):\n%t\n\n%l\n\n%f%B%C",
       &expressionsToEvaluate, "Start", "Cancel");
@@ -3114,7 +3114,7 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
    const char* number = strstr(res.c_str(), "point ");
 
    if (!number) {
-      UI::DialogShow(windowMain, 0, "Couldn't set the watchpoint.\n%f%B", "OK");
+      UI::show_dialog(windowMain, 0, "Couldn't set the watchpoint.\n%f%B", "OK");
       return;
    }
 
@@ -3161,7 +3161,7 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
    dataWindow->refresh();
    WatchLoggerResizeColumns(logger);
 
-   UI::DialogShow(windowMain, 0, "The log has been setup in the data window.\n%f%B", "OK");
+   UI::show_dialog(windowMain, 0, "The log has been setup in the data window.\n%f%B", "OK");
    return;
 }
 
@@ -3317,7 +3317,7 @@ void CommandWatchViewSourceAtAddress(WatchWindow* _w) {
 
    if (res.contains("No line number")) {
       resize_to_lf(res);
-      UI::DialogShow(windowMain, 0, "%s\n%f%B", res.c_str(), "OK");
+      UI::show_dialog(windowMain, 0, "%s\n%f%B", res.c_str(), "OK");
       return;
    }
 
@@ -3374,7 +3374,7 @@ void CommandWatchSaveAs(WatchWindow* _w) {
       return;
 
    char*       filePath = nullptr;
-   const char* result   = UI::DialogShow(windowMain, 0, "Path:            \n%t\n%f%B%C", &filePath, "Save", "Cancel");
+   const char* result   = UI::show_dialog(windowMain, 0, "Path:            \n%t\n%f%B%C", &filePath, "Save", "Cancel");
 
    if (0 == strcmp(result, "Cancel")) {
       free(filePath);
@@ -3385,7 +3385,7 @@ void CommandWatchSaveAs(WatchWindow* _w) {
    free(filePath);
 
    if (!f) {
-      UI::DialogShow(windowMain, 0, "Could not open the file for writing!\n%f%B", "OK");
+      UI::show_dialog(windowMain, 0, "Could not open the file for writing!\n%f%B", "OK");
       return;
    }
 
@@ -3404,7 +3404,7 @@ void CommandWatchCopyValueToClipboard(WatchWindow* w) {
    auto res = WatchEvaluate("gf_valueof", watch);
    if (!res.empty()) {
       resize_to_lf(res);
-      UI::ClipboardWriteText(w->_window, strdup(res.c_str()), sel_target_t::clipboard);
+      UI::write_clipboard_text(w->_window, strdup(res.c_str()), sel_target_t::clipboard);
    }
 }
 
@@ -3500,7 +3500,7 @@ int WatchWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
          if (index < w->rows.size()) {
             WatchWindowMessage(el, UIMessage::LEFT_DOWN, di, dp);
-            UIMenu& menu = UI::MenuCreate(el->_window, UIMenu::NO_SCROLL);
+            UIMenu& menu = UI::create_menu(el->_window, UIMenu::NO_SCROLL);
 
             if (w->mode == WATCH_NORMAL && !w->rows[index]->parent) {
                menu.add_item(0, "Edit expression", [w]() { WatchCreateTextboxForRow(w, true); })
@@ -3964,7 +3964,7 @@ int TableBreakpointsMessage(UIElement* el, UIMessage msg, int di, void* dp) {
             data->selected.push_back(entry->number);
          }
 
-         UIMenu& menu = UI::MenuCreate(el->_window, UIMenu::NO_SCROLL);
+         UIMenu& menu = UI::create_menu(el->_window, UIMenu::NO_SCROLL);
 
          if (data->selected.size() > 1) {
             bool atLeastOneBreakpointDisabled = false;
@@ -4561,7 +4561,7 @@ void ExecutableWindowStartOrRun(ExecutableWindow* window, bool pause) {
    auto res = EvaluateCommand(std::format("file \"{}\"", window->path->text()));
 
    if (res.contains("No such file or directory.")) {
-      UI::DialogShow(windowMain, 0, "The executable path is invalid.\n%f%B", "OK");
+      UI::show_dialog(windowMain, 0, "The executable path is invalid.\n%f%B", "OK");
       return;
    }
 
@@ -4592,7 +4592,7 @@ void ExecutableWindowSaveButton(void* _window) {
    FILE*             f      = fopen(localConfigPath, "rb");
 
    if (f) {
-      const char* result = UI::DialogShow(windowMain, 0, ".project.gf already exists in the current directory.\n%f%B%C",
+      const char* result = UI::show_dialog(windowMain, 0, ".project.gf already exists in the current directory.\n%f%B%C",
                                         "Overwrite", "Cancel");
       if (strcmp(result, "Overwrite"))
          return;
@@ -4604,7 +4604,7 @@ void ExecutableWindowSaveButton(void* _window) {
          window->askDirectory->check == UICheckbox::CHECKED ? '1' : '0');
    fclose(f);
    SettingsAddTrustedFolder();
-   UI::DialogShow(windowMain, 0, "Saved executable settings!\n%f%B", "OK");
+   UI::show_dialog(windowMain, 0, "Saved executable settings!\n%f%B", "OK");
 }
 
 UIElement* ExecutableWindowCreate(UIElement* parent) {
@@ -4962,13 +4962,13 @@ int ProfFlameGraphEntryCompare(const void* _a, const void* _b) {
 void ProfShowSource(ProfFlameGraphReport* report) {
    ProfFlameGraphEntry* entry = report->menuItem;
    if (!report->functions.contains(entry->thisFunction)) {
-      UI::DialogShow(windowMain, 0, "Source information was not found for this function.\n%f%b", "OK");
+      UI::show_dialog(windowMain, 0, "Source information was not found for this function.\n%f%b", "OK");
       return;
    }
    ProfFunctionEntry& function = report->functions[entry->thisFunction];
 
    if (!function.cName[0]) {
-      UI::DialogShow(windowMain, 0, "Source information was not found for this function.\n%f%b", "OK");
+      UI::show_dialog(windowMain, 0, "Source information was not found for this function.\n%f%b", "OK");
       return;
    } else {
       DisplaySetPosition(report->sourceFiles[function.sourceFileIndex].cPath, function.lineNumber - 1, false);
@@ -5326,7 +5326,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          report->xStart = (r.l - report->client.l) / zoomX + report->xStart;
       } else if (!report->dragStarted && msg == UIMessage::RIGHT_UP && report->hover) {
          report->menuItem = report->hover;
-         UI::MenuCreate(el->_window, UIMenu::NO_SCROLL)
+         UI::create_menu(el->_window, UIMenu::NO_SCROLL)
             .add_item(0, "Show source", [report]() { ProfShowSource(report); })
             .add_item(0, "Add breakpoint", [report]() { ProfAddBreakpoint(report->hover); })
             .add_item(0, "Fill view", [report]() { ProfFillView(report); })
@@ -5533,7 +5533,7 @@ void ProfLoadProfileData(void* _window) {
    data->ticksPerMs             = ticksPerMsString ? sv_atoi(ticksPerMsString, 2) : 0;
 
    if (!ticksPerMsString || !data->ticksPerMs) {
-      UI::DialogShow(windowMain, 0, "Profile data could not be loaded (1).\nConsult the guide.\n%f%b", "OK");
+      UI::show_dialog(windowMain, 0, "Profile data could not be loaded (1).\nConsult the guide.\n%f%b", "OK");
       return;
    }
 
@@ -5574,7 +5574,7 @@ void ProfLoadProfileData(void* _window) {
    FILE* f = fopen(path, "rb");
 
    if (!f) {
-      UI::DialogShow(windowMain, 0, "Profile data could not be loaded (2).\nConsult the guide.\n%f%b", "OK");
+      UI::show_dialog(windowMain, 0, "Profile data could not be loaded (2).\nConsult the guide.\n%f%b", "OK");
       free(rawEntries);
       return;
    }
@@ -5996,7 +5996,7 @@ void MemoryWindowGotoButtonInvoke(void* cp) {
    MemoryWindow* window     = (MemoryWindow*)cp;
    char*         expression = nullptr;
 
-   if (0 == strcmp("Goto", UI::DialogShow(windowMain, 0, "Enter address expression:\n%t\n%f%b%b", &expression, "Goto",
+   if (0 == strcmp("Goto", UI::show_dialog(windowMain, 0, "Enter address expression:\n%t\n%f%b%b", &expression, "Goto",
                                         "Cancel"))) {
       char buffer[4096];
       std_format_to_n(buffer, sizeof(buffer), "py gf_valueof(['{}'],' ')", expression);
@@ -6013,10 +6013,10 @@ void MemoryWindowGotoButtonInvoke(void* cp) {
             window->offset = address & ~0xF;
             window->repaint(nullptr);
          } else {
-            UI::DialogShow(windowMain, 0, "Cannot access memory at address 0.\n%f%b", "OK");
+            UI::show_dialog(windowMain, 0, "Cannot access memory at address 0.\n%f%b", "OK");
          }
       } else {
-         UI::DialogShow(windowMain, 0, "Expression did not evaluate to an address.\n%f%b", "OK");
+         UI::show_dialog(windowMain, 0, "Expression did not evaluate to an address.\n%f%b", "OK");
       }
    }
 
@@ -6919,12 +6919,12 @@ int WaveformViewerRefreshMessage(UIElement* el, UIMessage msg, int di, void* dp)
 void WaveformViewerSaveToFile(WaveformDisplay* display) {
    static char* path = NULL;
    const char*  result =
-      UI::DialogShow(windowMain, 0, "Save to file       \nPath:\n%t\n%f%b%b%b", &path, "Save", "Save and open", "Cancel");
+      UI::show_dialog(windowMain, 0, "Save to file       \nPath:\n%t\n%f%b%b%b", &path, "Save", "Save and open", "Cancel");
    if (0 == strcmp(result, "Cancel"))
       return;
    FILE* f = fopen(path, "wb");
    if (!f) {
-      UI::DialogShow(windowMain, 0, "Unable to open file for writing.\n%f%b", "OK");
+      UI::show_dialog(windowMain, 0, "Unable to open file for writing.\n%f%b", "OK");
       return;
    }
    int32_t i;
@@ -6964,7 +6964,7 @@ void WaveformViewerSaveToFile(WaveformDisplay* display) {
 int WaveformViewerDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::RIGHT_UP) {
       WaveformDisplay* display = (WaveformDisplay*)el;
-      UI::MenuCreate(el->_window, UIMenu::NO_SCROLL).add_item(0, "Save to .wav...", [display]() {
+      UI::create_menu(el->_window, UIMenu::NO_SCROLL).add_item(0, "Save to .wav...", [display]() {
          WaveformViewerSaveToFile(display);
       }).show();
    }
@@ -7031,7 +7031,7 @@ void WaveformAddDialog() {
    static char *pointer = nullptr, *sampleCount = nullptr, *channels = nullptr;
 
    const char* result =
-      UI::DialogShow(windowMain, 0,
+      UI::show_dialog(windowMain, 0,
                    "Add waveform\n\n%l\n\nPointer to samples: (float *)\n%t\nSample count (per channel):\n%t\n"
                    "Channels (interleaved):\n%t\n\n%l\n\n%f%b%b",
                    &pointer, &sampleCount, &channels, "Add", "Cancel");
@@ -7282,7 +7282,7 @@ void Context::InterfaceAddBuiltinWindowsAndCommands() {
 }
 
 void Context::InterfaceShowMenu(UIButton* self) {
-   UIMenu& menu = UI::MenuCreate((UIElement*)self, UIMenu::PLACE_ABOVE | UIMenu::NO_SCROLL);
+   UIMenu& menu = UI::create_menu((UIElement*)self, UIMenu::PLACE_ABOVE | UIMenu::NO_SCROLL);
 
    for (const auto& ic : interfaceCommands) {
       if (ic.label)
@@ -7320,7 +7320,7 @@ UIElement* Context::InterfaceWindowSwitchToAndFocus(string_view target_name) {
       return w.el;
    }
 
-   UI::DialogShow(windowMain, 0, "Couldn't find the window '%s'.\n%f%B", target_name, "OK");
+   UI::show_dialog(windowMain, 0, "Couldn't find the window '%s'.\n%f%B", target_name, "OK");
    return nullptr;
 }
 
@@ -7545,7 +7545,7 @@ int main(int argc, char** argv) {
    if (!ui_ptr)
       return 1;
 
-   UI::MessageLoop();
+   UI::message_loop();
    ctx.KillGdb();
 
    if (restoreWatchWindow && firstWatchWindow) {

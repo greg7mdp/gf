@@ -47,7 +47,7 @@ void MyMenuCallback(const char* cp) {
 
 int MyButton2Message(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::CLICKED) {
-      UI::MenuCreate(el, 0)
+      UI::create_menu(el, 0)
          .add_item(0, "Item 1\tCtrl+F5", []() { MyMenuCallback("Item 1 clicked!"); })
          .add_item(0, "Item 2\tF6", []() { MyMenuCallback("Item 2 clicked!"); })
          .show();
@@ -226,5 +226,5 @@ int main(int argc, char** argv) {
          .add_button(0, "giant button!!");
    }
 
-   return UI::MessageLoop();
+   return UI::message_loop();
 }

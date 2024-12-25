@@ -1365,24 +1365,23 @@ struct UI {
    friend struct UIWindow;
    
 private:
-   static void        InspectorRefresh();
-   static bool        MessageLoopSingle(int* result);
+   static void        _inspector_refresh();
+   static bool        _message_loop_single(int* result);
    static int         _DialogTextboxMessage(UIElement* el, UIMessage msg, int di, void* dp);
    static int         _MenuMessage(UIElement* el, UIMessage msg, int di, void* dp);
    static int         _MenuItemMessage(UIElement* el, UIMessage msg, int di, void* dp);
 
 public:
-   static void        ClipboardWriteText(UIWindow* window, std::string text, sel_target_t t);
-   static std::string ClipboardReadText(UIWindow* window, sel_target_t t);
+   static void        write_clipboard_text(UIWindow* window, std::string text, sel_target_t t);
+   static std::string read_clipboard_text(UIWindow* window, sel_target_t t);
 
-   static int         MessageLoop();
-   static void        Update();
-   static void        ProcessAnimations();
+   static int         message_loop();
+   static void        update();
+   static void        process_animations();
 
-   static UIMenu&     MenuCreate(UIElement* parent, uint32_t flags);
-   static void        MenuAddItem(UIMenu* menu, uint32_t flags, std::string_view label, std::function<void()> invoke);
+   static UIMenu&     create_menu(UIElement* parent, uint32_t flags);
 
-   static const char* DialogShow(UIWindow* window, uint32_t flags, const char* format, ...);
+   static const char* show_dialog(UIWindow* window, uint32_t flags, const char* format, ...);
 
    static int byte_to_column(std::string_view string, size_t byte, size_t tabSize);
    static int column_to_byte(std::string_view string, size_t column, size_t tabSize);

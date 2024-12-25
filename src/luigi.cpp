@@ -494,14 +494,14 @@ uint64_t UIAnimateClock() {
    return (uint64_t)UI_CLOCK() * 1000 / UI_CLOCKS_PER_SECOND;
 }
 
-void UI::ProcessAnimations() {
+void UI::process_animations() {
    bool update = !ui->animating.empty();
 
    for (auto el : ui->animating)
       el->message(UIMessage::ANIMATE, 0, 0);
 
    if (update) {
-      UI::Update();
+      UI::update();
    }
 }
 
@@ -2516,7 +2516,7 @@ UICode& UICode::copy_text(sel_target_t t) {
       pasteText.resize(to - from);
       for (size_t i = from; i < to; i++)
          pasteText[i - from] = (*this)[i];
-      UI::ClipboardWriteText(_window, std::move(pasteText), t);
+      UI::write_clipboard_text(_window, std::move(pasteText), t);
    }
    return *this;
 }
@@ -2807,7 +2807,7 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
 
       if (hitTest > 0 && (_flags & UICode::SELECTABLE)) {
          focus();
-         UI::MenuCreate(_window, UIMenu::NO_SCROLL)
+         UI::create_menu(_window, UIMenu::NO_SCROLL)
             .add_item((_selection[0].line == _selection[1].line && _selection[0].offset == _selection[1].offset)
                          ? disabled_flag
                          : 0,
@@ -3346,13 +3346,13 @@ void UITextboxCopyText(void* cp) {
       pasteText.resize(to - from);
       for (int i = from; i < to; i++)
          pasteText[i - from] = text[i];
-      UI::ClipboardWriteText(textbox->_window, std::move(pasteText), sel_target_t::clipboard);
+      UI::write_clipboard_text(textbox->_window, std::move(pasteText), sel_target_t::clipboard);
    }
 }
 
 void UITextboxPasteText(void* cp, sel_target_t t) {
    UITextbox*  textbox = (UITextbox*)cp;
-   std::string text    = UI::ClipboardReadText(textbox->_window, t);
+   std::string text    = UI::read_clipboard_text(textbox->_window, t);
 
    if (!text.empty()) {
       for (auto& c : text)
@@ -3483,8 +3483,8 @@ int _UITextboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          textbox->carets[1] = c1; // Only move caret if clicking outside the existing selection.
       }
 
-      std::string paste = UI::ClipboardReadText(textbox->_window, sel_target_t::clipboard);
-      UI::MenuCreate(el->_window, UIMenu::NO_SCROLL)
+      std::string paste = UI::read_clipboard_text(textbox->_window, sel_target_t::clipboard);
+      UI::create_menu(el->_window, UIMenu::NO_SCROLL)
          .add_item(textbox->carets[0] == textbox->carets[1] ? UIElement::disabled_flag : 0, "Copy",
                    [=]() { UITextboxCopyText(textbox); })
          .add_item(paste.empty() ? UIElement::disabled_flag : 0, "Paste",
@@ -4000,7 +4000,7 @@ int UI::_DialogTextboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    return 0;
 }
 
-const char* UI::DialogShow(UIWindow* window, uint32_t flags, const char* format, ...) {
+const char* UI::show_dialog(UIWindow* window, uint32_t flags, const char* format, ...) {
    // Create the dialog wrapper and panel.
 
    UI_ASSERT(!window->_dialog);
@@ -4085,8 +4085,8 @@ const char* UI::DialogShow(UIWindow* window, uint32_t flags, const char* format,
    for (int i = 1; i <= 3; i++)
       window->set_pressed(NULL, i);
    window->refresh();
-   UI::Update();
-   while (!ui->dialogResult && UI::MessageLoopSingle(&result))
+   UI::update();
+   while (!ui->dialogResult && UI::_message_loop_single(&result))
       ;
    ui->quit = !ui->dialogResult;
 
@@ -4246,7 +4246,7 @@ UIMenu::UIMenu(UIElement* parent, uint32_t flags)
    }
 }
 
-UIMenu& UI::MenuCreate(UIElement* parent, uint32_t flags) {
+UIMenu& UI::create_menu(UIElement* parent, uint32_t flags) {
    return *new UIMenu(parent, flags);
 }
 
@@ -4264,7 +4264,7 @@ void UIWindowRegisterShortcut(UIWindow* window, UIShortcut shortcut) {
    window->_shortcuts.push_back(std::move(shortcut));
 }
 
-void UI::Update() {
+void UI::update() {
    UIWindow*  window = ui->windows;
    UIWindow** link   = &ui->windows;
 
@@ -4538,7 +4538,7 @@ bool UIWindow::input_event(UIMessage msg, int di, void* dp) {
    }
 
 end:
-   UI::Update();
+   UI::update();
    return handled;
 }
 
@@ -4913,7 +4913,7 @@ int UIAutomationRunTests();
 
 void UIAutomationProcessMessage() {
    int result;
-   UI::MessageLoopSingle(&result);
+   UI::_message_loop_single(&result);
 }
 
 void UIAutomationKeyboardTypeSingle(intptr_t code, bool ctrl, bool shift, bool alt) {
@@ -5034,13 +5034,13 @@ int UIWindow::_ClassMessageProcCommon(UIElement* el, UIMessage msg, int di, void
    return 0;
 }
 
-int UI::MessageLoop() {
-   UI::Update();
+int UI::message_loop() {
+   UI::update();
 #ifdef UI_AUTOMATION_TESTS
    return UIAutomationRunTests();
 #else
    int result = 0;
-   while (!ui->quit && UI::MessageLoopSingle(&result))
+   while (!ui->quit && UI::_message_loop_single(&result))
       ui->dialogResult = NULL;
    return result;
 #endif
@@ -5159,13 +5159,13 @@ UIWindow* _UIFindWindow(Window window) {
    return NULL;
 }
 
-void UI::ClipboardWriteText(UIWindow* window, std::string text, sel_target_t t) {
+void UI::write_clipboard_text(UIWindow* window, std::string text, sel_target_t t) {
    ui->pasteText = std::move(text);
    Atom atom     = (t == sel_target_t::clipboard) ? ui->clipboardID : ui->primaryID;
    XSetSelectionOwner(ui->display, atom, window->_xwindow, 0);
 }
 
-std::string UI::ClipboardReadText(UIWindow* window, sel_target_t t) {
+std::string UI::read_clipboard_text(UIWindow* window, sel_target_t t) {
    Atom atom = (t == sel_target_t::clipboard) ? ui->clipboardID : ui->primaryID;
 
    Window clipboardOwner = XGetSelectionOwner(ui->display, atom);
@@ -5456,7 +5456,7 @@ bool _UIProcessEvent(XEvent* event) {
       bool exit = !window->message(UIMessage::WINDOW_CLOSE, 0, 0);
       if (exit)
          return true;
-      UI::Update();
+      UI::update();
       return false;
    } else if (event->type == Expose) {
       UIWindow* window = _UIFindWindow(event->xexpose.window);
@@ -5485,7 +5485,7 @@ bool _UIProcessEvent(XEvent* event) {
             window->_bits[i] = 0xFF00FF;
    #endif
          window->relayout();
-         UI::Update();
+         UI::update();
       }
    } else if (event->type == MotionNotify) {
       UIWindow* window = _UIFindWindow(event->xmotion.window);
@@ -5538,7 +5538,7 @@ bool _UIProcessEvent(XEvent* event) {
          p |= (uintptr_t)(event->xkey.time & 0xFFFFFFFF) << 32;
    #endif
          window->message((UIMessage)event->xkey.state, 0, (void*)p);
-         UI::Update();
+         UI::update();
       } else {
          char   text[32];
          KeySym symbol = NoSymbol;
@@ -5617,7 +5617,7 @@ bool _UIProcessEvent(XEvent* event) {
       window->message(UIMessage::WINDOW_ACTIVATE, 0, 0);
    } else if (event->type == FocusOut || event->type == ResizeRequest) {
       _UIMenusClose();
-      UI::Update();
+      UI::update();
    } else if (event->type == ClientMessage && event->xclient.message_type == ui->dndEnterID) {
       UIWindow* window = _UIFindWindow(event->xclient.window);
       if (!window)
@@ -5736,7 +5736,7 @@ bool _UIProcessEvent(XEvent* event) {
       XFlush(ui->display);
 
       window->_drag_source = 0; // Drag complete.
-      UI::Update();
+      UI::update();
    } else if (event->type == SelectionRequest) {
       UIWindow* window = _UIFindWindow(event->xclient.window);
       if (!window)
@@ -5783,14 +5783,14 @@ bool _UIProcessEvent(XEvent* event) {
 
 // return true if events processed without problem, false otherwise
 // ----------------------------------------------------------------
-bool UI::MessageLoopSingle(int* result) {
+bool UI::_message_loop_single(int* result) {
    XEvent events[64];
 
    if (!ui->animating.empty()) {
       if (XPending(ui->display)) {
          XNextEvent(ui->display, events + 0);
       } else {
-         UI::ProcessAnimations();
+         UI::process_animations();
          return true;
       }
    } else {
@@ -6055,7 +6055,7 @@ unique_ptr<UI> UIInitialise(const UIConfig& cfg) {
    return unique_ptr<UI>{ui};
 }
 
-bool UI::MessageLoopSingle(int* result) {
+bool UI::_message_loop_single(int* result) {
    MSG msg = {0};
 
    if (!ui->animating.empty()) {
