@@ -149,7 +149,7 @@ int main(int argc, char** argv) {
             }
          })
          .on_click([](UITable& table) {
-            int hit = table.hittest(table._window->_cursor.x, table._window->_cursor.y);
+            int hit = table.hittest(table.cursor_pos());
 
             if (selected != hit) {
                selected = hit;
@@ -171,10 +171,10 @@ int main(int argc, char** argv) {
       });
    }
 
-   UIWindowRegisterShortcut(&window, UIShortcut{.code = UI_KEYCODE_LETTER('T'), .ctrl = true, .invoke = []() {
-                                                   label->set_label("Keyboard shortcut!");
-                                                   label->refresh();
-                                                }});
+   window.register_shortcut(UIShortcut{.code = UI_KEYCODE_LETTER('T'), .ctrl = true, .invoke = []() {
+                                          label->set_label("Keyboard shortcut!");
+                                          label->refresh();
+                                       }});
 
    {
       // Create a separate window demonstrating the MDI element

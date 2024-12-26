@@ -650,7 +650,8 @@ public:
    UIElement*     next_or_previous_sibling(bool previous);
    UIElement&     parent() { return *_parent; }
    void           measurements_changed(int which);
-
+   UIPoint        cursor_pos() const;
+   
    void           refresh();
    void           relayout();
    void           repaint(const UIRectangle* region);
@@ -669,6 +670,12 @@ public:
 
    UIElement&     set_user_proc(message_proc_t proc) { _user_proc = proc; return *this; }
    message_proc_t user_proc() const { return _user_proc; }
+
+   UIElement&     set_cp(void* cp) { _cp = cp; return *this; }
+
+   bool           is_hovered() const;
+   bool           is_focused() const;
+   bool           is_pressed() const;
 
    
    // functions to create child UI elements
@@ -706,6 +713,7 @@ struct UIElementCast : public UIElement{
 
    Derived& set_user_proc(message_proc_t proc) { return static_cast<Derived&>(UIElement::set_user_proc(proc)); }
    Derived& focus() { return static_cast<Derived&>(UIElement::focus()); }
+   Derived& set_cp(void* cp) { return static_cast<Derived&>(UIElement::set_cp(cp)); }
 };
 
 // ------------------------------------------------------------------------------------------
@@ -720,19 +728,6 @@ enum class sel_target_t { primary, clipboard };
 // ------------------------------------------------------------------------------------------
 struct UIWindow : public UIElementCast<UIWindow> {
 private:
-   static int _ClassMessageProcCommon(UIElement* el, UIMessage msg, int di, void* dp);
-   friend struct UI;
-
-public:
-   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
-
-   enum {
-      MENU            = (1 << 0),
-      INSPECTOR       = (1 << 1),
-      CENTER_IN_OWNER = (1 << 2),
-      MAXIMIZE        = (1 << 3),
-   };
-
    UIElement*              _dialog;
    std::vector<UIShortcut> _shortcuts;
    float                   _scale;
@@ -747,6 +742,24 @@ public:
    int                     _pressed_button;
    UIPoint                 _cursor;
    int                     _cursor_style;
+
+   
+   int _class_message_proc_common(UIMessage msg, int di, void* dp);
+
+   static int _ClassMessageProcCommon(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<UIWindow*>(el)->_class_message_proc_common(msg, di, dp);
+   }
+   friend struct UI;
+
+public:
+   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
+
+   enum {
+      MENU            = (1 << 0),
+      INSPECTOR       = (1 << 1),
+      CENTER_IN_OWNER = (1 << 2),
+      MAXIMIZE        = (1 << 3),
+   };
 
    // Set when a textbox is modified.
    // Useful for tracking whether changes to the loaded document have been saved.
@@ -780,14 +793,56 @@ public:
 
    static UIWindow& Create(UIWindow* owner, uint32_t flags, const char* cTitle, int _width, int _height);
    
-   void endpaint(UIPainter* painter);
-   void set_cursor(int cursor);
-   void get_screen_position(int* _x, int* _y);
-   void set_pressed(UIElement* el, int button);
-   bool input_event(UIMessage message, int di, void* dp);
+   void        endpaint(UIPainter* painter);
+   void        get_screen_position(int* _x, int* _y);
+   UIWindow&   set_cursor(int cursor);
+
+   UIWindow&   set_pressed(UIElement* el, int button);
+   UIElement*  pressed() const { return _pressed; }
+
+   UIWindow&   set_hovered(UIElement* el) { _hovered = el; return *this; }
+   UIElement*  hovered() const { return _hovered; }
+
+   UIWindow&   set_focused(UIElement* el) { _focused = el; return *this; }
+   UIElement*  focused() const { return _focused; }
+
+   UIWindow&   set_dialog_old_focus(UIElement* e) { _dialog_old_focus = e; return *this; }
+   UIElement*  dialog_old_focus() const { return _dialog_old_focus; }
+   
+   int         pressed_button() const { return _pressed_button; }
+
+   bool        is_hovered() const = delete; // do not call on UIWindow. only on UIElement
+   bool        is_focused() const = delete; // do not call on UIWindow. only on UIElement
+   bool        is_pressed() const = delete; // do not call on UIWindow. only on UIElemen
+
+   UIWindow&   set_next(UIWindow* w) { _next = w; return *this; }
+   UIWindow*   next() const { return _next; }
+   
+   UIWindow&   set_scale(float scale) { _scale = scale; return *this; }
+   float       scale() const { return _scale; }
+
+   std::vector<uint32_t>& bits() { return _bits; }
+
+   uint32_t    width()   const { return _width; }
+   uint32_t    height()  const { return _height; }
+   UIWindow&   set_size(uint32_t w, uint32_t h) { _width = w; _height = h; return *this; }
+
+   UIWindow&   set_cursor_pos(UIPoint pt) { _cursor = pt; return *this; }
+   UIPoint     cursor_pos() const { return _cursor; }
+
+   UIWindow&   register_shortcut(UIShortcut shortcut);
+
+   bool        input_event(UIMessage message, int di, void* dp);
+
+   const char* show_dialog(uint32_t flags, const char* format, ...);
 };
 
-inline int UIElement::scale(auto sz) const { return (int)((float)sz * _window->_scale); }
+inline int  UIElement::scale(auto sz) const { return (int)((float)sz * _window->scale()); }
+
+inline bool    UIElement::is_hovered() const { return _window->hovered() == this; }
+inline bool    UIElement::is_focused() const { return _window->focused() == this; }
+inline bool    UIElement::is_pressed() const { return _window->pressed() == this; }
+inline UIPoint UIElement::cursor_pos() const { return _window->cursor_pos(); }
 
 // ------------------------------------------------------------------------------------------
 struct UIPanel : public UIElementCast<UIPanel> {
@@ -1103,7 +1158,10 @@ public:
 
    UICode&    move_caret(bool backward, bool word);
    UICode&    position_to_byte(int x, int y, size_t* line, size_t* byte);
+   UICode&    position_to_byte(UIPoint pt, size_t* line, size_t* byte) { return position_to_byte(pt.x, pt.y, line, byte); }
+
    int        hittest(int x, int y);
+   int        hittest(UIPoint p) { return hittest(p.x, p.y); }
 
    UICode&    set_tab_columns(uint32_t sz) { _tab_columns = sz; return *this; }
    uint32_t   tab_columns() const { return _tab_columns; }
@@ -1136,7 +1194,7 @@ public:
    UICode&    set_font(UIFont* font) { _font = font; return *this; }
    UIFont*    font() const { return _font; }
 
-   UICode&    copy_text(sel_target_t t);
+   UICode&    copy(sel_target_t t);
 
    int        column_to_byte(size_t ln, size_t column) const;
    int        byte_to_column(size_t ln, size_t byte) const;
@@ -1225,7 +1283,11 @@ public:
    }
 
    int      hittest(int x, int y);
+   int      hittest(UIPoint p) { return hittest(p.x, p.y); }
+
    int      header_hittest(int x, int y);
+   int      header_hittest(UIPoint p) { return header_hittest(p.x, p.y); }
+
    bool     ensure_visible(int index);
    size_t&  num_items()                    { return _num_items; }
    UITable& set_num_items(size_t n)        { _num_items = n; return *this; }
@@ -1238,7 +1300,7 @@ public:
 
 // ------------------------------------------------------------------------------------------
 struct UITextbox : public UIElementCast<UITextbox> {
-   friend struct UI;
+   friend struct UIWindow;
 private:
    std::string        _buffer;
    std::array<int, 2> _carets{};
@@ -1543,7 +1605,7 @@ public:
    int code_margin() { return activeFont->glyphWidth * 5; }
    int code_margin_gap() { return activeFont->glyphWidth * 1; }
 
-   static void        write_clipboard_text(UIWindow* window, std::string text, sel_target_t t);
+   static void        write_clipboard_text(UIWindow* window, std::string_view text, sel_target_t t);
    static std::string read_clipboard_text(UIWindow* window, sel_target_t t);
 
    static int         message_loop();
@@ -1552,8 +1614,6 @@ public:
 
    static UIMenu&     create_menu(UIElement* parent, uint32_t flags);
    static UIWindow&   create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height);
-
-   static const char* show_dialog(UIWindow* window, uint32_t flags, const char* format, ...);
 
    static int byte_to_column(std::string_view string, size_t byte, size_t tabSize);
    static int column_to_byte(std::string_view string, size_t column, size_t tabSize);
