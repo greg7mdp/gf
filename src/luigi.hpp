@@ -924,9 +924,13 @@ public:
 };
 
 // ------------------------------------------------------------------------------------------
-struct UISplitter {
-   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
+struct UISplitter : public UIElementCast<UISplitter> {
+   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<UISplitter*>(el)->_class_message_proc(msg, di, dp);
+   }
 
+private:
+   int _class_message_proc(UIMessage msg, int di, void* dp);
 };
 
 // ------------------------------------------------------------------------------------------

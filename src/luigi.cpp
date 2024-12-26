@@ -1915,19 +1915,19 @@ UILabel* UILabelCreate(UIElement* parent, uint32_t flags, std::string_view label
 // --------------------------------------------------
 // Split panes.
 // --------------------------------------------------
-int UISplitter::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-   UISplitPane* splitPane = (UISplitPane*)el->_parent;
+int UISplitter::_class_message_proc(UIMessage msg, int di, void* dp) {
+   UISplitPane* splitPane = (UISplitPane*)_parent;
    bool         vertical  = splitPane->_flags & UIElement::vertical_flag;
 
    if (msg == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, el->_bounds,
-                    UIControl::splitter | (vertical ? UIControl::state_vertical : 0) | el->state(), {}, 0,
-                    el->_window->_scale);
+      UIDrawControl((UIPainter*)dp, _bounds,
+                    UIControl::splitter | (vertical ? UIControl::state_vertical : 0) | state(), {}, 0,
+                    _window->_scale);
    } else if (msg == UIMessage::GET_CURSOR) {
       return vertical ? (uint32_t)UICursor::split_v : (uint32_t)UICursor::split_h;
    } else if (msg == UIMessage::MOUSE_DRAG) {
-      int   cursor       = vertical ? el->_window->_cursor.y : el->_window->_cursor.x;
-      int   splitterSize = el->scale(ui_size::splitter);
+      int   cursor       = vertical ? _window->_cursor.y : _window->_cursor.x;
+      int   splitterSize = scale(ui_size::splitter);
       int   space        = (vertical ? splitPane->_bounds.height() : splitPane->_bounds.width()) - splitterSize;
       float oldWeight    = splitPane->weight();
       splitPane->set_weight(
