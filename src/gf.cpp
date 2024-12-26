@@ -4165,7 +4165,7 @@ struct FilesWindow {
 bool FilesPanelPopulate(FilesWindow* window);
 
 mode_t FilesGetMode(FilesWindow* window, UIButton* button, size_t* oldLength) {
-   const char* name = button->_label.data();
+   const char* name = button->label().data();
    *oldLength       = strlen(window->directory);
    strcat(window->directory, "/");
    strcat(window->directory, name);
@@ -4199,7 +4199,7 @@ int FilesButtonMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       int        i       = (el == el->_window->_pressed) + (el == el->_window->_hovered);
       if (i)
          UIDrawBlock(painter, el->_bounds, i == 2 ? ui->theme.buttonPressed : ui->theme.buttonHovered);
-      UIDrawString(painter, el->_bounds + UIRectangle(ui_size::button_padding, 0, 0, 0), button->_label,
+      UIDrawString(painter, el->_bounds + UIRectangle(ui_size::button_padding, 0, 0, 0), button->label(),
                    button->_flags & UIButton::CHECKED ? ui->theme.codeNumber : ui->theme.codeDefault, UIAlign::left,
                    NULL);
       return 1;
@@ -5446,7 +5446,7 @@ int ProfReportWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
 void ProfSwitchView(ProfFlameGraphReport* report) {
    report->showingTable            = !report->showingTable;
-   report->switchViewButton->_label = report->showingTable ? "Graph view" : "Table view";
+   report->switchViewButton->set_label(report->showingTable ? "Graph view" : "Table view");
    report->_parent->refresh();
 }
 

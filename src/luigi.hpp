@@ -820,8 +820,16 @@ public:
 
 // ------------------------------------------------------------------------------------------
 struct UIButton : public UIElementCast<UIButton> {
+private:
+   std::string                    _label;
+   std::function<void(UIButton&)> _on_click;
+
+   int _class_message_proc(UIMessage msg, int di, void* dp);
+
 public:
-   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
+   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<UIButton*>(el)->_class_message_proc(msg, di, dp);
+   }
 
    enum {
       SMALL     = 1 << 0,
@@ -831,12 +839,11 @@ public:
       CHECKED   = 1 << 15,
    };
 
-   std::string                    _label;
-   std::function<void(UIButton&)> _on_click;
-
    UIButton(UIElement* parent, uint32_t flags, std::string_view label);
 
    UIButton& on_click(std::function<void(UIButton&)> f) { _on_click = std::move(f); return *this; }
+
+   UIButton& set_label(std::string_view s); 
    std::string_view label() const { return _label; }
 };
 
@@ -1377,7 +1384,6 @@ UIWrapPanel*  UIWrapPanelCreate(UIElement* parent, uint32_t flags);
 UIGauge* UIGaugeCreate(UIElement* parent, uint32_t flags);
 
 UIButton* UIButtonCreate(UIElement* parent, uint32_t flags, std::string_view label);
-void      UIButtonSetLabel(UIButton* button, std::string_view string);
 
 UILabel*  UILabelCreate(UIElement* parent, uint32_t flags, std::string_view label);
 
