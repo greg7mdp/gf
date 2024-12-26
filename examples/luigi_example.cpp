@@ -144,12 +144,12 @@ int main(int argc, char** argv) {
          ui_ptr->create_menu(&el, 0)
             .add_item(0, "Item 1\tCtrl+F5",
                       [](UIButton&) {
-                         UILabelSetContent(label, "Item 1 clicked!");
+                         label->set_label("Item 1 clicked!");
                          label->refresh();
                       })
             .add_item(0, "Item 2\tF6",
                       [](UIButton&) {
-                         UILabelSetContent(label, "Item 2 clicked!");
+                         label->set_label("Item 2 clicked!");
                          label->refresh();
                       })
             .show();
@@ -176,7 +176,7 @@ int main(int argc, char** argv) {
    }
 
    UIWindowRegisterShortcut(&window, UIShortcut{.code = UI_KEYCODE_LETTER('T'), .ctrl = true, .invoke = []() {
-                                                   UILabelSetContent(label, "Keyboard shortcut!");
+                                                   label->set_label("Keyboard shortcut!");
                                                    label->refresh();
                                                 }});
 

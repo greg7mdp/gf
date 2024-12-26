@@ -1884,25 +1884,24 @@ UICheckbox* UICheckboxCreate(UIElement* parent, uint32_t flags, std::string_view
 // Labels.
 // --------------------------------------------------
 
-int UILabel::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-   UILabel* label = (UILabel*)el;
-
+int UILabel::_class_message_proc(UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::GET_HEIGHT) {
       return UIMeasureStringHeight();
    } else if (msg == UIMessage::GET_WIDTH) {
-      return UIMeasureStringWidth(label->_label);
+      return UIMeasureStringWidth(_label);
    } else if (msg == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, el->_bounds, UIControl::label | el->state(), label->_label, 0, el->_window->_scale);
+      UIDrawControl((UIPainter*)dp, _bounds, UIControl::label | state(), _label, 0, _window->_scale);
    } else if (msg == UIMessage::DEALLOCATE) {
    }
 
    return 0;
 }
 
-void UILabelSetContent(UILabel* label, std::string_view str) {
-   label->_label = str;
-   label->measurements_changed(1);
-   label->repaint(NULL);
+UILabel& UILabel::set_label(std::string_view str) {
+   _label = str;
+   measurements_changed(1);
+   repaint(NULL);
+   return *this;
 }
 
 UILabel::UILabel(UIElement* parent, uint32_t flags, std::string_view label)
@@ -1930,19 +1929,19 @@ int UISplitter::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp
       int   cursor       = vertical ? el->_window->_cursor.y : el->_window->_cursor.x;
       int   splitterSize = el->scale(ui_size::splitter);
       int   space        = (vertical ? splitPane->_bounds.height() : splitPane->_bounds.width()) - splitterSize;
-      float oldWeight    = splitPane->_weight;
-      splitPane->_weight =
-         (float)(cursor - (float)splitterSize / 2 - (vertical ? splitPane->_bounds.t : splitPane->_bounds.l)) / space;
-      splitPane->_weight = std::clamp(splitPane->_weight, 0.05f, 0.95f);
+      float oldWeight    = splitPane->weight();
+      splitPane->set_weight(
+         (float)(cursor - (float)splitterSize / 2 - (vertical ? splitPane->_bounds.t : splitPane->_bounds.l)) / space);
+      splitPane->set_weight(std::clamp(splitPane->weight(), 0.05f, 0.95f));
 
       if (splitPane->_children[2]->_class_proc == UISplitPane::_ClassMessageProc &&
           (splitPane->_children[2]->_flags & UIElement::vertical_flag) ==
              (splitPane->_flags & UIElement::vertical_flag)) {
          UISplitPane* subSplitPane = (UISplitPane*)splitPane->_children[2];
-         subSplitPane->_weight =
-            (splitPane->_weight - oldWeight - subSplitPane->_weight + oldWeight * subSplitPane->_weight) /
-            (-1 + splitPane->_weight);
-         splitPane->_weight = std::clamp(subSplitPane->_weight, 0.05f, 0.95f);
+         subSplitPane->set_weight(
+            (splitPane->weight() - oldWeight - subSplitPane->weight() + oldWeight * subSplitPane->weight()) /
+            (-1 + splitPane->weight()));
+         splitPane->set_weight(std::clamp(subSplitPane->weight(), 0.05f, 0.95f));
       }
 
       splitPane->refresh();
@@ -1951,33 +1950,32 @@ int UISplitter::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp
    return 0;
 }
 
-int UISplitPane::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-   UISplitPane* splitPane = (UISplitPane*)el;
-   bool         vertical  = splitPane->_flags & UIElement::vertical_flag;
+int UISplitPane::_class_message_proc(UIMessage msg, int di, void* dp) {
+   bool vertical = _flags & UIElement::vertical_flag;
 
    if (msg == UIMessage::LAYOUT) {
-      assert(el->_children.size() >= 3);
-      UIElement* splitter = el->_children[0];
-      UIElement* left     = el->_children[1];
-      UIElement* right    = el->_children[2];
+      assert(_children.size() >= 3);
+      UIElement* splitter = _children[0];
+      UIElement* left     = _children[1];
+      UIElement* right    = _children[2];
 
-      int splitterSize = el->scale(ui_size::splitter);
-      int space        = (vertical ? el->_bounds.height() : el->_bounds.width()) - splitterSize;
-      int leftSize     = space * splitPane->_weight;
+      int splitterSize = scale(ui_size::splitter);
+      int space        = (vertical ? _bounds.height() : _bounds.width()) - splitterSize;
+      int leftSize     = space * _weight;
       int rightSize    = space - leftSize;
 
       if (vertical) {
-         left->move(UIRectangle(el->_bounds.l, el->_bounds.r, el->_bounds.t, el->_bounds.t + leftSize), false);
-         splitter->move(UIRectangle(el->_bounds.l, el->_bounds.r, el->_bounds.t + leftSize,
-                                    el->_bounds.t + leftSize + splitterSize),
+         left->move(UIRectangle(_bounds.l, _bounds.r, _bounds.t, _bounds.t + leftSize), false);
+         splitter->move(UIRectangle(_bounds.l, _bounds.r, _bounds.t + leftSize,
+                                    _bounds.t + leftSize + splitterSize),
                         false);
-         right->move(UIRectangle(el->_bounds.l, el->_bounds.r, el->_bounds.b - rightSize, el->_bounds.b), false);
+         right->move(UIRectangle(_bounds.l, _bounds.r, _bounds.b - rightSize, _bounds.b), false);
       } else {
-         left->move(UIRectangle(el->_bounds.l, el->_bounds.l + leftSize, el->_bounds.t, el->_bounds.b), false);
-         splitter->move(UIRectangle(el->_bounds.l + leftSize, el->_bounds.l + leftSize + splitterSize, el->_bounds.t,
-                                    el->_bounds.b),
+         left->move(UIRectangle(_bounds.l, _bounds.l + leftSize, _bounds.t, _bounds.b), false);
+         splitter->move(UIRectangle(_bounds.l + leftSize, _bounds.l + leftSize + splitterSize, _bounds.t,
+                                    _bounds.b),
                         false);
-         right->move(UIRectangle(el->_bounds.r - rightSize, el->_bounds.r, el->_bounds.t, el->_bounds.b), false);
+         right->move(UIRectangle(_bounds.r - rightSize, _bounds.r, _bounds.t, _bounds.b), false);
       }
    }
 
@@ -2081,13 +2079,11 @@ UITabPane* UITabPaneCreate(UIElement* parent, uint32_t flags, const char* tabs) 
 // Spacers.
 // --------------------------------------------------
 
-int UISpacer::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-   UISpacer* spacer = (UISpacer*)el;
-
+int UISpacer::_class_message_proc(UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::GET_HEIGHT) {
-      return el->scale(spacer->_height);
+      return scale(_height);
    } else if (msg == UIMessage::GET_WIDTH) {
-      return el->scale(spacer->_width);
+      return scale(_width);
    }
 
    return 0;

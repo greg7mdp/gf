@@ -2480,7 +2480,7 @@ void BitmapViewerUpdate(std::string pointerString, std::string widthString, std:
    bitmap->parsedWidth = width, bitmap->parsedHeight = height;
    UIImageDisplaySetContent(bitmap->display, bits, width, height, stride);
    if (error)
-      UILabelSetContent(bitmap->label, error);
+      bitmap->label->set_label(error);
    if (error)
       bitmap->labelPanel->_flags &= ~UIElement::hide_flag, bitmap->display->_flags |= UIElement::hide_flag;
    else
@@ -4242,7 +4242,7 @@ bool FilesPanelPopulate(FilesWindow* window) {
 
    char path[PATH_MAX];
    realpath(window->directory, path);
-   UILabelSetContent(window->path, path);
+   window->path->set_label(path);
 
    return true;
 }
@@ -7000,7 +7000,7 @@ void WaveformViewerUpdate(const char* pointerString, const char* sampleCountStri
    viewer->parsedSampleCount = sampleCount, viewer->parsedChannels = channels;
 
    if (error) {
-      UILabelSetContent(viewer->label, error);
+      viewer->label->set_label(error);
       viewer->labelPanel->_flags &= ~UIElement::hide_flag;
       viewer->display->_flags |= UIElement::hide_flag;
    } else {

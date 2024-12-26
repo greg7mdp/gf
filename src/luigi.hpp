@@ -848,6 +848,7 @@ private:
    std::function<void(UICheckbox&)> _on_click;
 
    int _class_message_proc(UIMessage msg, int di, void* dp);
+   
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<UICheckbox*>(el)->_class_message_proc(msg, di, dp);
    }
@@ -870,35 +871,56 @@ public:
 // ------------------------------------------------------------------------------------------
 struct UILabel : public UIElementCast<UILabel> {
 private:
-   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
-   
-public:
    std::string _label;
 
+   int _class_message_proc(UIMessage msg, int di, void* dp);
+   
+   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<UILabel*>(el)->_class_message_proc(msg, di, dp);
+   }
+   
+public:
    UILabel(UIElement* parent, uint32_t flags, std::string_view label);
+
+   UILabel&         set_label(std::string_view label);
+   std::string_view label() const     { return _label; }
 };
 
 // ------------------------------------------------------------------------------------------
 struct UISpacer : public UIElementCast<UISpacer> {
 private:
-   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
-
-public:
    size_t   _width;
    size_t   _height;
 
+   int _class_message_proc(UIMessage msg, int di, void* dp);
+
+   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<UISpacer*>(el)->_class_message_proc(msg, di, dp);
+   }
+
+public:
    UISpacer(UIElement* parent, uint32_t flags, int width, int height);
+
+   size_t width()  const { return _width; }
+   size_t height() const { return _height; }
 };
 
 // ------------------------------------------------------------------------------------------
 struct UISplitPane : public UIElementCast<UISplitPane> {
 private:
-public:
-   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
+   int _class_message_proc(UIMessage msg, int di, void* dp);
 
-   float     _weight;
+   float _weight;
+
+public:
+   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<UISplitPane*>(el)->_class_message_proc(msg, di, dp);
+   }
 
    UISplitPane(UIElement* parent, uint32_t flags, float weight);
+
+   float       weight() const { return _weight; }
+   UISplitPane set_weight(float w) { _weight = w; return *this; }
 };
 
 // ------------------------------------------------------------------------------------------
@@ -1296,7 +1318,6 @@ UIButton* UIButtonCreate(UIElement* parent, uint32_t flags, std::string_view lab
 void      UIButtonSetLabel(UIButton* button, std::string_view string);
 
 UILabel*  UILabelCreate(UIElement* parent, uint32_t flags, std::string_view label);
-void      UILabelSetContent(UILabel* code, std::string_view content);
 
 UIImageDisplay* UIImageDisplayCreate(UIElement* parent, uint32_t flags, uint32_t* bits, size_t width, size_t height,
                                      size_t stride);
