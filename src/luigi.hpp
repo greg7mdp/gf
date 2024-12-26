@@ -1228,14 +1228,14 @@ private:
    }
 
 public:
-   std::string        buffer;
-   std::array<int, 2> carets{};
-   int                scroll;
-   bool               rejectNextKey;
+   std::string        _buffer;
+   std::array<int, 2> _carets{};
+   int                _scroll;
+   bool               _reject_next_key;
 
    UITextbox(UIElement* parent, uint32_t flags);
    
-   std::string_view text() const { return std::string_view(buffer); }
+   std::string_view text() const { return std::string_view(_buffer); }
 };
 
 // ------------------------------------------------------------------------------------------

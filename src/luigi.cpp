@@ -3279,21 +3279,21 @@ int _UITextboxColumnToByte(std::string_view string, int column) {
 }
 
 void UITextboxReplace(UITextbox* textbox, std::string_view text, bool sendChangedMessage) {
-   auto   sz         = textbox->buffer.size();
-   size_t deleteFrom = textbox->carets[0], deleteTo = textbox->carets[1];
+   auto   sz         = textbox->_buffer.size();
+   size_t deleteFrom = textbox->_carets[0], deleteTo = textbox->_carets[1];
    assert(deleteFrom <= sz && deleteTo <= sz);
    if (deleteFrom > deleteTo)
       std::swap(deleteFrom, deleteTo);
 
    // first remove the selection
    // --------------------------
-   textbox->buffer.erase(deleteFrom, deleteTo - deleteFrom);
+   textbox->_buffer.erase(deleteFrom, deleteTo - deleteFrom);
 
    // then insert new text
    // --------------------
-   textbox->buffer.insert(deleteFrom, text);
-   textbox->carets[0] = deleteFrom + text.size();
-   textbox->carets[1] = textbox->carets[0];
+   textbox->_buffer.insert(deleteFrom, text);
+   textbox->_carets[0] = deleteFrom + text.size();
+   textbox->_carets[1] = textbox->_carets[0];
 
    if (sendChangedMessage)
       textbox->message(UIMessage::VALUE_CHANGED, 0, 0);
@@ -3302,26 +3302,26 @@ void UITextboxReplace(UITextbox* textbox, std::string_view text, bool sendChange
 }
 
 void UITextboxClear(UITextbox* textbox, bool sendChangedMessage) {
-   textbox->carets[1] = 0;
-   textbox->carets[0] = textbox->text().size();
+   textbox->_carets[1] = 0;
+   textbox->_carets[0] = textbox->text().size();
    UITextboxReplace(textbox, "", sendChangedMessage);
 }
 
 void UITextboxMoveCaret(UITextbox* textbox, bool backward, bool word) {
    while (true) {
       std::string_view text = textbox->text();
-      if (textbox->carets[0] > 0 && backward) {
-         _ui_move_caret_backwards(textbox->carets[0], text.data(), textbox->carets[0], 0);
-      } else if (textbox->carets[0] < (int)text.size() && !backward) {
-         _ui_move_caret_forward(textbox->carets[0], text, textbox->carets[0]);
+      if (textbox->_carets[0] > 0 && backward) {
+         _ui_move_caret_backwards(textbox->_carets[0], text.data(), textbox->_carets[0], 0);
+      } else if (textbox->_carets[0] < (int)text.size() && !backward) {
+         _ui_move_caret_forward(textbox->_carets[0], text, textbox->_carets[0]);
       } else {
          return;
       }
 
       if (!word) {
          return;
-      } else if (textbox->carets[0] != (int)text.size() && textbox->carets[0] != 0) {
-         if (_ui_move_caret_by_word(text, textbox->carets[0]))
+      } else if (textbox->_carets[0] != (int)text.size() && textbox->_carets[0] != 0) {
+         if (_ui_move_caret_by_word(text, textbox->_carets[0]))
             break;
       }
    }
@@ -3332,8 +3332,8 @@ void UITextboxMoveCaret(UITextbox* textbox, bool backward, bool word) {
 void UITextboxCopyText(void* cp) {
    UITextbox* textbox = (UITextbox*)cp;
 
-   int from = std::min(textbox->carets[0], textbox->carets[1]);
-   int to   = std::max(textbox->carets[0], textbox->carets[1]);
+   int from = std::min(textbox->_carets[0], textbox->_carets[1]);
+   int to   = std::max(textbox->_carets[0], textbox->_carets[1]);
 
    if (from != to) {
       auto        text = textbox->text();
@@ -3370,28 +3370,28 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
       int         totalWidth   = UIMeasureStringWidth(text()) + scaledMargin * 2;
       UIRectangle textBounds   = _bounds + ui_rect_1i(scaledMargin);
 
-      if (scroll > totalWidth - textBounds.width()) {
-         scroll = totalWidth - textBounds.width();
+      if (_scroll > totalWidth - textBounds.width()) {
+         _scroll = totalWidth - textBounds.width();
       }
 
-      if (scroll < 0) {
-         scroll = 0;
+      if (_scroll < 0) {
+         _scroll = 0;
       }
 
-      int caretX = UIMeasureStringWidth(text().substr(0, carets[0])) - scroll;
+      int caretX = UIMeasureStringWidth(text().substr(0, _carets[0])) - _scroll;
 
       if (caretX < 0) {
-         scroll = caretX + scroll;
+         _scroll = caretX + _scroll;
       } else if (caretX > textBounds.width()) {
-         scroll = caretX - textBounds.width() + scroll + 1;
+         _scroll = caretX - textBounds.width() + _scroll + 1;
       }
 
       UIStringSelection selection = {};
-      selection.carets[0]         = _UITextboxByteToColumn(text(), carets[0]);
-      selection.carets[1]         = _UITextboxByteToColumn(text(), carets[1]);
+      selection.carets[0]         = _UITextboxByteToColumn(text(), _carets[0]);
+      selection.carets[1]         = _UITextboxByteToColumn(text(), _carets[1]);
       selection.colorBackground   = ui->theme.selected;
       selection.colorText         = ui->theme.textSelected;
-      textBounds.l -= scroll;
+      textBounds.l -= _scroll;
 
       auto cur_text = text();
       if (!cur_text.empty())
@@ -3401,10 +3401,10 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::GET_CURSOR) {
       return (int)UICursor::text;
    } else if (msg == UIMessage::LEFT_DOWN) {
-      int column = (_window->_cursor.x - _bounds.l + scroll - scale(ui_size::textbox_margin) +
+      int column = (_window->_cursor.x - _bounds.l + _scroll - scale(ui_size::textbox_margin) +
                     ui->activeFont->glyphWidth / 2) /
                    ui->activeFont->glyphWidth;
-      carets[0] = carets[1] = column <= 0 ? 0 : _UITextboxColumnToByte(text(), column);
+      _carets[0] = _carets[1] = column <= 0 ? 0 : _UITextboxColumnToByte(text(), column);
       focus();
    } else if (msg == UIMessage::UPDATE) {
       repaint(NULL);
@@ -3414,36 +3414,36 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
       UIKeyTyped* m       = (UIKeyTyped*)dp;
       bool        handled = true;
 
-      if (rejectNextKey) {
-         rejectNextKey = false;
+      if (_reject_next_key) {
+         _reject_next_key = false;
          handled                = false;
       } else if (m->code == UIKeycode::BACKSPACE || m->code == UIKeycode::DEL) {
-         if (carets[0] == carets[1]) {
+         if (_carets[0] == _carets[1]) {
             UITextboxMoveCaret(this, m->code == UIKeycode::BACKSPACE, _window->_ctrl);
          }
 
          UITextboxReplace(this, "", true);
       } else if (m->code == UIKeycode::LEFT || m->code == UIKeycode::RIGHT) {
-         if (carets[0] == carets[1] || _window->_shift) {
+         if (_carets[0] == _carets[1] || _window->_shift) {
             UITextboxMoveCaret(this, m->code == UIKeycode::LEFT, _window->_ctrl);
             if (!_window->_shift)
-               carets[1] = carets[0];
+               _carets[1] = _carets[0];
          } else {
-            carets[1 - _window->_shift] = carets[_window->_shift];
+            _carets[1 - _window->_shift] = _carets[_window->_shift];
          }
       } else if (m->code == UIKeycode::HOME || m->code == UIKeycode::END) {
          if (m->code == UIKeycode::HOME) {
-            carets[0] = 0;
+            _carets[0] = 0;
          } else {
-            carets[0] = text().size();
+            _carets[0] = text().size();
          }
 
          if (!_window->_shift) {
-            carets[1] = carets[0];
+            _carets[1] = _carets[0];
          }
       } else if (m->code == UI_KEYCODE_LETTER('A') && _window->_ctrl) {
-         carets[1] = 0;
-         carets[0] = text().size();
+         _carets[1] = 0;
+         _carets[0] = text().size();
       } else if (m->text.size() && !_window->_alt && !_window->_ctrl && m->text[0] >= 0x20) {
          UITextboxReplace(this, m->text, true);
       } else if ((m->code == UI_KEYCODE_LETTER('C') || m->code == UI_KEYCODE_LETTER('X') ||
@@ -3467,18 +3467,18 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
          return 1;
       }
    } else if (msg == UIMessage::RIGHT_DOWN) {
-      int c0 = carets[0], c1 = carets[1];
+      int c0 = _carets[0], c1 = _carets[1];
       _class_message_proc(UIMessage::LEFT_DOWN, di, dp);
 
-      if (c0 < c1 ? (carets[0] >= c0 && carets[0] < c1)
-                  : (carets[0] >= c1 && carets[0] < c0)) {
-         carets[0] = c0,
-         carets[1] = c1; // Only move caret if clicking outside the existing selection.
+      if (c0 < c1 ? (_carets[0] >= c0 && _carets[0] < c1)
+                  : (_carets[0] >= c1 && _carets[0] < c0)) {
+         _carets[0] = c0,
+         _carets[1] = c1; // Only move caret if clicking outside the existing selection.
       }
 
       std::string paste = UI::read_clipboard_text(_window, sel_target_t::clipboard);
       UI::create_menu(_window, UIMenu::NO_SCROLL)
-         .add_item(carets[0] == carets[1] ? UIElement::disabled_flag : 0, "Copy",
+         .add_item(_carets[0] == _carets[1] ? UIElement::disabled_flag : 0, "Copy",
                    [this](UIButton&) { UITextboxCopyText(this); })
          .add_item(paste.empty() ? UIElement::disabled_flag : 0, "Paste",
                    [this](UIButton&) { UITextboxPasteText(this, sel_target_t::clipboard); })
@@ -3494,9 +3494,9 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
 
 UITextbox::UITextbox(UIElement* parent, uint32_t flags)
    : UIElementCast<UITextbox>(parent, flags | tab_stop_flag, UITextbox::_ClassMessageProc, "Textbox")
-   , carets({0, 0})
-   , scroll(0)
-   , rejectNextKey(false) {}
+   , _carets({0, 0})
+   , _scroll(0)
+   , _reject_next_key(false) {}
 
 UITextbox* UITextboxCreate(UIElement* parent, uint32_t flags) {
    return new UITextbox(parent, flags);
@@ -3985,8 +3985,8 @@ int UI::_DialogTextboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          (*buffer)[i] = text[i];
       (*buffer)[sz] = 0;
    } else if (msg == UIMessage::UPDATE && di == UIUpdate::focused && el->_window->_focused == el) {
-      textbox->carets[1] = 0;
-      textbox->carets[0] = text.size();
+      textbox->_carets[1] = 0;
+      textbox->_carets[0] = text.size();
       el->repaint(NULL);
    }
 
