@@ -1776,7 +1776,7 @@ int UIButton::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) 
          return el->scale(ui_size::button_height);
       }
    } else if (msg == UIMessage::GET_WIDTH) {
-      int labelSize  = UIMeasureStringWidth(button->label);
+      int labelSize  = UIMeasureStringWidth(button->_label);
       int paddedSize = labelSize + el->scale(ui_size::button_padding);
       if (isDropDown)
          paddedSize += ui->activeFont->glyphWidth * 2;
@@ -1790,7 +1790,7 @@ int UIButton::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) 
                      : isDropDown ? UIControl::drop_down
                                   : UIControl::push_button) |
                        ((el->_flags & UIButton::CHECKED) ? UIControl::state_checked : 0) | el->state(),
-                    button->label, 0, el->_window->_scale);
+                    button->_label, 0, el->_window->_scale);
    } else if (msg == UIMessage::UPDATE) {
       el->repaint(NULL);
    } else if (msg == UIMessage::DEALLOCATE) {
@@ -1816,14 +1816,14 @@ int UIButton::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) 
 }
 
 void UIButtonSetLabel(UIButton* button, std::string_view string) {
-   button->label = string;
+   button->_label = string;
    button->measurements_changed(1);
    button->repaint(NULL);
 }
 
 UIButton::UIButton(UIElement* parent, uint32_t flags, std::string_view label)
    : UIElementCast<UIButton>(parent, flags | UIElement::tab_stop_flag, UIButton::_ClassMessageProc, "Button")
-   , label(label) {}
+   , _label(label) {}
 
 UIButton* UIButtonCreate(UIElement* parent, uint32_t flags, std::string_view label) {
    return new UIButton(parent, flags | UIElement::tab_stop_flag, label);
@@ -1835,16 +1835,16 @@ int UICheckbox::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp
    if (msg == UIMessage::GET_HEIGHT) {
       return el->scale(ui_size::button_height);
    } else if (msg == UIMessage::GET_WIDTH) {
-      int labelSize = UIMeasureStringWidth(box->label);
+      int labelSize = UIMeasureStringWidth(box->_label);
       return el->scale(labelSize + ui_size::checkbox_box + ui_size::checkbox_gap);
    } else if (msg == UIMessage::PAINT) {
       UIDrawControl((UIPainter*)dp, el->_bounds,
                     UIControl::checkbox |
-                       (box->check == UICheckbox::INDETERMINATE ? UIControl::state_indeterminate
-                        : box->check == UICheckbox::CHECKED     ? UIControl::state_checked
+                       (box->_check == indeterminate ? UIControl::state_indeterminate
+                        : box->_check == checked     ? UIControl::state_checked
                                                                 : 0) |
                        el->state(),
-                    box->label, 0, el->_window->_scale);
+                    box->_label, 0, el->_window->_scale);
    } else if (msg == UIMessage::UPDATE) {
       el->repaint(NULL);
    } else if (msg == UIMessage::DEALLOCATE) {
@@ -1856,7 +1856,7 @@ int UICheckbox::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp
          el->repaint(NULL);
       }
    } else if (msg == UIMessage::CLICKED) {
-      box->check = (box->check + 1) % ((el->_flags & UICheckbox::ALLOW_INDETERMINATE) ? 3 : 2);
+      box->_check = (box->_check + 1) % ((el->_flags & allow_indeterminate) ? 3 : 2);
       el->repaint(NULL);
       if (box->_on_click)
          box->_on_click(*box);
@@ -1866,15 +1866,15 @@ int UICheckbox::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp
 }
 
 void UICheckbox::set_label(std::string_view new_label) {
-   label = new_label;
+   _label = new_label;
    this->measurements_changed(1);
    repaint(NULL);
 }
 
 UICheckbox::UICheckbox(UIElement* parent, uint32_t flags, std::string_view label)
    : UIElementCast<UICheckbox>(parent, flags | UIElement::tab_stop_flag, UICheckbox::_ClassMessageProc, "Checkbox")
-   , check(0)
-   , label(label) {}
+   , _check(0)
+   , _label(label) {}
 
 
 UICheckbox* UICheckboxCreate(UIElement* parent, uint32_t flags, std::string_view label) {
@@ -3943,7 +3943,7 @@ int _UIDialogWrapperMessage(UIElement* el, UIMessage msg, int di, void* dp) {
             if (item->_class_proc == UIButton::_ClassMessageProc) {
                UIButton* button = (UIButton*)item;
 
-               if (!button->label.empty() && (button->label[0] == c0 || button->label[0] == c1)) {
+               if (!button->_label.empty() && (button->_label[0] == c0 || button->_label[0] == c1)) {
                   if (!target) {
                      target = button;
                   } else {

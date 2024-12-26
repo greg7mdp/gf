@@ -4166,7 +4166,7 @@ struct FilesWindow {
 bool FilesPanelPopulate(FilesWindow* window);
 
 mode_t FilesGetMode(FilesWindow* window, UIButton* button, size_t* oldLength) {
-   const char* name = button->label.data();
+   const char* name = button->_label.data();
    *oldLength       = strlen(window->directory);
    strcat(window->directory, "/");
    strcat(window->directory, name);
@@ -4200,7 +4200,7 @@ int FilesButtonMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       int        i       = (el == el->_window->_pressed) + (el == el->_window->_hovered);
       if (i)
          UIDrawBlock(painter, el->_bounds, i == 2 ? ui->theme.buttonPressed : ui->theme.buttonHovered);
-      UIDrawString(painter, el->_bounds + UIRectangle(ui_size::button_padding, 0, 0, 0), button->label,
+      UIDrawString(painter, el->_bounds + UIRectangle(ui_size::button_padding, 0, 0, 0), button->_label,
                    button->_flags & UIButton::CHECKED ? ui->theme.codeNumber : ui->theme.codeDefault, UIAlign::left,
                    NULL);
       return 1;
@@ -4565,7 +4565,7 @@ void ExecutableWindowStartOrRun(ExecutableWindow* window, bool pause) {
 
    (void)EvaluateCommand(std::format("start {}", window->arguments->text()));
 
-   if (window->askDirectory->check == UICheckbox::CHECKED) {
+   if (window->askDirectory->_check == UICheckbox::checked) {
       CommandParseInternal("gf-get-pwd", true);
    }
 
@@ -4599,7 +4599,7 @@ void ExecutableWindowSaveButton(void* _window) {
 
    f = fopen(localConfigPath, "wb");
    print(f, "[executable]\npath={}\narguments={}\nask_directory={}\n", window->path->text(), window->arguments->text(),
-         window->askDirectory->check == UICheckbox::CHECKED ? '1' : '0');
+         window->askDirectory->_check == UICheckbox::checked ? '1' : '0');
    fclose(f);
    SettingsAddTrustedFolder();
    UI::show_dialog(windowMain, 0, "Saved executable settings!\n%f%B", "OK");
@@ -4615,7 +4615,7 @@ UIElement* ExecutableWindowCreate(UIElement* parent) {
    window->arguments = UITextboxCreate(panel, 0);
    UITextboxReplace(window->arguments, executableArguments ?: "", false);
    window->askDirectory        = UICheckboxCreate(panel, 0, "Ask GDB for working directory");
-   window->askDirectory->check = executableAskDirectory ? UICheckbox::CHECKED : UICheckbox::UNCHECKED;
+   window->askDirectory->_check = executableAskDirectory ? UICheckbox::checked : UICheckbox::unchecked;
    UIPanel* row                = UIPanelCreate(panel, UIPanel::HORIZONTAL);
 
    row->add_button(0, "Run").on_click([window](UIButton&) { ExecutableWindowRunButton(window); });
@@ -5447,7 +5447,7 @@ int ProfReportWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
 void ProfSwitchView(ProfFlameGraphReport* report) {
    report->showingTable            = !report->showingTable;
-   report->switchViewButton->label = report->showingTable ? "Graph view" : "Table view";
+   report->switchViewButton->_label = report->showingTable ? "Graph view" : "Table view";
    report->_parent->refresh();
 }
 

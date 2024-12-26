@@ -831,12 +831,13 @@ public:
       CHECKED   = 1 << 15,
    };
 
-   std::string           label;
+   std::string                    _label;
    std::function<void(UIButton&)> _on_click;
 
    UIButton(UIElement* parent, uint32_t flags, std::string_view label);
 
    UIButton& on_click(std::function<void(UIButton&)> f) { _on_click = std::move(f); return *this; }
+   std::string_view label() const { return _label; }
 };
 
 // ------------------------------------------------------------------------------------------
@@ -845,19 +846,20 @@ private:
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
 
 public:
-   enum { ALLOW_INDETERMINATE = 1 << 0 };
+   enum { allow_indeterminate = 1 << 0 };
 
-   enum { UNCHECKED = 0, CHECKED = 1, INDETERMINATE = 2 };
+   enum { unchecked = 0, checked = 1, indeterminate = 2 };
 
-   uint8_t               check;
-   std::string           label;
+   uint8_t                          _check;
+   std::string                      _label;
    std::function<void(UICheckbox&)> _on_click;
 
    UICheckbox(UIElement* parent, uint32_t flags, std::string_view label);
 
-   void set_label(std::string_view label);
-   UICheckbox& on_click(std::function<void(UICheckbox&)> f) { _on_click = std::move(f); return *this; }
+   void             set_label(std::string_view label);
+   std::string_view label() const { return _label; }
 
+   UICheckbox&      on_click(std::function<void(UICheckbox&)> f) { _on_click = std::move(f); return *this; }
 };
 
 // ------------------------------------------------------------------------------------------

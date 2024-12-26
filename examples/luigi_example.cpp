@@ -24,27 +24,6 @@ const char* themeItems[] = {
    "codeNumber",     "codeOperator", "codePreprocessor",
 };
 
-int MyButtonMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-   if (msg == UIMessage::CLICKED) {
-      std_print("clicked button '{}'...", ((UIButton*)el)->label);
-
-      if (check_delete->check == UICheckbox::CHECKED) {
-         el->_parent->refresh();
-         el->destroy();
-         std_print(" and deleted it!\n");
-      } else {
-         std_print(" but not deleted!\n");
-      }
-   }
-
-   return 0;
-}
-
-void MyMenuCallback(const char* cp) {
-   UILabelSetContent(label, cp);
-   label->refresh();
-}
-
 int selected;
 
 int MyTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
@@ -71,22 +50,6 @@ int MyTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    return 0;
 }
 
-int MyCheckboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-   if (msg == UIMessage::CLICKED) {
-      auto cb = (UICheckbox*)el;
-      cb->set_label(cb->check == UICheckbox::CHECKED ? "Off" : "On");
-
-      // Note, because this message function is run when the checkbox is
-      // clicked _before_ the main checkbox update message is executed, the
-      // UICheckbox->check is in the state _prior_ to the update taking place.
-      // Consider the operation here to mean:
-      //  "if the state _was_ UI_CHECK_CHECKED then now set the label to..."
-   }
-
-   return 0;
-}
-
-
 int main(int argc, char** argv) {
    UIConfig cfg;
    auto     ui_ptr = UIInitialise(cfg);
@@ -107,12 +70,24 @@ int main(int argc, char** argv) {
    // Split top pane (horizontally) into left/right panes.
    UISplitPane& uisplit_top_leftright = uisplit_topbottom.add_splitpane(0, 0.3f);
 
+   auto button_cb = [](UIButton& button) {
+      std_print("clicked button '{}'...", button.label());
+
+      if (check_delete->_check == UICheckbox::checked) {
+         button.parent().refresh();
+         button.destroy();
+         std_print(" and deleted it!\n");
+      } else {
+         std_print(" but not deleted!\n");
+      }
+   };
+
    {
       // In the top-left pane - create a single panel taking up the whole pane.
       UIPanel& panel = uisplit_top_leftright.add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING);
 
       // Panels are by default vertical in layout, so items start at top and go down.
-      panel.add_button(0, "Hello World").set_user_proc(MyButtonMessage);
+      panel.add_button(0, "Hello World").on_click(button_cb);
 
       // Create a new horizontal-layout "sub-panel" and put left and right panels inside it.
       UIPanel& subpanel = panel.add_panel(UIPanel::COLOR_1 | UIPanel::HORIZONTAL);
@@ -122,7 +97,7 @@ int main(int argc, char** argv) {
          subpanel.add_panel(UIPanel::COLOR_1 | UIPanel::HORIZONTAL).set_border(ui_rect_1(10)).set_gap(2);
       gauge_vert1 = &sub_left.add_gauge(UIElement::vertical_flag);
       gauge_vert2 = &sub_left.add_gauge(UIElement::vertical_flag);
-      
+
       slider_vert = &sub_left.add_slider(UIElement::vertical_flag).on_value_changed([](UISlider&) {
          gauge_vert2->set_position(slider_vert->position());
          gauge_horiz1->set_position(slider_vert->position());
@@ -130,23 +105,23 @@ int main(int argc, char** argv) {
 
       // The right side will lay out elements vertically (the default), with default medium spacing.
       UIPanel& sub_right = subpanel.add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING);
-      sub_right.add_button(0, "1").set_user_proc(MyButtonMessage);
-      sub_right.add_button(0, "2").set_user_proc(MyButtonMessage);
-      sub_right.add_button(0, "3").set_user_proc(MyButtonMessage);
-      sub_right.add_button(0, "4").set_user_proc(MyButtonMessage);
-      sub_right.add_button(0, "5").set_user_proc(MyButtonMessage);
+      sub_right.add_button(0, "1").on_click(button_cb);
+      sub_right.add_button(0, "2").on_click(button_cb);
+      sub_right.add_button(0, "3").on_click(button_cb);
+      sub_right.add_button(0, "4").on_click(button_cb);
+      sub_right.add_button(0, "5").on_click(button_cb);
 
       // Back outside of the "sub-panel", we continue layout downwards.
-      panel.add_button(0, "Goodbye World").set_user_proc(MyButtonMessage);
+      panel.add_button(0, "Goodbye World").on_click(button_cb);
 
-      gauge_horiz1             = &panel.add_gauge(0);
-      gauge_horiz2             = &panel.add_gauge(0);
-      
-      slider_horiz             = &panel.add_slider(0).on_value_changed([](UISlider&) {
+      gauge_horiz1 = &panel.add_gauge(0);
+      gauge_horiz2 = &panel.add_gauge(0);
+
+      slider_horiz = &panel.add_slider(0).on_value_changed([](UISlider&) {
          gauge_horiz2->set_position(slider_horiz->position());
          gauge_vert1->set_position(slider_horiz->position());
       });
-      
+
       panel.add_textbox(0);
       panel.add_textbox(0); // UITextbox::HIDE_CHARACTERS);
 
@@ -166,8 +141,16 @@ int main(int argc, char** argv) {
       UIPanel& panel = uisplit_bottom_leftright.add_panel(UIPanel::COLOR_2).set_border(UIRectangle(5)).set_gap(5);
       panel.add_button(0, "It's a button??").on_click([&ui_ptr](UIButton& el) {
          ui_ptr->create_menu(&el, 0)
-            .add_item(0, "Item 1\tCtrl+F5", [](UIButton&) { MyMenuCallback("Item 1 clicked!"); })
-            .add_item(0, "Item 2\tF6",      [](UIButton&) { MyMenuCallback("Item 2 clicked!"); })
+            .add_item(0, "Item 1\tCtrl+F5",
+                      [](UIButton&) {
+                         UILabelSetContent(label, "Item 1 clicked!");
+                         label->refresh();
+                      })
+            .add_item(0, "Item 2\tF6",
+                      [](UIButton&) {
+                         UILabelSetContent(label, "Item 2 clicked!");
+                         label->refresh();
+                      })
             .show();
       });
       label = &panel.add_label(UIElement::h_fill, "Hello, I am a label!");
@@ -186,11 +169,14 @@ int main(int argc, char** argv) {
       // Third tab
       UIPanel& settingsPanel = tabPane.add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING | UIPanel::HORIZONTAL);
       settingsPanel.add_label(0, "Delete top-left panel buttons on click:");
-      check_delete = &settingsPanel.add_checkbox(0, "Off").set_user_proc(MyCheckboxMessage);
+      check_delete = &settingsPanel.add_checkbox(0, "Off").on_click([](UICheckbox& cb) {
+         cb.set_label(cb._check == UICheckbox::checked ? "On" : "Off");
+      });
    }
 
    UIWindowRegisterShortcut(&window, UIShortcut{.code = UI_KEYCODE_LETTER('T'), .ctrl = true, .invoke = []() {
-                                                   MyMenuCallback("Keyboard shortcut!");
+                                                   UILabelSetContent(label, "Keyboard shortcut!");
+                                                   label->refresh();
                                                 }});
 
    {
