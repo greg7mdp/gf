@@ -1829,46 +1829,45 @@ UIButton* UIButtonCreate(UIElement* parent, uint32_t flags, std::string_view lab
    return new UIButton(parent, flags | UIElement::tab_stop_flag, label);
 }
 
-int UICheckbox::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-   UICheckbox* box = (UICheckbox*)el;
-
+// ------------------------------------------------------------------------------------------
+int UICheckbox::_class_message_proc(UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::GET_HEIGHT) {
-      return el->scale(ui_size::button_height);
+      return scale(ui_size::button_height);
    } else if (msg == UIMessage::GET_WIDTH) {
-      int labelSize = UIMeasureStringWidth(box->_label);
-      return el->scale(labelSize + ui_size::checkbox_box + ui_size::checkbox_gap);
+      int labelSize = UIMeasureStringWidth(_label);
+      return scale(labelSize + ui_size::checkbox_box + ui_size::checkbox_gap);
    } else if (msg == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, el->_bounds,
+      UIDrawControl((UIPainter*)dp, _bounds,
                     UIControl::checkbox |
-                       (box->_check == indeterminate ? UIControl::state_indeterminate
-                        : box->_check == checked     ? UIControl::state_checked
-                                                                : 0) |
-                       el->state(),
-                    box->_label, 0, el->_window->_scale);
+                       (check() == indeterminate ? UIControl::state_indeterminate
+                        : check() == checked     ? UIControl::state_checked
+                                                 : 0) |
+                       state(),
+                    _label, 0, _window->_scale);
    } else if (msg == UIMessage::UPDATE) {
-      el->repaint(NULL);
+      repaint(NULL);
    } else if (msg == UIMessage::DEALLOCATE) {
    } else if (msg == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
       if (m->text == " ") {
-         el->message(UIMessage::CLICKED, 0, 0);
-         el->repaint(NULL);
+         message(UIMessage::CLICKED, 0, 0);
+         repaint(NULL);
       }
    } else if (msg == UIMessage::CLICKED) {
-      box->_check = (box->_check + 1) % ((el->_flags & allow_indeterminate) ? 3 : 2);
-      el->repaint(NULL);
-      if (box->_on_click)
-         box->_on_click(*box);
+      set_check((_check + 1) % ((_flags & allow_indeterminate) ? 3 : 2));
+      if (_on_click)
+         _on_click(*this);
    }
 
    return 0;
 }
 
-void UICheckbox::set_label(std::string_view new_label) {
+UICheckbox& UICheckbox::set_label(std::string_view new_label) {
    _label = new_label;
    this->measurements_changed(1);
    repaint(NULL);
+   return *this;
 }
 
 UICheckbox::UICheckbox(UIElement* parent, uint32_t flags, std::string_view label)

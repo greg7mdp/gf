@@ -56,12 +56,13 @@ int main(int argc, char** argv) {
 
    if (!ui_ptr)
       return 1;
-
+#if 1
    std::string home     = getenv("HOME");
    std::string fontPath = home + "/fonts/FiraCode-Regular.ttf";
    auto        fontCode = UIFontCreate(fontPath.c_str(), 12);
    UIFontActivate(fontCode);
-
+#endif
+   
    UIWindow& window = ui->create_window(0, 0, "luigi2 - Example Application", 0, 0);
 
    // Split window (vertically) into top/bottom panes.
@@ -73,7 +74,7 @@ int main(int argc, char** argv) {
    auto button_cb = [](UIButton& button) {
       std_print("clicked button '{}'...", button.label());
 
-      if (check_delete->_check == UICheckbox::checked) {
+      if (check_delete->check() == UICheckbox::checked) {
          button.parent().refresh();
          button.destroy();
          std_print(" and deleted it!\n");
@@ -170,7 +171,7 @@ int main(int argc, char** argv) {
       UIPanel& settingsPanel = tabPane.add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING | UIPanel::HORIZONTAL);
       settingsPanel.add_label(0, "Delete top-left panel buttons on click:");
       check_delete = &settingsPanel.add_checkbox(0, "Off").on_click([](UICheckbox& cb) {
-         cb.set_label(cb._check == UICheckbox::checked ? "On" : "Off");
+         cb.set_label(cb.check() == UICheckbox::checked ? "On" : "Off");
       });
    }
 

@@ -4565,7 +4565,7 @@ void ExecutableWindowStartOrRun(ExecutableWindow* window, bool pause) {
 
    (void)EvaluateCommand(std::format("start {}", window->arguments->text()));
 
-   if (window->askDirectory->_check == UICheckbox::checked) {
+   if (window->askDirectory->check() == UICheckbox::checked) {
       CommandParseInternal("gf-get-pwd", true);
    }
 
@@ -4599,7 +4599,7 @@ void ExecutableWindowSaveButton(void* _window) {
 
    f = fopen(localConfigPath, "wb");
    print(f, "[executable]\npath={}\narguments={}\nask_directory={}\n", window->path->text(), window->arguments->text(),
-         window->askDirectory->_check == UICheckbox::checked ? '1' : '0');
+         window->askDirectory->check() == UICheckbox::checked ? '1' : '0');
    fclose(f);
    SettingsAddTrustedFolder();
    UI::show_dialog(windowMain, 0, "Saved executable settings!\n%f%B", "OK");
@@ -4614,9 +4614,9 @@ UIElement* ExecutableWindowCreate(UIElement* parent) {
    UILabelCreate(panel, 0, "Command line arguments:");
    window->arguments = UITextboxCreate(panel, 0);
    UITextboxReplace(window->arguments, executableArguments ?: "", false);
-   window->askDirectory        = UICheckboxCreate(panel, 0, "Ask GDB for working directory");
-   window->askDirectory->_check = executableAskDirectory ? UICheckbox::checked : UICheckbox::unchecked;
-   UIPanel* row                = UIPanelCreate(panel, UIPanel::HORIZONTAL);
+   window->askDirectory = UICheckboxCreate(panel, 0, "Ask GDB for working directory");
+   window->askDirectory->set_check(executableAskDirectory ? UICheckbox::checked : UICheckbox::unchecked);
+   UIPanel* row = UIPanelCreate(panel, UIPanel::HORIZONTAL);
 
    row->add_button(0, "Run").on_click([window](UIButton&) { ExecutableWindowRunButton(window); });
    row->add_button(0, "Start").on_click([window](UIButton&) { ExecutableWindowStartButton(window); });

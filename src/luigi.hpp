@@ -843,21 +843,26 @@ public:
 // ------------------------------------------------------------------------------------------
 struct UICheckbox : public UIElementCast<UICheckbox> {
 private:
-   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
-
-public:
-   enum { allow_indeterminate = 1 << 0 };
-
-   enum { unchecked = 0, checked = 1, indeterminate = 2 };
-
    uint8_t                          _check;
    std::string                      _label;
    std::function<void(UICheckbox&)> _on_click;
 
+   int _class_message_proc(UIMessage msg, int di, void* dp);
+   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<UICheckbox*>(el)->_class_message_proc(msg, di, dp);
+   }
+
+public:
+   enum { allow_indeterminate = 1 << 0 };
+   enum { unchecked = 0, checked = 1, indeterminate = 2 };
+
    UICheckbox(UIElement* parent, uint32_t flags, std::string_view label);
 
-   void             set_label(std::string_view label);
-   std::string_view label() const { return _label; }
+   UICheckbox&      set_label(std::string_view label);
+   std::string_view label() const     { return _label; }
+
+   UICheckbox&      set_check(bool b) { _check = b; repaint(nullptr); return *this; }
+   uint8_t          check() const     { return _check; }
 
    UICheckbox&      on_click(std::function<void(UICheckbox&)> f) { _on_click = std::move(f); return *this; }
 };
