@@ -26,30 +26,6 @@ const char* themeItems[] = {
 
 int selected;
 
-int MyTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-   if (msg == UIMessage::TABLE_GET_ITEM) {
-      UITableGetItem* m = (UITableGetItem*)dp;
-      m->isSelected     = selected == m->index;
-
-      if (m->column == 0) {
-         return m->format_to("Item {}", m->index);
-      } else {
-         return m->format_to("other column {}", m->index);
-      }
-   } else if (msg == UIMessage::LEFT_DOWN) {
-      int hit = ((UITable*)el)->hittest(el->_window->_cursor.x, el->_window->_cursor.y);
-
-      if (selected != hit) {
-         selected = hit;
-         if (!((UITable*)el)->ensure_visible(selected)) {
-            el->repaint(NULL);
-         }
-      }
-   }
-
-   return 0;
-}
-
 int main(int argc, char** argv) {
    UIConfig cfg;
    auto     ui_ptr = UIInitialise(cfg);
@@ -162,7 +138,27 @@ int main(int argc, char** argv) {
       UITabPane& tabPane = uisplit_bottom_leftright.add_tabpane(0, "Tab 1\tMiddle Tab\tTab 3");
 
       // First tab in tabPane
-      tabPane.add_table(0, "Column 1\tColumn 2").set_num_items(100000).set_user_proc(MyTableMessage).resize_columns();
+      tabPane.add_table(0, "Column 1\tColumn 2")
+         .set_num_items(100000)
+         .on_getitem([](UITable&, UITableGetItem& m) -> int {
+            m.isSelected = selected == m.index;
+            if (m.column == 0) {
+               return m.format_to("Item {}", m.index);
+            } else {
+               return m.format_to("other column {}", m.index);
+            }
+         })
+         .on_click([](UITable& table) {
+            int hit = table.hittest(table._window->_cursor.x, table._window->_cursor.y);
+
+            if (selected != hit) {
+               selected = hit;
+               if (!table.ensure_visible(selected)) {
+                  table.repaint(NULL);
+               }
+            }
+         })
+         .resize_columns();
 
       // Second tab
       tabPane.add_panel(UIPanel::COLOR_1).add_label(0, "you're in tab 2, bucko");

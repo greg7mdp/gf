@@ -1174,12 +1174,17 @@ public:
 
 // ------------------------------------------------------------------------------------------
 struct UITable : public UIElementCast<UITable>, public UIScrollbarPair {
+   using on_getitem_t = std::function<int(UITable&, UITableGetItem&)>;
+   using on_click_t   = std::function<void(UITable&)>;
+
 private:
    size_t              _num_items;
-   std::string         _columns;       // list of column headers separated by '\t' characters
+   std::string         _columns; // list of column headers separated by '\t' characters
    std::vector<size_t> _column_widths;
    size_t              _column_highlight;
-   
+   on_getitem_t        _on_getitem;
+   on_click_t          _on_click;
+
    int _class_message_proc(UIMessage msg, int di, void* dp);
 
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
@@ -1207,6 +1212,9 @@ public:
    UITable& set_num_items(size_t n)        { _num_items = n; return *this; }
    UITable& set_column_highlight(size_t c) { _column_highlight = c; return *this; }
    UITable& resize_columns();
+
+   UITable& on_getitem(on_getitem_t f) { _on_getitem = std::move(f); return *this; }
+   UITable& on_click(on_click_t f)     { _on_click = std::move(f); return *this; }
 };
 
 // ------------------------------------------------------------------------------------------

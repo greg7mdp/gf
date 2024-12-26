@@ -3146,7 +3146,8 @@ int UITable::_class_message_proc(UIMessage msg, int di, void* dp) {
          m.index      = i;
          m.isSelected = false;
          m.column     = 0;
-         int bytes    = message(UIMessage::TABLE_GET_ITEM, 0, &m);
+
+         int bytes = message(UIMessage::TABLE_GET_ITEM, 0, &m);
 
          uint32_t rowFlags =
             (m.isSelected ? UIControl::state_selected : 0) | (hovered == i ? UIControl::state_hovered : 0);
@@ -3202,6 +3203,9 @@ int UITable::_class_message_proc(UIMessage msg, int di, void* dp) {
             }
          }
       }
+   } else if (msg == UIMessage::TABLE_GET_ITEM) {
+      if (_on_getitem)
+         return _on_getitem(*this, *static_cast<UITableGetItem*>(dp));
    } else if (msg == UIMessage::LAYOUT) {
       int scrollBarSize = scale(ui_size::scroll_bar);
       int columnGap     = scale(ui_size::table_column_gap);
@@ -3227,6 +3231,8 @@ int UITable::_class_message_proc(UIMessage msg, int di, void* dp) {
       return _vscroll->message(msg, di, dp);
    } else if (msg == UIMessage::LEFT_DOWN) {
       focus();
+      if (_on_click)
+         _on_click(*this);
    } else if (msg == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
