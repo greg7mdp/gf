@@ -1545,7 +1545,7 @@ int _UIPanelLayout(UIPanel* panel, UIRectangle bounds, bool measure) {
 
    int position = panel->scale(horizontal ? panel->_border.l : panel->_border.t);
    if (panel->_scrollBar && !measure)
-      position -= panel->_scrollBar->_position;
+      position -= panel->_scrollBar->position();
    int  hSpace        = bounds.width() - panel->scale(panel->_border.total_width());
    int  vSpace        = bounds.height() - panel->scale(panel->_border.total_height());
    int  count         = 0;
@@ -2100,76 +2100,74 @@ UISpacer* UISpacerCreate(UIElement* parent, uint32_t flags, int width, int heigh
 // Scroll bars.
 // --------------------------------------------------
 
-int UIScrollBar::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-   UIScrollBar* scrollBar = (UIScrollBar*)el;
-
+int UIScrollBar::_class_message_proc(UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::GET_WIDTH || msg == UIMessage::GET_HEIGHT) {
-      return el->scale(ui_size::scroll_bar);
+      return scale(ui_size::scroll_bar);
    } else if (msg == UIMessage::LAYOUT) {
-      UIElement* up    = el->_children[0];
-      UIElement* thumb = el->_children[1];
-      UIElement* down  = el->_children[2];
+      UIElement* up    = _children[0];
+      UIElement* thumb = _children[1];
+      UIElement* down  = _children[2];
 
-      if (scrollBar->page() >= scrollBar->maximum() || scrollBar->maximum() <= 0 || scrollBar->page() <= 0) {
+      if (page() >= maximum() || maximum() <= 0 || page() <= 0) {
          up->_flags |= UIElement::hide_flag;
          thumb->_flags |= UIElement::hide_flag;
          down->_flags |= UIElement::hide_flag;
 
-         scrollBar->_position = 0;
+         _position = 0;
       } else {
          up->_flags &= ~UIElement::hide_flag;
          thumb->_flags &= ~UIElement::hide_flag;
          down->_flags &= ~UIElement::hide_flag;
 
-         int size      = scrollBar->_horizontal ? el->_bounds.width() : el->_bounds.height();
-         int thumbSize = size * scrollBar->page() / scrollBar->maximum();
+         int size      = _horizontal ? _bounds.width() : _bounds.height();
+         int thumbSize = size * page() / maximum();
 
-         if (thumbSize < el->scale(ui_size::scroll_minimum_thumb)) {
-            thumbSize = el->scale(ui_size::scroll_minimum_thumb);
+         if (thumbSize < scale(ui_size::scroll_minimum_thumb)) {
+            thumbSize = scale(ui_size::scroll_minimum_thumb);
          }
 
-         if (scrollBar->_position < 0) {
-            scrollBar->_position = 0;
-         } else if (scrollBar->_position > scrollBar->maximum() - scrollBar->page()) {
-            scrollBar->_position = scrollBar->maximum() - scrollBar->page();
+         if (_position < 0) {
+            _position = 0;
+         } else if (_position > maximum() - page()) {
+            _position = maximum() - page();
          }
 
          int thumbPosition =
-            (int)((double)scrollBar->_position / (scrollBar->maximum() - scrollBar->page()) * (size - thumbSize));
+            (int)((double)_position / (maximum() - page()) * (size - thumbSize));
 
-         if (scrollBar->_position == scrollBar->maximum() - scrollBar->page()) {
+         if (_position == maximum() - page()) {
             thumbPosition = size - thumbSize;
          }
 
-         if (scrollBar->_horizontal) {
-            UIRectangle r = el->_bounds;
+         if (_horizontal) {
+            UIRectangle r = _bounds;
             r.r           = r.l + thumbPosition;
             up->move(r, false);
             r.l = r.r, r.r = r.l + thumbSize;
             thumb->move(r, false);
-            r.l = r.r, r.r = el->_bounds.r;
+            r.l = r.r, r.r = _bounds.r;
             down->move(r, false);
          } else {
-            UIRectangle r = el->_bounds;
+            UIRectangle r = _bounds;
             r.b           = r.t + thumbPosition;
             up->move(r, false);
             r.t = r.b, r.b = r.t + thumbSize;
             thumb->move(r, false);
-            r.t = r.b, r.b = el->_bounds.b;
+            r.t = r.b, r.b = _bounds.b;
             down->move(r, false);
          }
       }
    } else if (msg == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, el->_bounds,
-                    UIControl::scroll_track | ((scrollBar->page() >= scrollBar->maximum() ||
-                                                scrollBar->maximum() <= 0 || scrollBar->page() <= 0)
+      UIDrawControl((UIPainter*)dp, _bounds,
+                    UIControl::scroll_track | ((page() >= maximum() ||
+                                                maximum() <= 0 || page() <= 0)
                                                   ? UIControl::state_disabled
                                                   : 0),
-                    {}, 0, el->_window->_scale);
+                    {}, 0, _window->_scale);
    } else if (msg == UIMessage::MOUSE_WHEEL) {
-      scrollBar->_position += di;
-      el->refresh();
-      el->_parent->message(UIMessage::SCROLLED, 0, 0);
+      _position += di;
+      refresh();
+      _parent->message(UIMessage::SCROLLED, 0, 0);
       return 1;
    }
 
@@ -2202,9 +2200,9 @@ int _UIScrollUpDownMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
       double deltaPixels            = deltaSeconds * scrollBar->page() * 3;
       scrollBar->_last_animate_time = current;
       if (isDown)
-         scrollBar->_position += deltaPixels;
+         scrollBar->position() += deltaPixels;
       else
-         scrollBar->_position -= deltaPixels;
+         scrollBar->position() -= deltaPixels;
       scrollBar->refresh();
       scrollBar->_parent->message(UIMessage::SCROLLED, 0, 0);
    }
@@ -2236,7 +2234,7 @@ int _UIScrollThumbMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
          (scrollBar->_horizontal ? el->_window->_cursor.x : el->_window->_cursor.y) + scrollBar->drag_offset();
       int size             = scrollBar->_horizontal ? (scrollBar->_bounds.width() - el->_bounds.width())
                                                     : (scrollBar->_bounds.height() - el->_bounds.height());
-      scrollBar->_position = (double)thumbPosition / size * (scrollBar->maximum() - scrollBar->page());
+      scrollBar->position() = (double)thumbPosition / size * (scrollBar->maximum() - scrollBar->page());
       scrollBar->refresh();
       scrollBar->_parent->message(UIMessage::SCROLLED, 0, 0);
    } else if (msg == UIMessage::LEFT_UP) {
@@ -2290,17 +2288,17 @@ void UIScrollbarPair::layout_scrollbar_pair(int hSpace, int vSpace, int scrollBa
 
 inline void UIScrollbarPair::key_input_vscroll(UIKeyTyped* m, int rowHeight, int pageHeight, UIElement* el) {
    if (m->code == UIKeycode::UP)
-      _vscroll->_position -= rowHeight;
+      _vscroll->position() -= rowHeight;
    else if (m->code == UIKeycode::DOWN)
-      _vscroll->_position += rowHeight;
+      _vscroll->position() += rowHeight;
    else if (m->code == UIKeycode::PAGE_UP)
-      _vscroll->_position += pageHeight;
+      _vscroll->position() += pageHeight;
    else if (m->code == UIKeycode::PAGE_DOWN)
-      _vscroll->_position -= pageHeight;
+      _vscroll->position() -= pageHeight;
    else if (m->code == UIKeycode::HOME)
-      _vscroll->_position = 0;
+      _vscroll->position() = 0;
    else if (m->code == UIKeycode::END)
-      _vscroll->_position = _vscroll->maximum();
+      _vscroll->position() = _vscroll->maximum();
    el->refresh();
 }
 
@@ -2337,10 +2335,10 @@ UICode& UICode::load_file(const char* path, std::optional<std::string_view> err 
 UICode& UICode::position_to_byte(int x, int y, size_t* line, size_t* byte) {
    UIFont* previousFont = UIFontActivate(_font);
    int     lineHeight   = UIMeasureStringHeight();
-   *line                = std::max((int64_t)0, (y - _bounds.t + _vscroll->_position) / lineHeight);
+   *line                = std::max((int64_t)0, (y - _bounds.t + _vscroll->position()) / lineHeight);
    if (*line >= num_lines())
       *line = num_lines() - 1;
-   int column = (x - _bounds.l + _hscroll->_position + ui->activeFont->glyphWidth / 2) / ui->activeFont->glyphWidth;
+   int column = (x - _bounds.l + _hscroll->position() + ui->activeFont->glyphWidth / 2) / ui->activeFont->glyphWidth;
    if (~_flags & UICode::NO_MARGIN)
       column -= (ui->code_margin() + ui->code_margin_gap()) / ui->activeFont->glyphWidth;
    UIFontActivate(previousFont);
@@ -2355,7 +2353,7 @@ int UICode::hittest(int x, int y) {
       return 0;
    }
 
-   y -= _bounds.t - _vscroll->_position;
+   y -= _bounds.t - _vscroll->position();
 
    UIFont* previousFont = UIFontActivate(_font);
    int     lineHeight   = UIMeasureStringHeight();
@@ -2551,14 +2549,14 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
          size_t top     = _selection[3].line * UIMeasureStringHeight();
          size_t bottom  = top + UIMeasureStringHeight();
          size_t context = UIMeasureStringHeight() * 2;
-         if (bottom > _vscroll->_position + vSpace - context)
-            _vscroll->_position = bottom - vSpace + context;
-         if (top < _vscroll->_position + context)
-            _vscroll->_position = top - context;
+         if (bottom > _vscroll->position() + vSpace - context)
+            _vscroll->position() = bottom - vSpace + context;
+         if (top < _vscroll->position() + context)
+            _vscroll->position() = top - context;
          _move_scroll_to_caret_next_layout = _move_scroll_to_focus_next_layout = false;
          // TODO Horizontal scrolling.
       } else if (_move_scroll_to_focus_next_layout) {
-         _vscroll->_position = (focus_line() + 0.5f) * UIMeasureStringHeight() - _bounds.height() * 0.5f;
+         _vscroll->position() = (focus_line() + 0.5f) * UIMeasureStringHeight() - _bounds.height() * 0.5f;
       }
 
       if (!(_flags & UICode::NO_MARGIN))
@@ -2579,7 +2577,7 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
       }
 
       int lineHeight = UIMeasureStringHeight();
-      lineBounds.t -= (int64_t)_vscroll->_position % lineHeight;
+      lineBounds.t -= (int64_t)_vscroll->position() % lineHeight;
 
       UIDrawBlock(painter, _bounds, ui->theme.codeBackground);
 
@@ -2587,7 +2585,7 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
       selection.colorBackground   = ui->theme.selected;
       selection.colorText         = ui->theme.textSelected;
 
-      for (size_t i = _vscroll->_position / lineHeight; i < num_lines(); i++) {
+      for (size_t i = _vscroll->position() / lineHeight; i < num_lines(); i++) {
          if (lineBounds.t > _clip.b) {
             break;
          }
@@ -2625,7 +2623,7 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
          UIRectangle oldClip = painter->clip;
          painter->clip       = intersection(oldClip, lineBounds);
          if (_hscroll)
-            lineBounds.l -= (int64_t)_hscroll->_position;
+            lineBounds.l -= (int64_t)_hscroll->position();
          selection.carets[0] = i == _selection[0].line ? byte_to_column(i, _selection[0].offset) : 0;
          selection.carets[1] = i == _selection[1].line ? byte_to_column(i, _selection[1].offset) : (int)line(i).size();
 
@@ -2638,7 +2636,7 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
          }
 
          if (_hscroll)
-            lineBounds.l += (int64_t)_hscroll->_position;
+            lineBounds.l += (int64_t)_hscroll->position();
          painter->clip = oldClip;
 
          UICodeDecorateLine m;
@@ -2694,15 +2692,15 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
          if (_window->_cursor.x < _bounds.l + ((_flags & UICode::NO_MARGIN)
                                                   ? ui->code_margin_gap()
                                                   : (ui->code_margin() + ui->code_margin_gap() * 2))) {
-            _hscroll->_position -= delta;
+            _hscroll->position() -= delta;
          } else if (_window->_cursor.x >= _vscroll->_bounds.l - ui->code_margin_gap()) {
-            _hscroll->_position += delta;
+            _hscroll->position() += delta;
          }
 
          if (_window->_cursor.y < _bounds.t + ui->code_margin_gap()) {
-            _vscroll->_position -= delta;
+            _vscroll->position() -= delta;
          } else if (_window->_cursor.y >= _hscroll->_bounds.t - ui->code_margin_gap()) {
-            _vscroll->_position += delta;
+            _vscroll->position() += delta;
          }
 
          _move_scroll_to_focus_next_layout = false;
@@ -2776,7 +2774,7 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
 
             _update_selection();
          } else {
-            _vscroll->_position               = m->code == UIKeycode::HOME ? 0 : _vscroll->maximum();
+            _vscroll->position()               = m->code == UIKeycode::HOME ? 0 : _vscroll->maximum();
             _move_scroll_to_focus_next_layout = false;
             refresh();
          }
@@ -2784,7 +2782,7 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
          if (_window->_shift) {
             move_caret(m->code == UIKeycode::LEFT, _window->_ctrl);
          } else if (!_window->_ctrl) {
-            _hscroll->_position +=
+            _hscroll->position() +=
                m->code == UIKeycode::LEFT ? -ui->activeFont->glyphWidth : ui->activeFont->glyphWidth;
             refresh();
          } else {
@@ -2901,7 +2899,7 @@ UICode& UICode::insert_content(std::string_view new_content, bool replace) {
    }
 
    if (!replace) {
-      _vscroll->_position = _lines.size() * UIMeasureStringHeight();
+      _vscroll->position() = _lines.size() * UIMeasureStringHeight();
    }
 
    UIFontActivate(previousFont);
@@ -3029,7 +3027,7 @@ int UITable::hittest(int x, int y) {
       return -1;
    }
 
-   y -= (_bounds.t + scale(ui_size::table_header)) - _vscroll->_position;
+   y -= (_bounds.t + scale(ui_size::table_header)) - _vscroll->position();
 
    int rowHeight = scale(ui_size::table_row);
 
@@ -3066,15 +3064,15 @@ int UITable::header_hittest(int x, int y) {
 bool UITable::ensure_visible(int index) {
    int rowHeight = scale(ui_size::table_row);
    int y         = index * rowHeight;
-   y -= _vscroll->_position;
+   y -= _vscroll->position();
    int height = _bounds.height() - scale(ui_size::table_header) - rowHeight;
 
    if (y < 0) {
-      _vscroll->_position += y;
+      _vscroll->position() += y;
       refresh();
       return true;
    } else if (y > height) {
-      _vscroll->_position -= height - y;
+      _vscroll->position() -= height - y;
       refresh();
       return true;
    } else {
@@ -3139,13 +3137,13 @@ int UITable::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
       int            rowHeight = el->scale(ui_size::table_row);
       UITableGetItem m(256);
       row.t += table->scale(ui_size::table_header);
-      row.t -= (int64_t)table->_vscroll->_position % rowHeight;
+      row.t -= (int64_t)table->_vscroll->position() % rowHeight;
       int         hovered = table->hittest(el->_window->_cursor.x, el->_window->_cursor.y);
       UIRectangle oldClip = painter->clip;
       painter->clip =
          intersection(oldClip, UIRectangle(bounds.l, bounds.r, bounds.t + el->scale(ui_size::table_header), bounds.b));
 
-      for (int i = table->_vscroll->_position / rowHeight; i < (int)table->num_items(); i++) {
+      for (int i = table->_vscroll->position() / rowHeight; i < (int)table->num_items(); i++) {
          if (row.t > painter->clip.b) {
             break;
          }
@@ -3161,7 +3159,7 @@ int UITable::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
          UIDrawControl(painter, row, UIControl::table_row | rowFlags, {}, 0, el->_window->_scale);
 
          UIRectangle cell = row;
-         cell.l += table->scale(ui_size::table_column_gap) - (int64_t)table->_hscroll->_position;
+         cell.l += table->scale(ui_size::table_column_gap) - (int64_t)table->_hscroll->position();
 
          for (size_t j = 0; j < table->_column_widths.size(); j++) {
             if (j) {
@@ -3183,7 +3181,7 @@ int UITable::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
       bounds        = el->_bounds;
       painter->clip = intersection(oldClip, bounds);
       if (table->_hscroll)
-         bounds.l -= (int64_t)table->_hscroll->_position;
+         bounds.l -= (int64_t)table->_hscroll->position();
 
       UIRectangle header = bounds;
       header.b           = header.t + table->scale(ui_size::table_header);
@@ -3246,7 +3244,7 @@ int UITable::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
          return 1;
       } else if ((m->code == UIKeycode::LEFT || m->code == UIKeycode::RIGHT) && !el->_window->_ctrl &&
                  !el->_window->_alt && !el->_window->_shift) {
-         table->_hscroll->_position +=
+         table->_hscroll->position() +=
             m->code == UIKeycode::LEFT ? -ui->activeFont->glyphWidth : ui->activeFont->glyphWidth;
          table->refresh();
          return 1;
@@ -4175,7 +4173,7 @@ int UI::_MenuMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::PAINT) {
       UIDrawControl((UIPainter*)dp, el->_bounds, UIControl::menu, {}, 0, el->_window->_scale);
    } else if (msg == UIMessage::LAYOUT) {
-      int position      = el->_bounds.t + 2 - menu->vScroll->_position;
+      int position      = el->_bounds.t + 2 - menu->vScroll->position();
       int totalHeight   = 0;
       int scrollBarSize = (menu->_flags & UIMenu::NO_SCROLL) ? 0 : ui_size::scroll_bar;
 

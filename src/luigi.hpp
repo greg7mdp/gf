@@ -973,13 +973,17 @@ private:
    int64_t    _maximum;
    int64_t    _page;
    int64_t    _drag_offset;
+   int64_t    _position;
 
-   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
+   int _class_message_proc(UIMessage msg, int di, void* dp);
+
+   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<UIScrollBar*>(el)->_class_message_proc(msg, di, dp);
+   }
 
 public:
    enum { HORIZONTAL = 1 << 0 };
 
-   int64_t    _position;
    UI_CLOCK_T _last_animate_time;
    bool       _in_drag;
    bool       _horizontal;
@@ -994,6 +998,8 @@ public:
 
    void    set_drag_offset(int64_t m) { _drag_offset = m; }
    int64_t drag_offset() const { return _drag_offset; }
+
+   int64_t& position() { return _position; }
 };
 
 // ------------------------------------------------------------------------------------------
@@ -1010,7 +1016,7 @@ protected:
    void key_input_vscroll(UIKeyTyped* m, int rowHeight, int pageHeight, UIElement* el);
 
 public:
-   void reset_vscroll() { _vscroll->_position = 0; }
+   void reset_vscroll() { _vscroll->position() = 0; }
 };
 
 // ------------------------------------------------------------------------------------------
