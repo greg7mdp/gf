@@ -1104,7 +1104,7 @@ private:
    double                         _position;
    int                            _steps;
    bool                           _vertical;
-   std::function<void(UISlider&)> _on_value_change;
+   std::function<void(UISlider&)> _on_value_changed;
 
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
 
@@ -1119,7 +1119,7 @@ public:
    UISlider& set_steps(int steps) { _steps = steps; return *this; }
    int       steps() const { return _steps; }
 
-   UISlider& on_value_change(std::function<void(UISlider&)> f) { _on_value_change = std::move(f); return *this; }
+   UISlider& on_value_changed(std::function<void(UISlider&)> f) { _on_value_changed = std::move(f); return *this; }
 };
 
 // ------------------------------------------------------------------------------------------

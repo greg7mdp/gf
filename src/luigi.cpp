@@ -2996,8 +2996,8 @@ int UISlider::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) 
    } else if (msg == UIMessage::UPDATE) {
       el->repaint(NULL);
    } else if (msg == UIMessage::VALUE_CHANGED) {
-      if (slider->_on_value_change) {
-         slider->_on_value_change(*slider);
+      if (slider->_on_value_changed) {
+         slider->_on_value_changed(*slider);
       }
    }
 

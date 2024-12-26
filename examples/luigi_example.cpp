@@ -45,24 +45,6 @@ void MyMenuCallback(const char* cp) {
    label->refresh();
 }
 
-int MySliderHMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-   if (msg == UIMessage::VALUE_CHANGED) {
-      gauge_horiz2->set_position(slider_horiz->position());
-      gauge_vert1->set_position(slider_horiz->position());
-   }
-
-   return 0;
-}
-
-int MySliderVMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-   if (msg == UIMessage::VALUE_CHANGED) {
-      gauge_vert2->set_position(slider_vert->position());
-      gauge_horiz1->set_position(slider_vert->position());
-   }
-
-   return 0;
-}
-
 int selected;
 
 int MyTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
@@ -140,8 +122,11 @@ int main(int argc, char** argv) {
          subpanel.add_panel(UIPanel::COLOR_1 | UIPanel::HORIZONTAL).set_border(ui_rect_1(10)).set_gap(2);
       gauge_vert1 = &sub_left.add_gauge(UIElement::vertical_flag);
       gauge_vert2 = &sub_left.add_gauge(UIElement::vertical_flag);
-      slider_vert = &sub_left.add_slider(UIElement::vertical_flag);
-      slider_vert->set_user_proc(MySliderVMessage);
+      
+      slider_vert = &sub_left.add_slider(UIElement::vertical_flag).on_value_changed([](UISlider&) {
+         gauge_vert2->set_position(slider_vert->position());
+         gauge_horiz1->set_position(slider_vert->position());
+      });
 
       // The right side will lay out elements vertically (the default), with default medium spacing.
       UIPanel& sub_right = subpanel.add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING);
@@ -156,8 +141,12 @@ int main(int argc, char** argv) {
 
       gauge_horiz1             = &panel.add_gauge(0);
       gauge_horiz2             = &panel.add_gauge(0);
-      slider_horiz             = &panel.add_slider(0);
-      slider_horiz->_user_proc = MySliderHMessage;
+      
+      slider_horiz             = &panel.add_slider(0).on_value_changed([](UISlider&) {
+         gauge_horiz2->set_position(slider_horiz->position());
+         gauge_vert1->set_position(slider_horiz->position());
+      });
+      
       panel.add_textbox(0);
       panel.add_textbox(0); // UITextbox::HIDE_CHARACTERS);
 
