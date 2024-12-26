@@ -1180,7 +1180,11 @@ private:
    std::vector<size_t> _column_widths;
    size_t              _column_highlight;
    
-   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
+   int _class_message_proc(UIMessage msg, int di, void* dp);
+
+   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<UITable*>(el)->_class_message_proc(msg, di, dp);
+   }
 
 public:
    UITable(UIElement* parent, uint32_t flags, const char* columns);

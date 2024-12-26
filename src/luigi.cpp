@@ -3121,25 +3121,23 @@ UITable& UITable::resize_columns() {
    return *this;
 }
 
-int UITable::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-   UITable* table = (UITable*)el;
-
+int UITable::_class_message_proc(UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::PAINT) {
       UIPainter*  painter = (UIPainter*)dp;
-      UIRectangle bounds  = el->_bounds;
-      bounds.r            = table->_vscroll->_bounds.l;
-      UIDrawControl(painter, el->_bounds, UIControl::table_background | el->state(), {}, 0, el->_window->_scale);
+      UIRectangle bounds  = _bounds;
+      bounds.r            = _vscroll->_bounds.l;
+      UIDrawControl(painter, _bounds, UIControl::table_background | state(), {}, 0, _window->_scale);
       UIRectangle    row       = bounds;
-      int            rowHeight = el->scale(ui_size::table_row);
+      int            rowHeight = scale(ui_size::table_row);
       UITableGetItem m(256);
-      row.t += table->scale(ui_size::table_header);
-      row.t -= (int64_t)table->_vscroll->position() % rowHeight;
-      int         hovered = table->hittest(el->_window->_cursor.x, el->_window->_cursor.y);
+      row.t += scale(ui_size::table_header);
+      row.t -= (int64_t)_vscroll->position() % rowHeight;
+      int         hovered = hittest(_window->_cursor.x, _window->_cursor.y);
       UIRectangle oldClip = painter->clip;
       painter->clip =
-         intersection(oldClip, UIRectangle(bounds.l, bounds.r, bounds.t + el->scale(ui_size::table_header), bounds.b));
+         intersection(oldClip, UIRectangle(bounds.l, bounds.r, bounds.t + scale(ui_size::table_header), bounds.b));
 
-      for (int i = table->_vscroll->position() / rowHeight; i < (int)table->num_items(); i++) {
+      for (int i = _vscroll->position() / rowHeight; i < (int)num_items(); i++) {
          if (row.t > painter->clip.b) {
             break;
          }
@@ -3148,55 +3146,55 @@ int UITable::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
          m.index      = i;
          m.isSelected = false;
          m.column     = 0;
-         int bytes    = el->message(UIMessage::TABLE_GET_ITEM, 0, &m);
+         int bytes    = message(UIMessage::TABLE_GET_ITEM, 0, &m);
 
          uint32_t rowFlags =
             (m.isSelected ? UIControl::state_selected : 0) | (hovered == i ? UIControl::state_hovered : 0);
-         UIDrawControl(painter, row, UIControl::table_row | rowFlags, {}, 0, el->_window->_scale);
+         UIDrawControl(painter, row, UIControl::table_row | rowFlags, {}, 0, _window->_scale);
 
          UIRectangle cell = row;
-         cell.l += table->scale(ui_size::table_column_gap) - (int64_t)table->_hscroll->position();
+         cell.l += scale(ui_size::table_column_gap) - (int64_t)_hscroll->position();
 
-         for (size_t j = 0; j < table->_column_widths.size(); j++) {
+         for (size_t j = 0; j < _column_widths.size(); j++) {
             if (j) {
                m.column = j;
-               bytes    = el->message(UIMessage::TABLE_GET_ITEM, 0, &m);
+               bytes    = message(UIMessage::TABLE_GET_ITEM, 0, &m);
             }
 
-            cell.r = cell.l + table->_column_widths[j];
+            cell.r = cell.l + _column_widths[j];
             if ((size_t)bytes > m.buff_size() && bytes > 0)
                bytes = m.buff_size();
             if (bytes > 0)
-               UIDrawControl(painter, cell, UIControl::table_cell | rowFlags, m.buff(bytes), 0, el->_window->_scale);
-            cell.l += table->_column_widths[j] + table->scale(ui_size::table_column_gap);
+               UIDrawControl(painter, cell, UIControl::table_cell | rowFlags, m.buff(bytes), 0, _window->_scale);
+            cell.l += _column_widths[j] + scale(ui_size::table_column_gap);
          }
 
          row.t += rowHeight;
       }
 
-      bounds        = el->_bounds;
+      bounds        = _bounds;
       painter->clip = intersection(oldClip, bounds);
-      if (table->_hscroll)
-         bounds.l -= (int64_t)table->_hscroll->position();
+      if (_hscroll)
+         bounds.l -= (int64_t)_hscroll->position();
 
       UIRectangle header = bounds;
-      header.b           = header.t + table->scale(ui_size::table_header);
-      header.l += table->scale(ui_size::table_column_gap);
+      header.b           = header.t + scale(ui_size::table_header);
+      header.l += scale(ui_size::table_column_gap);
 
       size_t position = 0;
       size_t index    = 0;
 
-      if (!table->_column_widths.empty()) {
+      if (!_column_widths.empty()) {
          while (true) {
-            size_t end = table->column_end(position);
+            size_t end = column_end(position);
 
-            header.r = header.l + table->_column_widths[index];
+            header.r = header.l + _column_widths[index];
             UIDrawControl(painter, header,
-                          UIControl::table_header | (index == table->_column_highlight ? UIControl::state_selected : 0),
-                          table->column(position, end), 0, el->_window->_scale);
-            header.l += table->_column_widths[index] + table->scale(ui_size::table_column_gap);
+                          UIControl::table_header | (index == _column_highlight ? UIControl::state_selected : 0),
+                          column(position, end), 0, _window->_scale);
+            header.l += _column_widths[index] + scale(ui_size::table_column_gap);
 
-            if (table->_columns[end] == '\t') {
+            if (_columns[end] == '\t') {
                position = end + 1;
                index++;
             } else {
@@ -3205,44 +3203,44 @@ int UITable::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
          }
       }
    } else if (msg == UIMessage::LAYOUT) {
-      int scrollBarSize = table->scale(ui_size::scroll_bar);
-      int columnGap     = table->scale(ui_size::table_column_gap);
+      int scrollBarSize = scale(ui_size::scroll_bar);
+      int columnGap     = scale(ui_size::table_column_gap);
 
-      table->_vscroll->set_maximum(table->num_items() * el->scale(ui_size::table_row));
-      table->_hscroll->set_maximum(columnGap);
-      for (auto width : table->_column_widths) {
-         table->_hscroll->set_maximum(table->_hscroll->maximum() + width + columnGap);
+      _vscroll->set_maximum(num_items() * scale(ui_size::table_row));
+      _hscroll->set_maximum(columnGap);
+      for (auto width : _column_widths) {
+         _hscroll->set_maximum(_hscroll->maximum() + width + columnGap);
       }
 
-      int vSpace = el->_bounds.height() - el->scale(ui_size::table_header);
-      int hSpace = el->_bounds.width();
+      int vSpace = _bounds.height() - scale(ui_size::table_header);
+      int hSpace = _bounds.width();
 
-      table->_vscroll->set_page(vSpace);
-      table->_hscroll->set_page(hSpace);
+      _vscroll->set_page(vSpace);
+      _hscroll->set_page(hSpace);
 
-      table->layout_scrollbar_pair(hSpace, vSpace, scrollBarSize, table);
+      layout_scrollbar_pair(hSpace, vSpace, scrollBarSize, this);
    } else if (msg == UIMessage::MOUSE_MOVE || msg == UIMessage::UPDATE) {
-      el->repaint(NULL);
+      repaint(NULL);
    } else if (msg == UIMessage::SCROLLED) {
-      el->refresh();
+      refresh();
    } else if (msg == UIMessage::MOUSE_WHEEL) {
-      return table->_vscroll->message(msg, di, dp);
+      return _vscroll->message(msg, di, dp);
    } else if (msg == UIMessage::LEFT_DOWN) {
-      el->focus();
+      focus();
    } else if (msg == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
       if ((m->code == UIKeycode::UP || m->code == UIKeycode::DOWN || m->code == UIKeycode::PAGE_UP ||
            m->code == UIKeycode::PAGE_DOWN || m->code == UIKeycode::HOME || m->code == UIKeycode::END) &&
-          !el->_window->_ctrl && !el->_window->_alt && !el->_window->_shift) {
-         table->key_input_vscroll(m, el->scale(ui_size::table_row),
-                                  (el->_bounds.t - table->_hscroll->_bounds.t + ui_size::table_header) * 4 / 5, table);
+          !_window->_ctrl && !_window->_alt && !_window->_shift) {
+         key_input_vscroll(m, scale(ui_size::table_row),
+                                  (_bounds.t - _hscroll->_bounds.t + ui_size::table_header) * 4 / 5, this);
          return 1;
-      } else if ((m->code == UIKeycode::LEFT || m->code == UIKeycode::RIGHT) && !el->_window->_ctrl &&
-                 !el->_window->_alt && !el->_window->_shift) {
-         table->_hscroll->position() +=
+      } else if ((m->code == UIKeycode::LEFT || m->code == UIKeycode::RIGHT) && !_window->_ctrl &&
+                 !_window->_alt && !_window->_shift) {
+         _hscroll->position() +=
             m->code == UIKeycode::LEFT ? -ui->activeFont->glyphWidth : ui->activeFont->glyphWidth;
-         table->refresh();
+         refresh();
          return 1;
       }
    } else if (msg == UIMessage::DEALLOCATE) {
