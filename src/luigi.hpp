@@ -1129,7 +1129,11 @@ private:
    double _position;
    bool   _vertical;
 
-   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
+   int _class_message_proc(UIMessage msg, int di, void* dp);
+
+   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<UIGauge*>(el)->_class_message_proc(msg, di, dp);
+   }
 
 public:
    UIGauge(UIElement* parent, uint32_t flags);
@@ -1148,7 +1152,11 @@ private:
    bool                           _vertical;
    std::function<void(UISlider&)> _on_value_changed;
 
-   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
+   int _class_message_proc(UIMessage msg, int di, void* dp);
+
+   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<UISlider*>(el)->_class_message_proc(msg, di, dp);
+   }
 
 public:
    UISlider(UIElement* parent, uint32_t flags);

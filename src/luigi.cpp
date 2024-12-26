@@ -2920,17 +2920,15 @@ UICode* UICodeCreate(UIElement* parent, uint32_t flags) {
 // Gauges.
 // --------------------------------------------------
 
-int UIGauge::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-   UIGauge* gauge = (UIGauge*)el;
-
+int UIGauge::_class_message_proc(UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::GET_HEIGHT) {
-      return el->scale(gauge->_vertical ? ui_size::gauge_width : ui_size::gauge_height);
+      return scale(_vertical ? ui_size::gauge_width : ui_size::gauge_height);
    } else if (msg == UIMessage::GET_WIDTH) {
-      return el->scale(gauge->_vertical ? ui_size::gauge_height : ui_size::gauge_width);
+      return scale(_vertical ? ui_size::gauge_height : ui_size::gauge_width);
    } else if (msg == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, el->_bounds,
-                    UIControl::gauge | el->state() | (gauge->_vertical ? UIControl::state_vertical : 0), {},
-                    gauge->_position, el->_window->_scale);
+      UIDrawControl((UIPainter*)dp, _bounds,
+                    UIControl::gauge | state() | (_vertical ? UIControl::state_vertical : 0), {},
+                    _position, _window->_scale);
    }
 
    return 0;
@@ -2958,37 +2956,35 @@ UIGauge* UIGaugeCreate(UIElement* parent, uint32_t flags) {
 // Sliders.
 // --------------------------------------------------
 
-int UISlider::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-   UISlider* slider = (UISlider*)el;
-
+int UISlider::_class_message_proc(UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::GET_HEIGHT) {
-      return el->scale(slider->_vertical ? ui_size::slider_width : ui_size::slider_height);
+      return scale(_vertical ? ui_size::slider_width : ui_size::slider_height);
    } else if (msg == UIMessage::GET_WIDTH) {
-      return el->scale(slider->_vertical ? ui_size::slider_height : ui_size::slider_width);
+      return scale(_vertical ? ui_size::slider_height : ui_size::slider_width);
    } else if (msg == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, el->_bounds,
-                    UIControl::slider | el->state() | (slider->_vertical ? UIControl::state_vertical : 0), {},
-                    slider->_position, el->_window->_scale);
-   } else if (msg == UIMessage::LEFT_DOWN || (msg == UIMessage::MOUSE_DRAG && el->_window->_pressed_button == 1)) {
-      UIRectangle bounds    = el->_bounds;
-      int         thumbSize = el->scale(ui_size::slider_thumb);
-      slider->_position =
-         slider->_vertical
-            ? 1 - ((float)(el->_window->_cursor.y - thumbSize / 2 - bounds.t) / (bounds.height() - thumbSize))
-            : (double)(el->_window->_cursor.x - thumbSize / 2 - bounds.l) / (bounds.width() - thumbSize);
-      if (slider->_steps > 1)
-         slider->_position = (int)(slider->_position * (slider->_steps - 1) + 0.5f) / (double)(slider->_steps - 1);
-      if (slider->_position < 0)
-         slider->_position = 0;
-      if (slider->_position > 1)
-         slider->_position = 1;
-      el->message(UIMessage::VALUE_CHANGED, 0, 0);
-      el->repaint(NULL);
+      UIDrawControl((UIPainter*)dp, _bounds,
+                    UIControl::slider | state() | (_vertical ? UIControl::state_vertical : 0), {},
+                    _position, _window->_scale);
+   } else if (msg == UIMessage::LEFT_DOWN || (msg == UIMessage::MOUSE_DRAG && _window->_pressed_button == 1)) {
+      UIRectangle bounds    = _bounds;
+      int         thumbSize = scale(ui_size::slider_thumb);
+      _position =
+         _vertical
+         ? 1 - ((float)(_window->_cursor.y - thumbSize / 2 - bounds.t) / (bounds.height() - thumbSize))
+            : (double)(_window->_cursor.x - thumbSize / 2 - bounds.l) / (bounds.width() - thumbSize);
+      if (_steps > 1)
+         _position = (int)(_position * (_steps - 1) + 0.5f) / (double)(_steps - 1);
+      if (_position < 0)
+         _position = 0;
+      if (_position > 1)
+         _position = 1;
+      message(UIMessage::VALUE_CHANGED, 0, 0);
+      repaint(NULL);
    } else if (msg == UIMessage::UPDATE) {
-      el->repaint(NULL);
+      repaint(NULL);
    } else if (msg == UIMessage::VALUE_CHANGED) {
-      if (slider->_on_value_changed) {
-         slider->_on_value_changed(*slider);
+      if (_on_value_changed) {
+         _on_value_changed(*this);
       }
    }
 
