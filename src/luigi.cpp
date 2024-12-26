@@ -1152,17 +1152,18 @@ void UIElement::set_disabled(bool disabled) {
    message(UIMessage::UPDATE, UIUpdate::disabled, 0);
 }
 
-void UIElement::focus() {
+UIElement& UIElement::focus() {
    UIElement* previous = _window->_focused;
-   if (previous == this)
-      return;
-   _window->_focused = this;
-   if (previous)
-      previous->message(UIMessage::UPDATE, UIUpdate::focused, 0);
-   this->message(UIMessage::UPDATE, UIUpdate::focused, 0);
+   if (previous != this) {
+      _window->_focused = this;
+      if (previous)
+         previous->message(UIMessage::UPDATE, UIUpdate::focused, 0);
+      this->message(UIMessage::UPDATE, UIUpdate::focused, 0);
 
-   if constexpr (UIInspector::enabled())
-      ui->inspector.refresh();
+      if constexpr (UIInspector::enabled())
+         ui->inspector.refresh();
+   }
+   return *this;
 }
 
 UIMDIChild& UIElement::add_mdichild(uint32_t flags, UIRectangle initialBounds, std::string_view title) {
@@ -1478,12 +1479,12 @@ UIElement* UIParentPop() {
 // Panels.
 // --------------------------------------------------
 
-int _UIPanelCalculatePerFill(UIPanel* panel, int* _count, int hSpace, int vSpace, float scale) {
-   bool horizontal = panel->_flags & UIPanel::HORIZONTAL;
+int UIPanel::_calculate_per_fill(int* _count, int hSpace, int vSpace, float scale) {
+   bool horizontal = _flags & UIPanel::HORIZONTAL;
    int  available  = horizontal ? hSpace : vSpace;
    int  count = 0, fill = 0, perFill = 0;
 
-   for (auto child : panel->_children) {
+   for (auto child : _children) {
       if (child->_flags & (UIElement::hide_flag | UIElement::non_client_flag)) {
          continue;
       }
@@ -1506,7 +1507,7 @@ int _UIPanelCalculatePerFill(UIPanel* panel, int* _count, int hSpace, int vSpace
    }
 
    if (count) {
-      available -= (count - 1) * (int)(panel->_gap * scale);
+      available -= (count - 1) * (int)(_gap * scale);
    }
 
    if (available > 0 && fill) {
@@ -1520,13 +1521,12 @@ int _UIPanelCalculatePerFill(UIPanel* panel, int* _count, int hSpace, int vSpace
    return perFill;
 }
 
-int _UIPanelMeasure(UIPanel* panel, int di) {
-   bool horizontal = panel->_flags & UIPanel::HORIZONTAL;
-   int  perFill =
-      _UIPanelCalculatePerFill(panel, NULL, horizontal ? di : 0, horizontal ? 0 : di, panel->_window->_scale);
+int UIPanel::_measure(int di) {
+   bool horizontal = _flags & UIPanel::HORIZONTAL;
+   int  perFill    = _calculate_per_fill(NULL, horizontal ? di : 0, horizontal ? 0 : di, _window->_scale);
    int size = 0;
 
-   for (auto child : panel->_children) {
+   for (auto child : _children) {
       if (child->_flags & (UIElement::hide_flag | UIElement::non_client_flag))
          continue;
       int childSize =
@@ -1536,24 +1536,24 @@ int _UIPanelMeasure(UIPanel* panel, int di) {
          size = childSize;
    }
 
-   int border = horizontal ? (panel->_border.t + panel->_border.b) : (panel->_border.l + panel->_border.r);
-   return size + panel->scale(border);
+   int border = horizontal ? (_border.t + _border.b) : (_border.l + _border.r);
+   return size + scale(border);
 }
 
-int _UIPanelLayout(UIPanel* panel, UIRectangle bounds, bool measure) {
-   bool horizontal = panel->_flags & UIPanel::HORIZONTAL;
+int UIPanel::_layout(UIRectangle bounds, bool measure) {
+   bool horizontal = _flags & UIPanel::HORIZONTAL;
 
-   int position = panel->scale(horizontal ? panel->_border.l : panel->_border.t);
-   if (panel->_scrollBar && !measure)
-      position -= panel->_scrollBar->position();
-   int  hSpace        = bounds.width() - panel->scale(panel->_border.total_width());
-   int  vSpace        = bounds.height() - panel->scale(panel->_border.total_height());
+   int position = scale(horizontal ? _border.l : _border.t);
+   if (_scrollBar && !measure)
+      position -= _scrollBar->position();
+   int  hSpace        = bounds.width() - scale(_border.total_width());
+   int  vSpace        = bounds.height() - scale(_border.total_height());
    int  count         = 0;
-   int  perFill       = _UIPanelCalculatePerFill(panel, &count, hSpace, vSpace, panel->_window->_scale);
-   int  scaledBorder2 = panel->scale(horizontal ? panel->_border.t : panel->_border.l);
-   bool expand        = panel->_flags & UIPanel::EXPAND;
+   int  perFill       = _calculate_per_fill(&count, hSpace, vSpace, _window->_scale);
+   int  scaledBorder2 = scale(horizontal ? _border.t : _border.l);
+   bool expand        = _flags & UIPanel::EXPAND;
 
-   for (auto child : panel->_children) {
+   for (auto child : _children) {
       if (child->_flags & (UIElement::hide_flag | UIElement::non_client_flag)) {
          continue;
       }
@@ -1567,7 +1567,7 @@ int _UIPanelLayout(UIPanel* panel, UIRectangle bounds, bool measure) {
                                             scaledBorder2 + (vSpace + height) / 2);
          if (!measure)
             child->move(translate(relative, bounds), false);
-         position += width + panel->scale(panel->_gap);
+         position += width + scale(_gap);
       } else {
          int width  = ((child->_flags & UIElement::h_fill) || expand)
                          ? hSpace
@@ -1577,58 +1577,57 @@ int _UIPanelLayout(UIPanel* panel, UIRectangle bounds, bool measure) {
                                             position, position + height);
          if (!measure)
             child->move(translate(relative, bounds), false);
-         position += height + panel->scale(panel->_gap);
+         position += height + scale(_gap);
       }
    }
 
-   return position - panel->scale(count ? panel->_gap : 0) +
-          panel->scale(horizontal ? panel->_border.r : panel->_border.b);
+   return position - scale(count ? _gap : 0) +
+          scale(horizontal ? _border.r : _border.b);
 }
 
-int UIPanel::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-   UIPanel* panel      = (UIPanel*)el;
-   bool     horizontal = el->_flags & UIPanel::HORIZONTAL;
+int UIPanel::_class_message_proc(UIMessage msg, int di, void* dp) {
+   bool     horizontal = _flags & UIPanel::HORIZONTAL;
 
    if (msg == UIMessage::LAYOUT) {
-      int         scrollBarWidth = panel->_scrollBar ? el->scale(ui_size::scroll_bar) : 0;
-      UIRectangle bounds         = el->_bounds;
+      int         scrollBarWidth = _scrollBar ? scale(ui_size::scroll_bar) : 0;
+      UIRectangle bounds         = _bounds;
       bounds.r -= scrollBarWidth;
 
-      if (panel->_scrollBar) {
-         UIRectangle scrollBarBounds = el->_bounds;
+      if (_scrollBar) {
+         UIRectangle scrollBarBounds = _bounds;
          scrollBarBounds.l           = scrollBarBounds.r - scrollBarWidth;
-         panel->_scrollBar->set_maximum(_UIPanelLayout(panel, bounds, true));
-         panel->_scrollBar->set_page(el->_bounds.height());
-         panel->_scrollBar->move(scrollBarBounds, true);
+         _scrollBar->set_maximum(_layout(bounds, true));
+         _scrollBar->set_page(_bounds.height());
+         _scrollBar->move(scrollBarBounds, true);
       }
 
-      _UIPanelLayout(panel, bounds, false);
+      _layout(bounds, false);
    } else if (msg == UIMessage::GET_WIDTH) {
       if (horizontal) {
-         return _UIPanelLayout(panel, UIRectangle(0, 0, 0, di), true);
+         return _layout(UIRectangle(0, 0, 0, di), true);
       } else {
-         return _UIPanelMeasure(panel, di);
+         return _measure(di);
       }
    } else if (msg == UIMessage::GET_HEIGHT) {
       if (horizontal) {
-         return _UIPanelMeasure(panel, di);
+         return _measure(di);
       } else {
-         int width = di && panel->_scrollBar ? (di - el->scale(ui_size::scroll_bar)) : di;
-         return _UIPanelLayout(panel, UIRectangle(0, width, 0, 0), true);
+         int width = di && _scrollBar ? (di - scale(ui_size::scroll_bar)) : di;
+         return _layout(UIRectangle(0, width, 0, 0), true);
       }
    } else if (msg == UIMessage::PAINT) {
-      if (el->_flags & UIPanel::COLOR_1) {
-         UIDrawBlock((UIPainter*)dp, el->_bounds, ui->theme.panel1);
-      } else if (el->_flags & UIPanel::COLOR_2) {
-         UIDrawBlock((UIPainter*)dp, el->_bounds, ui->theme.panel2);
+      if (_flags & UIPanel::COLOR_1) {
+         UIDrawBlock((UIPainter*)dp, _bounds, ui->theme.panel1);
+      } else if (_flags & UIPanel::COLOR_2) {
+         UIDrawBlock((UIPainter*)dp, _bounds, ui->theme.panel2);
       }
-   } else if (msg == UIMessage::MOUSE_WHEEL && panel->_scrollBar) {
-      return panel->_scrollBar->message(msg, di, dp);
+   } else if (msg == UIMessage::MOUSE_WHEEL && _scrollBar) {
+      return _scrollBar->message(msg, di, dp);
    } else if (msg == UIMessage::SCROLLED) {
-      el->refresh();
+      refresh();
    } else if (msg == UIMessage::GET_CHILD_STABILITY) {
       UIElement* child = (UIElement*)dp;
-      return ((el->_flags & UIPanel::EXPAND) ? (horizontal ? 2 : 1) : 0) |
+      return ((_flags & UIPanel::EXPAND) ? (horizontal ? 2 : 1) : 0) |
              ((child->_flags & UIElement::h_fill) ? 1 : 0) | ((child->_flags & UIElement::v_fill) ? 2 : 0);
    }
 
@@ -4007,7 +4006,7 @@ const char* UI::show_dialog(UIWindow* window, uint32_t flags, const char* format
    UI_ASSERT(!window->_dialog);
    window->_dialog = UIElementCreate(sizeof(UIElement), window, 0, _UIDialogWrapperMessage, "DialogWrapper");
    UIPanel* panel  = UIPanelCreate(window->_dialog, UIPanel::MEDIUM_SPACING | UIPanel::COLOR_1);
-   panel->_border  = UIRectangle(ui_size::pane_medium_border * 2);
+   panel->set_border(UIRectangle(ui_size::pane_medium_border * 2));
    window->_children[0]->_flags |= UIElement::disabled_flag;
 
    // Create the dialog contents.
@@ -4023,7 +4022,7 @@ const char* UI::show_dialog(UIWindow* window, uint32_t flags, const char* format
    for (int i = 0; format[i]; i++) {
       if (i == 0 || format[i - 1] == '\n') {
          row       = UIPanelCreate(panel, UIPanel::HORIZONTAL | UIElement::h_fill);
-         row->_gap = ui_size::pane_small_gap;
+         row->set_gap(ui_size::pane_small_gap);
       }
 
       if (format[i] == ' ' || format[i] == '\n') {

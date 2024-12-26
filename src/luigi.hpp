@@ -656,7 +656,7 @@ public:
    void           repaint(const UIRectangle* region);
    void           paint(UIPainter* painter);
 
-   void           focus();                    // sets the input focus to this element
+   UIElement&     focus();                     // sets the input focus to this element
    void           set_disabled(bool disabled);
 
    void           move(UIRectangle bounds, bool layout);
@@ -705,6 +705,7 @@ struct UIElementCast : public UIElement{
    {}
 
    Derived& set_user_proc(message_proc_t proc) { return static_cast<Derived&>(UIElement::set_user_proc(proc)); }
+   Derived& focus() { return static_cast<Derived&>(UIElement::focus()); }
 };
 
 // ------------------------------------------------------------------------------------------
@@ -791,8 +792,20 @@ inline int UIElement::scale(auto sz) const { return (int)((float)sz * _window->_
 // ------------------------------------------------------------------------------------------
 struct UIPanel : public UIElementCast<UIPanel> {
 private:
-   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
+   UIScrollBar* _scrollBar;
+   UIRectangle  _border;
+   int          _gap;
 
+   int _class_message_proc(UIMessage msg, int di, void* dp);
+   
+   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<UIPanel*>(el)->_class_message_proc(msg, di, dp);
+   }
+
+   int _layout(UIRectangle bounds, bool measure);
+   int _calculate_per_fill(int* _count, int hSpace, int vSpace, float scale);
+   int _measure(int di);
+   
 public:
    enum {
       HORIZONTAL     = 1 << 0,
@@ -805,10 +818,6 @@ public:
       EXPAND         = 1 << 9,
    };
 
-   UIScrollBar* _scrollBar;
-   UIRectangle  _border;
-   int          _gap;
-
    UIPanel(UIElement* parent, uint32_t flags);
 
    UIPanel& set_border(const UIRectangle& b) { _border = b; return *this; }
@@ -816,6 +825,8 @@ public:
 
    UIPanel& set_gap(int gap) { _gap = gap;  return *this; }
    int gap() const { return _gap; }
+
+   UIScrollBar* scrollbar() const { return _scrollBar; }
 };
 
 // ------------------------------------------------------------------------------------------
