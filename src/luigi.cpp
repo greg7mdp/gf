@@ -4138,7 +4138,7 @@ bool _UIMenusClose() {
    return anyClosed;
 }
 
-int UI::_MenuItemMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+int UIMenu::_MenuItemMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::CLICKED) {
       _UIMenusClose();
    }
@@ -4146,13 +4146,11 @@ int UI::_MenuItemMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    return 0;
 }
 
-int UI::_MenuMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-   UIMenu* menu = (UIMenu*)el;
-
+int UIMenu::_class_message_proc(UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::GET_WIDTH) {
       int width = 0;
 
-      for (auto child : el->_children) {
+      for (auto child : _children) {
          if (~child->_flags & UIElement::non_client_flag) {
             int w = child->message(UIMessage::GET_WIDTH, 0, 0);
             if (w > width)
@@ -4164,7 +4162,7 @@ int UI::_MenuMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::GET_HEIGHT) {
       int height = 0;
 
-      for (auto child : el->_children) {
+      for (auto child : _children) {
          if (~child->_flags & UIElement::non_client_flag) {
             height += child->message(UIMessage::GET_HEIGHT, 0, 0);
          }
@@ -4172,27 +4170,27 @@ int UI::_MenuMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
       return height + 4;
    } else if (msg == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, el->_bounds, UIControl::menu, {}, 0, el->_window->_scale);
+      UIDrawControl((UIPainter*)dp, _bounds, UIControl::menu, {}, 0, _window->_scale);
    } else if (msg == UIMessage::LAYOUT) {
-      int position      = el->_bounds.t + 2 - menu->vScroll->position();
+      int position      = _bounds.t + 2 - _vscroll->position();
       int totalHeight   = 0;
-      int scrollBarSize = (menu->_flags & UIMenu::NO_SCROLL) ? 0 : ui_size::scroll_bar;
+      int scrollBarSize = (_flags & NO_SCROLL) ? 0 : ui_size::scroll_bar;
 
-      for (auto child : el->_children) {
+      for (auto child : _children) {
          if (~child->_flags & UIElement::non_client_flag) {
             int height = child->message(UIMessage::GET_HEIGHT, 0, 0);
-            child->move(UIRectangle(el->_bounds.l + 2, el->_bounds.r - scrollBarSize - 2, position, position + height),
+            child->move(UIRectangle(_bounds.l + 2, _bounds.r - scrollBarSize - 2, position, position + height),
                         false);
             position += height;
             totalHeight += height;
          }
       }
 
-      UIRectangle scrollBarBounds = el->_bounds;
-      scrollBarBounds.l           = scrollBarBounds.r - el->scale(scrollBarSize);
-      menu->vScroll->set_maximum(totalHeight);
-      menu->vScroll->set_page(el->_bounds.height());
-      menu->vScroll->move(scrollBarBounds, true);
+      UIRectangle scrollBarBounds = _bounds;
+      scrollBarBounds.l           = scrollBarBounds.r - scale(scrollBarSize);
+      _vscroll->set_maximum(totalHeight);
+      _vscroll->set_page(_bounds.height());
+      _vscroll->move(scrollBarBounds, true);
    } else if (msg == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
@@ -4201,9 +4199,9 @@ int UI::_MenuMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          return 1;
       }
    } else if (msg == UIMessage::MOUSE_WHEEL) {
-      return menu->vScroll->message(msg, di, dp);
+      return _vscroll->message(msg, di, dp);
    } else if (msg == UIMessage::SCROLLED) {
-      el->refresh();
+      refresh();
    }
 
    return 0;
@@ -4212,7 +4210,7 @@ int UI::_MenuMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 UIMenu& UIMenu::add_item(uint32_t flags, std::string_view label, std::function<void(UIButton&)> invoke) {
    UIButton* button   = UIButtonCreate(this, flags | UIButton::MENU_ITEM, label);
    button->_on_click  = std::move(invoke);
-   button->_user_proc = UI::_MenuItemMessage;
+   button->_user_proc = UIMenu::_MenuItemMessageProc;
    return *this;
 }
 
@@ -4220,25 +4218,25 @@ void UIMenu::_prepare(int* width, int* height) {
    *width  = message(UIMessage::GET_WIDTH, 0, 0);
    *height = message(UIMessage::GET_HEIGHT, 0, 0);
 
-   if (_flags & UIMenu::PLACE_ABOVE) {
-      pointY -= *height;
+   if (_flags & PLACE_ABOVE) {
+      _point.y -= *height;
    }
 }
 
 UIMenu::UIMenu(UIElement* parent, uint32_t flags)
-   : UIElementCast<UIMenu>(&UIWindow::Create(parent->_window, UIWindow::MENU, 0, 0, 0), flags, UI::_MenuMessage, "Menu")
-   , vScroll(UIScrollBarCreate(this, non_client_flag))
-   , parentWindow(parent->_window) {
+   : UIElementCast<UIMenu>(&UIWindow::Create(parent->_window, UIWindow::MENU, 0, 0, 0), flags, UIMenu::_ClassMessageProc, "Menu")
+   , _vscroll(UIScrollBarCreate(this, non_client_flag))
+   , _parent_window(parent->_window) {
    if (parent->_parent) {
       UIRectangle screenBounds = parent->screen_bounds();
-      pointX                   = screenBounds.l;
-      pointY                   = (flags & UIMenu::PLACE_ABOVE) ? (screenBounds.t + 1) : (screenBounds.b - 1);
+      _point.x                   = screenBounds.l;
+      _point.y                   = (flags & PLACE_ABOVE) ? (screenBounds.t + 1) : (screenBounds.b - 1);
    } else {
       int x = 0, y = 0;
       parent->_window->get_screen_position(&x, &y);
 
-      pointX = parent->_window->_cursor.x + x;
-      pointY = parent->_window->_cursor.y + y;
+      _point.x = parent->_window->_cursor.x + x;
+      _point.y = parent->_window->_cursor.y + y;
    }
 }
 
@@ -5363,8 +5361,8 @@ UIMenu& UIMenu::show() {
       int     x, y;
       XTranslateCoordinates(ui->display, screen->root, DefaultRootWindow(ui->display), 0, 0, &x, &y, &child);
 
-      if (pointX >= x && pointX < x + screen->width && pointY >= y &&
-          pointY < y + screen->height) {
+      if (_point.x >= x && _point.x < x + screen->width && _point.y >= y &&
+          _point.y < y + screen->height) {
          menuScreen = screen;
          screenX = x, screenY = y;
          break;
@@ -5379,33 +5377,33 @@ UIMenu& UIMenu::show() {
       // This step shouldn't be necessary with the screen clamping below, but there are some buggy X11 drivers that
       // report screen sizes incorrectly.
       int       wx, wy;
-      UIWindow* parentWindow = this->parentWindow;
+      UIWindow* parentWindow = this->_parent_window;
       XTranslateCoordinates(ui->display, parentWindow->_xwindow, DefaultRootWindow(ui->display), 0, 0, &wx, &wy,
                             &child);
-      if (pointX + width > wx + (int)parentWindow->_width)
-         pointX = wx + parentWindow->_width - width;
-      if (pointY + height > wy + (int)parentWindow->_height)
-         pointY = wy + parentWindow->_height - height;
-      if (pointX < wx)
-         pointX = wx;
-      if (pointY < wy)
-         pointY = wy;
+      if (_point.x + width > wx + (int)parentWindow->_width)
+         _point.x = wx + parentWindow->_width - width;
+      if (_point.y + height > wy + (int)parentWindow->_height)
+         _point.y = wy + parentWindow->_height - height;
+      if (_point.x < wx)
+         _point.x = wx;
+      if (_point.y < wy)
+         _point.y = wy;
    }
 
    if (menuScreen) {
       // Clamp to the bounds of the screen.
-      if (pointX + width > screenX + menuScreen->width)
-         pointX = screenX + menuScreen->width - width;
-      if (pointY + height > screenY + menuScreen->height)
-         pointY = screenY + menuScreen->height - height;
-      if (pointX < screenX)
-         pointX = screenX;
-      if (pointY < screenY)
-         pointY = screenY;
-      if (pointX + width > screenX + menuScreen->width)
-         width = screenX + menuScreen->width - pointX;
-      if (pointY + height > screenY + menuScreen->height)
-         height = screenY + menuScreen->height - pointY;
+      if (_point.x + width > screenX + menuScreen->width)
+         _point.x = screenX + menuScreen->width - width;
+      if (_point.y + height > screenY + menuScreen->height)
+         _point.y = screenY + menuScreen->height - height;
+      if (_point.x < screenX)
+         _point.x = screenX;
+      if (_point.y < screenY)
+         _point.y = screenY;
+      if (_point.x + width > screenX + menuScreen->width)
+         width = screenX + menuScreen->width - _point.x;
+      if (_point.y + height > screenY + menuScreen->height)
+         height = screenY + menuScreen->height - _point.y;
    }
 
    Atom properties[] = {
@@ -5432,7 +5430,7 @@ UIMenu& UIMenu::show() {
                    (uint8_t*)&hints, 5);
 
    XMapWindow(ui->display, _window->_xwindow);
-   XMoveResizeWindow(ui->display, _window->_xwindow, pointX, pointY, width, height);
+   XMoveResizeWindow(ui->display, _window->_xwindow, _point.x, _point.y, width, height);
    return *this;
 }
 
@@ -6082,7 +6080,7 @@ bool UI::_message_loop_single(int* result) {
 UIMenu& UIMenu::show() {
    int width, height;
    _prepare(&width, &height);
-   MoveWindow(_window->_hwnd, pointX, pointY, width, height, FALSE);
+   MoveWindow(_window->_hwnd, _point.x, _point.y, width, height, FALSE);
    ShowWindow(_window->_hwnd, SW_SHOWNOACTIVATE);
    return *this;
 }

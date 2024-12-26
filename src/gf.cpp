@@ -2552,7 +2552,7 @@ int TextboxInputMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       auto             sz   = text.size();
 
       if (m->text.size() && !el->_window->_ctrl && !el->_window->_alt && m->text[0] == '`' && !sz) {
-         textbox->_reject_next_key = true;
+         textbox->set_reject_next_key(true);
       } else if (m->code == UIKeycode::ENTER && !el->_window->_shift) {
          if (!sz) {
             if (commandHistory.size()) {

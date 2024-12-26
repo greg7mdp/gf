@@ -1222,6 +1222,11 @@ public:
 struct UITextbox : public UIElementCast<UITextbox> {
    friend struct UI;
 private:
+   std::string        _buffer;
+   std::array<int, 2> _carets{};
+   int                _scroll;
+   bool               _reject_next_key;
+
    int _class_message_proc(UIMessage msg, int di, void* dp);
 
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
@@ -1234,11 +1239,6 @@ private:
 
 public:
 
-   std::string        _buffer;
-   std::array<int, 2> _carets{};
-   int                _scroll;
-   bool               _reject_next_key;
-
    UITextbox(UIElement* parent, uint32_t flags);
    
    std::string_view text() const { return std::string_view(_buffer); }
@@ -1249,23 +1249,30 @@ public:
    UITextbox& move_caret(bool backward, bool word);
    UITextbox& copy();
    UITextbox& paste(sel_target_t t);
+
+   UITextbox& set_reject_next_key(bool v) { _reject_next_key = v; return *this; }
 };
 
 // ------------------------------------------------------------------------------------------
 struct UIMenu : public UIElementCast<UIMenu> {
 private:
-   void _prepare(int* width, int* height);
+   UIPoint      _point;            // keep as int for X11 APIs
+   UIScrollBar* _vscroll;
+   UIWindow*    _parent_window;
+
+   void       _prepare(int* width, int* height);
+   int        _class_message_proc(UIMessage msg, int di, void* dp);
+   static int _MenuItemMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
+   
+   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<UIMenu*>(el)->_class_message_proc(msg, di, dp);
+   }
 
 public:
    enum {
       PLACE_ABOVE = 1 << 0,
       NO_SCROLL   = 1 << 1
    };
-
-   int          pointX; // keep as int for X11 APIs
-   int          pointY;
-   UIScrollBar* vScroll;
-   UIWindow*    parentWindow;
 
    UIMenu(UIElement* parent, uint32_t flags);
 
@@ -1459,8 +1466,6 @@ struct UI {
 private:
    static void        _inspector_refresh();
    static bool        _message_loop_single(int* result);
-   static int         _MenuMessage(UIElement* el, UIMessage msg, int di, void* dp);
-   static int         _MenuItemMessage(UIElement* el, UIMessage msg, int di, void* dp);
 
 public:
    UIWindow* windows = nullptr;
