@@ -940,6 +940,7 @@ private:
    uint32_t    _active;
 
    int _class_message_proc(UIMessage msg, int di, void* dp);
+   
 public:
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<UITabPane*>(el)->_class_message_proc(msg, di, dp);
@@ -1219,6 +1220,14 @@ public:
 
 // ------------------------------------------------------------------------------------------
 struct UITextbox : public UIElementCast<UITextbox> {
+private:
+   int _class_message_proc(UIMessage msg, int di, void* dp);
+
+   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<UITextbox*>(el)->_class_message_proc(msg, di, dp);
+   }
+
+public:
    std::string        buffer;
    std::array<int, 2> carets{};
    int                scroll;

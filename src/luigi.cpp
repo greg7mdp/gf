@@ -3358,136 +3358,134 @@ void UITextboxPasteText(void* cp, sel_target_t t) {
    }
 }
 
-int _UITextboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-   UITextbox* textbox = (UITextbox*)el;
-
+int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::GET_HEIGHT) {
-      return el->scale(ui_size::textbox_height);
+      return scale(ui_size::textbox_height);
    } else if (msg == UIMessage::GET_WIDTH) {
-      return el->scale(ui_size::textbox_width);
+      return scale(ui_size::textbox_width);
    } else if (msg == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, el->_bounds, UIControl::textbox | el->state(), {}, 0, el->_window->_scale);
+      UIDrawControl((UIPainter*)dp, _bounds, UIControl::textbox | state(), {}, 0, _window->_scale);
 
-      int         scaledMargin = el->scale(ui_size::textbox_margin);
-      int         totalWidth   = UIMeasureStringWidth(textbox->text()) + scaledMargin * 2;
-      UIRectangle textBounds   = el->_bounds + ui_rect_1i(scaledMargin);
+      int         scaledMargin = scale(ui_size::textbox_margin);
+      int         totalWidth   = UIMeasureStringWidth(text()) + scaledMargin * 2;
+      UIRectangle textBounds   = _bounds + ui_rect_1i(scaledMargin);
 
-      if (textbox->scroll > totalWidth - textBounds.width()) {
-         textbox->scroll = totalWidth - textBounds.width();
+      if (scroll > totalWidth - textBounds.width()) {
+         scroll = totalWidth - textBounds.width();
       }
 
-      if (textbox->scroll < 0) {
-         textbox->scroll = 0;
+      if (scroll < 0) {
+         scroll = 0;
       }
 
-      int caretX = UIMeasureStringWidth(textbox->text().substr(0, textbox->carets[0])) - textbox->scroll;
+      int caretX = UIMeasureStringWidth(text().substr(0, carets[0])) - scroll;
 
       if (caretX < 0) {
-         textbox->scroll = caretX + textbox->scroll;
+         scroll = caretX + scroll;
       } else if (caretX > textBounds.width()) {
-         textbox->scroll = caretX - textBounds.width() + textbox->scroll + 1;
+         scroll = caretX - textBounds.width() + scroll + 1;
       }
 
       UIStringSelection selection = {};
-      selection.carets[0]         = _UITextboxByteToColumn(textbox->text(), textbox->carets[0]);
-      selection.carets[1]         = _UITextboxByteToColumn(textbox->text(), textbox->carets[1]);
+      selection.carets[0]         = _UITextboxByteToColumn(text(), carets[0]);
+      selection.carets[1]         = _UITextboxByteToColumn(text(), carets[1]);
       selection.colorBackground   = ui->theme.selected;
       selection.colorText         = ui->theme.textSelected;
-      textBounds.l -= textbox->scroll;
+      textBounds.l -= scroll;
 
-      auto text = textbox->text();
-      if (!text.empty())
-         UIDrawString((UIPainter*)dp, textBounds, text,
-                      (el->_flags & UIElement::disabled_flag) ? ui->theme.textDisabled : ui->theme.text, UIAlign::left,
-                      el->_window->_focused == el ? &selection : NULL);
+      auto cur_text = text();
+      if (!cur_text.empty())
+         UIDrawString((UIPainter*)dp, textBounds, cur_text,
+                      (_flags & UIElement::disabled_flag) ? ui->theme.textDisabled : ui->theme.text, UIAlign::left,
+                      _window->_focused == this ? &selection : NULL);
    } else if (msg == UIMessage::GET_CURSOR) {
       return (int)UICursor::text;
    } else if (msg == UIMessage::LEFT_DOWN) {
-      int column = (el->_window->_cursor.x - el->_bounds.l + textbox->scroll - el->scale(ui_size::textbox_margin) +
+      int column = (_window->_cursor.x - _bounds.l + scroll - scale(ui_size::textbox_margin) +
                     ui->activeFont->glyphWidth / 2) /
                    ui->activeFont->glyphWidth;
-      textbox->carets[0] = textbox->carets[1] = column <= 0 ? 0 : _UITextboxColumnToByte(textbox->text(), column);
-      el->focus();
+      carets[0] = carets[1] = column <= 0 ? 0 : _UITextboxColumnToByte(text(), column);
+      focus();
    } else if (msg == UIMessage::UPDATE) {
-      el->repaint(NULL);
+      repaint(NULL);
    } else if (msg == UIMessage::DEALLOCATE) {
       ;
    } else if (msg == UIMessage::KEY_TYPED) {
       UIKeyTyped* m       = (UIKeyTyped*)dp;
       bool        handled = true;
 
-      if (textbox->rejectNextKey) {
-         textbox->rejectNextKey = false;
+      if (rejectNextKey) {
+         rejectNextKey = false;
          handled                = false;
       } else if (m->code == UIKeycode::BACKSPACE || m->code == UIKeycode::DEL) {
-         if (textbox->carets[0] == textbox->carets[1]) {
-            UITextboxMoveCaret(textbox, m->code == UIKeycode::BACKSPACE, el->_window->_ctrl);
+         if (carets[0] == carets[1]) {
+            UITextboxMoveCaret(this, m->code == UIKeycode::BACKSPACE, _window->_ctrl);
          }
 
-         UITextboxReplace(textbox, "", true);
+         UITextboxReplace(this, "", true);
       } else if (m->code == UIKeycode::LEFT || m->code == UIKeycode::RIGHT) {
-         if (textbox->carets[0] == textbox->carets[1] || el->_window->_shift) {
-            UITextboxMoveCaret(textbox, m->code == UIKeycode::LEFT, el->_window->_ctrl);
-            if (!el->_window->_shift)
-               textbox->carets[1] = textbox->carets[0];
+         if (carets[0] == carets[1] || _window->_shift) {
+            UITextboxMoveCaret(this, m->code == UIKeycode::LEFT, _window->_ctrl);
+            if (!_window->_shift)
+               carets[1] = carets[0];
          } else {
-            textbox->carets[1 - el->_window->_shift] = textbox->carets[el->_window->_shift];
+            carets[1 - _window->_shift] = carets[_window->_shift];
          }
       } else if (m->code == UIKeycode::HOME || m->code == UIKeycode::END) {
          if (m->code == UIKeycode::HOME) {
-            textbox->carets[0] = 0;
+            carets[0] = 0;
          } else {
-            textbox->carets[0] = textbox->text().size();
+            carets[0] = text().size();
          }
 
-         if (!el->_window->_shift) {
-            textbox->carets[1] = textbox->carets[0];
+         if (!_window->_shift) {
+            carets[1] = carets[0];
          }
-      } else if (m->code == UI_KEYCODE_LETTER('A') && el->_window->_ctrl) {
-         textbox->carets[1] = 0;
-         textbox->carets[0] = textbox->text().size();
-      } else if (m->text.size() && !el->_window->_alt && !el->_window->_ctrl && m->text[0] >= 0x20) {
-         UITextboxReplace(textbox, m->text, true);
+      } else if (m->code == UI_KEYCODE_LETTER('A') && _window->_ctrl) {
+         carets[1] = 0;
+         carets[0] = text().size();
+      } else if (m->text.size() && !_window->_alt && !_window->_ctrl && m->text[0] >= 0x20) {
+         UITextboxReplace(this, m->text, true);
       } else if ((m->code == UI_KEYCODE_LETTER('C') || m->code == UI_KEYCODE_LETTER('X') ||
                   m->code == UIKeycode::INSERT) &&
-                 el->_window->_ctrl && !el->_window->_alt && !el->_window->_shift) {
-         UITextboxCopyText(textbox);
+                 _window->_ctrl && !_window->_alt && !_window->_shift) {
+         UITextboxCopyText(this);
 
          if (m->code == UI_KEYCODE_LETTER('X')) {
-            UITextboxReplace(textbox, "", true);
+            UITextboxReplace(this, "", true);
          }
-      } else if ((m->code == UI_KEYCODE_LETTER('V') && el->_window->_ctrl && !el->_window->_alt &&
-                  !el->_window->_shift) ||
-                 (m->code == UIKeycode::INSERT && !el->_window->_ctrl && !el->_window->_alt && el->_window->_shift)) {
-         UITextboxPasteText(textbox, sel_target_t::clipboard);
+      } else if ((m->code == UI_KEYCODE_LETTER('V') && _window->_ctrl && !_window->_alt &&
+                  !_window->_shift) ||
+                 (m->code == UIKeycode::INSERT && !_window->_ctrl && !_window->_alt && _window->_shift)) {
+         UITextboxPasteText(this, sel_target_t::clipboard);
       } else {
          handled = false;
       }
 
       if (handled) {
-         el->repaint(NULL);
+         repaint(NULL);
          return 1;
       }
    } else if (msg == UIMessage::RIGHT_DOWN) {
-      int c0 = textbox->carets[0], c1 = textbox->carets[1];
-      _UITextboxMessage(el, UIMessage::LEFT_DOWN, di, dp);
+      int c0 = carets[0], c1 = carets[1];
+      _class_message_proc(UIMessage::LEFT_DOWN, di, dp);
 
-      if (c0 < c1 ? (textbox->carets[0] >= c0 && textbox->carets[0] < c1)
-                  : (textbox->carets[0] >= c1 && textbox->carets[0] < c0)) {
-         textbox->carets[0] = c0,
-         textbox->carets[1] = c1; // Only move caret if clicking outside the existing selection.
+      if (c0 < c1 ? (carets[0] >= c0 && carets[0] < c1)
+                  : (carets[0] >= c1 && carets[0] < c0)) {
+         carets[0] = c0,
+         carets[1] = c1; // Only move caret if clicking outside the existing selection.
       }
 
-      std::string paste = UI::read_clipboard_text(textbox->_window, sel_target_t::clipboard);
-      UI::create_menu(el->_window, UIMenu::NO_SCROLL)
-         .add_item(textbox->carets[0] == textbox->carets[1] ? UIElement::disabled_flag : 0, "Copy",
-                   [=](UIButton&) { UITextboxCopyText(textbox); })
+      std::string paste = UI::read_clipboard_text(_window, sel_target_t::clipboard);
+      UI::create_menu(_window, UIMenu::NO_SCROLL)
+         .add_item(carets[0] == carets[1] ? UIElement::disabled_flag : 0, "Copy",
+                   [this](UIButton&) { UITextboxCopyText(this); })
          .add_item(paste.empty() ? UIElement::disabled_flag : 0, "Paste",
-                   [=](UIButton&) { UITextboxPasteText(textbox, sel_target_t::clipboard); })
+                   [this](UIButton&) { UITextboxPasteText(this, sel_target_t::clipboard); })
          .show();
    } else if (msg == UIMessage::MIDDLE_DOWN) {
-      UITextboxPasteText(textbox, sel_target_t::primary);
-      el->repaint(NULL);
+      UITextboxPasteText(this, sel_target_t::primary);
+      repaint(NULL);
       return 1;
    }
 
@@ -3495,7 +3493,7 @@ int _UITextboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 }
 
 UITextbox::UITextbox(UIElement* parent, uint32_t flags)
-   : UIElementCast<UITextbox>(parent, flags | tab_stop_flag, _UITextboxMessage, "Textbox")
+   : UIElementCast<UITextbox>(parent, flags | tab_stop_flag, UITextbox::_ClassMessageProc, "Textbox")
    , carets({0, 0})
    , scroll(0)
    , rejectNextKey(false) {}
