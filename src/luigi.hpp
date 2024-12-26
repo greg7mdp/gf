@@ -939,8 +939,11 @@ private:
    std::string _tabs;
    uint32_t    _active;
 
+   int _class_message_proc(UIMessage msg, int di, void* dp);
 public:
-   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
+   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<UITabPane*>(el)->_class_message_proc(msg, di, dp);
+   }
 
    UITabPane(UIElement* parent, uint32_t flags,  const char* tabs);
 

@@ -1996,39 +1996,37 @@ UISplitPane* UISplitPaneCreate(UIElement* parent, uint32_t flags, float weight) 
 // Tab panes.
 // --------------------------------------------------
 
-int UITabPane::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-   UITabPane* tabPane = (UITabPane*)el;
-
+int UITabPane::_class_message_proc(UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::PAINT) {
       UIPainter*  painter = (UIPainter*)dp;
-      UIRectangle top     = el->_bounds;
-      top.b               = top.t + el->scale(ui_size::button_height);
-      UIDrawControl(painter, top, UIControl::tab_band, {}, 0, el->_window->_scale);
+      UIRectangle top     = _bounds;
+      top.b               = top.t + scale(ui_size::button_height);
+      UIDrawControl(painter, top, UIControl::tab_band, {}, 0, _window->_scale);
 
       UIRectangle tab = top;
-      tab.l += el->scale(ui_size::tab_pane_space_left);
-      tab.t += el->scale(ui_size::tab_pane_space_top);
+      tab.l += scale(ui_size::tab_pane_space_left);
+      tab.t += scale(ui_size::tab_pane_space_top);
 
-      tabPane->for_each_tab([&](std::string_view tab_text, uint32_t index, bool active) {
+      for_each_tab([&](std::string_view tab_text, uint32_t index, bool active) {
          tab.r = tab.l + UIMeasureStringWidth(tab_text) + ui_size::button_padding;
          UIDrawControl(painter, tab, UIControl::tab | (active ? UIControl::state_selected : 0), tab_text, 0,
-                       el->_window->_scale);
+                       _window->_scale);
          tab.l = tab.r - 1;
          return true;
       });
 
    } else if (msg == UIMessage::LEFT_DOWN) {
-      UIRectangle tab = el->_bounds;
-      tab.b           = tab.t + el->scale(ui_size::button_height);
-      tab.l += el->scale(ui_size::tab_pane_space_left);
-      tab.t += el->scale(ui_size::tab_pane_space_top);
+      UIRectangle tab = _bounds;
+      tab.b           = tab.t + scale(ui_size::button_height);
+      tab.l += scale(ui_size::tab_pane_space_left);
+      tab.t += scale(ui_size::tab_pane_space_top);
 
-      tabPane->for_each_tab([&](std::string_view tab_text, uint32_t index, bool active) {
+      for_each_tab([&](std::string_view tab_text, uint32_t index, bool active) {
          tab.r = tab.l + UIMeasureStringWidth(tab_text) + ui_size::button_padding;
-         if (tab.contains(el->_window->_cursor)) {
-            tabPane->set_active(index);
-            el->relayout();
-            el->repaint(NULL);
+         if (tab.contains(_window->_cursor)) {
+            set_active(index);
+            relayout();
+            repaint(NULL);
             return false;
             ;
          }
@@ -2036,13 +2034,13 @@ int UITabPane::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp)
          return true;
       });
    } else if (msg == UIMessage::LAYOUT) {
-      UIRectangle content = el->_bounds;
-      content.t += el->scale(ui_size::button_height);
+      UIRectangle content = _bounds;
+      content.t += scale(ui_size::button_height);
 
-      for (uint32_t index = 0; index < el->_children.size(); index++) {
-         UIElement* child = el->_children[index];
+      for (uint32_t index = 0; index < _children.size(); index++) {
+         UIElement* child = _children[index];
 
-         if (tabPane->get_active() == index) {
+         if (get_active() == index) {
             child->_flags &= ~UIElement::hide_flag;
             child->move(content, false);
             child->message(UIMessage::TAB_SELECTED, 0, 0);
@@ -2051,12 +2049,12 @@ int UITabPane::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp)
          }
       }
    } else if (msg == UIMessage::GET_HEIGHT) {
-      int baseHeight = el->scale(ui_size::button_height);
+      int baseHeight = scale(ui_size::button_height);
 
-      for (uint32_t index = 0; index < el->_children.size(); index++) {
-         UIElement* child = el->_children[index];
+      for (uint32_t index = 0; index < _children.size(); index++) {
+         UIElement* child = _children[index];
 
-         if (tabPane->get_active() == index) {
+         if (get_active() == index) {
             return baseHeight + child->message(UIMessage::GET_HEIGHT, di, dp);
          }
       }
