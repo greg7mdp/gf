@@ -1220,14 +1220,20 @@ public:
 
 // ------------------------------------------------------------------------------------------
 struct UITextbox : public UIElementCast<UITextbox> {
+   friend struct UI;
 private:
    int _class_message_proc(UIMessage msg, int di, void* dp);
 
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<UITextbox*>(el)->_class_message_proc(msg, di, dp);
    }
+   static int _DialogTextboxMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
+
+   int byte_to_column(std::string_view string, int byte);
+   int column_to_byte(std::string_view string, int column);
 
 public:
+
    std::string        _buffer;
    std::array<int, 2> _carets{};
    int                _scroll;
@@ -1236,6 +1242,13 @@ public:
    UITextbox(UIElement* parent, uint32_t flags);
    
    std::string_view text() const { return std::string_view(_buffer); }
+   
+   UITextbox& replace_text(std::string_view text, bool sendChangedMessage);
+   UITextbox& clear(bool sendChangedMessage);
+
+   UITextbox& move_caret(bool backward, bool word);
+   UITextbox& copy();
+   UITextbox& paste(sel_target_t t);
 };
 
 // ------------------------------------------------------------------------------------------
@@ -1379,12 +1392,6 @@ const char* UIDialogShow(UIWindow* window, uint32_t flags, const char* format, .
 bool    UIMenusOpen();
 
 UITextbox* UITextboxCreate(UIElement* parent, uint32_t flags);
-void       UITextboxReplace(UITextbox* textbox, std::string_view text, bool sendChangedMessage);
-void       UITextboxClear(UITextbox* textbox, bool sendChangedMessage);
-void       UITextboxMoveCaret(UITextbox* textbox, bool backward, bool word);
-void       UITextboxCopyText(void* cp);
-void       UITextboxPasteText(void* cp, sel_target_t t);
-
 UITable* UITableCreate(UIElement* parent, uint32_t flags,
                        const char* columns /* separate with \t, terminate with \0 */);
 
@@ -1452,7 +1459,6 @@ struct UI {
 private:
    static void        _inspector_refresh();
    static bool        _message_loop_single(int* result);
-   static int         _DialogTextboxMessage(UIElement* el, UIMessage msg, int di, void* dp);
    static int         _MenuMessage(UIElement* el, UIMessage msg, int di, void* dp);
    static int         _MenuItemMessage(UIElement* el, UIMessage msg, int di, void* dp);
 
