@@ -4647,7 +4647,7 @@ UIPainter& UIPainter::draw_glyph(int x0, int y0, int c, uint32_t color) {
             *bits = color;
          }
 
-         _bits++;
+         bits++;
       }
    }
    return *this;
