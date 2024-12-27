@@ -734,7 +734,7 @@ int UI::string_width(std::string_view string) const {
 #ifdef UI_UNICODE
    return Utf8StringLength(string.data(), string.size()) * ui->_active_font->glyphWidth;
 #else
-   return (int)string.size() * ui->activeFont->glyphWidth;
+   return (int)string.size() * _active_font->glyphWidth;
 #endif
 }
 
@@ -5915,7 +5915,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
       _UIMenusClose();
 
       if (msg == WM_SETFOCUS) {
-          window->ui()->inspector->set_focused_window(window);
+          window->ui()->_inspector->set_focused_window(window);
          window->message(UIMessage::WINDOW_ACTIVATE, 0, 0);
       }
    } else if (msg == WM_MOUSEACTIVATE && (window->_flags & UIWindow::MENU)) {
@@ -5963,7 +5963,7 @@ unique_ptr<UI> UI::initialise(const UIConfig& cfg) {
    if (font_path.empty())
       font_path = _UI_TO_STRING_2(UI_FONT_PATH);
 
-   ui->default_font_path = font_path;
+   ui->_default_font_path = font_path;
    _UIInitialiseCommon(cfg, font_path);
 
    ui->cursors[(uint32_t)UICursor::arrow]             = LoadCursor(NULL, IDC_ARROW);
@@ -5990,7 +5990,7 @@ unique_ptr<UI> UI::initialise(const UIConfig& cfg) {
    windowClass.lpszClassName = "shadow";
    RegisterClass(&windowClass);
 
-   ui->inspector.reset(new UIInspector(ui));
+   ui->_inspector.reset(new UIInspector(ui));
 
    return unique_ptr<UI>{ui};
 }
