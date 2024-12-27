@@ -770,7 +770,6 @@ private:
    static int _ClassMessageProcCommon(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<UIWindow*>(el)->_class_message_proc_common(msg, di, dp);
    }
-   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
 
 public:
    friend struct UI;
@@ -809,8 +808,8 @@ public:
    UIWindow(UI* ui, UIElement* parent, uint32_t flags, message_proc_t message_proc, const char* cClassName);
    virtual ~UIWindow();
 
-   void        endpaint(UIPainter* painter);
-   void        get_screen_position(int* _x, int* _y);
+   void        endpaint(UIPainter* painter) const;
+   void        get_screen_position(int* _x, int* _y) const;
    UIWindow&   set_cursor(int cursor);
 
    UIWindow&   set_pressed(UIElement* el, int button);
@@ -857,6 +856,8 @@ public:
 
    void        write_clipboard_text(std::string_view text, sel_target_t t);
    std::string read_clipboard_text(sel_target_t t);
+
+   void        post_message(UIMessage msg, void* _dp) const;
    
    UI*         ui() const { return _window->_ui; }
 
@@ -1372,11 +1373,12 @@ private:
 
    void       _prepare(int* width, int* height);
    int        _class_message_proc(UIMessage msg, int di, void* dp);
-   static int _MenuItemMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
-   
+
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<UIMenu*>(el)->_class_message_proc(msg, di, dp);
    }
+   
+   static int _MenuItemMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
 
 public:
    enum {
@@ -1431,22 +1433,33 @@ public:
 
 // ------------------------------------------------------------------------------------------
 struct UIImageDisplay : public UIElementCast<UIImageDisplay> {
+private:
+   int _previousWidth;
+   int _previousHeight;
+   int _previousPanPointX;
+   int _previousPanPointY;
+
+   int _class_message_proc(UIMessage msg, int di, void* dp);
+
+   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<UIImageDisplay*>(el)->_class_message_proc(msg, di, dp);
+   }
+   
+   UIImageDisplay& _update_viewport();
+
+public:
    enum { INTERACTIVE = (1 << 0), ZOOM_FIT = (1 << 1) };
 
-   uint32_t* bits;
-   int       width;
-   int       height;
-   float     panX;
-   float     panY;
-   float     zoom;
-
-   // Internals:
-   int previousWidth;
-   int previousHeight;
-   int previousPanPointX;
-   int previousPanPointY;
+   uint32_t* _bits;
+   size_t    _width;
+   size_t    _height;
+   float     _panX;
+   float     _panY;
+   float     _zoom;
 
    UIImageDisplay(UIElement* parent, uint32_t flags, uint32_t* bits, size_t width, size_t height, size_t stride);
+
+   UIImageDisplay& set_content(uint32_t* bits, size_t width, size_t height, size_t stride);
 };
 
 // ------------------------------------------------------------------------------------------
@@ -1464,7 +1477,7 @@ private:
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
 
 public:
-   UIElement* active = nullptr;
+   UIElement* _active = nullptr;
 
    UISwitcher(UIElement* parent, uint32_t flags);
 };
@@ -1493,17 +1506,10 @@ UILabel*  UILabelCreate(UIElement* parent, uint32_t flags, std::string_view labe
 
 UIImageDisplay* UIImageDisplayCreate(UIElement* parent, uint32_t flags, uint32_t* bits, size_t width, size_t height,
                                      size_t stride);
-/**/ void UIImageDisplaySetContent(UIImageDisplay* display, uint32_t* bits, size_t width, size_t height, size_t stride);
-
 UISwitcher* UISwitcherCreate(UIElement* parent, uint32_t flags);
 /**/ void        UISwitcherSwitchTo(UISwitcher* switcher, UIElement* child);
 
-/**/ void      UIWindowPostMessage(UIWindow* window, UIMessage msg, void* dp); // Thread-safe. 
-/**/ void      UIWindowPack(UIWindow* window, int width); // Change the size of the window to best match its contents.
-
 typedef void (*UIDialogUserCallback)(UIElement*);
-
-/**/ bool    UIMenusOpen();
 
 UITextbox* UITextboxCreate(UIElement* parent, uint32_t flags);
 UITable* UITableCreate(UIElement* parent, uint32_t flags,
@@ -1533,9 +1539,6 @@ int  UIDrawStringHighlighted(UIPainter* painter, UIRectangle r, std::string_view
                              UIStringSelection* selection); // Returns final x position.
 
 uint64_t UIAnimateClock(); // In ms.
-
-/**/ UIElement* UIParentPush(UIElement* el);
-/**/ UIElement* UIParentPop();
 
 bool UIColorToHSV(uint32_t rgb, float* hue, float* saturation, float* value);
 void UIColorToRGB(float hue, float saturation, float value, uint32_t* rgb);
@@ -1569,18 +1572,17 @@ struct UI {
    
 private:
    void        _inspector_refresh();
-   bool        _message_loop_single(int* result);
-   bool        _process_x11_event(void* xevent);   
+
+   // platform specific functions
+   bool        _platform_message_loop_single(int* result);
    UIWindow&   _platform_create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int _width, int _height);
+   static int  _platform_message_proc(UIElement* el, UIMessage msg, int di, void* dp);
 
 public:
    UIWindow* windows = nullptr;
    UITheme   theme;
 
    std::vector<UIElement*> animating;
-
-   std::array<UIElement*, 16> parentStack{};
-   int                        parentStackCount = 0;
 
    bool         quit           = false;
    const char*  dialogResult   = nullptr;
@@ -1634,6 +1636,7 @@ public:
    int       message_loop();
    void      update();
    void      process_animations();
+   bool      is_menu_open() const;
    
    UIMenu&   create_menu(UIElement* parent, uint32_t flags);
    UIWindow& create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height);

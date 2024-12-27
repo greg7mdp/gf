@@ -1425,7 +1425,7 @@ const char* UIWindow::show_dialog(uint32_t flags, const char* format, ...) {
       set_pressed(NULL, i);
    refresh();
    ui->update();
-   while (!ui->dialogResult && ui->_message_loop_single(&result))
+   while (!ui->dialogResult && ui->_platform_message_loop_single(&result))
       ;
    ui->quit = !ui->dialogResult;
 
@@ -1666,18 +1666,6 @@ UIElement* UIElementCreate(size_t bytes, UIElement* parent, uint32_t flags, mess
                            const char* cClassName) {
    UIElement* el = new UIElement(parent, flags, message_proc, cClassName);
    return el;
-}
-
-UIElement* UIParentPush(UIElement* el) {
-   UI_ASSERT(ui->parentStackCount != sizeof(ui->parentStack) / sizeof(ui->parentStack[0]));
-   ui->parentStack[ui->parentStackCount++] = el;
-   return el;
-}
-
-UIElement* UIParentPop() {
-   UI_ASSERT(ui->parentStackCount);
-   ui->parentStackCount--;
-   return ui->parentStack[ui->parentStackCount];
 }
 
 // --------------------------------------------------
@@ -1934,11 +1922,11 @@ UIWrapPanel* UIWrapPanelCreate(UIElement* parent, uint32_t flags) {
 int UISwitcher::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
    UISwitcher* switcher = (UISwitcher*)el;
 
-   if (!switcher->active) {
+   if (!switcher->_active) {
    } else if (msg == UIMessage::GET_WIDTH || msg == UIMessage::GET_HEIGHT) {
-      return switcher->active->message(msg, di, dp);
+      return switcher->_active->message(msg, di, dp);
    } else if (msg == UIMessage::LAYOUT) {
-      switcher->active->move(el->_bounds, false);
+      switcher->_active->move(el->_bounds, false);
    }
 
    return 0;
@@ -1950,14 +1938,14 @@ void UISwitcherSwitchTo(UISwitcher* switcher, UIElement* child) {
 
    UI_ASSERT(child->_parent == switcher);
    child->_flags &= ~UIElement::hide_flag;
-   switcher->active = child;
+   switcher->_active = child;
    switcher->measurements_changed(3);
    switcher->refresh();
 }
 
 UISwitcher::UISwitcher(UIElement* parent, uint32_t flags)
    : UIElementCast<UISwitcher>(parent, flags, UISwitcher::_ClassMessageProc, "Switcher")
-   , active(nullptr) {}
+   , _active(nullptr) {}
 
 UISwitcher* UISwitcherCreate(UIElement* parent, uint32_t flags) {
    return new UISwitcher(parent, flags);
@@ -3910,64 +3898,63 @@ UIMDIClient* UIMDIClientCreate(UIElement* parent, uint32_t flags) {
 // Image displays.
 // --------------------------------------------------
 
-void _UIImageDisplayUpdateViewport(UIImageDisplay* display) {
-   UIRectangle bounds = display->_bounds;
+UIImageDisplay& UIImageDisplay::_update_viewport() {
+   UIRectangle bounds = _bounds;
    bounds.r -= bounds.l, bounds.b -= bounds.t;
 
    float minimumZoomX = 1, minimumZoomY = 1;
-   if (display->width > bounds.r)
-      minimumZoomX = (float)bounds.r / display->width;
-   if (display->height > bounds.b)
-      minimumZoomY = (float)bounds.b / display->height;
+   if ((int)_width > bounds.r)
+      minimumZoomX = (float)bounds.r / _width;
+   if ((int)_height > bounds.b)
+      minimumZoomY = (float)bounds.b / _height;
    float minimumZoom = minimumZoomX < minimumZoomY ? minimumZoomX : minimumZoomY;
 
-   if (display->zoom < minimumZoom || (display->_flags & UIImageDisplay::ZOOM_FIT)) {
-      display->zoom = minimumZoom;
-      display->_flags |= UIImageDisplay::ZOOM_FIT;
+   if (_zoom < minimumZoom || (_flags & UIImageDisplay::ZOOM_FIT)) {
+      _zoom = minimumZoom;
+      _flags |= UIImageDisplay::ZOOM_FIT;
    }
 
-   if (display->panX < 0)
-      display->panX = 0;
-   if (display->panY < 0)
-      display->panY = 0;
-   if (display->panX > display->width - bounds.r / display->zoom)
-      display->panX = display->width - bounds.r / display->zoom;
-   if (display->panY > display->height - bounds.b / display->zoom)
-      display->panY = display->height - bounds.b / display->zoom;
+   if (_panX < 0)
+      _panX = 0;
+   if (_panY < 0)
+      _panY = 0;
+   if (_panX > _width - bounds.r / _zoom)
+      _panX = _width - bounds.r / _zoom;
+   if (_panY > _height - bounds.b / _zoom)
+      _panY = _height - bounds.b / _zoom;
 
-   if (bounds.r && display->width * display->zoom <= bounds.r)
-      display->panX = display->width / 2 - bounds.r / display->zoom / 2;
-   if (bounds.b && display->height * display->zoom <= bounds.b)
-      display->panY = display->height / 2 - bounds.b / display->zoom / 2;
+   if (bounds.r && _width * _zoom <= bounds.r)
+      _panX = _width / 2 - bounds.r / _zoom / 2;
+   if (bounds.b && _height * _zoom <= bounds.b)
+      _panY = _height / 2 - bounds.b / _zoom / 2;
+   return *this;
 }
 
-int _UIImageDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-   UIImageDisplay* display = (UIImageDisplay*)el;
-
+int UIImageDisplay::_class_message_proc(UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::GET_HEIGHT) {
-      return display->height;
+      return _height;
    } else if (msg == UIMessage::GET_WIDTH) {
-      return display->width;
+      return _width;
    } else if (msg == UIMessage::DEALLOCATE) {
-      free(display->bits);
+      free(_bits);
    } else if (msg == UIMessage::PAINT) {
       UIPainter* painter = (UIPainter*)dp;
 
-      int w = el->_bounds.width(), h = el->_bounds.height();
-      int x = _UILinearMap(0, display->panX, display->panX + w / display->zoom, 0, w) + el->_bounds.l;
-      int y = _UILinearMap(0, display->panY, display->panY + h / display->zoom, 0, h) + el->_bounds.t;
+      int w = _bounds.width(), h = _bounds.height();
+      int x = _UILinearMap(0, _panX, _panX + w / _zoom, 0, w) + _bounds.l;
+      int y = _UILinearMap(0, _panY, _panY + h / _zoom, 0, h) + _bounds.t;
 
       UIRectangle image =
-         UIRectangle(x, x + (int)(display->width * display->zoom), y, (int)(y + display->height * display->zoom));
-      UIRectangle bounds = intersection(painter->clip, intersection(display->_bounds, image));
+         UIRectangle(x, x + (int)(_width * _zoom), y, (int)(y + _height * _zoom));
+      UIRectangle bounds = intersection(painter->clip, intersection(_bounds, image));
       if (!bounds.valid())
          return 0;
 
-      if (display->zoom == 1) {
+      if (_zoom == 1) {
          uint32_t* lineStart       = (uint32_t*)painter->bits + bounds.t * painter->width + bounds.l;
-         uint32_t* sourceLineStart = display->bits + (bounds.l - image.l) + display->width * (bounds.t - image.t);
+         uint32_t* sourceLineStart = _bits + (bounds.l - image.l) + _width * (bounds.t - image.t);
 
-         for (int i = 0; i < bounds.b - bounds.t; i++, lineStart += painter->width, sourceLineStart += display->width) {
+         for (int i = 0; i < bounds.b - bounds.t; i++, lineStart += painter->width, sourceLineStart += _width) {
             uint32_t* destination = lineStart;
             uint32_t* source      = sourceLineStart;
             int       j           = bounds.r - bounds.l;
@@ -3979,7 +3966,7 @@ int _UIImageDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
             } while (--j);
          }
       } else {
-         float     zr          = 1.0f / display->zoom;
+         float     zr          = 1.0f / _zoom;
          uint32_t* destination = (uint32_t*)painter->bits;
 
          for (int i = bounds.t; i < bounds.b; i++) {
@@ -3987,89 +3974,90 @@ int _UIImageDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
             for (int j = bounds.l; j < bounds.r; j++) {
                int tx                              = (j - image.l) * zr;
-               destination[i * painter->width + j] = display->bits[ty * display->width + tx];
+               destination[i * painter->width + j] = _bits[ty * _width + tx];
             }
          }
       }
-   } else if (msg == UIMessage::MOUSE_WHEEL && (el->_flags & UIImageDisplay::INTERACTIVE)) {
-      display->_flags &= ~UIImageDisplay::ZOOM_FIT;
+   } else if (msg == UIMessage::MOUSE_WHEEL && (_flags & UIImageDisplay::INTERACTIVE)) {
+      _flags &= ~UIImageDisplay::ZOOM_FIT;
       int   divisions   = -di / 72;
       float factor      = 1;
-      float perDivision = el->_window->_ctrl ? 2.0f : el->_window->_alt ? 1.01f : 1.2f;
+      float perDivision = _window->_ctrl ? 2.0f : _window->_alt ? 1.01f : 1.2f;
       while (divisions > 0)
          factor *= perDivision, divisions--;
       while (divisions < 0)
          factor /= perDivision, divisions++;
-      if (display->zoom * factor > 64)
-         factor = 64 / display->zoom;
-      int mx = el->cursor_pos().x - el->_bounds.l;
-      int my = el->cursor_pos().y - el->_bounds.t;
-      display->zoom *= factor;
-      display->panX -= mx / display->zoom * (1 - factor);
-      display->panY -= my / display->zoom * (1 - factor);
-      _UIImageDisplayUpdateViewport(display);
-      display->repaint(nullptr);
-   } else if (msg == UIMessage::LAYOUT && (el->_flags & UIImageDisplay::INTERACTIVE)) {
-      UIRectangle bounds = display->_bounds;
+      if (_zoom * factor > 64)
+         factor = 64 / _zoom;
+      int mx = cursor_pos().x - _bounds.l;
+      int my = cursor_pos().y - _bounds.t;
+      _zoom *= factor;
+      _panX -= mx / _zoom * (1 - factor);
+      _panY -= my / _zoom * (1 - factor);
+      _update_viewport();
+      repaint(nullptr);
+   } else if (msg == UIMessage::LAYOUT && (_flags & UIImageDisplay::INTERACTIVE)) {
+      UIRectangle bounds = _bounds;
       bounds.r -= bounds.l, bounds.b -= bounds.t;
-      display->panX -= (bounds.r - display->previousWidth) / 2 / display->zoom;
-      display->panY -= (bounds.b - display->previousHeight) / 2 / display->zoom;
-      display->previousWidth = bounds.r, display->previousHeight = bounds.b;
-      _UIImageDisplayUpdateViewport(display);
-   } else if (msg == UIMessage::GET_CURSOR && (el->_flags & UIImageDisplay::INTERACTIVE) &&
-              (el->_bounds.width() < display->width * display->zoom ||
-               el->_bounds.height() < display->height * display->zoom)) {
+      _panX -= (bounds.r - _previousWidth) / 2 / _zoom;
+      _panY -= (bounds.b - _previousHeight) / 2 / _zoom;
+      _previousWidth = bounds.r, _previousHeight = bounds.b;
+      _update_viewport();
+   } else if (msg == UIMessage::GET_CURSOR && (_flags & UIImageDisplay::INTERACTIVE) &&
+              (_bounds.width() < _width * _zoom ||
+               _bounds.height() < _height * _zoom)) {
       return (int)UICursor::hand;
    } else if (msg == UIMessage::MOUSE_DRAG) {
-      display->panX -= (el->cursor_pos().x - display->previousPanPointX) / display->zoom;
-      display->panY -= (el->cursor_pos().y - display->previousPanPointY) / display->zoom;
-      _UIImageDisplayUpdateViewport(display);
-      display->previousPanPointX = el->cursor_pos().x;
-      display->previousPanPointY = el->cursor_pos().y;
-      el->repaint(nullptr);
+      _panX -= (cursor_pos().x - _previousPanPointX) / _zoom;
+      _panY -= (cursor_pos().y - _previousPanPointY) / _zoom;
+      _update_viewport();
+      _previousPanPointX = cursor_pos().x;
+      _previousPanPointY = cursor_pos().y;
+      repaint(nullptr);
    } else if (msg == UIMessage::LEFT_DOWN) {
-      display->_flags &= ~UIImageDisplay::ZOOM_FIT;
-      display->previousPanPointX = el->cursor_pos().x;
-      display->previousPanPointY = el->cursor_pos().y;
+      _flags &= ~UIImageDisplay::ZOOM_FIT;
+      _previousPanPointX = cursor_pos().x;
+      _previousPanPointY = cursor_pos().y;
    }
 
    return 0;
 }
 
-void UIImageDisplaySetContent(UIImageDisplay* display, uint32_t* bits, size_t width, size_t height, size_t stride) {
-   free(display->bits);
+UIImageDisplay& UIImageDisplay::set_content(uint32_t* bits, size_t w, size_t h, size_t stride) {
+   free(bits);
+   bits   = (uint32_t*)malloc(w * h * 4);
+   _width  = w;
+   _height = h;
 
-   display->bits   = (uint32_t*)malloc(width * height * 4);
-   display->width  = width;
-   display->height = height;
-
-   uint32_t* destination = display->bits;
+   uint32_t* destination = bits;
    uint32_t* source      = bits;
 
-   for (uintptr_t row = 0; row < height; row++, source += stride / 4) {
-      for (uintptr_t i = 0; i < width; i++) {
+   for (size_t row = 0; row < _height; row++, source += stride / 4) {
+      for (size_t i = 0; i < _width; i++) {
          *destination++ = source[i];
       }
    }
 
-   display->measurements_changed(3);
-   display->repaint(nullptr);
+   measurements_changed(3);
+   repaint(nullptr);
+   return *this;
 }
 
 UIImageDisplay::UIImageDisplay(UIElement* parent, uint32_t flags, uint32_t* bits, size_t width, size_t height,
                                size_t stride)
-   : UIElementCast<UIImageDisplay>(parent, flags, _UIImageDisplayMessage, "ImageDisplay")
-   , bits(bits)
-   , width(width)
-   , height(height)
-   , panX(0)
-   , panY(0)
-   , zoom(1)
-   , previousWidth(0)
-   , previousHeight(0)
-   , previousPanPointX(0)
-   , previousPanPointY(0) {
-   UIImageDisplaySetContent(this, bits, width, height, stride);
+   : UIElementCast<UIImageDisplay>(parent, flags, UIImageDisplay::_ClassMessageProc, "ImageDisplay")
+   , _previousWidth(0)
+   , _previousHeight(0)
+   , _previousPanPointX(0)
+   , _previousPanPointY(0)
+   , _bits(bits)
+   , _width(width)
+   , _height(height)
+   , _panX(0)
+   , _panY(0)
+   , _zoom(1)
+{
+   set_content(bits, width, height, stride);
 }
 
 UIImageDisplay* UIImageDisplayCreate(UIElement* parent, uint32_t flags, uint32_t* bits, size_t width, size_t height,
@@ -4298,15 +4286,14 @@ UIElement* UIElement::find_by_point(int x, int y) {
    return this;
 }
 
-bool UIMenusOpen() {
-   UIWindow* window = ui->windows;
+bool UI::is_menu_open() const {
+   UIWindow* win = this->windows;
 
-   while (window) {
-      if (window->_flags & UIWindow::MENU) {
+   while (win) {
+      if (win->_flags & UIWindow::MENU) {
          return true;
       }
-
-      window = window->next();
+      win = win->next();
    }
 
    return false;
@@ -4436,7 +4423,7 @@ bool UIWindow::input_event(UIMessage msg, int di, void* dp) {
             }
          }
 
-         if (!handled && !UIMenusOpen() && msg == UIMessage::KEY_TYPED) {
+         if (!handled && !ui->is_menu_open() && msg == UIMessage::KEY_TYPED) {
             UIKeyTyped* m = (UIKeyTyped*)dp;
 
             if (m->code == UIKeycode::TAB && !_ctrl && !_alt) {
@@ -4873,7 +4860,7 @@ int UIAutomationRunTests();
 
 void UIAutomationProcessMessage() {
    int result;
-   UI::_message_loop_single(&result);
+   UI::_platform_message_loop_single(&result);
 }
 
 void UIAutomationKeyboardTypeSingle(intptr_t code, bool ctrl, bool shift, bool alt) {
@@ -4998,7 +4985,7 @@ int UI::message_loop() {
    return UIAutomationRunTests();
 #else
    int result = 0;
-   while (!quit && _message_loop_single(&result))
+   while (!quit && _platform_message_loop_single(&result))
       dialogResult = NULL;
    return result;
 #endif
@@ -5032,7 +5019,7 @@ UIWindow::~UIWindow() {}
 
 #ifdef UI_LINUX
 
-int UIWindow::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
+int UI::_platform_message_proc(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::DEALLOCATE) {
       UIWindow* window     = (UIWindow*)el;
       window->_image->data = NULL;
@@ -5049,7 +5036,7 @@ UIWindow& UI::_platform_create_window(UIWindow* owner, uint32_t flags, const cha
    UI* ui = this;
    _UIMenusClose();
 
-   UIWindow* window = new UIWindow(ui, NULL, flags | UIElement::window_flag, UIWindow::_ClassMessageProc, "Window");
+   UIWindow* window = new UIWindow(ui, NULL, flags | UIElement::window_flag, UI::_platform_message_proc, "Window");
    window->_init_toplevel();
    if (owner)
       window->set_scale(owner->_scale);
@@ -5300,14 +5287,14 @@ void _UIX11ResetCursor(UIWindow* window) {
    XDefineCursor(window->ui()->display, window->_xwindow, window->ui()->cursors[(uint32_t)UICursor::arrow]);
 }
 
-void UIWindow::endpaint(UIPainter* painter) {
+void UIWindow::endpaint(UIPainter* painter) const{
    (void)painter;
    const auto& ur = _window->_update_region;
    XPutImage(_ui->display, _window->_xwindow, DefaultGC(_ui->display, 0), _window->_image, ur.l, ur.t, ur.l, ur.t,
              UI_RECT_SIZE(_window->_update_region));
 }
 
-void UIWindow::get_screen_position(int* _x, int* _y) {
+void UIWindow::get_screen_position(int* _x, int* _y) const {
    Window child;
    XTranslateCoordinates(_ui->display, _window->_xwindow, DefaultRootWindow(_ui->display), 0, 0, _x, _y, &child);
 }
@@ -5405,7 +5392,7 @@ void UIWindowPack(UIWindow* window, int _width) {
 
 // return true if we should exit, normally return false
 // ----------------------------------------------------
-bool UI::_process_x11_event(void* x_event) {
+bool _process_x11_event(UI* ui, void* x_event) {
    XEvent* event = (XEvent*)x_event;
    if (event->type == ClientMessage && (Atom)event->xclient.data.l[0] == ui->windowClosedID) {
       UIWindow* window = _UIFindWindow(event->xclient.window);
@@ -5414,7 +5401,7 @@ bool UI::_process_x11_event(void* x_event) {
       bool exit = !window->message(UIMessage::WINDOW_CLOSE, 0, 0);
       if (exit)
          return true;
-      this->update();
+      ui->update();
       return false;
    } else if (event->type == Expose) {
       UIWindow* window = _UIFindWindow(event->xexpose.window);
@@ -5443,7 +5430,7 @@ bool UI::_process_x11_event(void* x_event) {
             bits[i] = 0xFF00FF;
    #endif
          window->relayout();
-         this->update();
+         ui->update();
       }
    } else if (event->type == MotionNotify) {
       UIWindow* window = _UIFindWindow(event->xmotion.window);
@@ -5493,7 +5480,7 @@ bool UI::_process_x11_event(void* x_event) {
          p |= (uintptr_t)(event->xkey.time & 0xFFFFFFFF) << 32;
    #endif
          window->message((UIMessage)event->xkey.state, 0, (void*)p);
-         this->update();
+         ui->update();
       } else {
          char   text[32];
          KeySym symbol = NoSymbol;
@@ -5572,7 +5559,7 @@ bool UI::_process_x11_event(void* x_event) {
       window->message(UIMessage::WINDOW_ACTIVATE, 0, 0);
    } else if (event->type == FocusOut || event->type == ResizeRequest) {
       _UIMenusClose();
-      this->update();
+      ui->update();
    } else if (event->type == ClientMessage && event->xclient.message_type == ui->dndEnterID) {
       UIWindow* window = _UIFindWindow(event->xclient.window);
       if (!window)
@@ -5691,7 +5678,7 @@ bool UI::_process_x11_event(void* x_event) {
       XFlush(ui->display);
 
       window->_drag_source = 0; // Drag complete.
-      this->update();
+      ui->update();
    } else if (event->type == SelectionRequest) {
       UIWindow* window = _UIFindWindow(event->xclient.window);
       if (!window)
@@ -5738,7 +5725,7 @@ bool UI::_process_x11_event(void* x_event) {
 
 // return true if events processed without problem, false otherwise
 // ----------------------------------------------------------------
-bool UI::_message_loop_single(int* result) {
+bool UI::_platform_message_loop_single(int* result) {
    XEvent events[64];
 
    if (!animating.empty()) {
@@ -5779,7 +5766,7 @@ bool UI::_message_loop_single(int* result) {
          continue;
       }
 
-      if (_process_x11_event(events + i)) {
+      if (_process_x11_event(this, events + i)) {
          return false;
       }
    }
@@ -5787,15 +5774,17 @@ bool UI::_message_loop_single(int* result) {
    return true;
 }
 
-void UIWindowPostMessage(UIWindow* window, UIMessage msg, void* _dp) {
+void UIWindow::post_message(UIMessage msg, void* _dp) const {
    // HACK! Xlib doesn't seem to have a nice way to do this,
    // so send a specially crafted key press event instead.
    // TODO Maybe ClientMessage is what this should use?
+   Display* dpy = ui()->display;
+
    uintptr_t dp    = (uintptr_t)_dp;
    XKeyEvent event = {0};
-   event.display   = ui->display;
-   event.window    = window->_xwindow;
-   event.root      = DefaultRootWindow(ui->display);
+   event.display   = dpy;
+   event.window    = _xwindow;
+   event.root      = DefaultRootWindow(dpy);
    event.subwindow = None;
    #if INTPTR_MAX == INT64_MAX
    event.time = dp >> 32;
@@ -5808,15 +5797,15 @@ void UIWindowPostMessage(UIWindow* window, UIMessage msg, void* _dp) {
    event.keycode     = 1;
    event.state       = (unsigned int)msg;
    event.type        = KeyPress;
-   XSendEvent(ui->display, window->_xwindow, True, KeyPressMask, (XEvent*)&event);
-   XFlush(ui->display);
+   XSendEvent(dpy, _xwindow, True, KeyPressMask, (XEvent*)&event);
+   XFlush(dpy);
 }
 
 #endif // UI_LINUX
 
 #ifdef UI_WINDOWS
 
-int UIWindow::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
+int UI::_platform_message_proc(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::DEALLOCATE) {
       UIWindow* window = (UIWindow*)el;
       SetWindowLongPtr(window->_hwnd, GWLP_USERDATA, 0);
@@ -6006,7 +5995,7 @@ unique_ptr<UI> UI::initialise(const UIConfig& cfg) {
    return unique_ptr<UI>{ui};
 }
 
-bool UI::_message_loop_single(int* result) {
+bool UI::_platform_message_loop_single(int* result) {
    MSG msg = {0};
 
    if (!animating.empty()) {
@@ -6046,7 +6035,7 @@ UIWindow& UI::_platform_create_window(UIWindow* owner, uint32_t flags, const cha
    UI* ui = this;
    _UIMenusClose();
 
-   UIWindow* window = new UIWindow(ui, NULL, flags | UIElement::window_flag, UIWindow::_ClassMessageProc, "Window");
+   UIWindow* window = new UIWindow(ui, NULL, flags | UIElement::window_flag, UI::_platform_message_proc, "Window");
    window->_init_toplevel();
    if (owner)
        window->set_scale(owner->_scale);
@@ -6072,7 +6061,7 @@ UIWindow& UI::_platform_create_window(UIWindow* owner, uint32_t flags, const cha
    return *window;
 }
 
-void UIWindow::endpaint(UIPainter* painter) {
+void UIWindow::endpaint(UIPainter* painter) const {
    HDC              dc   = GetDC(_hwnd);
    BITMAPINFOHEADER info = {0};
    info.biSize           = sizeof(info);
@@ -6089,7 +6078,7 @@ UIWindow& UIWindow::set_cursor(int cursor) {
    return *this;
 }
 
-void UIWindow::get_screen_position(int* _x, int* _y) {
+void UIWindow::get_screen_position(int* _x, int* _y) const {
    POINT p;
    p.x = 0;
    p.y = 0;
@@ -6098,8 +6087,8 @@ void UIWindow::get_screen_position(int* _x, int* _y) {
    *_y = p.y;
 }
 
-void UIWindowPostMessage(UIWindow* window, UIMessage msg, void* _dp) {
-   PostMessage(window->_hwnd, WM_APP + 1, (WPARAM)msg, (LPARAM)_dp);
+void UIWindow::post_message(UIMessage msg, void* _dp) const {
+   PostMessage(_hwnd, WM_APP + 1, (WPARAM)msg, (LPARAM)_dp);
 }
 
 void UIWindow::write_clipboard_text(std::string_view text, sel_target_t) {

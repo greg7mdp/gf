@@ -729,7 +729,7 @@ void Context::DebuggerThread() {
          // as we receive it, even it it is not complete.
          // ----------------------------------------------------------------------
          if (logWindow && !evaluateMode)
-            UIWindowPostMessage(windowMain, msgReceivedLog, new std::string(buffer));
+            windowMain->post_message(msgReceivedLog, new std::string(buffer));
 
          if (catBuffer.size() + count + 1 > catBuffer.capacity())
             catBuffer.reserve(catBuffer.capacity() * 2);
@@ -754,7 +754,7 @@ void Context::DebuggerThread() {
             evaluateResultQueue.push(std::move(catBuffer));
             evaluateMode = false;
          } else {
-            UIWindowPostMessage(windowMain, msgReceivedData, new std::string(std::move(catBuffer)));
+            windowMain->post_message(msgReceivedData, new std::string(std::move(catBuffer)));
          }
 
          catBuffer = std::string{};
@@ -829,7 +829,7 @@ void* ControlPipeThread(void*) {
       auto  s    = new std::string;
       s->resize(256);
       (*s)[fread(s->data(), 1, 255, file)] = 0;
-      UIWindowPostMessage(windowMain, msgReceivedControl, s);
+      windowMain->post_message(msgReceivedControl, s);
       fclose(file);
    }
 
@@ -2423,11 +2423,11 @@ int BitmapViewerDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
                       UIImageDisplay* display = (UIImageDisplay*)el;
                       FILE*           f       = fopen(path, "wb");
-                      print(f, "P6\n{} {}\n255\n", display->width, display->height);
+                      print(f, "P6\n{} {}\n255\n", display->_width, display->_height);
 
-                      for (int i = 0; i < display->width * display->height; i++) {
-                         uint8_t pixel[3] = {(uint8_t)(display->bits[i] >> 16), (uint8_t)(display->bits[i] >> 8),
-                                             (uint8_t)display->bits[i]};
+                      for (size_t i = 0; i < display->_width * display->_height; i++) {
+                         uint8_t pixel[3] = {(uint8_t)(display->_bits[i] >> 16), (uint8_t)(display->_bits[i] >> 8),
+                                             (uint8_t)display->_bits[i]};
                          fwrite(pixel, 1, 3, f);
                       }
 
@@ -2479,7 +2479,7 @@ void BitmapViewerUpdate(std::string pointerString, std::string widthString, std:
 
    BitmapViewer* bitmap = (BitmapViewer*)owner->_cp;
    bitmap->parsedWidth = width, bitmap->parsedHeight = height;
-   UIImageDisplaySetContent(bitmap->display, bits, width, height, stride);
+   bitmap->display->set_content(bits, width, height, stride);
    if (error)
       bitmap->label->set_label(error);
    if (error)
@@ -4086,7 +4086,7 @@ void CommandToggleFillDataTab() {
    static UIElement *oldParent, *oldBefore;
    buttonFillWindow->_flags ^= UIButton::CHECKED;
 
-   if (switcherMain->active == dataTab) {
+   if (switcherMain->_active == dataTab) {
       UISwitcherSwitchTo(switcherMain, switcherMain->_children[0]);
       dataTab->change_parent(oldParent, oldBefore);
    } else {
@@ -4437,7 +4437,7 @@ void* LogWindowThread(void* context) {
          s->resize(sizeof(context) + length + 1);
          memcpy(s->data(), &context, sizeof(context));
          strcpy(s->data() + sizeof(context), input);
-         UIWindowPostMessage(windowMain, msgReceivedLog, s);
+         windowMain->post_message(msgReceivedLog, s);
       }
    }
 }
