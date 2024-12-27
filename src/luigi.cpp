@@ -5829,15 +5829,14 @@ int UIWindow::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) 
 
 LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
    UIWindow* window = (UIWindow*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
-   UI*       ui     = window->ui();
 
-   if (!window || ui->assertionFailure) {
+   if (!window) {
       return DefWindowProc(hwnd, msg, wParam, lParam);
    }
 
    if (msg == WM_CLOSE) {
       if (window->message(UIMessage::WINDOW_CLOSE, 0, 0)) {
-         UI::update();
+          window->ui()->update();
          return 0;
       } else {
          PostQuitMessage(0);
@@ -5850,7 +5849,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
       window->_bounds = ui_rect_2s(window->width(), window->height());
       window->_clip   = ui_rect_2s(window->width(), window->height());
       window->relayout();
-      ui->update();
+      window->ui()->update();
    } else if (msg == WM_MOUSEMOVE) {
       if (!window->_tracking_leave) {
          window->_tracking_leave = true;
@@ -5921,13 +5920,13 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
                     (BITMAPINFO*)&info, DIB_RGB_COLORS, SRCCOPY);
       EndPaint(hwnd, &paint);
    } else if (msg == WM_SETCURSOR && LOWORD(lParam) == HTCLIENT) {
-      ::SetCursor(ui->cursors[window->cursor_style()]);
+      ::SetCursor( window->ui()->cursors[window->cursor_style()]);
       return 1;
    } else if (msg == WM_SETFOCUS || msg == WM_KILLFOCUS) {
       _UIMenusClose();
 
       if (msg == WM_SETFOCUS) {
-         ui->inspector->set_focused_window(window);
+          window->ui()->inspector->set_focused_window(window);
          window->message(UIMessage::WINDOW_ACTIVATE, 0, 0);
       }
    } else if (msg == WM_MOUSEACTIVATE && (window->_flags & UIWindow::MENU)) {
@@ -5949,15 +5948,15 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
          free(files[i]);
       free(files);
       DragFinish(drop);
-      ui->update();
+       window->ui()->update();
    } else if (msg == WM_APP + 1) {
       window->message((UIMessage)wParam, 0, (void*)lParam);
-      ui->update();
+       window->ui()->update();
    } else {
       if (msg == WM_NCLBUTTONDOWN || msg == WM_NCMBUTTONDOWN || msg == WM_NCRBUTTONDOWN) {
          if (~window->_flags & UIWindow::MENU) {
             _UIMenusClose();
-            ui->update();
+             window->ui()->update();
          }
       }
 
@@ -6048,9 +6047,9 @@ UIWindow& UI::_platform_create_window(UIWindow* owner, uint32_t flags, const cha
    _UIMenusClose();
 
    UIWindow* window = new UIWindow(ui, NULL, flags | UIElement::window_flag, UIWindow::_ClassMessageProc, "Window");
-   window->_init();
+   window->_init_toplevel();
    if (owner)
-      window->_scale = owner->_scale;
+       window->set_scale(owner->_scale);
 
    if (flags & UIWindow::MENU) {
       UI_ASSERT(owner);

@@ -45,6 +45,7 @@ using std::make_shared;
    #undef min
    #undef max
 
+ #if 0
    #define UI_ASSERT(x)                                                                  \
       do {                                                                               \
          if (!(x)) {                                                                     \
@@ -53,6 +54,9 @@ using std::make_shared;
             ExitProcess(1);                                                              \
          }                                                                               \
       } while (0)
+ #else
+    #define UI_ASSERT assert
+ #endif
    #define UI_CLOCK GetTickCount
    #define UI_CLOCKS_PER_SECOND (1000)
    #define UI_CLOCK_T DWORD
