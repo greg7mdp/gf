@@ -27,7 +27,7 @@ namespace rng   = std::ranges;
 // --------------------------------------------------
 // Global variables.
 // --------------------------------------------------
-UI* ui = nullptr; // global pointer to the UIInitialise return value
+UI* ui = nullptr; // global pointer to the UI::initialise return value
 
 // --------------------------------------------------
 // Themes.
@@ -1299,7 +1299,7 @@ UICode& UIElement::add_code(uint32_t flags) {
 }
 
 UIWindow& UI::create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height) {
-   return UIWindow::Create(this, owner, flags, cTitle, width, height);
+   return _platform_create_window(owner, flags, cTitle, width, height);
 }
 
 int _UIDialogDefaultButtonMessage(UIElement* el, UIMessage msg, int di, void* dp) {
@@ -4188,7 +4188,7 @@ void UIMenu::_prepare(int* width, int* height) {
 }
 
 UIMenu::UIMenu(UI* ui, UIElement* parent, uint32_t flags)
-   : UIElementCast<UIMenu>(&UIWindow::Create(ui, parent->_window, UIWindow::MENU, 0, 0, 0), flags,
+   : UIElementCast<UIMenu>(&ui->create_window(parent->_window, UIWindow::MENU, 0, 0, 0), flags,
                            UIMenu::_ClassMessageProc, "Menu")
    , _vscroll(UIScrollBarCreate(this, non_client_flag))
    , _parent_window(parent->_window) {
@@ -5045,7 +5045,8 @@ int UIWindow::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) 
    return UIWindow::_ClassMessageProcCommon(el, msg, di, dp);
 }
 
-UIWindow& UIWindow::Create(UI* ui, UIWindow* owner, uint32_t flags, const char* cTitle, int _width, int _height) {
+UIWindow& UI::_platform_create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int _width, int _height) {
+   UI* ui = this;
    _UIMenusClose();
 
    UIWindow* window = new UIWindow(ui, NULL, flags | UIElement::window_flag, UIWindow::_ClassMessageProc, "Window");
@@ -5105,15 +5106,12 @@ Display* _UIX11GetDisplay() {
 
 UIWindow* _UIFindWindow(Window window) {
    UIWindow* w = ui->windows;
-
    while (w) {
       if (w->_xwindow == window) {
          return w;
       }
-
       w = w->next();
    }
-
    return NULL;
 }
 
@@ -5210,7 +5208,7 @@ std::string UIWindow::read_clipboard_text(sel_target_t t) {
    }
 }
 
-unique_ptr<UI> UIInitialise(const UIConfig& cfg) {
+unique_ptr<UI> UI::initialise(const UIConfig& cfg) {
    ui = new UI;
 
    std::string font_path = cfg.font_path;
@@ -5969,7 +5967,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
    return 0;
 }
 
-unique_ptr<UI> UIInitialise(const UIConfig& cfg) {
+unique_ptr<UI> UI::initialise(const UIConfig& cfg) {
    ui       = new UI;
    ui->heap = GetProcessHeap();
 
@@ -6045,7 +6043,8 @@ UIMenu& UIMenu::show() {
    return *this;
 }
 
-UIWindow& UIWindow::Create(UI* ui, UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height) {
+UIWindow& UI::_platform_create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height) {
+   UI* ui = this;
    _UIMenusClose();
 
    UIWindow* window = new UIWindow(ui, NULL, flags | UIElement::window_flag, UIWindow::_ClassMessageProc, "Window");

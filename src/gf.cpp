@@ -2411,7 +2411,8 @@ const char* BitmapViewerGetBits(std::string pointerString, std::string widthStri
 
 int BitmapViewerDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::RIGHT_UP) {
-      el->ui()->create_menu(el->_window, UIMenu::NO_SCROLL)
+      el->ui()
+         ->create_menu(el->_window, UIMenu::NO_SCROLL)
          .add_item(0, "Save to file...",
                    [el](UIButton&) {
                       static char* path = NULL;
@@ -5205,7 +5206,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
                          function.callCount, function.totalTime / function.callCount,
                          function.totalTime / report->totalTime * 100.0);
 
-         UI *ui = el->ui();
+         UI* ui         = el->ui();
          int width      = 0;
          int line1Width = ui->string_width(line1);
          if (width < line1Width)
@@ -5321,7 +5322,8 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          report->xStart = (r.l - report->client.l) / zoomX + report->xStart;
       } else if (!report->dragStarted && msg == UIMessage::RIGHT_UP && report->hover) {
          report->menuItem = report->hover;
-         el->ui()->create_menu(el->_window, UIMenu::NO_SCROLL)
+         el->ui()
+            ->create_menu(el->_window, UIMenu::NO_SCROLL)
             .add_item(0, "Show source", [report](UIButton&) { ProfShowSource(report); })
             .add_item(0, "Add breakpoint", [report](UIButton&) { ProfAddBreakpoint(report->hover); })
             .add_item(0, "Fill view", [report](UIButton&) { ProfFillView(report); })
@@ -5540,9 +5542,9 @@ void ProfLoadProfileData(void* _window) {
 
    if (rawEntryCount > 10000000) {
       // Show a loading message.
-      UIWindow* window  = windowMain;
+      UIWindow* window = windowMain;
       UIPainter painter(window);
-      char string[256];
+      char      string[256];
       std_format_to_n(string, sizeof(string), "Loading data... (estimated time: {} seconds)",
                       rawEntryCount / 5000000 + 1);
       UIDrawBlock(&painter, painter.clip, ui->theme.panel1);
@@ -5777,12 +5779,12 @@ void ProfLoadProfileData(void* _window) {
 
    {
       // Create an image of the graph for the zoom bar.
-      uint32_t width = 1200, height = maxDepth * 30 + 30;
+      uint32_t  width = 1200, height = maxDepth * 30 + 30;
       UIPainter painter(report->ui(), UIRectangle(0, width, 0, height));
-      painter.width     = width;
-      painter.height    = height;
-      painter.bits      = (uint32_t*)malloc(width * height * 4);
-      
+      painter.width  = width;
+      painter.height = height;
+      painter.bits   = (uint32_t*)malloc(width * height * 4);
+
       report->client = report->_bounds = report->_clip = painter.clip;
       ProfFlameGraphMessage(report, UIMessage::PAINT, 0, &painter);
       int newHeight = 30;
@@ -5929,7 +5931,7 @@ int MemoryWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       while (row.t < painter->clip.b) {
          int position = 0;
 
-         UI *ui = el->ui();
+         UI* ui = el->ui();
          std_format_to_n(buffer, sizeof(buffer), "{:8X} ", (uint32_t)(address & 0xFFFFFFFF));
          UIDrawString(painter, row, buffer, ui->theme.codeComment, UIAlign::left, 0);
          UIRectangle r          = row + UIRectangle(ui->string_width(buffer), 0, 0, 0);
@@ -6160,9 +6162,9 @@ int ViewWindowMatrixGridMessage(UIElement* el, UIMessage msg, int di, void* dp) 
    if (msg == UIMessage::PAINT) {
       // TODO Optimise for really large arrays.
       // TODO Calculate eigenvectors/values.
-      UI*        ui          = el->ui();
-      auto [glyphWidth, glyphHeight]  = ui->string_dims("A");
-      UIPainter* painter     = (UIPainter*)dp;
+      UI* ui                         = el->ui();
+      auto [glyphWidth, glyphHeight] = ui->string_dims("A");
+      UIPainter* painter             = (UIPainter*)dp;
 
       for (int i = 0; i < grid->h; i++) {
          for (int j = 0; j < grid->w; j++) {
@@ -6215,7 +6217,7 @@ int ViewWindowStringLayout(ViewWindowString* display, UIPainter* painter, int of
    int x = clientBounds.l, y = clientBounds.t - offset;
    UI* ui = painter->ui();
 
-   auto [glyphWidth, glyphHeight]  = ui->string_dims("a");
+   auto [glyphWidth, glyphHeight] = ui->string_dims("a");
 
    for (int i = 0; i < display->length; i++) {
       if (x + glyphWidth > clientBounds.r) {
@@ -6961,7 +6963,8 @@ void WaveformViewerSaveToFile(WaveformDisplay* display) {
 int WaveformViewerDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::RIGHT_UP) {
       WaveformDisplay* display = (WaveformDisplay*)el;
-      el->ui()->create_menu(el->_window, UIMenu::NO_SCROLL)
+      el->ui()
+         ->create_menu(el->_window, UIMenu::NO_SCROLL)
          .add_item(0, "Save to .wav...", [display](UIButton&) { WaveformViewerSaveToFile(display); })
          .show();
    }
@@ -7499,7 +7502,7 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
 
    ui_config.default_font_size = interface_font_size;
 
-   auto ui_ptr = UIInitialise(ui_config); // sets `ui.default_font_path`
+   auto ui_ptr = UI::initialise(ui_config); // sets `ui.default_font_path`
    ui->theme   = uiThemeDark;
 
    // create fonts for interface and code

@@ -28,7 +28,7 @@ int selected;
 
 int main(int argc, char** argv) {
    UIConfig cfg;
-   auto     ui_ptr = UIInitialise(cfg);
+   auto     ui_ptr = UI::initialise(cfg);
 
    if (!ui_ptr)
       return 1;

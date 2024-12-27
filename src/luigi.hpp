@@ -805,8 +805,6 @@ public:
    UIWindow(UI* ui, UIElement* parent, uint32_t flags, message_proc_t message_proc, const char* cClassName);
    virtual ~UIWindow();
 
-   static UIWindow& Create(UI* ui, UIWindow* owner, uint32_t flags, const char* cTitle, int _width, int _height);
-   
    void        endpaint(UIPainter* painter);
    void        get_screen_position(int* _x, int* _y);
    UIWindow&   set_cursor(int cursor);
@@ -1468,8 +1466,6 @@ public:
 };
 
 // ------------------------------------------------------------------------------------------
-unique_ptr<UI> UIInitialise(const UIConfig& cfg);
-
 UIElement* UIElementCreate(size_t bytes, UIElement* parent, uint32_t flags,
                            int (*messageClass)(UIElement*, UIMessage, int, void*), const char* cClassName);
 
@@ -1497,8 +1493,6 @@ UIImageDisplay* UIImageDisplayCreate(UIElement* parent, uint32_t flags, uint32_t
 
 UISwitcher* UISwitcherCreate(UIElement* parent, uint32_t flags);
 /**/ void        UISwitcherSwitchTo(UISwitcher* switcher, UIElement* child);
-
-UIWindow* UIWindowCreate(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height);
 
 /**/ void      UIWindowPostMessage(UIWindow* window, UIMessage msg, void* dp); // Thread-safe. 
 /**/ void      UIWindowPack(UIWindow* window, int width); // Change the size of the window to best match its contents.
@@ -1572,7 +1566,8 @@ struct UI {
 private:
    void        _inspector_refresh();
    bool        _message_loop_single(int* result);
-   bool        _process_x11_event(void* xevent);
+   bool        _process_x11_event(void* xevent);   
+   UIWindow&   _platform_create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int _width, int _height);
 
 public:
    UIWindow* windows = nullptr;
@@ -1629,6 +1624,8 @@ public:
       FT_Done_FreeType(ft);
 #endif
    }
+
+   static unique_ptr<UI> initialise(const UIConfig& cfg);  // main entry point of the library
 
    int       message_loop();
    void      update();
