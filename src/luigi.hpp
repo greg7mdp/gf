@@ -830,6 +830,8 @@ public:
    UIWindow&   set_cursor_pos(UIPoint pt) { _cursor = pt; return *this; }
    UIPoint     cursor_pos() const { return _cursor; }
 
+   int cursor_style() const { return _cursor_style; }
+
    UIWindow&   register_shortcut(UIShortcut shortcut);
 
    bool        input_event(UIMessage message, int di, void* dp);

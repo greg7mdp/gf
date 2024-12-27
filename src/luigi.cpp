@@ -5958,7 +5958,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
                     (BITMAPINFO*)&info, DIB_RGB_COLORS, SRCCOPY);
       EndPaint(hwnd, &paint);
    } else if (msg == WM_SETCURSOR && LOWORD(lParam) == HTCLIENT) {
-      ::SetCursor(ui->cursors[window->_cursor_style]);
+      ::SetCursor(ui->cursors[window->cursor_style()]);
       return 1;
    } else if (msg == WM_SETFOCUS || msg == WM_KILLFOCUS) {
       _UIMenusClose();
