@@ -4951,8 +4951,6 @@ bool UIAutomationCheckTableItemMatches(UITable* table, int row, int column, cons
 // Common platform layer functionality.
 // --------------------------------------------------
 
-void _UIWindowDestroyCommon(UIWindow* window) {}
-
 void _UIInitialiseCommon(const UIConfig& cfg, const std::string& default_font_path) {
    ui->theme = uiThemeClassic;
 
@@ -5029,11 +5027,10 @@ UIWindow::~UIWindow() {}
 int UIWindow::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::DEALLOCATE) {
       UIWindow* window = (UIWindow*)el;
-      _UIWindowDestroyCommon(window);
       window->_image->data = NULL;
       XDestroyImage(window->_image);
       XDestroyIC(window->_xic);
-      XDestroyWindow(ui->display, ((UIWindow*)el)->_xwindow);
+      XDestroyWindow(ui->display, window->_xwindow);
       return 0;
    }
 
@@ -5814,7 +5811,6 @@ void UIWindowPostMessage(UIWindow* window, UIMessage msg, void* _dp) {
 int UIWindow::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::DEALLOCATE) {
       UIWindow* window = (UIWindow*)el;
-      _UIWindowDestroyCommon(window);
       SetWindowLongPtr(window->_hwnd, GWLP_USERDATA, 0);
       DestroyWindow(window->_hwnd);
       return 0;
