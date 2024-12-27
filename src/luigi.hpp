@@ -246,29 +246,30 @@ namespace UIUpdate {
 }
 
 struct UI;
-struct UIElement;
-struct UIWindow;
-struct UIPanel;
 struct UIButton;
 struct UICheckbox;
+struct UICode;
+struct UIElement;
+struct UIGauge;
+struct UIImageDisplay;
 struct UILabel;
+struct UIMDIChild;
+struct UIMDIClient;
+struct UIMenu;
+struct UIPainter;
+struct UIPanel;
+struct UIScrollBar;
+struct UIScrollbarPair;
+struct UISlider;
 struct UISpacer;
 struct UISplitPane;
 struct UISplitter;
+struct UISwitcher;
 struct UITabPane;
-struct UIScrollBar;
-struct UIScrollbarPair;
-struct UICode;
-struct UIGauge;
-struct UISlider;
 struct UITable;
 struct UITextbox;
-struct UIMenu;
-struct UIMDIClient;
-struct UIMDIChild;
-struct UIImageDisplay;
+struct UIWindow;
 struct UIWrapPanel;
-struct UISwitcher;
 
 // ------------------------------------------------------------------------------------------
 enum class UIMessage : uint32_t {
@@ -415,26 +416,6 @@ struct UITheme {
 };
 
 // ------------------------------------------------------------------------------------------
-struct UIPainter {
-   UI*         _ui;                     // painter holds a `UI` to compute `string_width()` mostly
-   UIRectangle _clip   = UIRectangle(0);
-   uint32_t*   _bits   = nullptr;        // typically the bits of the window we are drawing on, except when offscreen output
-   uint32_t    _width  = 0;
-   uint32_t    _height = 0;
-#ifdef UI_DEBUG
-   int fillCount = 0;
-#endif
-
-   UIPainter(UI* ui, UIRectangle rect)
-      : _ui(ui), _clip(rect) {}
-
-   UIPainter(UIWindow* w);
-
-   UI* ui() const { return _ui; }
-   
-   UIPainter& draw_glyph(int x0, int y0, int c, uint32_t color);
-};
-
 struct UIFontSpec {
    std::string _path;
    uint32_t    _size;
@@ -463,7 +444,7 @@ struct UIFont {
 #ifdef UI_FREETYPE
    bool                    _is_freetype = false;
    FT_Face                 _font        = nullptr;
-
+   
    unique_ptr<FT_Bitmap[]> _glyphs;
    unique_ptr<bool[]>      _glyphs_rendered;
    unique_ptr<int[]>       _glyphs_offsets_x;
@@ -515,14 +496,6 @@ struct UITableGetItem {
 
    std::string_view buff(int num_chars) { return std::string_view(&buffer[0], (size_t)num_chars); }
    size_t           buff_size() const { return buffer.size(); }
-};
-
-// ------------------------------------------------------------------------------------------
-struct UICodeDecorateLine {
-   UIRectangle bounds;
-   int         index; // Starting at 1!
-   int         x, y;  // Position where additional text can be drawn.
-   UIPainter*  painter = nullptr;
 };
 
 inline float ui_color_alpha_f(uint32_t x) { return static_cast<float>(((x >> 24) & 0xFF)) / 255.0f; }
@@ -697,7 +670,8 @@ public:
    bool           is_disabled() const { return !!(_flags & disabled_flag); }
 
    UI*            ui() const;
-
+   UITheme&       theme() const;                 // indirect access to `UI`
+   UIFont*        active_font() const;           // indirect access to `UI`
    
    // functions to create child UI elements
    // -------------------------------------
@@ -741,6 +715,8 @@ struct UIElementCast : public UIElement{
 struct UIConfig {
    std::string font_path;
    uint32_t    default_font_size = 13;
+   bool        _has_theme        = false;
+   UITheme     _theme;
    bool        rfu = false;
 };
 
@@ -1532,6 +1508,7 @@ private:
 
    void        _inspector_refresh();
    void        _initialize_common(const UIConfig& cfg, const std::string& default_font_path);
+   bool        _close_menus();
 
    // platform specific functions
    bool        _platform_message_loop_single(int* result);
@@ -1540,8 +1517,8 @@ private:
    bool        _process_x11_event(void* x_event);
 
 public:
-   UIWindow* _toplevel_windows = nullptr;
-   UITheme   _theme;
+   UIWindow*   _toplevel_windows = nullptr;
+   UITheme     _theme;
 
    std::vector<UIElement*> _animating;
 
@@ -1583,9 +1560,13 @@ public:
    void      process_animations();
    bool      is_menu_open() const;
 
+
    UIMenu&   create_menu(UIElement* parent, uint32_t flags);
    UIWindow& create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height);
    UIFont*   create_font(std::string_view path, uint32_t size);
+
+   UITheme&  theme() { return _theme; }
+   UIFont*   active_font() const { return _active_font; }
 
    // ----------- utilities --------------------------------------------------------
    int code_margin()     { return _active_font->_glyph_width * 5; }
@@ -1603,6 +1584,41 @@ public:
    static bool is_alnum(int c) { return std::isalnum(c) || c > 127; }
    static bool is_alnum_or_underscore(int c) { return is_alnum(c) || c == '_'; }
 };
+
+// ------------------------------------------------------------------------------------------
+struct UIPainter {
+   UI*         _ui;                     // painter holds a `UI` to compute `string_width()` mostly
+   UIRectangle _clip   = UIRectangle(0);
+   uint32_t*   _bits   = nullptr;        // typically the bits of the window we are drawing on, except when offscreen output
+   uint32_t    _width  = 0;
+   uint32_t    _height = 0;
+#ifdef UI_DEBUG
+   int fillCount = 0;
+#endif
+
+   UIPainter(UI* ui, UIRectangle rect)
+      : _ui(ui), _clip(rect) {}
+
+   UIPainter(UIWindow* w);
+
+   UI*        ui() const { return _ui; }
+   UITheme&   theme() const { return ui()->theme(); }              // indirect access to `UI`
+   UIFont*    active_font() const { return ui()->active_font(); }  // indirect access to `UI`
+   
+   UIPainter& draw_glyph(int x0, int y0, int c, uint32_t color);
+};
+
+// ------------------------------------------------------------------------------------------
+struct UICodeDecorateLine {
+   UIRectangle bounds;
+   int         index; // Starting at 1!
+   int         x, y;  // Position where additional text can be drawn.
+   UIPainter*  painter = nullptr;
+};
+
+// ------------------------------------------------------------------------------------------
+inline UITheme& UIElement::theme() const { return ui()->theme(); }
+inline UIFont*  UIElement::active_font() const { return ui()->active_font(); }
 
 // ------------------------------------------------------------------------------------------
 UIElement* UIElementCreate(size_t bytes, UIElement* parent, uint32_t flags,
@@ -1700,6 +1716,6 @@ void* _UIMemmove(void* dest, const void* src, size_t n);
 //      Variables
 // ----------------------------------------
 
-extern UI*     ui;              // global pointer to the UIInitialise return value
+//extern UI*     ui;              // global pointer to the UIInitialise return value
 extern UITheme uiThemeClassic;
 extern UITheme uiThemeDark;

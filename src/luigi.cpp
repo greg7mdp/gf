@@ -25,11 +25,6 @@ namespace views = std::views;
 namespace rng   = std::ranges;
 
 // --------------------------------------------------
-// Global variables.
-// --------------------------------------------------
-UI* ui = nullptr; // global pointer to the UI::initialise return value
-
-// --------------------------------------------------
 // Themes.
 // --------------------------------------------------
 
@@ -732,7 +727,7 @@ void UIDrawInvert(UIPainter* painter, UIRectangle rectangle) {
 
 int UI::string_width(std::string_view string) const {
 #ifdef UI_UNICODE
-   return Utf8StringLength(string.data(), string.size()) * ui->_active_font->_glyph_width;
+   return Utf8StringLength(string.data(), string.size()) * _active_font->_glyph_width;
 #else
    return (int)string.size() * _active_font->_glyph_width;
 #endif
@@ -843,6 +838,7 @@ auto ui_mdi_child_calculate_layout(const UIRectangle& bounds, float scale) {
 
 void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode, std::string_view label,
                           double position, float scale) {
+   UI* ui = painter->ui();
    bool     checked       = mode & UIControl::state_checked;
    bool     disabled      = mode & UIControl::state_disabled;
    bool     focused       = mode & UIControl::state_focused;
@@ -1094,6 +1090,7 @@ int _UIDialogWrapperMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::PAINT) {
       UIDrawControl((UIPainter*)dp, el->_children[0]->_bounds, UIControl::modal_popup, {}, 0, el->_window->scale());
    } else if (msg == UIMessage::KEY_TYPED) {
+      UI* ui = el->ui();
       UIKeyTyped* typed = (UIKeyTyped*)dp;
 
       if (el->_window->_ctrl)
@@ -2562,6 +2559,7 @@ int UICode::hittest(int x, int y) {
 
 int UIDrawStringHighlighted(UIPainter* painter, UIRectangle lineBounds, std::string_view string, int tabSize,
                             UIStringSelection* selection) {
+   UI* ui = painter->ui();
    if (string.size() > 10000)
       string = string.substr(0, 10000);
 
@@ -4069,23 +4067,21 @@ UIImageDisplay* UIImageDisplayCreate(UIElement* parent, uint32_t flags, uint32_t
 // Menus (common).
 // --------------------------------------------------
 
-bool _UIMenusClose() {
+bool UI::_close_menus() {
    bool anyClosed = false;
 
-   if (ui) {
-      UIWindow* window = ui->_toplevel_windows;
+   UIWindow* window = _toplevel_windows;
 
-      while (window) {
-         if (window->_flags & UIWindow::MENU) {
-            if constexpr (UIInspector::enabled())
-               ui->_inspector->notify_destroyed_window(window);
+   while (window) {
+      if (window->_flags & UIWindow::MENU) {
+         if constexpr (UIInspector::enabled())
+            _inspector->notify_destroyed_window(window);
 
-            window->destroy();
-            anyClosed = true;
-         }
-
-         window = window->next();
+         window->destroy();
+         anyClosed = true;
       }
+
+      window = window->next();
    }
 
    return anyClosed;
@@ -4093,7 +4089,7 @@ bool _UIMenusClose() {
 
 int UIMenu::_MenuItemMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::CLICKED) {
-      _UIMenusClose();
+      el->ui()->_close_menus();
    }
 
    return 0;
@@ -4147,7 +4143,7 @@ int UIMenu::_class_message_proc(UIMessage msg, int di, void* dp) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
       if (m->code == UIKeycode::ESCAPE) {
-         _UIMenusClose();
+         ui()->_close_menus();
          return 1;
       }
    } else if (msg == UIMessage::MOUSE_WHEEL) {
@@ -4208,8 +4204,8 @@ UIRectangle UIElement::screen_bounds() {
 }
 
 void UI::update() {
-   UIWindow*  window = ui->_toplevel_windows;
-   UIWindow** link   = &ui->_toplevel_windows;
+   UIWindow*  window = _toplevel_windows;
+   UIWindow** link   = &_toplevel_windows;
 
    while (window) {
       UIWindow* next = window->next();
@@ -4379,17 +4375,17 @@ bool UIWindow::input_event(UIMessage msg, int di, void* dp) {
             set_cursor(cursor);
          }
       } else if (msg == UIMessage::LEFT_DOWN) {
-         if ((_flags & UIWindow::MENU) || !_UIMenusClose()) {
+         if ((_flags & UIWindow::MENU) || !ui->_close_menus()) {
             set_pressed(loc, 1);
             loc->message(UIMessage::LEFT_DOWN, di, dp);
          }
       } else if (msg == UIMessage::MIDDLE_DOWN) {
-         if ((_flags & UIWindow::MENU) || !_UIMenusClose()) {
+         if ((_flags & UIWindow::MENU) || !ui->_close_menus()) {
             set_pressed(loc, 2);
             loc->message(UIMessage::MIDDLE_DOWN, di, dp);
          }
       } else if (msg == UIMessage::RIGHT_DOWN) {
-         if ((_flags & UIWindow::MENU) || !_UIMenusClose()) {
+         if ((_flags & UIWindow::MENU) || !ui->_close_menus()) {
             set_pressed(loc, 3);
             loc->message(UIMessage::RIGHT_DOWN, di, dp);
          }
@@ -4659,7 +4655,7 @@ UIFont* UI::create_font(std::string_view cPath, uint32_t size) {
 
    UIFontSpec spec{std::string{cPath}, size};
 
-   if (auto it = ui->font_map.find(spec); it != ui->font_map.end())
+   if (auto it = font_map.find(spec); it != font_map.end())
       return it->second.get();
 
    unique_ptr<UIFont> font = make_unique<UIFont>();
@@ -4674,7 +4670,7 @@ UIFont* UI::create_font(std::string_view cPath, uint32_t size) {
    font->_glyphs_offsets_x = make_unique<int[]>(max_glyphs);
    font->_glyphs_offsets_y = make_unique<int[]>(max_glyphs);
 
-   int ret = FT_New_Face(ui->_ft, cPath.data(), 0, &font->_font);
+   int ret = FT_New_Face(_ft, cPath.data(), 0, &font->_font);
       if (ret == 0) {
          FT_Select_Charmap(font->_font, FT_ENCODING_UNICODE);
          if (FT_HAS_FIXED_SIZES(font->_font) && font->_font->num_fixed_sizes) {
@@ -4747,6 +4743,7 @@ std::pair<UIElement*, size_t> _UIInspectorFindNthElement(UIElement* el, int* ind
 }
 
 int _UIInspectorTableMessage(UIElement* table, UIMessage msg, int di, void* dp) {
+   UI *ui = table->ui();
    if (!ui->_inspector->_target) {
       return 0;
    }
@@ -4842,7 +4839,7 @@ void UIInspector::set_focused_window(UIWindow* window) {
 
    if (_target != window) {
       _target = window;
-      ui->_inspector->refresh();
+      window->ui()->_inspector->refresh();
    }
 }
 
@@ -5036,7 +5033,7 @@ int UI::_platform_message_proc(UIElement* el, UIMessage msg, int di, void* dp) {
 
 UIWindow& UI::_platform_create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int _width, int _height) {
    UI* ui = this;
-   _UIMenusClose();
+   ui->_close_menus();
 
    UIWindow* window = new UIWindow(ui, NULL, flags | UIElement::window_flag, UI::_platform_message_proc, "Window");
    window->_init_toplevel();
@@ -5089,7 +5086,7 @@ UIWindow& UI::_platform_create_window(UIWindow* owner, uint32_t flags, const cha
    return *window;
 }
 
-UIWindow* _UIFindWindow(Window window) {
+UIWindow* _UIFindWindow(UI *ui, Window window) {
    UIWindow* w = ui->_toplevel_windows;
    while (w) {
       if (w->_xwindow == window) {
@@ -5115,7 +5112,7 @@ std::string UIWindow::read_clipboard_text(sel_target_t t) {
       return {};
    }
 
-   if (_UIFindWindow(clipboardOwner)) {
+   if (_UIFindWindow(ui(), clipboardOwner)) {
       return _ui->_paste_text;
    }
 
@@ -5194,8 +5191,11 @@ std::string UIWindow::read_clipboard_text(sel_target_t t) {
 }
 
 unique_ptr<UI> UI::initialise(const UIConfig& cfg) {
-   ui = new UI;
-
+   unique_ptr<UI> ui( new UI);
+   
+   if (cfg._has_theme)
+      ui->_theme = cfg._theme;
+   
    std::string font_path = cfg.font_path;
 
    #ifdef UI_FREETYPE
@@ -5271,9 +5271,9 @@ unique_ptr<UI> UI::initialise(const UIConfig& cfg) {
       ui->_xim = XOpenIM(ui->_display, 0, 0, 0);
    }
 
-   ui->_inspector.reset(new UIInspector(ui));
+   ui->_inspector.reset(new UIInspector(ui.get()));
 
-   return unique_ptr<UI>{ui};
+   return ui;
 }
 
 UIWindow& UIWindow::set_cursor(int cursor) {
@@ -5400,7 +5400,7 @@ UIMenu& UIMenu::show() {
 bool UI::_process_x11_event(void* x_event) {
    XEvent* event = (XEvent*)x_event;
    if (event->type == ClientMessage && (Atom)event->xclient.data.l[0] == windowClosedID) {
-      UIWindow* window = _UIFindWindow(event->xclient.window);
+      UIWindow* window = _UIFindWindow(this, event->xclient.window);
       if (!window)
          return false;
       bool exit = !window->message(UIMessage::WINDOW_CLOSE, 0, 0);
@@ -5409,13 +5409,13 @@ bool UI::_process_x11_event(void* x_event) {
       update();
       return false;
    } else if (event->type == Expose) {
-      UIWindow* window = _UIFindWindow(event->xexpose.window);
+      UIWindow* window = _UIFindWindow(this, event->xexpose.window);
       if (!window)
          return false;
       XPutImage(_display, window->_xwindow, DefaultGC(_display, 0), window->_image, 0, 0, 0, 0, window->width(),
                 window->height());
    } else if (event->type == ConfigureNotify) {
-      UIWindow* window = _UIFindWindow(event->xconfigure.window);
+      UIWindow* window = _UIFindWindow(this, event->xconfigure.window);
       if (!window)
          return false;
 
@@ -5438,13 +5438,13 @@ bool UI::_process_x11_event(void* x_event) {
          update();
       }
    } else if (event->type == MotionNotify) {
-      UIWindow* window = _UIFindWindow(event->xmotion.window);
+      UIWindow* window = _UIFindWindow(this, event->xmotion.window);
       if (!window)
          return false;
       window->set_cursor_pos({event->xmotion.x, event->xmotion.y});
       window->input_event(UIMessage::MOUSE_MOVE, 0, 0);
    } else if (event->type == LeaveNotify) {
-      UIWindow* window = _UIFindWindow(event->xcrossing.window);
+      UIWindow* window = _UIFindWindow(this, event->xcrossing.window);
       if (!window)
          return false;
 
@@ -5454,7 +5454,7 @@ bool UI::_process_x11_event(void* x_event) {
 
       window->input_event(UIMessage::MOUSE_MOVE, 0, 0);
    } else if (event->type == ButtonPress || event->type == ButtonRelease) {
-      UIWindow* window = _UIFindWindow(event->xbutton.window);
+      UIWindow* window = _UIFindWindow(this, event->xbutton.window);
       if (!window)
          return false;
       window->set_cursor_pos({event->xbutton.x, event->xbutton.y});
@@ -5473,7 +5473,7 @@ bool UI::_process_x11_event(void* x_event) {
       if constexpr (UIInspector::enabled())
          _inspector->set_focused_window(window);
    } else if (event->type == KeyPress) {
-      UIWindow* window = _UIFindWindow(event->xkey.window);
+      UIWindow* window = _UIFindWindow(this, event->xkey.window);
       if (!window)
          return false;
 
@@ -5533,7 +5533,7 @@ bool UI::_process_x11_event(void* x_event) {
          window->input_event(UIMessage::KEY_TYPED, 0, &m);
       }
    } else if (event->type == KeyRelease) {
-      UIWindow* window = _UIFindWindow(event->xkey.window);
+      UIWindow* window = _UIFindWindow(this, event->xkey.window);
       if (!window)
          return false;
 
@@ -5557,21 +5557,21 @@ bool UI::_process_x11_event(void* x_event) {
          window->input_event(UIMessage::KEY_RELEASED, 0, &m);
       }
    } else if (event->type == FocusIn) {
-      UIWindow* window = _UIFindWindow(event->xfocus.window);
+      UIWindow* window = _UIFindWindow(this, event->xfocus.window);
       if (!window)
          return false;
       window->_ctrl = window->_shift = window->_alt = false;
       window->message(UIMessage::WINDOW_ACTIVATE, 0, 0);
    } else if (event->type == FocusOut || event->type == ResizeRequest) {
-      _UIMenusClose();
+      _close_menus();
       update();
    } else if (event->type == ClientMessage && event->xclient.message_type == dndEnterID) {
-      UIWindow* window = _UIFindWindow(event->xclient.window);
+      UIWindow* window = _UIFindWindow(this, event->xclient.window);
       if (!window)
          return false;
       window->_drag_source = (Window)event->xclient.data.l[0];
    } else if (event->type == ClientMessage && event->xclient.message_type == dndPositionID) {
-      UIWindow* window = _UIFindWindow(event->xclient.window);
+      UIWindow* window = _UIFindWindow(this, event->xclient.window);
       if (!window)
          return false;
       XClientMessageEvent m = {0};
@@ -5586,7 +5586,7 @@ bool UI::_process_x11_event(void* x_event) {
       XSendEvent(_display, m.window, False, NoEventMask, (XEvent*)&m);
       XFlush(_display);
    } else if (event->type == ClientMessage && event->xclient.message_type == dndDropID) {
-      UIWindow* window = _UIFindWindow(event->xclient.window);
+      UIWindow* window = _UIFindWindow(this, event->xclient.window);
       if (!window)
          return false;
 
@@ -5607,7 +5607,7 @@ bool UI::_process_x11_event(void* x_event) {
          XFlush(_display);
       }
    } else if (event->type == SelectionNotify) {
-      UIWindow* window = _UIFindWindow(event->xselection.requestor);
+      UIWindow* window = _UIFindWindow(this, event->xselection.requestor);
       if (!window)
          return false;
       if (!window->_drag_source)
@@ -5617,11 +5617,11 @@ bool UI::_process_x11_event(void* x_event) {
       int           format = 0;
       unsigned long count = 0, bytesLeft = 0;
       uint8_t*      data = NULL;
-      XGetWindowProperty(ui->_display, window->_xwindow, ui->primaryID, 0, 65536, False, AnyPropertyType, &type, &format,
+      XGetWindowProperty(_display, window->_xwindow, primaryID, 0, 65536, False, AnyPropertyType, &type, &format,
                          &count, &bytesLeft, &data);
 
       if (format == 8 /* bits per character */) {
-         if (event->xselection.target == ui->uriListID) {
+         if (event->xselection.target == uriListID) {
             char* copy      = (char*)malloc(count);
             int   fileCount = 0;
 
@@ -5685,7 +5685,7 @@ bool UI::_process_x11_event(void* x_event) {
       window->_drag_source = 0; // Drag complete.
       update();
    } else if (event->type == SelectionRequest) {
-      UIWindow* window = _UIFindWindow(event->xclient.window);
+      UIWindow* window = _UIFindWindow(this, event->xclient.window);
       if (!window)
          return false;
 

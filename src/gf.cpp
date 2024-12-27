@@ -264,7 +264,7 @@ struct Context {
    }
 
    void           DebuggerThread();
-   void           SettingsLoad(bool earlyPass);
+   UIConfig       SettingsLoad(bool earlyPass);
    void           InterfaceAddBuiltinWindowsAndCommands();
    void           RegisterExtensions();
    void           InterfaceShowMenu(UIButton* self);
@@ -303,8 +303,6 @@ bool         maximize;
 bool         confirmCommandConnect = true, confirmCommandKill = true;
 int          backtraceCountLimit = 50;
 UIMessage    msgReceivedData, msgReceivedLog, msgReceivedControl, msgReceivedNext = (UIMessage)(UIMessage::USER_PLUS_1);
-
-UIConfig ui_config;
 
 // Current file and line:
 
@@ -518,7 +516,7 @@ bool INIParse(INIState* s) {
 
 int ModifiedRowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::PAINT) {
-      UIDrawBorder((UIPainter*)dp, el->_bounds, ui->_theme.selected, UIRectangle(2));
+      UIDrawBorder((UIPainter*)dp, el->_bounds, el->theme().selected, UIRectangle(2));
    }
 
    return 0;
@@ -526,8 +524,8 @@ int ModifiedRowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
 int TrafficLightMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::PAINT) {
-      UIDrawRectangle((UIPainter*)dp, el->_bounds, ctx.programRunning ? ui->_theme.accent1 : ui->_theme.accent2,
-                      ui->_theme.border, UIRectangle(1));
+      UIDrawRectangle((UIPainter*)dp, el->_bounds, ctx.programRunning ? el->theme().accent1 : el->theme().accent2,
+                      el->theme().border, UIRectangle(1));
    }
 
    return 0;
@@ -1334,9 +1332,10 @@ void SettingsAddTrustedFolder() {
    }
 }
 
-void Context::SettingsLoad(bool earlyPass) {
+UIConfig Context::SettingsLoad(bool earlyPass) {
    bool        currentFolderIsTrusted = false;
    static bool cwdConfigNotTrusted    = false;
+   UIConfig ui_config;
 
    for (int i = 0; i < 2; i++) {
       INIState state;
@@ -1507,7 +1506,8 @@ void Context::SettingsLoad(bool earlyPass) {
             for (uintptr_t i = 0; i < sizeof(themeItems) / sizeof(themeItems[0]); i++) {
                if (strcmp(state.key, themeItems[i]))
                   continue;
-               ((uint32_t*)&ui->_theme)[i] = strtoul(state.value, nullptr, 16);
+               ((uint32_t*)&ui_config._theme)[i] = strtoul(state.value, nullptr, 16);
+               ui_config._has_theme = true;
             }
          } else if (0 == strcmp(state.section, "vim") && earlyPass && 0 == strcmp(state.key, "server_name")) {
             vimServerName = state.value;
@@ -1537,6 +1537,7 @@ void Context::SettingsLoad(bool earlyPass) {
          }
       }
    }
+   return ui_config;
 }
 
 // ------------------------------------------------------
@@ -1772,11 +1773,14 @@ void CommandSetDisassemblyMode() {
 }
 
 void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
+   auto& theme       = painter->theme();
+   auto  active_font = painter->active_font();
+
    const char* instructions = "(Press Esc to exit inspect line mode.)";
-   int         width        = (strlen(instructions) + 8) * ui->_active_font->_glyph_width;
+   int         width        = (strlen(instructions) + 8) * active_font->_glyph_width;
 
    for (const auto& ir : inspectResults) {
-      int w = (ir.expression.size() + ir.value.size() + 8) * ui->_active_font->_glyph_width;
+      int w = (ir.expression.size() + ir.value.size() + 8) * active_font->_glyph_width;
       if (w > width)
          width = w;
    }
@@ -1789,7 +1793,7 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
    std::string_view cur_line = displayCode->line(*currentLine);
    for (auto c : cur_line) {
       if (c == '\t' || c == ' ') {
-         xOffset += (c == '\t' ? 4 : 1) * ui->_active_font->_glyph_width;
+         xOffset += (c == '\t' ? 4 : 1) * active_font->_glyph_width;
       } else {
          break;
       }
@@ -1799,8 +1803,8 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
    UIRectangle bounds =
       displayCurrentLineBounds + UIRectangle(xOffset, 0, lineHeight, 8 + lineHeight * (inspectResults.size() / 2 + 1));
    bounds.r = bounds.l + width;
-   UIDrawBlock(painter, bounds + UIRectangle(3), ui->_theme.border);
-   UIDrawRectangle(painter, bounds, ui->_theme.codeBackground, ui->_theme.border, UIRectangle(2));
+   UIDrawBlock(painter, bounds + UIRectangle(3), theme.border);
+   UIDrawRectangle(painter, bounds, theme.codeBackground, theme.border, UIRectangle(2));
    UIRectangle line = bounds + UIRectangle(4, -4, 4, 0);
    line.b           = line.t + lineHeight;
    std::string buffer;
@@ -1815,13 +1819,13 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
          buffer = std::format("    {} {}", ir.expression, ir.value);
       }
 
-      UIDrawString(painter, line, buffer, noInspectResults ? ui->_theme.codeOperator : ui->_theme.codeString,
+      UIDrawString(painter, line, buffer, noInspectResults ? theme.codeOperator : theme.codeString,
                    UIAlign::left, NULL);
       line = line + UIRectangle(0, lineHeight);
       ++index;
    }
 
-   UIDrawString(painter, line, instructions, ui->_theme.codeNumber, UIAlign::right, NULL);
+   UIDrawString(painter, line, instructions, theme.codeNumber, UIAlign::right, NULL);
 }
 
 template <class F>
@@ -1889,20 +1893,21 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          }
       }
    } else if (msg == UIMessage::CODE_GET_MARGIN_COLOR && !showingDisassembly) {
-      bool atLeastOneBreakpointDisabled = false;
+      auto& theme                        = el->theme();
+      bool  atLeastOneBreakpointDisabled = false;
 
       for (const auto& bp : breakpoints) {
          if (bp.line == di && 0 == strcmp(bp.fileFull, currentFileFull)) {
             if (bp.enabled)
-               return ui->_theme.accent1;
+               return theme.accent1;
             else
                atLeastOneBreakpointDisabled = true;
          }
       }
 
       if (atLeastOneBreakpointDisabled) {
-         return (((ui->_theme.accent1 & 0xFF0000) >> 1) & 0xFF0000) | (((ui->_theme.accent1 & 0xFF00) >> 1) & 0xFF00) |
-                ((ui->_theme.accent1 & 0xFF) >> 1);
+         return (((theme.accent1 & 0xFF0000) >> 1) & 0xFF0000) | (((theme.accent1 & 0xFF00) >> 1) & 0xFF00) |
+                ((theme.accent1 & 0xFF) >> 1);
       }
    } else if (msg == UIMessage::PAINT) {
       el->_class_proc(el, msg, di, dp);
@@ -1915,6 +1920,8 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
       return 1;
    } else if (msg == UIMessage::CODE_DECORATE_LINE) {
+      auto&               theme       = el->theme();
+      auto                active_font = el->active_font();
       UICodeDecorateLine* m           = (UICodeDecorateLine*)dp;
       auto                currentLine = displayCode->current_line();
 
@@ -1924,27 +1931,27 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
       if (m->index == autoPrintResultLine) {
          UIRectangle rectangle =
-            UIRectangle(m->x + ui->_active_font->_glyph_width, m->bounds.r, m->y, m->y + el->ui()->string_height());
-         UIDrawString(m->painter, rectangle, autoPrintResult, ui->_theme.codeComment, UIAlign::left, NULL);
+            UIRectangle(m->x + active_font->_glyph_width, m->bounds.r, m->y, m->y + el->ui()->string_height());
+         UIDrawString(m->painter, rectangle, autoPrintResult, theme.codeComment, UIAlign::left, NULL);
       }
 
       if (code->hittest(el->cursor_pos()) == m->index && el->is_hovered() &&
           (el->_window->_ctrl || el->_window->_alt || el->_window->_shift) && !el->_window->textbox_modified_flag()) {
-         UIDrawBorder(m->painter, m->bounds, el->_window->_ctrl ? ui->_theme.selected : ui->_theme.codeOperator,
+         UIDrawBorder(m->painter, m->bounds, el->_window->_ctrl ? theme.selected : theme.codeOperator,
                       UIRectangle(2));
-         UIDrawString(m->painter, m->bounds, el->_window->_ctrl ? "=> run until " : "=> skip to ", ui->_theme.text,
+         UIDrawString(m->painter, m->bounds, el->_window->_ctrl ? "=> run until " : "=> skip to ", theme.text,
                       UIAlign::right, NULL);
       } else if (m->index == currentEndOfBlock) {
-         UIDrawString(m->painter, m->bounds, "[Shift+F10]", ui->_theme.codeComment, UIAlign::right, NULL);
+         UIDrawString(m->painter, m->bounds, "[Shift+F10]", theme.codeComment, UIAlign::right, NULL);
       }
 
       if (m->index == ifConditionLine && ifConditionEvaluation) {
          int columnFrom = code->byte_to_column(ifConditionLine, ifConditionFrom);
          int columnTo   = code->byte_to_column(ifConditionLine, ifConditionTo);
          UIDrawBlock(m->painter,
-                     UIRectangle(m->bounds.l + columnFrom * ui->_active_font->_glyph_width,
-                                 m->bounds.l + columnTo * ui->_active_font->_glyph_width, m->bounds.b - 2, m->bounds.b),
-                     ifConditionEvaluation == 2 ? ui->_theme.accent2 : ui->_theme.accent1);
+                     UIRectangle(m->bounds.l + columnFrom * active_font->_glyph_width,
+                                 m->bounds.l + columnTo * active_font->_glyph_width, m->bounds.b - 2, m->bounds.b),
+                     ifConditionEvaluation == 2 ? theme.accent2 : theme.accent1);
       }
    } else if (msg == UIMessage::MOUSE_MOVE || msg == UIMessage::UPDATE) {
       auto pos = el->cursor_pos();
@@ -3412,6 +3419,7 @@ int WatchWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
    if (msg == UIMessage::PAINT) {
       UIPainter* painter = (UIPainter*)dp;
+      auto&      theme   = el->theme();
 
       for (size_t i = (painter->_clip.t - el->_bounds.t) / rowHeight; i <= WatchLastRow(w); i++) {
          UIRectangle row = el->_bounds;
@@ -3424,8 +3432,8 @@ int WatchWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          bool focused = i == w->selectedRow && el->is_focused();
 
          if (focused)
-            UIDrawBlock(painter, row, ui->_theme.selected);
-         UIDrawBorder(painter, row, ui->_theme.border, UIRectangle(0, 1, 0, 1));
+            UIDrawBlock(painter, row, theme.selected);
+         UIDrawBorder(painter, row, theme.border, UIRectangle(0, 1, 0, 1));
 
          row.l += ui_size::textbox_margin;
          row.r -= ui_size::textbox_margin;
@@ -3464,7 +3472,7 @@ int WatchWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
             }
 
             if (focused) {
-               UIDrawString(painter, row, buffer, ui->_theme.textSelected, UIAlign::left, nullptr);
+               UIDrawString(painter, row, buffer, theme.textSelected, UIAlign::left, nullptr);
             } else {
                UIDrawStringHighlighted(painter, row, buffer, 1, NULL);
             }
@@ -3473,13 +3481,14 @@ int WatchWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::GET_HEIGHT) {
       return (WatchLastRow(w) + 1) * rowHeight;
    } else if (msg == UIMessage::LEFT_DOWN) {
-      auto pos = el->cursor_pos();
+      auto active_font = el->active_font();
+      auto pos         = el->cursor_pos();
       if (pos.y >= el->_bounds.t) {
          w->selectedRow = (pos.y - el->_bounds.t) / rowHeight;
 
          if (w->selectedRow < w->rows.size()) {
             const shared_ptr<Watch>& watch = w->rows[w->selectedRow];
-            int                      x     = (pos.x - el->_bounds.l) / ui->_active_font->_glyph_width;
+            int                      x     = (pos.x - el->_bounds.l) / active_font->_glyph_width;
 
             if (x >= watch->depth * 3 - 1 && x <= watch->depth * 3 + 1 && watch->hasFields) {
                UIKeyTyped m;
@@ -4197,10 +4206,11 @@ int FilesButtonMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::PAINT) {
       UIPainter* painter = (UIPainter*)dp;
       int        i       = el->is_pressed() + el->is_hovered();
+      auto&      theme   = el->theme();
       if (i)
-         UIDrawBlock(painter, el->_bounds, i == 2 ? ui->_theme.buttonPressed : ui->_theme.buttonHovered);
+         UIDrawBlock(painter, el->_bounds, i == 2 ? theme.buttonPressed : theme.buttonHovered);
       UIDrawString(painter, el->_bounds + UIRectangle(ui_size::button_padding, 0, 0, 0), button->label(),
-                   button->_flags & UIButton::CHECKED ? ui->_theme.codeNumber : ui->_theme.codeDefault, UIAlign::left,
+                   button->_flags & UIButton::CHECKED ? theme.codeNumber : theme.codeDefault, UIAlign::left,
                    NULL);
       return 1;
    }
@@ -5547,8 +5557,8 @@ void ProfLoadProfileData(void* _window) {
       char      string[256];
       std_format_to_n(string, sizeof(string), "Loading data... (estimated time: {} seconds)",
                       rawEntryCount / 5000000 + 1);
-      UIDrawBlock(&painter, painter._clip, ui->_theme.panel1);
-      UIDrawString(&painter, painter._clip, string, ui->_theme.text, UIAlign::center, 0);
+      UIDrawBlock(&painter, painter._clip, painter.theme().panel1);
+      UIDrawString(&painter, painter._clip, string, painter.theme().text, UIAlign::center, 0);
       window->set_update_region(ui_rect_2s(window->width(), window->height()));
       window->endpaint(nullptr);
       window->set_update_region(painter._clip);
@@ -5826,6 +5836,7 @@ void ProfWindowUpdate(const char* data, UIElement* el) {
 UIElement* ProfWindowCreate(UIElement* parent) {
    const int   fontSizeFlameGraph = 8;
    ProfWindow* window             = new ProfWindow;
+   UI*         ui                 = parent->ui();
    window->fontFlameGraph         = ui->create_font(ui->_default_font_path, fontSizeFlameGraph);
    UIPanel* panel                 = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
    panel->_cp                     = window;
@@ -5876,8 +5887,9 @@ int MemoryWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    MemoryWindow* window = (MemoryWindow*)el;
 
    if (msg == UIMessage::PAINT) {
+      auto&      theme   = el->theme();
       UIPainter* painter = (UIPainter*)dp;
-      UIDrawBlock(painter, el->_bounds, ui->_theme.panel1);
+      UIDrawBlock(painter, el->_bounds, theme.panel1);
 
       char        buffer[64];
       uint64_t    address   = window->offset;
@@ -5888,11 +5900,11 @@ int MemoryWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
       {
          std_format_to_n(buffer, sizeof(buffer), "Inspecting memory @{:p}", (void*)window->offset);
-         UIDrawString(painter, row, buffer, ui->_theme.codeString, UIAlign::left, 0);
+         UIDrawString(painter, row, buffer, theme.codeString, UIAlign::left, 0);
          row.t += rowHeight;
          row.b += rowHeight;
          const char* header = "         0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F   0123456789ABCDEF";
-         UIDrawString(painter, row, header, ui->_theme.codeComment, UIAlign::left, 0);
+         UIDrawString(painter, row, header, theme.codeComment, UIAlign::left, 0);
          row.t += rowHeight;
          row.b += rowHeight;
       }
@@ -5931,29 +5943,30 @@ int MemoryWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       while (row.t < painter->_clip.b) {
          int position = 0;
 
-         UI* ui = el->ui();
+         UI*   ui    = el->ui();
+         auto& theme = el->theme();
          std_format_to_n(buffer, sizeof(buffer), "{:8X} ", (uint32_t)(address & 0xFFFFFFFF));
-         UIDrawString(painter, row, buffer, ui->_theme.codeComment, UIAlign::left, 0);
+         UIDrawString(painter, row, buffer, theme.codeComment, UIAlign::left, 0);
          UIRectangle r          = row + UIRectangle(ui->string_width(buffer), 0, 0, 0);
          int         glyphWidth = ui->string_width("a");
 
          for (int i = 0; i < 16; i++) {
             if (address + i >= window->offset + window->loadedBytes.size() ||
                 window->loadedBytes[address + i - window->offset] < 0) {
-               painter->draw_glyph(r.l + position, r.t, '?', ui->_theme.codeOperator);
+               painter->draw_glyph(r.l + position, r.t, '?', theme.codeOperator);
                position += glyphWidth;
-               painter->draw_glyph(r.l + position, r.t, '?', ui->_theme.codeOperator);
+               painter->draw_glyph(r.l + position, r.t, '?', theme.codeOperator);
                position += glyphWidth;
             } else {
                const char* hexChars = "0123456789ABCDEF";
                uint8_t     byte     = window->loadedBytes[address + i - window->offset];
-               painter->draw_glyph(r.l + position, r.t, hexChars[(byte & 0xF0) >> 4], ui->_theme.codeNumber);
+               painter->draw_glyph(r.l + position, r.t, hexChars[(byte & 0xF0) >> 4], theme.codeNumber);
                position += glyphWidth;
-               painter->draw_glyph(r.l + position, r.t, hexChars[(byte & 0x0F) >> 0], ui->_theme.codeNumber);
+               painter->draw_glyph(r.l + position, r.t, hexChars[(byte & 0x0F) >> 0], theme.codeNumber);
                position += glyphWidth;
 
                if (byte >= 0x20 && byte < 0x7F) {
-                  painter->draw_glyph(r.l + (49 + i) * glyphWidth, r.t, byte, ui->_theme.codeString);
+                  painter->draw_glyph(r.l + (49 + i) * glyphWidth, r.t, byte, theme.codeString);
                }
             }
 
@@ -6114,10 +6127,12 @@ int ViewWindowColorSwatchMessage(UIElement* el, UIMessage msg, int di, void* dp)
    if (msg == UIMessage::GET_HEIGHT) {
       return el->ui()->string_height();
    } else if (msg == UIMessage::PAINT) {
+      auto&       theme   = el->theme();
       uint32_t    color   = ((ViewWindowColorSwatch*)el)->color;
       UIPainter*  painter = (UIPainter*)dp;
       const char* message = "Col: ";
-      UIDrawString(painter, el->_bounds, message, ui->_theme.text, UIAlign::left, nullptr);
+
+      UIDrawString(painter, el->_bounds, message, theme.text, UIAlign::left, nullptr);
       UIRectangle swatch =
          UIRectangle(el->_bounds.l + el->ui()->string_width(message), 0, el->_bounds.t + 2, el->_bounds.b - 2);
       swatch.r = swatch.l + 50;
@@ -6162,7 +6177,8 @@ int ViewWindowMatrixGridMessage(UIElement* el, UIMessage msg, int di, void* dp) 
    if (msg == UIMessage::PAINT) {
       // TODO Optimise for really large arrays.
       // TODO Calculate eigenvectors/values.
-      UI* ui                         = el->ui();
+      UI*   ui                       = el->ui();
+      auto& theme                    = el->theme();
       auto [glyphWidth, glyphHeight] = ui->string_dims("A");
       UIPainter* painter             = (UIPainter*)dp;
 
@@ -6173,7 +6189,7 @@ int ViewWindowMatrixGridMessage(UIElement* el, UIMessage msg, int di, void* dp) 
                if (!c)
                   continue;
                painter->draw_glyph(el->_bounds.l + j * glyphWidth - grid->hScroll->position(),
-                           el->_bounds.t + i * glyphHeight - grid->vScroll->position(), c, ui->_theme.text);
+                           el->_bounds.t + i * glyphHeight - grid->vScroll->position(), c, theme.text);
             } else if (grid->grid_type == grid_type_t::float_t || grid->grid_type == grid_type_t::double_t) {
                double f = grid->grid_type == grid_type_t::double_t ? ((double*)grid->data())[i * grid->w + j]
                                                                    : (double)((float*)grid->data())[i * grid->w + j];
@@ -6183,7 +6199,7 @@ int ViewWindowMatrixGridMessage(UIElement* el, UIMessage msg, int di, void* dp) 
                   UIRectangle(j * glyphWidth * 14, (j + 1) * glyphWidth * 14, i * glyphHeight, (i + 1) * glyphHeight);
                UIRectangle offset = UIRectangle(el->_bounds.l - (int)grid->hScroll->position(),
                                                 el->_bounds.t - (int)grid->vScroll->position());
-               UIDrawString(painter, rectangle + offset, buffer, ui->_theme.text, UIAlign::right, nullptr);
+               UIDrawString(painter, rectangle + offset, buffer, theme.text, UIAlign::right, nullptr);
             }
          }
       }
@@ -6192,7 +6208,7 @@ int ViewWindowMatrixGridMessage(UIElement* el, UIMessage msg, int di, void* dp) 
       UIDrawBlock(
          painter,
          UIRectangle(el->_bounds.r - scrollBarSize, el->_bounds.r, el->_bounds.b - scrollBarSize, el->_bounds.b),
-         ui->_theme.panel1);
+         theme.panel1);
    } else if (msg == UIMessage::LAYOUT) {
       UIRectangle scrollBarBounds = el->_bounds;
       scrollBarBounds.l           = scrollBarBounds.r - ui_size::scroll_bar * el->_window->scale();
@@ -6218,49 +6234,50 @@ int ViewWindowStringLayout(ViewWindowString* display, UIPainter* painter, int of
    UI* ui = painter->ui();
 
    auto [glyphWidth, glyphHeight] = ui->string_dims("a");
+   auto& theme                    = ui->theme();
 
    for (int i = 0; i < display->length; i++) {
       if (x + glyphWidth > clientBounds.r) {
          x = clientBounds.l + glyphWidth;
          y += glyphHeight;
          if (painter)
-            painter->draw_glyph(clientBounds.l, y, '>', ui->_theme.codeComment);
+            painter->draw_glyph(clientBounds.l, y, '>', theme.codeComment);
       }
 
       if (display->data[i] < 0x20 || display->data[i] >= 0x7F) {
          if (display->data[i] == '\n') {
             if (painter)
-               painter->draw_glyph(x, y, '\\', ui->_theme.codeComment);
+               painter->draw_glyph(x, y, '\\', theme.codeComment);
             x += glyphWidth;
             if (painter)
-               painter->draw_glyph(x, y, 'n', ui->_theme.codeComment);
+               painter->draw_glyph(x, y, 'n', theme.codeComment);
             x = clientBounds.l;
             y += glyphHeight;
          } else if (display->data[i] == '\t') {
             if (painter)
-               painter->draw_glyph(x, y, '\\', ui->_theme.codeNumber);
+               painter->draw_glyph(x, y, '\\', theme.codeNumber);
             x += glyphWidth;
             if (painter)
-               painter->draw_glyph(x, y, 't', ui->_theme.codeNumber);
+               painter->draw_glyph(x, y, 't', theme.codeNumber);
             x += glyphWidth;
          } else {
             const char* hexChars = "0123456789ABCDEF";
             if (painter)
-               painter->draw_glyph(x, y, '<', ui->_theme.codeNumber);
+               painter->draw_glyph(x, y, '<', theme.codeNumber);
             x += glyphWidth;
             if (painter)
-               painter->draw_glyph(x, y, hexChars[(display->data[i] & 0xF0) >> 4], ui->_theme.codeNumber);
+               painter->draw_glyph(x, y, hexChars[(display->data[i] & 0xF0) >> 4], theme.codeNumber);
             x += glyphWidth;
             if (painter)
-               painter->draw_glyph(x, y, hexChars[(display->data[i] & 0x0F) >> 0], ui->_theme.codeNumber);
+               painter->draw_glyph(x, y, hexChars[(display->data[i] & 0x0F) >> 0], theme.codeNumber);
             x += glyphWidth;
             if (painter)
-               painter->draw_glyph(x, y, '>', ui->_theme.codeNumber);
+               painter->draw_glyph(x, y, '>', theme.codeNumber);
             x += glyphWidth;
          }
       } else {
          if (painter)
-            painter->draw_glyph(x, y, display->data[i], ui->_theme.codeDefault);
+            painter->draw_glyph(x, y, display->data[i], theme.codeDefault);
          x += glyphWidth;
       }
    }
@@ -6282,7 +6299,8 @@ int ViewWindowStringMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       display->vScroll->set_page(el->_bounds.height());
       display->vScroll->move(scrollBarBounds, true);
    } else if (msg == UIMessage::PAINT) {
-      UIDrawBlock((UIPainter*)dp, el->_bounds, ui->_theme.codeBackground);
+      auto& theme = el->theme();
+      UIDrawBlock((UIPainter*)dp, el->_bounds, theme.codeBackground);
       ViewWindowStringLayout(display, (UIPainter*)dp, display->vScroll->position());
    } else if (msg == UIMessage::MOUSE_WHEEL) {
       return display->vScroll->message(msg, di, dp);
@@ -6651,6 +6669,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       el->repaint(NULL);
    } else if (msg == UIMessage::PAINT) {
       UIRectangle client = el->_bounds;
+      auto&       theme  = el->theme();
       client.b -= display->scrollBar->_bounds.height();
 
       UIPainter*  painter = (UIPainter*)dp;
@@ -6659,7 +6678,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       int ym              = (client.t + client.b) / 2;
       int h2              = (client.b - client.t) / 2;
       int yp              = ym;
-      UIDrawBlock(painter, painter->_clip, ui->_theme.panel1);
+      UIDrawBlock(painter, painter->_clip, theme.panel1);
       UIDrawBlock(painter, UIRectangle(client.l, client.r, ym, ym + 1), 0x707070);
 
       float yScale =
@@ -6694,7 +6713,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
                }
 
                UIRectangle r = UIRectangle(x, x + 1, ym - (int)(yt * h2 * yScale), ym + (int)(yf * h2 * yScale));
-               WaveformDisplayDrawVerticalLineWithTranslucency(painter, r, ui->_theme.text, alpha);
+               WaveformDisplayDrawVerticalLineWithTranslucency(painter, r, theme.text, alpha);
             }
          }
       } else {
@@ -6705,7 +6724,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
                int32_t x0 = (int)((float)i / sampleCount * client.width()) + client.l;
                int32_t x1 = (int)((float)(i + 1) / sampleCount * client.width()) + client.l;
                int32_t y  = ym + h2 * yScale * samples[channel + display->channels * (int)i];
-               UIDrawLine(painter, x0, yp, x1, y, ui->_theme.text);
+               UIDrawLine(painter, x0, yp, x1, y, theme.text);
                yp = y;
             }
          }
@@ -6742,7 +6761,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
                strcat(buffer, buffer2);
             }
 
-            UIDrawString(painter, stringRectangle, buffer, ui->_theme.text, UIAlign::right, NULL);
+            UIDrawString(painter, stringRectangle, buffer, theme.text, UIAlign::right, NULL);
 
             int32_t x1 = (int)((float)(mouseXSample + 1) / sampleCount * client.width()) + client.l;
             WaveformDisplayDrawVerticalLineWithTranslucency(painter, UIRectangle(x1, x1 + 1, client.t, client.b),
@@ -7498,12 +7517,13 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
    std_format_to_n(globalConfigPath, sizeof(globalConfigPath), "{}/.config/gf2_config.ini", getenv("HOME"));
    std_format_to_n(localConfigPath, sizeof(localConfigPath), "{}/.project.gf", localConfigDirectory);
 
-   ctx.SettingsLoad(true);
+   UIConfig ui_config = ctx.SettingsLoad(true);
 
    ui_config.default_font_size = interface_font_size;
 
-   auto ui_ptr = UI::initialise(ui_config); // sets `ui.default_font_path`
-   ui->_theme   = uiThemeDark;
+   auto ui = UI::initialise(ui_config); // sets `ui.default_font_path`
+   
+   //ui->_theme = uiThemeDark; // force it for now, overriding `gf2_config.ini` - should remove though!
 
    // create fonts for interface and code
    // -----------------------------------
@@ -7529,10 +7549,12 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
       print(std::cerr, "Warning: Layout string has additional text after the end of the top-level entry.\n");
    }
 
-   ctx.SettingsLoad(false);
+   ui_config = ctx.SettingsLoad(false);
+   ui->_theme = ui_config._theme;
+
    DebuggerStartThread();
    CommandSyncWithGvim();
-   return ui_ptr;
+   return ui;
 }
 
 Context::Context() {
