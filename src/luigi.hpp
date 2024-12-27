@@ -461,8 +461,8 @@ struct UIFont {
    int _glyph_height = 0;
 
 #ifdef UI_FREETYPE
-   bool    _is_freetype = false;
-   FT_Face _font       = nullptr;
+   bool                    _is_freetype = false;
+   FT_Face                 _font        = nullptr;
 
    unique_ptr<FT_Bitmap[]> _glyphs;
    unique_ptr<bool[]>      _glyphs_rendered;

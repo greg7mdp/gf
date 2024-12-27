@@ -4703,6 +4703,7 @@ UIFont* UI::create_font(std::string_view cPath, uint32_t size) {
          return nullptr;
       }
 #endif // UI_FREETYPE
+
    UIFont* f = font.get();
    font_map.emplace(std::move(spec), std::move(font));
    return f;
