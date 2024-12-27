@@ -1483,6 +1483,118 @@ public:
 };
 
 // ------------------------------------------------------------------------------------------
+struct UIInspector {
+   static constexpr bool _enabled = (bool)UI_DEBUG;
+
+   UI*       _ui;
+   UIWindow* _inspector = nullptr;
+   UITable*  _table     = nullptr;
+   UIWindow* _target    = nullptr;
+   UICode*   _log       = nullptr;
+
+public:
+   UIInspector(UI* ui);
+
+   static constexpr bool enabled() { return _enabled; }
+   void set_focused_window(UIWindow* window);
+   void notify_destroyed_window(UIWindow* window);
+   void refresh();
+};
+
+// ------------------------------------------------------------------------------------------
+struct UI {
+   friend struct UIMenu;
+   friend struct UIWindow;
+
+private:
+   void        _inspector_refresh();
+
+   // platform specific functions
+   bool        _platform_message_loop_single(int* result);
+   UIWindow&   _platform_create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int _width, int _height);
+   static int  _platform_message_proc(UIElement* el, UIMessage msg, int di, void* dp);
+
+public:
+   UIWindow* _toplevel_windows = nullptr;
+   UITheme   _theme;
+
+   std::vector<UIElement*> _animating;
+
+   bool        _quit             = false;
+   const char* _dialog_result    = nullptr;
+   UIElement*  _dialog_old_focus = nullptr;
+   bool        _dialog_can_exit  = false;
+
+   std::string  _default_font_path;         // default font used
+   UIFont*      _active_font  = nullptr;
+   UIFont*      _default_font = nullptr;
+
+   std::unique_ptr<UIInspector> _inspector;
+
+#ifdef UI_LINUX
+   using cursors_t   = std::array<Cursor, (uint32_t)UICursor::count>;
+
+   Display*    _display        = nullptr;
+   Visual*     _visual         = nullptr;
+   XIM         _xim            = nullptr;
+   Atom        windowClosedID = 0, primaryID = 0, uriListID = 0, plainTextID = 0;
+   Atom        dndEnterID = 0, dndPositionID = 0, dndStatusID = 0, dndActionCopyID = 0;
+   Atom        dndDropID = 0, dndSelectionID = 0, dndFinishedID = 0, dndAwareID = 0;
+   Atom        clipboardID = 0, xSelectionDataID = 0, textID = 0, targetID = 0, incrID = 0;
+   cursors_t   _cursors{};
+   std::string _paste_text;
+   XEvent      _copy_event;
+#endif
+
+#ifdef UI_WINDOWS
+   using cursors_t = std::array<HCURSOR, (uint32_t)UICursor::count>;
+
+   cursors_t cursors{};
+   HANDLE    heap             = 0;
+   bool      assertionFailure = false;
+#endif
+
+#ifdef UI_FREETYPE
+   FT_Library ft = nullptr;
+#endif
+
+   std::unordered_map<UIFontSpec, unique_ptr<UIFont>> font_map;
+
+   ~UI() {
+      font_map.clear();
+#ifdef UI_FREETYPE
+      FT_Done_FreeType(ft);
+#endif
+   }
+
+   static unique_ptr<UI> initialise(const UIConfig& cfg);  // main entry point of the library
+
+   int       message_loop();
+   void      update();
+   void      process_animations();
+   bool      is_menu_open() const;
+
+   UIMenu&   create_menu(UIElement* parent, uint32_t flags);
+   UIWindow& create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height);
+
+   // ----------- utilities --------------------------------------------------------
+   int code_margin()     { return _active_font->glyphWidth * 5; }
+   int code_margin_gap() { return _active_font->glyphWidth * 1; }
+
+   int     string_width(std::string_view string) const;
+   int     string_height() const { return _active_font->glyphHeight; }
+   UIPoint string_dims(std::string_view s) const { return UIPoint{string_width(s), string_height()}; }
+
+   static int byte_to_column(std::string_view string, size_t byte, size_t tabSize);
+   static int column_to_byte(std::string_view string, size_t column, size_t tabSize);
+
+   static bool is_digit(int c) { return std::isdigit(c); }
+   static bool is_alpha(int c) { return std::isalpha(c) || c > 127; }
+   static bool is_alnum(int c) { return std::isalnum(c) || c > 127; }
+   static bool is_alnum_or_underscore(int c) { return is_alnum(c) || c == '_'; }
+};
+
+// ------------------------------------------------------------------------------------------
 UIElement* UIElementCreate(size_t bytes, UIElement* parent, uint32_t flags,
                            int (*messageClass)(UIElement*, UIMessage, int, void*), const char* cClassName);
 
@@ -1546,126 +1658,14 @@ void UIColorToRGB(float hue, float saturation, float value, uint32_t* rgb);
 UIFont* UIFontCreate(const char* cPath, uint32_t size);
 UIFont* UIFontActivate(UIFont* font); // Returns the previously active font.
 
-// ------------------------------------------------------------------------------------------
-struct UIInspector {
-   static constexpr bool _enabled = (bool)UI_DEBUG;
-
-   UI*       _ui;
-   UIWindow* _inspector = nullptr;
-   UITable*  _table     = nullptr;
-   UIWindow* _target    = nullptr;
-   UICode*   _log       = nullptr;
-
-public:
-   UIInspector(UI* ui);
-   
-   static constexpr bool enabled() { return _enabled; }
-   void set_focused_window(UIWindow* window);
-   void notify_destroyed_window(UIWindow* window);
-   void refresh();
-};
-
-// ------------------------------------------------------------------------------------------
-struct UI {
-   friend struct UIMenu;
-   friend struct UIWindow;
-   
-private:
-   void        _inspector_refresh();
-
-   // platform specific functions
-   bool        _platform_message_loop_single(int* result);
-   UIWindow&   _platform_create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int _width, int _height);
-   static int  _platform_message_proc(UIElement* el, UIMessage msg, int di, void* dp);
-
-public:
-   UIWindow* windows = nullptr;
-   UITheme   theme;
-
-   std::vector<UIElement*> animating;
-
-   bool         quit           = false;
-   const char*  dialogResult   = nullptr;
-   UIElement*   dialogOldFocus = nullptr;
-   bool         dialogCanExit  = false;
-
-   std::string  default_font_path;     // default font used
-   UIFont*      activeFont  = nullptr;
-   UIFont*      defaultFont = nullptr;
-
-   std::unique_ptr<UIInspector> inspector;
-   
-#ifdef UI_LINUX
-   using cursors_t   = std::array<Cursor, (uint32_t)UICursor::count>;
-
-   Display*    display        = nullptr;
-   Visual*     visual         = nullptr;
-   XIM         xim            = nullptr;
-   Atom        windowClosedID = 0, primaryID = 0, uriListID = 0, plainTextID = 0;
-   Atom        dndEnterID = 0, dndPositionID = 0, dndStatusID = 0, dndActionCopyID = 0;
-   Atom        dndDropID = 0, dndSelectionID = 0, dndFinishedID = 0, dndAwareID = 0;
-   Atom        clipboardID = 0, xSelectionDataID = 0, textID = 0, targetID = 0, incrID = 0;
-   cursors_t   cursors{};
-   std::string pasteText;
-   XEvent      copyEvent;
-#endif
-
-#ifdef UI_WINDOWS
-   using cursors_t = std::array<HCURSOR, (uint32_t)UICursor::count>;
-
-   cursors_t cursors{};
-   HANDLE    heap             = 0;
-   bool      assertionFailure = false;
-#endif
-
-#ifdef UI_FREETYPE
-   FT_Library ft = nullptr;
-#endif
-
-   std::unordered_map<UIFontSpec, unique_ptr<UIFont>> font_map;
-
-   ~UI() {
-      font_map.clear();
-#ifdef UI_FREETYPE
-      FT_Done_FreeType(ft);
-#endif
-   }
-
-   static unique_ptr<UI> initialise(const UIConfig& cfg);  // main entry point of the library
-
-   int       message_loop();
-   void      update();
-   void      process_animations();
-   bool      is_menu_open() const;
-   
-   UIMenu&   create_menu(UIElement* parent, uint32_t flags);
-   UIWindow& create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height);
-
-   // ----------- utilities --------------------------------------------------------
-   int code_margin()     { return activeFont->glyphWidth * 5; }
-   int code_margin_gap() { return activeFont->glyphWidth * 1; }
-
-   int     string_width(std::string_view string) const;
-   int     string_height() const { return activeFont->glyphHeight; }
-   UIPoint string_dims(std::string_view s) const { return UIPoint{string_width(s), string_height()}; }
-
-   static int byte_to_column(std::string_view string, size_t byte, size_t tabSize);
-   static int column_to_byte(std::string_view string, size_t column, size_t tabSize);
-
-   static bool is_digit(int c) { return std::isdigit(c); }
-   static bool is_alpha(int c) { return std::isalpha(c) || c > 127; }
-   static bool is_alnum(int c) { return std::isalnum(c) || c > 127; }
-   static bool is_alnum_or_underscore(int c) { return is_alnum(c) || c == '_'; }
-};
-
 // ----------------------------------------
 #ifdef UI_DEBUG
 template< class... Args >
 void UIInspectorLog(UI* ui, std::format_string<Args...> fmt, Args&&... args ) {
    char buffer[4096];
    std_format_to_n(buffer, sizeof(buffer), fmt, std::forward<Args>(args)...);
-   ui->inspector->_log->insert_content(buffer, false);
-   ui->inspector->_log->refresh();
+   ui->_inspector->_log->insert_content(buffer, false);
+   ui->_inspector->_log->refresh();
 }
 #endif
 
