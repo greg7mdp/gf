@@ -1795,7 +1795,7 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
       }
    }
 
-   int         lineHeight = UIMeasureStringHeight();
+   int         lineHeight = painter->ui()->string_height();
    UIRectangle bounds =
       displayCurrentLineBounds + UIRectangle(xOffset, 0, lineHeight, 8 + lineHeight * (inspectResults.size() / 2 + 1));
    bounds.r = bounds.l + width;
@@ -1878,7 +1878,7 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
       for (const auto& bp : breakpoints) {
          if (bp.line == -result && 0 == strcmp(bp.fileFull, currentFileFull)) {
-            UIMenu& menu = UI::create_menu(el->_window, UIMenu::NO_SCROLL).add_item(0, "Delete", [=](UIButton&) {
+            UIMenu& menu = el->ui()->create_menu(el->_window, UIMenu::NO_SCROLL).add_item(0, "Delete", [=](UIButton&) {
                CommandDeleteAllBreakpointsOnLine(-result);
             });
             if (atLeastOneBreakpointEnabled)
@@ -1924,7 +1924,7 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
       if (m->index == autoPrintResultLine) {
          UIRectangle rectangle =
-            UIRectangle(m->x + ui->activeFont->glyphWidth, m->bounds.r, m->y, m->y + UIMeasureStringHeight());
+            UIRectangle(m->x + ui->activeFont->glyphWidth, m->bounds.r, m->y, m->y + el->ui()->string_height());
          UIDrawString(m->painter, rectangle, autoPrintResult, ui->theme.codeComment, UIAlign::left, NULL);
       }
 
@@ -2411,7 +2411,7 @@ const char* BitmapViewerGetBits(std::string pointerString, std::string widthStri
 
 int BitmapViewerDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::RIGHT_UP) {
-      UI::create_menu(el->_window, UIMenu::NO_SCROLL)
+      el->ui()->create_menu(el->_window, UIMenu::NO_SCROLL)
          .add_item(0, "Save to file...",
                    [el](UIButton&) {
                       static char* path = NULL;
@@ -3400,7 +3400,7 @@ void CommandWatchCopyValueToClipboard(WatchWindow* w) {
    auto res = WatchEvaluate("gf_valueof", watch);
    if (!res.empty()) {
       resize_to_lf(res);
-      UI::write_clipboard_text(w->_window, strdup(res.c_str()), sel_target_t::clipboard);
+      w->_window->write_clipboard_text(strdup(res.c_str()), sel_target_t::clipboard);
    }
 }
 
@@ -3498,7 +3498,7 @@ int WatchWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
          if (index < w->rows.size()) {
             WatchWindowMessage(el, UIMessage::LEFT_DOWN, di, dp);
-            UIMenu& menu = UI::create_menu(el->_window, UIMenu::NO_SCROLL);
+            UIMenu& menu = el->ui()->create_menu(el->_window, UIMenu::NO_SCROLL);
 
             if (w->mode == WATCH_NORMAL && !w->rows[index]->parent) {
                menu.add_item(0, "Edit expression", [w](UIButton&) { WatchCreateTextboxForRow(w, true); })
@@ -3962,7 +3962,7 @@ int TableBreakpointsMessage(UIElement* el, UIMessage msg, int di, void* dp) {
             data->selected.push_back(entry->number);
          }
 
-         UIMenu& menu = UI::create_menu(el->_window, UIMenu::NO_SCROLL);
+         UIMenu& menu = el->ui()->create_menu(el->_window, UIMenu::NO_SCROLL);
 
          if (data->selected.size() > 1) {
             bool atLeastOneBreakpointDisabled = false;
@@ -5205,17 +5205,18 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
                          function.callCount, function.totalTime / function.callCount,
                          function.totalTime / report->totalTime * 100.0);
 
+         UI *ui = el->ui();
          int width      = 0;
-         int line1Width = UIMeasureStringWidth(line1);
+         int line1Width = ui->string_width(line1);
          if (width < line1Width)
             width = line1Width;
-         int line2Width = UIMeasureStringWidth(line2);
+         int line2Width = ui->string_width(line2);
          if (width < line2Width)
             width = line2Width;
-         int line3Width = UIMeasureStringWidth(line3);
+         int line3Width = ui->string_width(line3);
          if (width < line3Width)
             width = line3Width;
-         int lineHeight = UIMeasureStringHeight();
+         int lineHeight = ui->string_height();
          int height     = 3 * lineHeight;
 
          auto pos = el->cursor_pos();
@@ -5320,7 +5321,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          report->xStart = (r.l - report->client.l) / zoomX + report->xStart;
       } else if (!report->dragStarted && msg == UIMessage::RIGHT_UP && report->hover) {
          report->menuItem = report->hover;
-         UI::create_menu(el->_window, UIMenu::NO_SCROLL)
+         el->ui()->create_menu(el->_window, UIMenu::NO_SCROLL)
             .add_item(0, "Show source", [report](UIButton&) { ProfShowSource(report); })
             .add_item(0, "Add breakpoint", [report](UIButton&) { ProfAddBreakpoint(report->hover); })
             .add_item(0, "Fill view", [report](UIButton&) { ProfFillView(report); })
@@ -5540,11 +5541,7 @@ void ProfLoadProfileData(void* _window) {
    if (rawEntryCount > 10000000) {
       // Show a loading message.
       UIWindow* window  = windowMain;
-      UIPainter painter = {};
-      painter.bits      = window->bits().data();
-      painter.width     = window->width();
-      painter.height    = window->height();
-      painter.clip      = ui_rect_2s(window->width(), window->height());
+      UIPainter painter(window);
       char string[256];
       std_format_to_n(string, sizeof(string), "Loading data... (estimated time: {} seconds)",
                       rawEntryCount / 5000000 + 1);
@@ -5780,12 +5777,12 @@ void ProfLoadProfileData(void* _window) {
 
    {
       // Create an image of the graph for the zoom bar.
-
-      UIPainter painter = {};
-      painter.width     = 1200;
-      painter.height    = maxDepth * 30 + 30;
-      painter.clip      = UIRectangle(0, painter.width, 0, painter.height);
-      painter.bits      = (uint32_t*)malloc(painter.width * painter.height * 4);
+      uint32_t width = 1200, height = maxDepth * 30 + 30;
+      UIPainter painter(report->ui(), UIRectangle(0, width, 0, height));
+      painter.width     = width;
+      painter.height    = height;
+      painter.bits      = (uint32_t*)malloc(width * height * 4);
+      
       report->client = report->_bounds = report->_clip = painter.clip;
       ProfFlameGraphMessage(report, UIMessage::PAINT, 0, &painter);
       int newHeight = 30;
@@ -5837,7 +5834,7 @@ UIElement* ProfWindowCreate(UIElement* parent) {
 #ifdef UI_FREETYPE
    // Since we will do multithreaded painting with fontFlameGraph, we need to make sure all its glyphs are ready to go.
    for (uintptr_t i = 0; i < sizeof(window->fontFlameGraph->glyphsRendered); i++) {
-      UIPainter fakePainter  = {};
+      UIPainter fakePainter(parent->ui(), UIRectangle(0));
       UIFont*   previousFont = UIFontActivate(window->fontFlameGraph);
       UIDrawGlyph(&fakePainter, 0, 0, i, 0xFF000000);
       UIFontActivate(previousFont);
@@ -5882,7 +5879,7 @@ int MemoryWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
       char        buffer[64];
       uint64_t    address   = window->offset;
-      const int   rowHeight = UIMeasureStringHeight();
+      const int   rowHeight = el->ui()->string_height();
       UIRectangle row       = el->_bounds + ui_rect_1i(10);
       size_t      rowCount  = (painter->clip.b - row.t) / rowHeight;
       row.b                 = row.t + rowHeight;
@@ -5932,10 +5929,11 @@ int MemoryWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       while (row.t < painter->clip.b) {
          int position = 0;
 
+         UI *ui = el->ui();
          std_format_to_n(buffer, sizeof(buffer), "{:8X} ", (uint32_t)(address & 0xFFFFFFFF));
          UIDrawString(painter, row, buffer, ui->theme.codeComment, UIAlign::left, 0);
-         UIRectangle r          = row + UIRectangle(UIMeasureStringWidth(buffer), 0, 0, 0);
-         int         glyphWidth = UIMeasureStringWidth("a");
+         UIRectangle r          = row + UIRectangle(ui->string_width(buffer), 0, 0, 0);
+         int         glyphWidth = ui->string_width("a");
 
          for (int i = 0; i < 16; i++) {
             if (address + i >= window->offset + window->loadedBytes.size() ||
@@ -6073,8 +6071,8 @@ struct ViewWindowMatrixGrid : public UIElement {
       , h(h) {
       hScroll = UIScrollBarCreate(this, UIScrollBar::HORIZONTAL);
       vScroll = UIScrollBarCreate(this, 0);
-      hScroll->set_maximum(w * UIMeasureStringWidth("A") * itemCharacters);
-      vScroll->set_maximum(h * UIMeasureStringHeight());
+      hScroll->set_maximum(w * parent->ui()->string_width("A") * itemCharacters);
+      vScroll->set_maximum(h * parent->ui()->string_height());
 
       if (type == 'c') {
          grid_type      = grid_type_t::char_t;
@@ -6112,14 +6110,14 @@ struct ViewWindowString : public UIElement {
 
 int ViewWindowColorSwatchMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::GET_HEIGHT) {
-      return UIMeasureStringHeight();
+      return el->ui()->string_height();
    } else if (msg == UIMessage::PAINT) {
       uint32_t    color   = ((ViewWindowColorSwatch*)el)->color;
       UIPainter*  painter = (UIPainter*)dp;
       const char* message = "Col: ";
       UIDrawString(painter, el->_bounds, message, ui->theme.text, UIAlign::left, nullptr);
       UIRectangle swatch =
-         UIRectangle(el->_bounds.l + UIMeasureStringWidth(message), 0, el->_bounds.t + 2, el->_bounds.b - 2);
+         UIRectangle(el->_bounds.l + el->ui()->string_width(message), 0, el->_bounds.t + 2, el->_bounds.b - 2);
       swatch.r = swatch.l + 50;
       UIDrawRectangle(painter, swatch, color, 0xFF000000, UIRectangle(1));
    }
@@ -6162,9 +6160,8 @@ int ViewWindowMatrixGridMessage(UIElement* el, UIMessage msg, int di, void* dp) 
    if (msg == UIMessage::PAINT) {
       // TODO Optimise for really large arrays.
       // TODO Calculate eigenvectors/values.
-
-      int        glyphWidth  = UIMeasureStringWidth("A");
-      int        glyphHeight = UIMeasureStringHeight();
+      UI*        ui          = el->ui();
+      auto [glyphWidth, glyphHeight]  = ui->string_dims("A");
       UIPainter* painter     = (UIPainter*)dp;
 
       for (int i = 0; i < grid->h; i++) {
@@ -6216,7 +6213,9 @@ int ViewWindowStringLayout(ViewWindowString* display, UIPainter* painter, int of
    UIRectangle clientBounds = display->_bounds;
    clientBounds.r -= ui_size::scroll_bar * display->_window->scale();
    int x = clientBounds.l, y = clientBounds.t - offset;
-   int glyphWidth = UIMeasureStringWidth("a"), glyphHeight = UIMeasureStringHeight();
+   UI* ui = painter->ui();
+
+   auto [glyphWidth, glyphHeight]  = ui->string_dims("a");
 
    for (int i = 0; i < display->length; i++) {
       if (x + glyphWidth > clientBounds.r) {
@@ -6727,7 +6726,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
             int         stringOffset = 20 * el->_window->scale();
             UIRectangle stringRectangle =
                UIRectangle(client.l + stringOffset, client.r - stringOffset, client.t + stringOffset,
-                           client.t + stringOffset + UIMeasureStringHeight());
+                           client.t + stringOffset + el->ui()->string_height());
             char buffer[100];
             std_format_to_n(buffer, sizeof(buffer), "{}: ", (int)(mouseXSample + display->scrollBar->position()));
 
@@ -6962,7 +6961,7 @@ void WaveformViewerSaveToFile(WaveformDisplay* display) {
 int WaveformViewerDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::RIGHT_UP) {
       WaveformDisplay* display = (WaveformDisplay*)el;
-      UI::create_menu(el->_window, UIMenu::NO_SCROLL)
+      el->ui()->create_menu(el->_window, UIMenu::NO_SCROLL)
          .add_item(0, "Save to .wav...", [display](UIButton&) { WaveformViewerSaveToFile(display); })
          .show();
    }
@@ -7280,7 +7279,7 @@ void Context::InterfaceAddBuiltinWindowsAndCommands() {
 }
 
 void Context::InterfaceShowMenu(UIButton* self) {
-   UIMenu& menu = UI::create_menu((UIElement*)self, UIMenu::PLACE_ABOVE | UIMenu::NO_SCROLL);
+   UIMenu& menu = self->ui()->create_menu((UIElement*)self, UIMenu::PLACE_ABOVE | UIMenu::NO_SCROLL);
 
    for (const auto& ic : interfaceCommands) {
       if (ic.label)
@@ -7509,7 +7508,7 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
    code_font             = UIFontCreate(font_path.c_str(), code_font_size);
    UIFontActivate(UIFontCreate(font_path.c_str(), interface_font_size));
 
-   windowMain = &UIWindow::Create(0, maximize ? UIWindow::MAXIMIZE : 0, "gf", window_width, window_height);
+   windowMain = &ui->create_window(0, maximize ? UIWindow::MAXIMIZE : 0, "gf", window_width, window_height);
    windowMain->set_scale(ui_scale);
    windowMain->_user_proc = MainWindowMessageProc;
 
@@ -7543,7 +7542,7 @@ int main(int argc, char** argv) {
    if (!ui_ptr)
       return 1;
 
-   UI::message_loop();
+   ui_ptr->message_loop();
    ctx.KillGdb();
 
    if (restoreWatchWindow && firstWatchWindow) {

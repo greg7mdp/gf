@@ -39,7 +39,7 @@ int main(int argc, char** argv) {
    UIFontActivate(fontCode);
 #endif
    
-   UIWindow& window = ui->create_window(0, 0, "luigi2 - Example Application", 0, 0);
+   UIWindow& window = ui_ptr->create_window(0, 0, "luigi2 - Example Application", 0, 0);
 
    // Split window (vertically) into top/bottom panes.
    UISplitPane& uisplit_topbottom = window.add_splitpane(UIElement::vertical_flag, 0.75f);
@@ -178,7 +178,7 @@ int main(int argc, char** argv) {
 
    {
       // Create a separate window demonstrating the MDI element
-      UIMDIClient& client = ui->create_window(0, 0, "luigi 2 - MDI Example", 0, 0).add_mdiclient(0);
+      UIMDIClient& client = ui_ptr->create_window(0, 0, "luigi 2 - MDI Example", 0, 0).add_mdiclient(0);
 
       client.add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(10, 600, 10, 400), "My Window")
          .add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING)
@@ -192,5 +192,5 @@ int main(int argc, char** argv) {
          .add_button(0, "giant button!!");
    }
 
-   return ui->message_loop();
+   return ui_ptr->message_loop();
 }

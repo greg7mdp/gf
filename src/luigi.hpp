@@ -412,13 +412,21 @@ struct UITheme {
 
 // ------------------------------------------------------------------------------------------
 struct UIPainter {
+   UI*         _ui;                     // painter holds a `UI` to compute `string_width()` mostly
    UIRectangle clip   = UIRectangle(0);
-   uint32_t*   bits   = nullptr;
+   uint32_t*   bits   = nullptr;        // typically the bits of the window we are drawing on, except when offscreen output
    uint32_t    width  = 0;
    uint32_t    height = 0;
 #ifdef UI_DEBUG
    int fillCount = 0;
 #endif
+
+   UIPainter(UI* ui, UIRectangle rect)
+      : _ui(ui), clip(rect) {}
+
+   UIPainter(UIWindow* w);
+
+   UI* ui() const { return _ui; }
 };
 
 struct UIFontSpec {
@@ -609,7 +617,7 @@ public:
       v_fill           = 1 << 16,
       h_fill           = 1 << 17,
       hv_fill          = v_fill | h_fill,
-      window_flag      = 1 << 18,
+      window_flag      = 1 << 18,  // `parent` passed to `UIElement` constructor is the `UIWindow`, parent should be set to nullptr
       parent_push_flag = 1 << 19,
       tab_stop_flag    = 1 << 20,
       non_client_flag  = 1 << 21, // Don't destroy in destroy_descendents(), like scroll bars.
@@ -677,6 +685,8 @@ public:
    bool           is_focused() const;
    bool           is_pressed() const;
    bool           is_disabled() const { return !!(_flags & disabled_flag); }
+
+   UI*            ui() const;
 
    
    // functions to create child UI elements
@@ -747,19 +757,20 @@ private:
    // Useful for tracking whether changes to the loaded document have been saved.
    bool                    _textbox_modified_flag;
    UIRectangle             _update_region;
+   UI*                     _ui;
 
    
    int _class_message_proc_common(UIMessage msg, int di, void* dp);
+   void _init_toplevel();
 
    static int _ClassMessageProcCommon(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<UIWindow*>(el)->_class_message_proc_common(msg, di, dp);
    }
+   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
 
 public:
    friend struct UI;
    friend struct UIElement;
-
-   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
 
    enum {
       MENU            = (1 << 0),
@@ -791,10 +802,10 @@ public:
    bool _tracking_leave = false;
 #endif
 
-   UIWindow(UIElement* parent, uint32_t flags, message_proc_t message_proc, const char* cClassName);
+   UIWindow(UI* ui, UIElement* parent, uint32_t flags, message_proc_t message_proc, const char* cClassName);
    virtual ~UIWindow();
 
-   static UIWindow& Create(UIWindow* owner, uint32_t flags, const char* cTitle, int _width, int _height);
+   static UIWindow& Create(UI* ui, UIWindow* owner, uint32_t flags, const char* cTitle, int _width, int _height);
    
    void        endpaint(UIPainter* painter);
    void        get_screen_position(int* _x, int* _y);
@@ -842,11 +853,15 @@ public:
 
    const char* show_dialog(uint32_t flags, const char* format, ...);
 
+   void        write_clipboard_text(std::string_view text, sel_target_t t);
+   std::string read_clipboard_text(sel_target_t t);
+   
+   UI*         ui() const { return _window->_ui; }
+
    // ------ delete functions from UIElement we shouldn't use on a UIWindow --------------
    bool        is_hovered() const = delete; // do not call on UIWindow. only on UIElement
    bool        is_focused() const = delete; // do not call on UIWindow. only on UIElement
    bool        is_pressed() const = delete; // do not call on UIWindow. only on UIElement
-
 };
 
 // ------------------------------- need UIWindow to be defined -------------------------------
@@ -855,6 +870,7 @@ inline bool    UIElement::is_hovered() const { return _window->hovered() == this
 inline bool    UIElement::is_focused() const { return _window->focused() == this; }
 inline bool    UIElement::is_pressed() const { return _window->pressed() == this; }
 inline UIPoint UIElement::cursor_pos() const { return _window->cursor_pos(); }
+inline UI*     UIElement::ui() const { return _window->_ui; }
 
 // ------------------------------------------------------------------------------------------
 struct UIPanel : public UIElementCast<UIPanel> {
@@ -1366,7 +1382,7 @@ public:
       NO_SCROLL   = 1 << 1
    };
 
-   UIMenu(UIElement* parent, uint32_t flags);
+   UIMenu(UI* ui, UIElement* parent, uint32_t flags);
 
    UIMenu& add_item(uint32_t flags, std::string_view label, std::function<void(UIButton&)> invoke);
    UIMenu& show();
@@ -1380,7 +1396,12 @@ private:
    UIMDIChild* _active;
    int         _cascade;
    
-   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
+   int _class_message_proc(UIMessage msg, int di, void* dp);
+
+   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<UIMDIClient*>(el)->_class_message_proc(msg, di, dp);
+   }
+
    friend struct UIMDIChild;
 
 public:
@@ -1513,9 +1534,6 @@ void UIDrawString(UIPainter* painter, UIRectangle r, std::string_view string, ui
 int  UIDrawStringHighlighted(UIPainter* painter, UIRectangle r, std::string_view string, int tabSize,
                              UIStringSelection* selection); // Returns final x position.
 
-int UIMeasureStringWidth(std::string_view string);
-int UIMeasureStringHeight();
-
 uint64_t UIAnimateClock(); // In ms.
 
 /**/ UIElement* UIParentPush(UIElement* el);
@@ -1530,13 +1548,17 @@ UIFont* UIFontActivate(UIFont* font); // Returns the previously active font.
 // ------------------------------------------------------------------------------------------
 struct UIInspector {
    static constexpr bool _enabled = (bool)UI_DEBUG;
+
+   UI*       _ui;
    UIWindow* _inspector = nullptr;
    UITable*  _table     = nullptr;
    UIWindow* _target    = nullptr;
    UICode*   _log       = nullptr;
 
+public:
+   UIInspector(UI* ui);
+   
    static constexpr bool enabled() { return _enabled; }
-   void create();
    void set_focused_window(UIWindow* window);
    void notify_destroyed_window(UIWindow* window);
    void refresh();
@@ -1548,8 +1570,9 @@ struct UI {
    friend struct UIWindow;
    
 private:
-   static void        _inspector_refresh();
-   static bool        _message_loop_single(int* result);
+   void        _inspector_refresh();
+   bool        _message_loop_single(int* result);
+   bool        _process_x11_event(void* xevent);
 
 public:
    UIWindow* windows = nullptr;
@@ -1560,16 +1583,16 @@ public:
    std::array<UIElement*, 16> parentStack{};
    int                        parentStackCount = 0;
 
-   bool        quit           = false;
-   const char* dialogResult   = nullptr;
-   UIElement*  dialogOldFocus = nullptr;
-   bool        dialogCanExit  = false;
+   bool         quit           = false;
+   const char*  dialogResult   = nullptr;
+   UIElement*   dialogOldFocus = nullptr;
+   bool         dialogCanExit  = false;
 
-   std::string default_font_path;     // default font used
-   UIFont*     activeFont  = nullptr;
-   UIFont*     defaultFont = nullptr;
+   std::string  default_font_path;     // default font used
+   UIFont*      activeFont  = nullptr;
+   UIFont*      defaultFont = nullptr;
 
-   UIInspector inspector;
+   std::unique_ptr<UIInspector> inspector;
    
 #ifdef UI_LINUX
    using cursors_t   = std::array<Cursor, (uint32_t)UICursor::count>;
@@ -1607,18 +1630,20 @@ public:
 #endif
    }
 
-   int code_margin() { return activeFont->glyphWidth * 5; }
+   int       message_loop();
+   void      update();
+   void      process_animations();
+   
+   UIMenu&   create_menu(UIElement* parent, uint32_t flags);
+   UIWindow& create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height);
+
+   // ----------- utilities --------------------------------------------------------
+   int code_margin()     { return activeFont->glyphWidth * 5; }
    int code_margin_gap() { return activeFont->glyphWidth * 1; }
 
-   static void        write_clipboard_text(UIWindow* window, std::string_view text, sel_target_t t);
-   static std::string read_clipboard_text(UIWindow* window, sel_target_t t);
-
-   static int         message_loop();
-   static void        update();
-   static void        process_animations();
-
-   static UIMenu&     create_menu(UIElement* parent, uint32_t flags);
-   static UIWindow&   create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height);
+   int     string_width(std::string_view string) const;
+   int     string_height() const { return activeFont->glyphHeight; }
+   UIPoint string_dims(std::string_view s) const { return UIPoint{string_width(s), string_height()}; }
 
    static int byte_to_column(std::string_view string, size_t byte, size_t tabSize);
    static int column_to_byte(std::string_view string, size_t column, size_t tabSize);
@@ -1627,9 +1652,6 @@ public:
    static bool is_alpha(int c) { return std::isalpha(c) || c > 127; }
    static bool is_alnum(int c) { return std::isalnum(c) || c > 127; }
    static bool is_alnum_or_underscore(int c) { return is_alnum(c) || c == '_'; }
-
-
-   
 };
 
 // ----------------------------------------
@@ -1638,8 +1660,8 @@ template< class... Args >
 void UIInspectorLog(UI* ui, std::format_string<Args...> fmt, Args&&... args ) {
    char buffer[4096];
    std_format_to_n(buffer, sizeof(buffer), fmt, std::forward<Args>(args)...);
-   ui->inspector._log->insert_content(buffer, false);
-   ui->inspector._log->refresh();
+   ui->inspector->_log->insert_content(buffer, false);
+   ui->inspector->_log->refresh();
 }
 #endif
 
