@@ -1929,7 +1929,7 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       }
 
       if (code->hittest(el->cursor_pos()) == m->index && el->is_hovered() &&
-          (el->_window->_ctrl || el->_window->_alt || el->_window->_shift) && !el->_window->_textbox_modified_flag) {
+          (el->_window->_ctrl || el->_window->_alt || el->_window->_shift) && !el->_window->textbox_modified_flag()) {
          UIDrawBorder(m->painter, m->bounds, el->_window->_ctrl ? ui->theme.selected : ui->theme.codeOperator,
                       UIRectangle(2));
          UIDrawString(m->painter, m->bounds, el->_window->_ctrl ? "=> run until " : "=> skip to ", ui->theme.text,
@@ -1951,7 +1951,7 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       if (pos.x != lastCursorX || pos.y != lastCursorY) {
          lastCursorX                         = pos.x;
          lastCursorY                         = pos.y;
-         el->_window->_textbox_modified_flag = false;
+         el->_window->set_textbox_modified_flag(false);
       }
 
       el->refresh();
@@ -5555,9 +5555,9 @@ void ProfLoadProfileData(void* _window) {
                       rawEntryCount / 5000000 + 1);
       UIDrawBlock(&painter, painter.clip, ui->theme.panel1);
       UIDrawString(&painter, painter.clip, string, ui->theme.text, UIAlign::center, 0);
-      window->_update_region = ui_rect_2s(window->width(), window->height());
+      window->set_update_region(ui_rect_2s(window->width(), window->height()));
       window->endpaint(nullptr);
-      window->_update_region = painter.clip;
+      window->set_update_region(painter.clip);
    }
 
    ProfProfilingEntry* rawEntries = (ProfProfilingEntry*)calloc(sizeof(ProfProfilingEntry), rawEntryCount);

@@ -742,6 +742,10 @@ private:
    int                     _pressed_button;
    UIPoint                 _cursor;
    int                     _cursor_style;
+   // Set when a textbox is modified.
+   // Useful for tracking whether changes to the loaded document have been saved.
+   bool                    _textbox_modified_flag;
+   UIRectangle             _update_region;
 
    
    int _class_message_proc_common(UIMessage msg, int di, void* dp);
@@ -749,9 +753,11 @@ private:
    static int _ClassMessageProcCommon(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<UIWindow*>(el)->_class_message_proc_common(msg, di, dp);
    }
-   friend struct UI;
 
 public:
+   friend struct UI;
+   friend struct UIElement;
+
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
 
    enum {
@@ -761,13 +767,9 @@ public:
       MAXIMIZE        = (1 << 3),
    };
 
-   // Set when a textbox is modified.
-   // Useful for tracking whether changes to the loaded document have been saved.
-   bool        _textbox_modified_flag;
    bool        _ctrl;
    bool        _shift;
    bool        _alt;
-   UIRectangle _update_region;
 
 #ifdef UI_DEBUG
    float _last_full_fill_count = 0;
@@ -808,6 +810,9 @@ public:
 
    UIWindow&   set_dialog_old_focus(UIElement* e) { _dialog_old_focus = e; return *this; }
    UIElement*  dialog_old_focus() const { return _dialog_old_focus; }
+
+   UIWindow&   set_textbox_modified_flag(bool b) { _textbox_modified_flag = b;  return *this; }
+   bool        textbox_modified_flag() const { return _textbox_modified_flag; }
    
    int         pressed_button() const { return _pressed_button; }
 
@@ -830,7 +835,9 @@ public:
    UIWindow&   set_cursor_pos(UIPoint pt) { _cursor = pt; return *this; }
    UIPoint     cursor_pos() const { return _cursor; }
 
-   int cursor_style() const { return _cursor_style; }
+   UIWindow&   set_update_region(const UIRectangle& r) { _update_region = r; return *this; }
+
+   int         cursor_style() const { return _cursor_style; }
 
    UIWindow&   register_shortcut(UIShortcut shortcut);
 

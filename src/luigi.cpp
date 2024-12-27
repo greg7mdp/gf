@@ -3533,7 +3533,7 @@ UITextbox& UITextbox::replace_text(std::string_view text, bool sendChangedMessag
 
    if (sendChangedMessage)
       message(UIMessage::VALUE_CHANGED, 0, 0);
-   _window->_textbox_modified_flag = true;
+   _window->set_textbox_modified_flag(true);
    repaint(nullptr);
    return *this;
 }
@@ -4817,7 +4817,7 @@ int _UIInspectorTableMessage(UIElement* table, UIMessage msg, int di, void* dp) 
          el = _UIInspectorFindNthElement(ui->inspector._target, &index).first;
       UIWindow* window       = ui->inspector._target;
       UIPainter painter      = {0};
-      window->_update_region = window->_bounds;
+      window->set_update_region(window->_bounds);
       painter.bits           = window->bits().data();
       painter.width          = window->width();
       painter.height         = window->height();
@@ -5054,10 +5054,10 @@ UIWindow::UIWindow(UIElement* parent, uint32_t flags, message_proc_t message_pro
    , _pressed_button(0)
    , _cursor_style(0)
    , _textbox_modified_flag(false)
+   , _update_region(0)
    , _ctrl(false)
    , _shift(false)
-   , _alt(false)
-   , _update_region(0) {}
+   , _alt(false) {}
 
 UIWindow::~UIWindow() {}
 
