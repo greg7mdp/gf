@@ -325,30 +325,6 @@ void UIColorToRGB(float h, float s, float v, uint32_t* rgb) {
    *rgb = ui_color_from_rgb(r, g, b);
 }
 
-ptrdiff_t _UIStringLength(const char* cString) {
-   if (!cString)
-      return 0;
-   ptrdiff_t length;
-   for (length = 0; cString[length]; length++)
-      ;
-   return length;
-}
-
-char* UIStringCopy(const char* in, ptrdiff_t inBytes) {
-   if (inBytes == -1) {
-      inBytes = _UIStringLength(in);
-   }
-
-   char* buffer = (char*)malloc(inBytes + 1);
-
-   for (intptr_t i = 0; i < inBytes; i++) {
-      buffer[i] = in[i];
-   }
-
-   buffer[inBytes] = 0;
-   return buffer;
-}
-
 int UI::byte_to_column(std::string_view string, size_t byte, size_t tabSize) {
    size_t ti = 0, i = 0;
    size_t bytes = string.size();

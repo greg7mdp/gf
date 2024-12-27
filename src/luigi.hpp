@@ -1446,8 +1446,6 @@ public:
 // ------------------------------------------------------------------------------------------
 unique_ptr<UI> UIInitialise(const UIConfig& cfg);
 
-int  UIMessageLoop();
-
 UIElement* UIElementCreate(size_t bytes, UIElement* parent, uint32_t flags,
                            int (*messageClass)(UIElement*, UIMessage, int, void*), const char* cClassName);
 
@@ -1471,20 +1469,19 @@ UILabel*  UILabelCreate(UIElement* parent, uint32_t flags, std::string_view labe
 
 UIImageDisplay* UIImageDisplayCreate(UIElement* parent, uint32_t flags, uint32_t* bits, size_t width, size_t height,
                                      size_t stride);
-void UIImageDisplaySetContent(UIImageDisplay* display, uint32_t* bits, size_t width, size_t height, size_t stride);
+/**/ void UIImageDisplaySetContent(UIImageDisplay* display, uint32_t* bits, size_t width, size_t height, size_t stride);
 
 UISwitcher* UISwitcherCreate(UIElement* parent, uint32_t flags);
-void        UISwitcherSwitchTo(UISwitcher* switcher, UIElement* child);
+/**/ void        UISwitcherSwitchTo(UISwitcher* switcher, UIElement* child);
 
 UIWindow* UIWindowCreate(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height);
-void      UIWindowRegisterShortcut(UIWindow* window, UIShortcut shortcut);
-void      UIWindowPostMessage(UIWindow* window, UIMessage msg, void* dp); // Thread-safe.
-void      UIWindowPack(UIWindow* window, int width); // Change the size of the window to best match its contents.
+
+/**/ void      UIWindowPostMessage(UIWindow* window, UIMessage msg, void* dp); // Thread-safe. 
+/**/ void      UIWindowPack(UIWindow* window, int width); // Change the size of the window to best match its contents.
 
 typedef void (*UIDialogUserCallback)(UIElement*);
-const char* UIDialogShow(UIWindow* window, uint32_t flags, const char* format, ...);
 
-bool    UIMenusOpen();
+/**/ bool    UIMenusOpen();
 
 UITextbox* UITextboxCreate(UIElement* parent, uint32_t flags);
 UITable* UITableCreate(UIElement* parent, uint32_t flags,
@@ -1518,15 +1515,11 @@ int UIMeasureStringHeight();
 
 uint64_t UIAnimateClock(); // In ms.
 
-UIElement* UIParentPush(UIElement* el);
-UIElement* UIParentPop();
-
-UIRectangle UIRectangleFit(UIRectangle parent, UIRectangle child, bool allowScalingUp);
+/**/ UIElement* UIParentPush(UIElement* el);
+/**/ UIElement* UIParentPop();
 
 bool UIColorToHSV(uint32_t rgb, float* hue, float* saturation, float* value);
 void UIColorToRGB(float hue, float saturation, float value, uint32_t* rgb);
-
-char* UIStringCopy(const char* in, ptrdiff_t inBytes);
 
 UIFont* UIFontCreate(const char* cPath, uint32_t size);
 UIFont* UIFontActivate(UIFont* font); // Returns the previously active font.
