@@ -35,8 +35,8 @@ int main(int argc, char** argv) {
 #if 1
    std::string home     = getenv("HOME");
    std::string fontPath = home + "/fonts/FiraCode-Regular.ttf";
-   auto        fontCode = UIFontCreate(fontPath.c_str(), 12);
-   UIFontActivate(fontCode);
+   auto        fontCode = ui_ptr->create_font(fontPath, 12);
+   fontCode->activate();
 #endif
    
    UIWindow& window = ui_ptr->create_window(0, 0, "luigi2 - Example Application", 0, 0);

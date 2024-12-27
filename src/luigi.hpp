@@ -49,7 +49,7 @@ using std::make_shared;
    #define UI_ASSERT(x)                                                                  \
       do {                                                                               \
          if (!(x)) {                                                                     \
-            ui->assertionFailure = true;                                                  \
+            ui->_assertion_failure = true;                                                  \
             MessageBox(0, "Assertion failure on line " _UI_TO_STRING_2(__LINE__), 0, 0); \
             ExitProcess(1);                                                              \
          }                                                                               \
@@ -417,25 +417,27 @@ struct UITheme {
 // ------------------------------------------------------------------------------------------
 struct UIPainter {
    UI*         _ui;                     // painter holds a `UI` to compute `string_width()` mostly
-   UIRectangle clip   = UIRectangle(0);
-   uint32_t*   bits   = nullptr;        // typically the bits of the window we are drawing on, except when offscreen output
-   uint32_t    width  = 0;
-   uint32_t    height = 0;
+   UIRectangle _clip   = UIRectangle(0);
+   uint32_t*   _bits   = nullptr;        // typically the bits of the window we are drawing on, except when offscreen output
+   uint32_t    _width  = 0;
+   uint32_t    _height = 0;
 #ifdef UI_DEBUG
    int fillCount = 0;
 #endif
 
    UIPainter(UI* ui, UIRectangle rect)
-      : _ui(ui), clip(rect) {}
+      : _ui(ui), _clip(rect) {}
 
    UIPainter(UIWindow* w);
 
    UI* ui() const { return _ui; }
+   
+   UIPainter& draw_glyph(int x0, int y0, int c, uint32_t color);
 };
 
 struct UIFontSpec {
-   std::string path;
-   uint32_t    size;
+   std::string _path;
+   uint32_t    _size;
 
    bool operator==(const UIFontSpec&) const = default;
 };
@@ -446,25 +448,29 @@ struct std::hash<UIFontSpec>
 {
     std::size_t operator()(const UIFontSpec& spec) const noexcept
     {
-        std::size_t h1 = std::hash<std::string>{}(spec.path);
-        return h1 ^ (spec.size << 1);
+        std::size_t h1 = std::hash<std::string>{}(spec._path);
+        return h1 ^ (spec._size << 1);
     }
 };
 
 // ------------------------------------------------------------------------------------------
 struct UIFont {
-   int glyphWidth = 0;
-   int glyphHeight = 0;
+   UI* _ui           = nullptr;
+   
+   int _glyph_width  = 0;
+   int _glyph_height = 0;
 
 #ifdef UI_FREETYPE
-   bool    isFreeType = false;
-   FT_Face font       = nullptr;
+   bool    _is_freetype = false;
+   FT_Face _font       = nullptr;
 
-   unique_ptr<FT_Bitmap[]> glyphs;
-   unique_ptr<bool[]>      glyphsRendered;
-   unique_ptr<int[]>       glyphOffsetsX;
-   unique_ptr<int[]>       glyphOffsetsY;
+   unique_ptr<FT_Bitmap[]> _glyphs;
+   unique_ptr<bool[]>      _glyphs_rendered;
+   unique_ptr<int[]>       _glyphs_offsets_x;
+   unique_ptr<int[]>       _glyphs_offsets_y;
 #endif
+
+   UIFont* activate();    // returns previously active font
 
    ~UIFont();
 };
@@ -858,6 +864,8 @@ public:
    std::string read_clipboard_text(sel_target_t t);
 
    void        post_message(UIMessage msg, void* _dp) const;
+
+   UIWindow&   set_name(std::string_view name);
    
    UI*         ui() const { return _window->_ui; }
 
@@ -1507,30 +1515,6 @@ struct UI {
    friend struct UIWindow;
 
 private:
-   void        _inspector_refresh();
-
-   // platform specific functions
-   bool        _platform_message_loop_single(int* result);
-   UIWindow&   _platform_create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int _width, int _height);
-   static int  _platform_message_proc(UIElement* el, UIMessage msg, int di, void* dp);
-
-public:
-   UIWindow* _toplevel_windows = nullptr;
-   UITheme   _theme;
-
-   std::vector<UIElement*> _animating;
-
-   bool        _quit             = false;
-   const char* _dialog_result    = nullptr;
-   UIElement*  _dialog_old_focus = nullptr;
-   bool        _dialog_can_exit  = false;
-
-   std::string  _default_font_path;         // default font used
-   UIFont*      _active_font  = nullptr;
-   UIFont*      _default_font = nullptr;
-
-   std::unique_ptr<UIInspector> _inspector;
-
 #ifdef UI_LINUX
    using cursors_t   = std::array<Cursor, (uint32_t)UICursor::count>;
 
@@ -1546,16 +1530,41 @@ public:
    XEvent      _copy_event;
 #endif
 
+   void        _inspector_refresh();
+   void        _initialize_common(const UIConfig& cfg, const std::string& default_font_path);
+
+   // platform specific functions
+   bool        _platform_message_loop_single(int* result);
+   UIWindow&   _platform_create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int _width, int _height);
+   static int  _platform_message_proc(UIElement* el, UIMessage msg, int di, void* dp);
+   bool        _process_x11_event(void* x_event);
+
+public:
+   UIWindow* _toplevel_windows = nullptr;
+   UITheme   _theme;
+
+   std::vector<UIElement*> _animating;
+
+   bool        _quit             = false;
+   const char* _dialog_result    = nullptr;
+   UIElement*  _dialog_old_focus = nullptr;
+   bool        _dialog_can_exit  = false;
+
+   std::string _default_font_path;             // default font used
+   UIFont*     _active_font  = nullptr;
+   UIFont*     _default_font = nullptr;
+
+   std::unique_ptr<UIInspector> _inspector;
+
 #ifdef UI_WINDOWS
    using cursors_t = std::array<HCURSOR, (uint32_t)UICursor::count>;
 
-   cursors_t cursors{};
-   HANDLE    heap             = 0;
-   bool      assertionFailure = false;
+   cursors_t _cursors{};
+   bool      _assertion_failure = false;
 #endif
 
 #ifdef UI_FREETYPE
-   FT_Library ft = nullptr;
+   FT_Library _ft = nullptr;
 #endif
 
    std::unordered_map<UIFontSpec, unique_ptr<UIFont>> font_map;
@@ -1563,7 +1572,7 @@ public:
    ~UI() {
       font_map.clear();
 #ifdef UI_FREETYPE
-      FT_Done_FreeType(ft);
+      FT_Done_FreeType(_ft);
 #endif
    }
 
@@ -1576,13 +1585,14 @@ public:
 
    UIMenu&   create_menu(UIElement* parent, uint32_t flags);
    UIWindow& create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height);
+   UIFont*   create_font(std::string_view path, uint32_t size);
 
    // ----------- utilities --------------------------------------------------------
-   int code_margin()     { return _active_font->glyphWidth * 5; }
-   int code_margin_gap() { return _active_font->glyphWidth * 1; }
+   int code_margin()     { return _active_font->_glyph_width * 5; }
+   int code_margin_gap() { return _active_font->_glyph_width * 1; }
 
    int     string_width(std::string_view string) const;
-   int     string_height() const { return _active_font->glyphHeight; }
+   int     string_height() const { return _active_font->_glyph_height; }
    UIPoint string_dims(std::string_view s) const { return UIPoint{string_width(s), string_height()}; }
 
    static int byte_to_column(std::string_view string, size_t byte, size_t tabSize);
@@ -1654,9 +1664,6 @@ uint64_t UIAnimateClock(); // In ms.
 
 bool UIColorToHSV(uint32_t rgb, float* hue, float* saturation, float* value);
 void UIColorToRGB(float hue, float saturation, float value, uint32_t* rgb);
-
-UIFont* UIFontCreate(const char* cPath, uint32_t size);
-UIFont* UIFontActivate(UIFont* font); // Returns the previously active font.
 
 // ----------------------------------------
 #ifdef UI_DEBUG

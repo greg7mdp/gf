@@ -1621,7 +1621,7 @@ bool DisplaySetPosition(const char* file, std::optional<size_t> line, bool useGD
       std_format_to_n(currentFile, 4096, "{}", file);
       realpath(currentFile, currentFileFull);
 
-      XStoreName(ui->_display, windowMain->_xwindow, currentFileFull);
+      windowMain->set_name(currentFileFull);
 
       displayCode->load_file(file, std::format("The file '{}' (from '{}') could not be loaded.", file, originalFile));
 
@@ -1773,10 +1773,10 @@ void CommandSetDisassemblyMode() {
 
 void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
    const char* instructions = "(Press Esc to exit inspect line mode.)";
-   int         width        = (strlen(instructions) + 8) * ui->_active_font->glyphWidth;
+   int         width        = (strlen(instructions) + 8) * ui->_active_font->_glyph_width;
 
    for (const auto& ir : inspectResults) {
-      int w = (ir.expression.size() + ir.value.size() + 8) * ui->_active_font->glyphWidth;
+      int w = (ir.expression.size() + ir.value.size() + 8) * ui->_active_font->_glyph_width;
       if (w > width)
          width = w;
    }
@@ -1789,7 +1789,7 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
    std::string_view cur_line = displayCode->line(*currentLine);
    for (auto c : cur_line) {
       if (c == '\t' || c == ' ') {
-         xOffset += (c == '\t' ? 4 : 1) * ui->_active_font->glyphWidth;
+         xOffset += (c == '\t' ? 4 : 1) * ui->_active_font->_glyph_width;
       } else {
          break;
       }
@@ -1908,9 +1908,9 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       el->_class_proc(el, msg, di, dp);
 
       if (inInspectLineMode) {
-         UIFont* previousFont = UIFontActivate(code->font());
+         UIFont* previousFont = code->font()->activate();
          DisplayCodeDrawInspectLineModeOverlay((UIPainter*)dp);
-         UIFontActivate(previousFont);
+         previousFont->activate();
       }
 
       return 1;
@@ -1924,7 +1924,7 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
       if (m->index == autoPrintResultLine) {
          UIRectangle rectangle =
-            UIRectangle(m->x + ui->_active_font->glyphWidth, m->bounds.r, m->y, m->y + el->ui()->string_height());
+            UIRectangle(m->x + ui->_active_font->_glyph_width, m->bounds.r, m->y, m->y + el->ui()->string_height());
          UIDrawString(m->painter, rectangle, autoPrintResult, ui->_theme.codeComment, UIAlign::left, NULL);
       }
 
@@ -1942,8 +1942,8 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          int columnFrom = code->byte_to_column(ifConditionLine, ifConditionFrom);
          int columnTo   = code->byte_to_column(ifConditionLine, ifConditionTo);
          UIDrawBlock(m->painter,
-                     UIRectangle(m->bounds.l + columnFrom * ui->_active_font->glyphWidth,
-                                 m->bounds.l + columnTo * ui->_active_font->glyphWidth, m->bounds.b - 2, m->bounds.b),
+                     UIRectangle(m->bounds.l + columnFrom * ui->_active_font->_glyph_width,
+                                 m->bounds.l + columnTo * ui->_active_font->_glyph_width, m->bounds.b - 2, m->bounds.b),
                      ifConditionEvaluation == 2 ? ui->_theme.accent2 : ui->_theme.accent1);
       }
    } else if (msg == UIMessage::MOUSE_MOVE || msg == UIMessage::UPDATE) {
@@ -3413,11 +3413,11 @@ int WatchWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::PAINT) {
       UIPainter* painter = (UIPainter*)dp;
 
-      for (size_t i = (painter->clip.t - el->_bounds.t) / rowHeight; i <= WatchLastRow(w); i++) {
+      for (size_t i = (painter->_clip.t - el->_bounds.t) / rowHeight; i <= WatchLastRow(w); i++) {
          UIRectangle row = el->_bounds;
          row.t += i * rowHeight, row.b = row.t + rowHeight;
 
-         UIRectangle rect_intersection = intersection(row, painter->clip);
+         UIRectangle rect_intersection = intersection(row, painter->_clip);
          if (!rect_intersection.valid())
             break;
 
@@ -3479,7 +3479,7 @@ int WatchWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
          if (w->selectedRow < w->rows.size()) {
             const shared_ptr<Watch>& watch = w->rows[w->selectedRow];
-            int                      x     = (pos.x - el->_bounds.l) / ui->_active_font->glyphWidth;
+            int                      x     = (pos.x - el->_bounds.l) / ui->_active_font->_glyph_width;
 
             if (x >= watch->depth * 3 - 1 && x <= watch->depth * 3 + 1 && watch->hasFields) {
                UIKeyTyped m;
@@ -4977,12 +4977,12 @@ void ProfFillView(ProfFlameGraphReport* report) {
 }
 
 void ProfDrawTransparentOverlay(UIPainter* painter, UIRectangle rectangle, uint32_t color) {
-   rectangle = intersection(painter->clip, rectangle);
+   rectangle = intersection(painter->_clip, rectangle);
    if (!rectangle.valid())
       return;
 
    for (int line = rectangle.t; line < rectangle.b; line++) {
-      uint32_t* bits = painter->bits + line * painter->width + rectangle.l;
+      uint32_t* bits = painter->_bits + line * painter->_width + rectangle.l;
 
       for (int x = 0; x < rectangle.width(); x++) {
          uint32_t original = bits[x];
@@ -5095,7 +5095,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    ProfFlameGraphReport* report = (ProfFlameGraphReport*)el;
 
    if (msg == UIMessage::PAINT) {
-      UIFont* previousFont = UIFontActivate(report->font);
+      UIFont* previousFont = report->font->activate();
 
       if (report->xStart < 0)
          report->xStart = 0;
@@ -5144,7 +5144,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          while (increment > 1e-6 && increment * zoomX > 600.0)
             increment *= 0.1;
 
-         double start = (painter->clip.l - report->client.l) / zoomX + report->xStart;
+         double start = (painter->_clip.l - report->client.l) / zoomX + report->xStart;
          start -= fmod(start, increment) + increment;
 
          for (double i = start; i < report->totalTime; i += increment) {
@@ -5153,7 +5153,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
             r.b = r.t + profScaleHeight;
             r.l = report->client.l + (int)((i - report->xStart) * zoomX);
             r.r = r.l + (int)(increment * zoomX);
-            if (r.l > painter->clip.r)
+            if (r.l > painter->_clip.r)
                break;
             auto string = std::format("{:.4f}ms", i);
             UIDrawBlock(painter, UIRectangle(r.l, r.l + 1, r.t, r.b), profBorderLightColor);
@@ -5175,7 +5175,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          UIRectangle zoomBarThumb = zoomBar;
          zoomBarThumb.l           = zoomBar.l + zoomBar.width() * (report->xStart / report->totalTime);
          zoomBarThumb.r           = zoomBar.l + zoomBar.width() * (report->xEnd / report->totalTime);
-         UIRectangle drawBounds   = intersection(zoomBar, painter->clip);
+         UIRectangle drawBounds   = intersection(zoomBar, painter->_clip);
 
          for (int i = drawBounds.t; i < drawBounds.b; i++) {
             for (int j = drawBounds.l; j < drawBounds.r; j++) {
@@ -5183,7 +5183,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
                int sj = (j - zoomBar.l) * report->thumbnailWidth / zoomBar.width();
 
                if (si >= 0 && si < report->thumbnailHeight && sj >= 0 && sj < report->thumbnailWidth) {
-                  painter->bits[i * painter->width + j] = report->thumbnail[si * report->thumbnailWidth + sj];
+                  painter->_bits[i * painter->_width + j] = report->thumbnail[si * report->thumbnailWidth + sj];
                }
             }
          }
@@ -5238,7 +5238,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
                       UIAlign::left, 0);
       }
 
-      UIFontActivate(previousFont);
+      previousFont->activate();
    } else if (msg == UIMessage::MOUSE_MOVE) {
       double               zoomX = (double)report->client.width() / (report->xEnd - report->xStart);
       ProfFlameGraphEntry* hover = nullptr;
@@ -5547,11 +5547,11 @@ void ProfLoadProfileData(void* _window) {
       char      string[256];
       std_format_to_n(string, sizeof(string), "Loading data... (estimated time: {} seconds)",
                       rawEntryCount / 5000000 + 1);
-      UIDrawBlock(&painter, painter.clip, ui->_theme.panel1);
-      UIDrawString(&painter, painter.clip, string, ui->_theme.text, UIAlign::center, 0);
+      UIDrawBlock(&painter, painter._clip, ui->_theme.panel1);
+      UIDrawString(&painter, painter._clip, string, ui->_theme.text, UIAlign::center, 0);
       window->set_update_region(ui_rect_2s(window->width(), window->height()));
       window->endpaint(nullptr);
-      window->set_update_region(painter.clip);
+      window->set_update_region(painter._clip);
    }
 
    ProfProfilingEntry* rawEntries = (ProfProfilingEntry*)calloc(sizeof(ProfProfilingEntry), rawEntryCount);
@@ -5781,19 +5781,19 @@ void ProfLoadProfileData(void* _window) {
       // Create an image of the graph for the zoom bar.
       uint32_t  width = 1200, height = maxDepth * 30 + 30;
       UIPainter painter(report->ui(), UIRectangle(0, width, 0, height));
-      painter.width  = width;
-      painter.height = height;
-      painter.bits   = (uint32_t*)malloc(width * height * 4);
+      painter._width  = width;
+      painter._height = height;
+      painter._bits   = (uint32_t*)malloc(width * height * 4);
 
-      report->client = report->_bounds = report->_clip = painter.clip;
+      report->client = report->_bounds = report->_clip = painter._clip;
       ProfFlameGraphMessage(report, UIMessage::PAINT, 0, &painter);
       int newHeight = 30;
-      ThumbnailResize(painter.bits, painter.width, painter.height, painter.width, newHeight);
-      painter.height          = newHeight;
-      painter.bits            = (uint32_t*)realloc(painter.bits, painter.width * painter.height * 4);
-      report->thumbnail       = painter.bits;
-      report->thumbnailWidth  = painter.width;
-      report->thumbnailHeight = painter.height;
+      ThumbnailResize(painter._bits, painter._width, painter._height, painter._width, newHeight);
+      painter._height          = newHeight;
+      painter._bits            = (uint32_t*)realloc(painter._bits, painter._width * painter._height * 4);
+      report->thumbnail       = painter._bits;
+      report->thumbnailWidth  = painter._width;
+      report->thumbnailHeight = painter._height;
    }
 
    table->set_num_items(report->sortedFunctions.size());
@@ -5826,7 +5826,7 @@ void ProfWindowUpdate(const char* data, UIElement* el) {
 UIElement* ProfWindowCreate(UIElement* parent) {
    const int   fontSizeFlameGraph = 8;
    ProfWindow* window             = new ProfWindow;
-   window->fontFlameGraph         = UIFontCreate(ui->_default_font_path.c_str(), fontSizeFlameGraph);
+   window->fontFlameGraph         = ui->create_font(ui->_default_font_path, fontSizeFlameGraph);
    UIPanel* panel                 = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
    panel->_cp                     = window;
    panel->add_button(UIElement::v_fill, "Step over profiled").on_click([window](UIButton&) {
@@ -5835,11 +5835,11 @@ UIElement* ProfWindowCreate(UIElement* parent) {
 
 #ifdef UI_FREETYPE
    // Since we will do multithreaded painting with fontFlameGraph, we need to make sure all its glyphs are ready to go.
-   for (uintptr_t i = 0; i < sizeof(window->fontFlameGraph->glyphsRendered); i++) {
+   for (uintptr_t i = 0; i < sizeof(window->fontFlameGraph->_glyphs_rendered); i++) {
       UIPainter fakePainter(parent->ui(), UIRectangle(0));
-      UIFont*   previousFont = UIFontActivate(window->fontFlameGraph);
-      UIDrawGlyph(&fakePainter, 0, 0, i, 0xFF000000);
-      UIFontActivate(previousFont);
+      UIFont*   previousFont = window->fontFlameGraph->activate();
+      fakePainter.draw_glyph(0, 0, i, 0xFF000000);
+      previousFont->activate();
    }
 #endif
 
@@ -5883,7 +5883,7 @@ int MemoryWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       uint64_t    address   = window->offset;
       const int   rowHeight = el->ui()->string_height();
       UIRectangle row       = el->_bounds + ui_rect_1i(10);
-      size_t      rowCount  = (painter->clip.b - row.t) / rowHeight;
+      size_t      rowCount  = (painter->_clip.b - row.t) / rowHeight;
       row.b                 = row.t + rowHeight;
 
       {
@@ -5928,7 +5928,7 @@ int MemoryWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          }
       }
 
-      while (row.t < painter->clip.b) {
+      while (row.t < painter->_clip.b) {
          int position = 0;
 
          UI* ui = el->ui();
@@ -5940,20 +5940,20 @@ int MemoryWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          for (int i = 0; i < 16; i++) {
             if (address + i >= window->offset + window->loadedBytes.size() ||
                 window->loadedBytes[address + i - window->offset] < 0) {
-               UIDrawGlyph(painter, r.l + position, r.t, '?', ui->_theme.codeOperator);
+               painter->draw_glyph(r.l + position, r.t, '?', ui->_theme.codeOperator);
                position += glyphWidth;
-               UIDrawGlyph(painter, r.l + position, r.t, '?', ui->_theme.codeOperator);
+               painter->draw_glyph(r.l + position, r.t, '?', ui->_theme.codeOperator);
                position += glyphWidth;
             } else {
                const char* hexChars = "0123456789ABCDEF";
                uint8_t     byte     = window->loadedBytes[address + i - window->offset];
-               UIDrawGlyph(painter, r.l + position, r.t, hexChars[(byte & 0xF0) >> 4], ui->_theme.codeNumber);
+               painter->draw_glyph(r.l + position, r.t, hexChars[(byte & 0xF0) >> 4], ui->_theme.codeNumber);
                position += glyphWidth;
-               UIDrawGlyph(painter, r.l + position, r.t, hexChars[(byte & 0x0F) >> 0], ui->_theme.codeNumber);
+               painter->draw_glyph(r.l + position, r.t, hexChars[(byte & 0x0F) >> 0], ui->_theme.codeNumber);
                position += glyphWidth;
 
                if (byte >= 0x20 && byte < 0x7F) {
-                  UIDrawGlyph(painter, r.l + (49 + i) * glyphWidth, r.t, byte, ui->_theme.codeString);
+                  painter->draw_glyph(r.l + (49 + i) * glyphWidth, r.t, byte, ui->_theme.codeString);
                }
             }
 
@@ -6172,7 +6172,7 @@ int ViewWindowMatrixGridMessage(UIElement* el, UIMessage msg, int di, void* dp) 
                char c = grid->data()[i * grid->w + j];
                if (!c)
                   continue;
-               UIDrawGlyph(painter, el->_bounds.l + j * glyphWidth - grid->hScroll->position(),
+               painter->draw_glyph(el->_bounds.l + j * glyphWidth - grid->hScroll->position(),
                            el->_bounds.t + i * glyphHeight - grid->vScroll->position(), c, ui->_theme.text);
             } else if (grid->grid_type == grid_type_t::float_t || grid->grid_type == grid_type_t::double_t) {
                double f = grid->grid_type == grid_type_t::double_t ? ((double*)grid->data())[i * grid->w + j]
@@ -6224,43 +6224,43 @@ int ViewWindowStringLayout(ViewWindowString* display, UIPainter* painter, int of
          x = clientBounds.l + glyphWidth;
          y += glyphHeight;
          if (painter)
-            UIDrawGlyph(painter, clientBounds.l, y, '>', ui->_theme.codeComment);
+            painter->draw_glyph(clientBounds.l, y, '>', ui->_theme.codeComment);
       }
 
       if (display->data[i] < 0x20 || display->data[i] >= 0x7F) {
          if (display->data[i] == '\n') {
             if (painter)
-               UIDrawGlyph(painter, x, y, '\\', ui->_theme.codeComment);
+               painter->draw_glyph(x, y, '\\', ui->_theme.codeComment);
             x += glyphWidth;
             if (painter)
-               UIDrawGlyph(painter, x, y, 'n', ui->_theme.codeComment);
+               painter->draw_glyph(x, y, 'n', ui->_theme.codeComment);
             x = clientBounds.l;
             y += glyphHeight;
          } else if (display->data[i] == '\t') {
             if (painter)
-               UIDrawGlyph(painter, x, y, '\\', ui->_theme.codeNumber);
+               painter->draw_glyph(x, y, '\\', ui->_theme.codeNumber);
             x += glyphWidth;
             if (painter)
-               UIDrawGlyph(painter, x, y, 't', ui->_theme.codeNumber);
+               painter->draw_glyph(x, y, 't', ui->_theme.codeNumber);
             x += glyphWidth;
          } else {
             const char* hexChars = "0123456789ABCDEF";
             if (painter)
-               UIDrawGlyph(painter, x, y, '<', ui->_theme.codeNumber);
+               painter->draw_glyph(x, y, '<', ui->_theme.codeNumber);
             x += glyphWidth;
             if (painter)
-               UIDrawGlyph(painter, x, y, hexChars[(display->data[i] & 0xF0) >> 4], ui->_theme.codeNumber);
+               painter->draw_glyph(x, y, hexChars[(display->data[i] & 0xF0) >> 4], ui->_theme.codeNumber);
             x += glyphWidth;
             if (painter)
-               UIDrawGlyph(painter, x, y, hexChars[(display->data[i] & 0x0F) >> 0], ui->_theme.codeNumber);
+               painter->draw_glyph(x, y, hexChars[(display->data[i] & 0x0F) >> 0], ui->_theme.codeNumber);
             x += glyphWidth;
             if (painter)
-               UIDrawGlyph(painter, x, y, '>', ui->_theme.codeNumber);
+               painter->draw_glyph(x, y, '>', ui->_theme.codeNumber);
             x += glyphWidth;
          }
       } else {
          if (painter)
-            UIDrawGlyph(painter, x, y, display->data[i], ui->_theme.codeDefault);
+            painter->draw_glyph(x, y, display->data[i], ui->_theme.codeDefault);
          x += glyphWidth;
       }
    }
@@ -6543,13 +6543,13 @@ struct WaveformDisplay : public UIElement {
 
 void WaveformDisplayDrawVerticalLineWithTranslucency(UIPainter* painter, UIRectangle rectangle, uint32_t color,
                                                      uint32_t alpha) {
-   rectangle = intersection(painter->clip, rectangle);
+   rectangle = intersection(painter->_clip, rectangle);
    if (!rectangle.valid())
       return;
-   uint32_t* bits = painter->bits + rectangle.t * painter->width + rectangle.l;
+   uint32_t* bits = painter->_bits + rectangle.t * painter->_width + rectangle.l;
 
    for (int y = 0; y < rectangle.b - rectangle.t; y++) {
-      uint32_t* destination = &bits[y * painter->width];
+      uint32_t* destination = &bits[y * painter->_width];
       uint32_t  m1 = alpha, m2 = 255 - m1;
       uint32_t  original = *destination;
       uint32_t  r2       = m2 * (original & 0x00FF00FF);
@@ -6654,12 +6654,12 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       client.b -= display->scrollBar->_bounds.height();
 
       UIPainter*  painter = (UIPainter*)dp;
-      UIRectangle oldClip = painter->clip;
-      painter->clip       = intersection(client, painter->clip);
+      UIRectangle oldClip = painter->_clip;
+      painter->_clip       = intersection(client, painter->_clip);
       int ym              = (client.t + client.b) / 2;
       int h2              = (client.b - client.t) / 2;
       int yp              = ym;
-      UIDrawBlock(painter, painter->clip, ui->_theme.panel1);
+      UIDrawBlock(painter, painter->_clip, ui->_theme.panel1);
       UIDrawBlock(painter, UIRectangle(client.l, client.r, ym, ym + 1), 0x707070);
 
       float yScale =
@@ -6676,7 +6676,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          uint32_t alpha = 255 - 80 * (display->channels - 1);
 
          for (size_t channel = 0; channel < display->channels; channel++) {
-            for (int32_t x = painter->clip.l; x < painter->clip.r; x++) {
+            for (int32_t x = painter->_clip.l; x < painter->_clip.r; x++) {
                int32_t x0  = x - client.l;
                float   xf0 = (float)x0 / (client.r - client.l);
                float   xf1 = (float)(x0 + 1) / (client.r - client.l);
@@ -6755,7 +6755,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          UIDrawInvert(painter, UIRectangle(l > r ? r : l, l > r ? l : r, el->_bounds.t, el->_bounds.r));
       }
 
-      painter->clip = oldClip;
+      painter->_clip = oldClip;
    }
 
    return 0;
@@ -7508,8 +7508,8 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
    // create fonts for interface and code
    // -----------------------------------
    const auto& font_path = ui->_default_font_path;
-   code_font             = UIFontCreate(font_path.c_str(), code_font_size);
-   UIFontActivate(UIFontCreate(font_path.c_str(), interface_font_size));
+   code_font             = ui->create_font(font_path, code_font_size);
+   ui->create_font(font_path, interface_font_size)->activate();
 
    windowMain = &ui->create_window(0, maximize ? UIWindow::MAXIMIZE : 0, "gf", window_width, window_height);
    windowMain->set_scale(ui_scale);
