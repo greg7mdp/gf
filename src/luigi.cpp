@@ -122,10 +122,8 @@ std::string LoadFile(const char* path) {
 // Member functions.
 // --------------------------------------------------
 uint32_t UIElement::state() const {
-   return (((_flags & disabled_flag) ? UIControl::state_disabled : 0) |
-           (is_hovered() ? UIControl::state_hovered : 0) |
-           (is_focused() ? UIControl::state_focused : 0) |
-           (is_pressed() ? UIControl::state_pressed : 0));
+   return (((_flags & disabled_flag) ? UIControl::state_disabled : 0) | (is_hovered() ? UIControl::state_hovered : 0) |
+           (is_focused() ? UIControl::state_focused : 0) | (is_pressed() ? UIControl::state_pressed : 0));
 }
 
 // --------------------------------------------------
@@ -1145,7 +1143,7 @@ int _UIDialogWrapperMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
             if (item->_class_proc == UIButton::_ClassMessageProc) {
                UIButton* button = (UIButton*)item;
-               auto label = button->label();
+               auto      label  = button->label();
                if (!label.empty() && (label[0] == c0 || label[0] == c1)) {
                   if (!target) {
                      target = button;
@@ -1362,8 +1360,8 @@ const char* UIWindow::show_dialog(uint32_t flags, const char* format, ...) {
    // Create the dialog wrapper and panel.
 
    UI_ASSERT(!_dialog);
-   _dialog = UIElementCreate(sizeof(UIElement), this, 0, _UIDialogWrapperMessage, "DialogWrapper");
-   UIPanel* panel  = UIPanelCreate(_dialog, UIPanel::MEDIUM_SPACING | UIPanel::COLOR_1);
+   _dialog        = UIElementCreate(sizeof(UIElement), this, 0, _UIDialogWrapperMessage, "DialogWrapper");
+   UIPanel* panel = UIPanelCreate(_dialog, UIPanel::MEDIUM_SPACING | UIPanel::COLOR_1);
    panel->set_border(UIRectangle(ui_size::pane_medium_border * 2));
    _children[0]->_flags |= UIElement::disabled_flag;
 
@@ -1379,7 +1377,7 @@ const char* UIWindow::show_dialog(uint32_t flags, const char* format, ...) {
 
    for (int i = 0; format[i]; i++) {
       if (i == 0 || format[i - 1] == '\n') {
-         row       = UIPanelCreate(panel, UIPanel::HORIZONTAL | UIElement::h_fill);
+         row = UIPanelCreate(panel, UIPanel::HORIZONTAL | UIElement::h_fill);
          row->set_gap(ui_size::pane_small_gap);
       }
 
@@ -1756,7 +1754,7 @@ int UIPanel::_calculate_per_fill(int* _count, int hSpace, int vSpace, float scal
 int UIPanel::_measure(int di) {
    bool horizontal = _flags & UIPanel::HORIZONTAL;
    int  perFill    = _calculate_per_fill(NULL, horizontal ? di : 0, horizontal ? 0 : di, _window->scale());
-   int size = 0;
+   int  size       = 0;
 
    for (auto child : _children) {
       if (child->_flags & (UIElement::hide_flag | UIElement::non_client_flag))
@@ -1813,12 +1811,11 @@ int UIPanel::_layout(UIRectangle bounds, bool measure) {
       }
    }
 
-   return position - scale(count ? _gap : 0) +
-          scale(horizontal ? _border.r : _border.b);
+   return position - scale(count ? _gap : 0) + scale(horizontal ? _border.r : _border.b);
 }
 
 int UIPanel::_class_message_proc(UIMessage msg, int di, void* dp) {
-   bool     horizontal = _flags & UIPanel::HORIZONTAL;
+   bool horizontal = _flags & UIPanel::HORIZONTAL;
 
    if (msg == UIMessage::LAYOUT) {
       int         scrollBarWidth = _scrollBar ? scale(ui_size::scroll_bar) : 0;
@@ -1859,8 +1856,8 @@ int UIPanel::_class_message_proc(UIMessage msg, int di, void* dp) {
       refresh();
    } else if (msg == UIMessage::GET_CHILD_STABILITY) {
       UIElement* child = (UIElement*)dp;
-      return ((_flags & UIPanel::EXPAND) ? (horizontal ? 2 : 1) : 0) |
-             ((child->_flags & UIElement::h_fill) ? 1 : 0) | ((child->_flags & UIElement::v_fill) ? 2 : 0);
+      return ((_flags & UIPanel::EXPAND) ? (horizontal ? 2 : 1) : 0) | ((child->_flags & UIElement::h_fill) ? 1 : 0) |
+             ((child->_flags & UIElement::v_fill) ? 2 : 0);
    }
 
    return 0;
@@ -1996,8 +1993,8 @@ UISwitcher* UISwitcherCreate(UIElement* parent, uint32_t flags) {
 // --------------------------------------------------
 
 int UIButton::_class_message_proc(UIMessage msg, int di, void* dp) {
-   bool      isMenuItem = _flags & UIButton::MENU_ITEM;
-   bool      isDropDown = _flags & UIButton::DROP_DOWN;
+   bool isMenuItem = _flags & UIButton::MENU_ITEM;
+   bool isDropDown = _flags & UIButton::DROP_DOWN;
 
    if (msg == UIMessage::GET_HEIGHT) {
       if (isMenuItem) {
@@ -2011,8 +2008,8 @@ int UIButton::_class_message_proc(UIMessage msg, int di, void* dp) {
       if (isDropDown)
          paddedSize += ui->activeFont->glyphWidth * 2;
       int minimumSize = scale((_flags & UIButton::SMALL) ? 0
-                                  : isMenuItem                   ? ui_size::menu_item_minimum_width
-                                                                 : ui_size::button_minimum_width);
+                              : isMenuItem               ? ui_size::menu_item_minimum_width
+                                                         : ui_size::button_minimum_width);
       return paddedSize > minimumSize ? paddedSize : minimumSize;
    } else if (msg == UIMessage::PAINT) {
       UIDrawControl((UIPainter*)dp, _bounds,
@@ -2157,9 +2154,8 @@ int UISplitter::_class_message_proc(UIMessage msg, int di, void* dp) {
    bool         vertical  = splitPane->_flags & UIElement::vertical_flag;
 
    if (msg == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, _bounds,
-                    UIControl::splitter | (vertical ? UIControl::state_vertical : 0) | state(), {}, 0,
-                    _window->scale());
+      UIDrawControl((UIPainter*)dp, _bounds, UIControl::splitter | (vertical ? UIControl::state_vertical : 0) | state(),
+                    {}, 0, _window->scale());
    } else if (msg == UIMessage::GET_CURSOR) {
       return vertical ? (uint32_t)UICursor::split_v : (uint32_t)UICursor::split_h;
    } else if (msg == UIMessage::MOUSE_DRAG) {
@@ -2203,14 +2199,12 @@ int UISplitPane::_class_message_proc(UIMessage msg, int di, void* dp) {
 
       if (vertical) {
          left->move(UIRectangle(_bounds.l, _bounds.r, _bounds.t, _bounds.t + leftSize), false);
-         splitter->move(UIRectangle(_bounds.l, _bounds.r, _bounds.t + leftSize,
-                                    _bounds.t + leftSize + splitterSize),
+         splitter->move(UIRectangle(_bounds.l, _bounds.r, _bounds.t + leftSize, _bounds.t + leftSize + splitterSize),
                         false);
          right->move(UIRectangle(_bounds.l, _bounds.r, _bounds.b - rightSize, _bounds.b), false);
       } else {
          left->move(UIRectangle(_bounds.l, _bounds.l + leftSize, _bounds.t, _bounds.b), false);
-         splitter->move(UIRectangle(_bounds.l + leftSize, _bounds.l + leftSize + splitterSize, _bounds.t,
-                                    _bounds.b),
+         splitter->move(UIRectangle(_bounds.l + leftSize, _bounds.l + leftSize + splitterSize, _bounds.t, _bounds.b),
                         false);
          right->move(UIRectangle(_bounds.r - rightSize, _bounds.r, _bounds.t, _bounds.b), false);
       }
@@ -2369,8 +2363,7 @@ int UIScrollBar::_class_message_proc(UIMessage msg, int di, void* dp) {
             _position = maximum() - page();
          }
 
-         int thumbPosition =
-            (int)((double)_position / (maximum() - page()) * (size - thumbSize));
+         int thumbPosition = (int)((double)_position / (maximum() - page()) * (size - thumbSize));
 
          if (_position == maximum() - page()) {
             thumbPosition = size - thumbSize;
@@ -2396,10 +2389,8 @@ int UIScrollBar::_class_message_proc(UIMessage msg, int di, void* dp) {
       }
    } else if (msg == UIMessage::PAINT) {
       UIDrawControl((UIPainter*)dp, _bounds,
-                    UIControl::scroll_track | ((page() >= maximum() ||
-                                                maximum() <= 0 || page() <= 0)
-                                                  ? UIControl::state_disabled
-                                                  : 0),
+                    UIControl::scroll_track |
+                       ((page() >= maximum() || maximum() <= 0 || page() <= 0) ? UIControl::state_disabled : 0),
                     {}, 0, _window->scale());
    } else if (msg == UIMessage::MOUSE_WHEEL) {
       _position += di;
@@ -2467,10 +2458,9 @@ int _UIScrollThumbMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
          }
       }
 
-      int thumbPosition =
-         (scrollBar->_horizontal ? el->cursor_pos().x : el->cursor_pos().y) + scrollBar->drag_offset();
-      int size             = scrollBar->_horizontal ? (scrollBar->_bounds.width() - el->_bounds.width())
-                                                    : (scrollBar->_bounds.height() - el->_bounds.height());
+      int thumbPosition = (scrollBar->_horizontal ? el->cursor_pos().x : el->cursor_pos().y) + scrollBar->drag_offset();
+      int size          = scrollBar->_horizontal ? (scrollBar->_bounds.width() - el->_bounds.width())
+                                                 : (scrollBar->_bounds.height() - el->_bounds.height());
       scrollBar->position() = (double)thumbPosition / size * (scrollBar->maximum() - scrollBar->page());
       scrollBar->refresh();
       scrollBar->_parent->message(UIMessage::SCROLLED, 0, 0);
@@ -2921,10 +2911,9 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
          set_last_animate_time(current);
 
          UIFont* previousFont = UIFontActivate(font());
-         auto pos = cursor_pos();
-         if (pos.x < _bounds.l + ((_flags & UICode::NO_MARGIN)
-                                                  ? ui->code_margin_gap()
-                                                  : (ui->code_margin() + ui->code_margin_gap() * 2))) {
+         auto    pos          = cursor_pos();
+         if (pos.x < _bounds.l + ((_flags & UICode::NO_MARGIN) ? ui->code_margin_gap()
+                                                               : (ui->code_margin() + ui->code_margin_gap() * 2))) {
             _hscroll->position() -= delta;
          } else if (pos.x >= _vscroll->_bounds.l - ui->code_margin_gap()) {
             _hscroll->position() += delta;
@@ -3007,7 +2996,7 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
 
             _update_selection();
          } else {
-            _vscroll->position()               = m->code == UIKeycode::HOME ? 0 : _vscroll->maximum();
+            _vscroll->position()              = m->code == UIKeycode::HOME ? 0 : _vscroll->maximum();
             _move_scroll_to_focus_next_layout = false;
             refresh();
          }
@@ -3159,9 +3148,8 @@ int UIGauge::_class_message_proc(UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::GET_WIDTH) {
       return scale(_vertical ? ui_size::gauge_height : ui_size::gauge_width);
    } else if (msg == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, _bounds,
-                    UIControl::gauge | state() | (_vertical ? UIControl::state_vertical : 0), {},
-                    _position, _window->scale());
+      UIDrawControl((UIPainter*)dp, _bounds, UIControl::gauge | state() | (_vertical ? UIControl::state_vertical : 0),
+                    {}, _position, _window->scale());
    }
 
    return 0;
@@ -3195,17 +3183,14 @@ int UISlider::_class_message_proc(UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::GET_WIDTH) {
       return scale(_vertical ? ui_size::slider_height : ui_size::slider_width);
    } else if (msg == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, _bounds,
-                    UIControl::slider | state() | (_vertical ? UIControl::state_vertical : 0), {},
-                    _position, _window->scale());
+      UIDrawControl((UIPainter*)dp, _bounds, UIControl::slider | state() | (_vertical ? UIControl::state_vertical : 0),
+                    {}, _position, _window->scale());
    } else if (msg == UIMessage::LEFT_DOWN || (msg == UIMessage::MOUSE_DRAG && _window->pressed_button() == 1)) {
       UIRectangle bounds    = _bounds;
       int         thumbSize = scale(ui_size::slider_thumb);
       auto        pos       = cursor_pos();
-      _position =
-         _vertical
-         ? 1 - ((float)(pos.y - thumbSize / 2 - bounds.t) / (bounds.height() - thumbSize))
-            : (double)(pos.x - thumbSize / 2 - bounds.l) / (bounds.width() - thumbSize);
+      _position = _vertical ? 1 - ((float)(pos.y - thumbSize / 2 - bounds.t) / (bounds.height() - thumbSize))
+                            : (double)(pos.x - thumbSize / 2 - bounds.l) / (bounds.width() - thumbSize);
       if (_steps > 1)
          _position = (int)(_position * (_steps - 1) + 0.5f) / (double)(_steps - 1);
       if (_position < 0)
@@ -3474,12 +3459,11 @@ int UITable::_class_message_proc(UIMessage msg, int di, void* dp) {
            m->code == UIKeycode::PAGE_DOWN || m->code == UIKeycode::HOME || m->code == UIKeycode::END) &&
           !_window->_ctrl && !_window->_alt && !_window->_shift) {
          key_input_vscroll(m, scale(ui_size::table_row),
-                                  (_bounds.t - _hscroll->_bounds.t + ui_size::table_header) * 4 / 5, this);
+                           (_bounds.t - _hscroll->_bounds.t + ui_size::table_header) * 4 / 5, this);
          return 1;
-      } else if ((m->code == UIKeycode::LEFT || m->code == UIKeycode::RIGHT) && !_window->_ctrl &&
-                 !_window->_alt && !_window->_shift) {
-         _hscroll->position() +=
-            m->code == UIKeycode::LEFT ? -ui->activeFont->glyphWidth : ui->activeFont->glyphWidth;
+      } else if ((m->code == UIKeycode::LEFT || m->code == UIKeycode::RIGHT) && !_window->_ctrl && !_window->_alt &&
+                 !_window->_shift) {
+         _hscroll->position() += m->code == UIKeycode::LEFT ? -ui->activeFont->glyphWidth : ui->activeFont->glyphWidth;
          refresh();
          return 1;
       }
@@ -3567,13 +3551,13 @@ UITextbox& UITextbox::move_caret(bool backward, bool word) {
    return *this;
 }
 
-UITextbox&  UITextbox::copy() {
+UITextbox& UITextbox::copy() {
    size_t from = std::min(_carets[0], _carets[1]);
    size_t to   = std::max(_carets[0], _carets[1]);
 
    if (from != to) {
       auto cur_text = text();
-      UI::write_clipboard_text(_window, std::string_view{ &cur_text[from], to - from}, sel_target_t::clipboard);
+      UI::write_clipboard_text(_window, std::string_view{&cur_text[from], to - from}, sel_target_t::clipboard);
    }
    return *this;
 }
@@ -3650,7 +3634,7 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
 
       if (_reject_next_key) {
          _reject_next_key = false;
-         handled                = false;
+         handled          = false;
       } else if (m->code == UIKeycode::BACKSPACE || m->code == UIKeycode::DEL) {
          if (_carets[0] == _carets[1]) {
             move_caret(m->code == UIKeycode::BACKSPACE, _window->_ctrl);
@@ -3688,8 +3672,7 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
          if (m->code == UI_KEYCODE_LETTER('X')) {
             replace_text("", true);
          }
-      } else if ((m->code == UI_KEYCODE_LETTER('V') && _window->_ctrl && !_window->_alt &&
-                  !_window->_shift) ||
+      } else if ((m->code == UI_KEYCODE_LETTER('V') && _window->_ctrl && !_window->_alt && !_window->_shift) ||
                  (m->code == UIKeycode::INSERT && !_window->_ctrl && !_window->_alt && _window->_shift)) {
          paste(sel_target_t::clipboard);
       } else {
@@ -3704,16 +3687,14 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
       int c0 = _carets[0], c1 = _carets[1];
       _class_message_proc(UIMessage::LEFT_DOWN, di, dp);
 
-      if (c0 < c1 ? (_carets[0] >= c0 && _carets[0] < c1)
-                  : (_carets[0] >= c1 && _carets[0] < c0)) {
+      if (c0 < c1 ? (_carets[0] >= c0 && _carets[0] < c1) : (_carets[0] >= c1 && _carets[0] < c0)) {
          _carets[0] = c0,
          _carets[1] = c1; // Only move caret if clicking outside the existing selection.
       }
 
       std::string paste_str = UI::read_clipboard_text(_window, sel_target_t::clipboard);
       UI::create_menu(_window, UIMenu::NO_SCROLL)
-         .add_item(_carets[0] == _carets[1] ? UIElement::disabled_flag : 0, "Copy",
-                   [this](UIButton&) { copy(); })
+         .add_item(_carets[0] == _carets[1] ? UIElement::disabled_flag : 0, "Copy", [this](UIButton&) { copy(); })
          .add_item(paste_str.empty() ? UIElement::disabled_flag : 0, "Paste",
                    [this](UIButton&) { paste(sel_target_t::clipboard); })
          .show();
@@ -3845,10 +3826,10 @@ int UIMDIChild::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp
    } else if (msg == UIMessage::MOUSE_DRAG) {
       if (mdiChild->_drag_hit_test > 0) {
 
-#define _UI_MDI_CHILD_MOVE_EDGE(bit, edge, cursor, size, opposite, negate, minimum, offset)                         \
-   if (mdiChild->_drag_hit_test & bit)                                                                              \
+#define _UI_MDI_CHILD_MOVE_EDGE(bit, edge, cursor, size, opposite, negate, minimum, offset)                \
+   if (mdiChild->_drag_hit_test & bit)                                                                     \
       mdiChild->_mdi_bounds.edge = mdiChild->_drag_offset.edge + pos.cursor - el->_parent->_bounds.offset; \
-   if ((mdiChild->_drag_hit_test & bit) && mdiChild->_mdi_bounds.size() < minimum)                                  \
+   if ((mdiChild->_drag_hit_test & bit) && mdiChild->_mdi_bounds.size() < minimum)                         \
       mdiChild->_mdi_bounds.edge = mdiChild->_mdi_bounds.opposite negate minimum;
 
          auto pos = el->cursor_pos();
@@ -4183,8 +4164,7 @@ int UIMenu::_class_message_proc(UIMessage msg, int di, void* dp) {
       for (auto child : _children) {
          if (~child->_flags & UIElement::non_client_flag) {
             int height = child->message(UIMessage::GET_HEIGHT, 0, 0);
-            child->move(UIRectangle(_bounds.l + 2, _bounds.r - scrollBarSize - 2, position, position + height),
-                        false);
+            child->move(UIRectangle(_bounds.l + 2, _bounds.r - scrollBarSize - 2, position, position + height), false);
             position += height;
             totalHeight += height;
          }
@@ -4212,7 +4192,9 @@ int UIMenu::_class_message_proc(UIMessage msg, int di, void* dp) {
 }
 
 UIMenu& UIMenu::add_item(uint32_t flags, std::string_view label, std::function<void(UIButton&)> invoke) {
-   add_button(flags | UIButton::MENU_ITEM, label).on_click(std::move(invoke)).set_user_proc(UIMenu::_MenuItemMessageProc);
+   add_button(flags | UIButton::MENU_ITEM, label)
+      .on_click(std::move(invoke))
+      .set_user_proc(UIMenu::_MenuItemMessageProc);
    return *this;
 }
 
@@ -4226,13 +4208,14 @@ void UIMenu::_prepare(int* width, int* height) {
 }
 
 UIMenu::UIMenu(UIElement* parent, uint32_t flags)
-   : UIElementCast<UIMenu>(&UIWindow::Create(parent->_window, UIWindow::MENU, 0, 0, 0), flags, UIMenu::_ClassMessageProc, "Menu")
+   : UIElementCast<UIMenu>(&UIWindow::Create(parent->_window, UIWindow::MENU, 0, 0, 0), flags,
+                           UIMenu::_ClassMessageProc, "Menu")
    , _vscroll(UIScrollBarCreate(this, non_client_flag))
    , _parent_window(parent->_window) {
    if (parent->_parent) {
       UIRectangle screenBounds = parent->screen_bounds();
-      _point.x                   = screenBounds.l;
-      _point.y                   = (flags & PLACE_ABOVE) ? (screenBounds.t + 1) : (screenBounds.b - 1);
+      _point.x                 = screenBounds.l;
+      _point.y                 = (flags & PLACE_ABOVE) ? (screenBounds.t + 1) : (screenBounds.b - 1);
    } else {
       int x = 0, y = 0;
       parent->_window->get_screen_position(&x, &y);
@@ -4815,13 +4798,13 @@ int _UIInspectorTableMessage(UIElement* table, UIMessage msg, int di, void* dp) 
       UIElement* el    = NULL;
       if (index >= 0)
          el = _UIInspectorFindNthElement(ui->inspector._target, &index).first;
-      UIWindow* window       = ui->inspector._target;
-      UIPainter painter      = {0};
+      UIWindow* window  = ui->inspector._target;
+      UIPainter painter = {0};
       window->set_update_region(window->_bounds);
-      painter.bits           = window->bits().data();
-      painter.width          = window->width();
-      painter.height         = window->height();
-      painter.clip           = ui_rect_2s(window->width(), window->height());
+      painter.bits   = window->bits().data();
+      painter.width  = window->width();
+      painter.height = window->height();
+      painter.clip   = ui_rect_2s(window->width(), window->height());
 
       auto& bits = window->bits();
       for (uint32_t i = 0; i < window->width() * window->height(); i++) {
@@ -5009,10 +4992,10 @@ void _UIInitialiseCommon(const UIConfig& cfg, const std::string& default_font_pa
 
 void _UIWindowAdd(UIWindow* window) {
    window->set_scale(1.0f);
-   window->_window  = window;
+   window->_window = window;
    window->set_hovered(window);
    window->set_next(ui->windows);
-   ui->windows      = window;
+   ui->windows = window;
 }
 
 int UIWindow::_class_message_proc_common(UIMessage msg, int di, void* dp) {
@@ -5362,8 +5345,7 @@ UIMenu& UIMenu::show() {
       int     x, y;
       XTranslateCoordinates(ui->display, screen->root, DefaultRootWindow(ui->display), 0, 0, &x, &y, &child);
 
-      if (_point.x >= x && _point.x < x + screen->width && _point.y >= y &&
-          _point.y < y + screen->height) {
+      if (_point.x >= x && _point.x < x + screen->width && _point.y >= y && _point.y < y + screen->height) {
          menuScreen = screen;
          screenX = x, screenY = y;
          break;
@@ -5413,8 +5395,8 @@ UIMenu& UIMenu::show() {
       XInternAtom(ui->display, "_MOTIF_WM_HINTS", true),
    };
 
-   XChangeProperty(ui->display, _window->_xwindow, properties[0], XA_ATOM, 32, PropModeReplace,
-                   (uint8_t*)properties, 2);
+   XChangeProperty(ui->display, _window->_xwindow, properties[0], XA_ATOM, 32, PropModeReplace, (uint8_t*)properties,
+                   2);
    XSetTransientForHint(ui->display, _window->_xwindow, DefaultRootWindow(ui->display));
 
    struct Hints {
@@ -5427,8 +5409,8 @@ UIMenu& UIMenu::show() {
 
    struct Hints hints = {0};
    hints.flags        = 2;
-   XChangeProperty(ui->display, _window->_xwindow, properties[2], properties[2], 32, PropModeReplace,
-                   (uint8_t*)&hints, 5);
+   XChangeProperty(ui->display, _window->_xwindow, properties[2], properties[2], 32, PropModeReplace, (uint8_t*)&hints,
+                   5);
 
    XMapWindow(ui->display, _window->_xwindow);
    XMoveResizeWindow(ui->display, _window->_xwindow, _point.x, _point.y, width, height);

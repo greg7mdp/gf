@@ -1949,8 +1949,8 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::MOUSE_MOVE || msg == UIMessage::UPDATE) {
       auto pos = el->cursor_pos();
       if (pos.x != lastCursorX || pos.y != lastCursorY) {
-         lastCursorX                         = pos.x;
-         lastCursorY                         = pos.y;
+         lastCursorX = pos.x;
+         lastCursorY = pos.y;
          el->_window->set_textbox_modified_flag(false);
       }
 
@@ -5242,7 +5242,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       double               zoomX = (double)report->client.width() / (report->xEnd - report->xStart);
       ProfFlameGraphEntry* hover = nullptr;
       auto                 pos   = el->cursor_pos();
-      
+
       int   depth   = (pos.y - report->client.t + report->vScroll->position() - profScaleHeight) / profRowHeight;
       float xStartF = (float)report->xStart;
       float xEndF   = (float)report->xEnd;
@@ -5337,13 +5337,12 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       el->_window->set_cursor((int)UICursor::arrow);
    } else if (msg == UIMessage::MOUSE_DRAG) {
       report->dragStarted = true;
-      auto pos = el->cursor_pos();
+      auto pos            = el->cursor_pos();
 
       if (report->dragMode == FLAME_GRAPH_DRAG_PAN) {
          double delta   = report->xEnd - report->xStart;
-         report->xStart = report->dragInitialValue - (double)(pos.x - report->dragInitialPoint) *
-                                                        report->totalTime / report->client.width() * delta /
-                                                        report->totalTime;
+         report->xStart = report->dragInitialValue - (double)(pos.x - report->dragInitialPoint) * report->totalTime /
+                                                        report->client.width() * delta / report->totalTime;
          report->xEnd = report->xStart + delta;
          if (report->xStart < 0) {
             report->xEnd -= report->xStart;
@@ -5353,14 +5352,12 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
             report->xStart += report->totalTime - report->xEnd;
             report->xEnd = report->totalTime;
          }
-         report->vScroll->position() =
-            report->dragInitialValue2 - (double)(pos.y - report->dragInitialPoint2);
+         report->vScroll->position() = report->dragInitialValue2 - (double)(pos.y - report->dragInitialPoint2);
          report->vScroll->refresh();
       } else if (report->dragMode == FLAME_GRAPH_DRAG_X_SCROLL) {
          double delta   = report->xEnd - report->xStart;
-         report->xStart = report->dragInitialValue + (double)(pos.x - report->dragInitialPoint) *
-                                                        report->totalTime / report->client.width() *
-                                                        report->dragScrollRate;
+         report->xStart = report->dragInitialValue + (double)(pos.x - report->dragInitialPoint) * report->totalTime /
+                                                        report->client.width() * report->dragScrollRate;
          report->xEnd = report->xStart + delta;
          if (report->xStart < 0) {
             report->xEnd -= report->xStart;
@@ -5372,8 +5369,8 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          }
       } else if (report->dragMode == FLAME_GRAPH_DRAG_X_PAN_AND_ZOOM) {
          double delta = report->xEnd - report->xStart;
-         report->xStart += (double)(pos.x - report->dragInitialPoint) * report->totalTime /
-                           report->client.width() * delta / report->totalTime * 3.0;
+         report->xStart += (double)(pos.x - report->dragInitialPoint) * report->totalTime / report->client.width() *
+                           delta / report->totalTime * 3.0;
          report->xEnd  = report->xStart + delta;
          double factor = powf(1.02, pos.y - report->dragInitialPoint2);
          double mouse  = (double)(pos.x - report->client.l) / report->client.width();
@@ -5393,7 +5390,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
       el->repaint(NULL);
    } else if (msg == UIMessage::MOUSE_WHEEL) {
-      auto pos = el->cursor_pos();
+      auto   pos         = el->cursor_pos();
       int    divisions   = di / 72;
       double factor      = 1;
       double perDivision = 1.2f;
@@ -5515,8 +5512,7 @@ int ProfTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          table->set_column_highlight(index);
       }
    } else if (msg == UIMessage::GET_CURSOR) {
-      return table->header_hittest(el->cursor_pos()) == -1 ? (int)UICursor::arrow
-                                                                                         : (int)UICursor::hand;
+      return table->header_hittest(el->cursor_pos()) == -1 ? (int)UICursor::arrow : (int)UICursor::hand;
    }
 
    return 0;
@@ -6605,8 +6601,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::MOUSE_DRAG && el->_window->pressed_button() == 1) {
       auto pos = el->cursor_pos();
       display->scrollBar->position() += display->dragLastModification;
-      display->dragLastModification =
-         (pos.x - display->dragLastX) * display->samplesOnScreen / el->_bounds.width();
+      display->dragLastModification = (pos.x - display->dragLastX) * display->samplesOnScreen / el->_bounds.width();
       display->scrollBar->position() -= display->dragLastModification;
       display->refresh();
    } else if (msg == UIMessage::MOUSE_DRAG && el->_window->pressed_button() == 2) {
@@ -6615,7 +6610,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       display->repaint(NULL);
    } else if (msg == UIMessage::MIDDLE_UP) {
       auto pos = el->cursor_pos();
-      int l = pos.x - el->_bounds.l, r = display->dragLastX - el->_bounds.l;
+      int  l = pos.x - el->_bounds.l, r = display->dragLastX - el->_bounds.l;
       if (r < l) {
          int t = l;
          l     = r;
@@ -6631,11 +6626,11 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
       display->refresh();
    } else if (msg == UIMessage::LEFT_DOWN || msg == UIMessage::MIDDLE_DOWN) {
-      auto pos = el->cursor_pos();
+      auto pos                      = el->cursor_pos();
       display->dragLastX            = pos.x;
       display->dragLastModification = 0;
    } else if (msg == UIMessage::MOUSE_WHEEL) {
-      auto pos = el->cursor_pos();
+      auto   pos         = el->cursor_pos();
       int    divisions   = di / 72;
       double factor      = 1;
       double perDivision = 1.2f;
@@ -6674,7 +6669,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       float* samples      = &display->samples[display->channels * sampleOffset];
       int    sampleCount  = display->samplesOnScreen;
       UI_ASSERT(sampleOffset + sampleCount <= (int)display->sampleCount);
-      
+
       auto pos = el->cursor_pos();
 
       if (sampleCount > client.width()) {
@@ -6726,8 +6721,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
             }
          }
 
-         int mouseXSample =
-            (float)(pos.x - client.l) / el->_bounds.width() * display->samplesOnScreen - 0.5f;
+         int mouseXSample = (float)(pos.x - client.l) / el->_bounds.width() * display->samplesOnScreen - 0.5f;
 
          if (mouseXSample >= 0 && mouseXSample < sampleCount && el->_clip.contains(pos) &&
              !display->scrollBar->_clip.contains(pos)) {
@@ -7516,7 +7510,7 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
    code_font             = UIFontCreate(font_path.c_str(), code_font_size);
    UIFontActivate(UIFontCreate(font_path.c_str(), interface_font_size));
 
-   windowMain             = &UIWindow::Create(0, maximize ? UIWindow::MAXIMIZE : 0, "gf", window_width, window_height);
+   windowMain = &UIWindow::Create(0, maximize ? UIWindow::MAXIMIZE : 0, "gf", window_width, window_height);
    windowMain->set_scale(ui_scale);
    windowMain->_user_proc = MainWindowMessageProc;
 
