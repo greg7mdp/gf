@@ -734,7 +734,7 @@ int UI::string_width(std::string_view string) const {
 #ifdef UI_UNICODE
    return Utf8StringLength(string.data(), string.size()) * ui->_active_font->_glyph_width;
 #else
-   return (int)string.size() * _active_font->glyphWidth;
+   return (int)string.size() * _active_font->_glyph_width;
 #endif
 }
 
@@ -5971,7 +5971,7 @@ unique_ptr<UI> UI::initialise(const UIConfig& cfg) {
    if (font_path.empty())
       font_path = _UI_TO_STRING_2(UI_FONT_PATH);
 
-   ui->default_font_path = font_path;
+   ui->_default_font_path = font_path;
    ui->_initialize_common(cfg, font_path);
 
    ui->_cursors[(uint32_t)UICursor::arrow]             = LoadCursor(NULL, IDC_ARROW);
