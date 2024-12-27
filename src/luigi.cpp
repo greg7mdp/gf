@@ -122,8 +122,12 @@ std::string LoadFile(const char* path) {
 // Member functions.
 // --------------------------------------------------
 uint32_t UIElement::state() const {
-   return (((_flags & disabled_flag) ? UIControl::state_disabled : 0) | (is_hovered() ? UIControl::state_hovered : 0) |
-           (is_focused() ? UIControl::state_focused : 0) | (is_pressed() ? UIControl::state_pressed : 0));
+   uint32_t res = 0;
+   res |= is_disabled() ? UIControl::state_disabled : 0;
+   res |= is_hovered() ? UIControl::state_hovered : 0;
+   res |= is_focused() ? UIControl::state_focused : 0;
+   res |= is_pressed() ? UIControl::state_pressed : 0;
+   return res;
 }
 
 // --------------------------------------------------
@@ -1051,7 +1055,7 @@ int UIElement::message(UIMessage msg, int di, void* dp) {
       return 0;
    }
 
-   if (msg >= UIMessage::INPUT_EVENTS_START && msg <= UIMessage::INPUT_EVENTS_END && (_flags & disabled_flag)) {
+   if (msg >= UIMessage::INPUT_EVENTS_START && msg <= UIMessage::INPUT_EVENTS_END && is_disabled()) {
       return 0;
    }
 
@@ -1188,9 +1192,7 @@ void UIElement::set_disabled(bool disabled) {
       _window->focus();
    }
 
-   if ((_flags & disabled_flag) && disabled)
-      return;
-   if ((~_flags & disabled_flag) && !disabled)
+   if (is_disabled() == disabled)
       return;
 
    if (disabled)
@@ -3589,7 +3591,7 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
       auto cur_text = text();
       if (!cur_text.empty()) {
          UIDrawString((UIPainter*)dp, textBounds, cur_text,
-                      (_flags & UIElement::disabled_flag) ? ui->theme.textDisabled : ui->theme.text, UIAlign::left,
+                      is_disabled()  ? ui->theme.textDisabled : ui->theme.text, UIAlign::left,
                       is_focused() ? &selection : NULL);
       }
    } else if (msg == UIMessage::GET_CURSOR) {

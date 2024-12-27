@@ -4725,7 +4725,6 @@ UIElement* CommandSearchWindowCreate(UIElement* parent) {
    window->textbox = &panel->add_textbox(0).set_user_proc(TextboxSearchCommandMessage).set_cp(window);
    window->display = &panel->add_code(UIElement::v_fill | UICode::NO_MARGIN | UICode::SELECTABLE)
                          .insert_content("Type here to search \nGDB command descriptions.", true);
-   window->textbox->focus(); // does not work???
    return panel;
 }
 

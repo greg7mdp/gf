@@ -676,6 +676,7 @@ public:
    bool           is_hovered() const;
    bool           is_focused() const;
    bool           is_pressed() const;
+   bool           is_disabled() const { return !!(_flags & disabled_flag); }
 
    
    // functions to create child UI elements
@@ -816,10 +817,6 @@ public:
    
    int         pressed_button() const { return _pressed_button; }
 
-   bool        is_hovered() const = delete; // do not call on UIWindow. only on UIElement
-   bool        is_focused() const = delete; // do not call on UIWindow. only on UIElement
-   bool        is_pressed() const = delete; // do not call on UIWindow. only on UIElemen
-
    UIWindow&   set_next(UIWindow* w) { _next = w; return *this; }
    UIWindow*   next() const { return _next; }
    
@@ -844,10 +841,16 @@ public:
    bool        input_event(UIMessage message, int di, void* dp);
 
    const char* show_dialog(uint32_t flags, const char* format, ...);
+
+   // ------ delete functions from UIElement we shouldn't use on a UIWindow --------------
+   bool        is_hovered() const = delete; // do not call on UIWindow. only on UIElement
+   bool        is_focused() const = delete; // do not call on UIWindow. only on UIElement
+   bool        is_pressed() const = delete; // do not call on UIWindow. only on UIElement
+
 };
 
-inline int  UIElement::scale(auto sz) const { return (int)((float)sz * _window->scale()); }
-
+// ------------------------------- need UIWindow to be defined -------------------------------
+inline int     UIElement::scale(auto sz) const { return (int)((float)sz * _window->scale()); }
 inline bool    UIElement::is_hovered() const { return _window->hovered() == this; }
 inline bool    UIElement::is_focused() const { return _window->focused() == this; }
 inline bool    UIElement::is_pressed() const { return _window->pressed() == this; }
