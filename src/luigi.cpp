@@ -1378,7 +1378,7 @@ const char* UIWindow::show_dialog(uint32_t flags, const char* format, ...) {
             if (format[i] == 'C')
                cancelButton = button;
             buttonCount++;
-            button->on_click([&](UIButton&) { ui()->_dialog_result = label; });
+            button->on_click([&, label=label](UIButton&) { ui()->_dialog_result = label; });
             if (format[i] == 'B')
                button->_user_proc = _UIDialogDefaultButtonMessage;
          } else if (format[i] == 's' /* label from string */) {
