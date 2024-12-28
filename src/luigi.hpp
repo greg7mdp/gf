@@ -35,6 +35,19 @@ using std::make_shared;
    #include <X11/Xutil.h>
    #include <X11/Xatom.h>
    #include <X11/cursorfont.h>
+   #include <ctime>
+   #include <cmath>
+
+   #define UI_ASSERT assert
+   #define UI_CLOCK _UIClock
+   #define UI_CLOCKS_PER_SECOND 1000
+   #define UI_CLOCK_T clock_t
+
+   inline UI_CLOCK_T _UIClock() {
+      struct timespec spec;
+      clock_gettime(CLOCK_REALTIME, &spec);
+      return spec.tv_sec * 1000 + spec.tv_nsec / 1000000;
+   }
 #endif
 
 #ifdef UI_WINDOWS
@@ -45,31 +58,10 @@ using std::make_shared;
    #undef min
    #undef max
 
- #if 0
-   #define UI_ASSERT(x)                                                                  \
-      do {                                                                               \
-         if (!(x)) {                                                                     \
-            ui->_assertion_failure = true;                                                  \
-            MessageBox(0, "Assertion failure on line " _UI_TO_STRING_2(__LINE__), 0, 0); \
-            ExitProcess(1);                                                              \
-         }                                                                               \
-      } while (0)
- #else
-    #define UI_ASSERT assert
- #endif
+   #define UI_ASSERT assert
    #define UI_CLOCK GetTickCount
    #define UI_CLOCKS_PER_SECOND (1000)
    #define UI_CLOCK_T DWORD
-#endif
-
-#if defined(UI_LINUX)
-   #include <ctime>
-   #include <cmath>
-
-   #define UI_ASSERT assert
-   #define UI_CLOCK _UIClock
-   #define UI_CLOCKS_PER_SECOND 1000
-   #define UI_CLOCK_T clock_t
 #endif
 
 #ifdef DMALLOC
@@ -1692,30 +1684,9 @@ void UIInspectorLog(UI* ui, std::format_string<Args...> fmt, Args&&... args ) {
 }
 #endif
 
-// ----------------------------------------
-//      Forward declarations.
-// ----------------------------------------
-
-#if defined(UI_LINUX)
-inline UI_CLOCK_T _UIClock() {
-   struct timespec spec;
-   clock_gettime(CLOCK_REALTIME, &spec);
-   return spec.tv_sec * 1000 + spec.tv_nsec / 1000000;
-}
-#endif
-
-#ifdef UI_WINDOWS
-void* _UIHeapReAlloc(void* pointer, size_t size);
-void* _UIMemmove(void* dest, const void* src, size_t n);
-#undef max
-#undef min
-#endif
-
 
 // ----------------------------------------
 //      Variables
 // ----------------------------------------
-
-//extern UI*     ui;              // global pointer to the UIInitialise return value
 extern UITheme uiThemeClassic;
 extern UITheme uiThemeDark;
