@@ -1508,7 +1508,6 @@ private:
 
    void        _inspector_refresh();
    void        _initialize_common(const UIConfig& cfg, const std::string& default_font_path);
-   bool        _close_menus();
 
    // platform specific functions
    bool        _platform_message_loop_single(int* result);
@@ -1559,6 +1558,7 @@ public:
    void      update();
    void      process_animations();
    bool      is_menu_open() const;
+   bool      _close_menus();
 
 
    UIMenu&   create_menu(UIElement* parent, uint32_t flags);

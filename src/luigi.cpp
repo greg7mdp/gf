@@ -5922,7 +5922,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
       ::SetCursor( window->ui()->_cursors[window->cursor_style()]);
       return 1;
    } else if (msg == WM_SETFOCUS || msg == WM_KILLFOCUS) {
-      _UIMenusClose();
+      window->ui()->_close_menus();
 
       if (msg == WM_SETFOCUS) {
           window->ui()->_inspector->set_focused_window(window);
@@ -5954,7 +5954,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
    } else {
       if (msg == WM_NCLBUTTONDOWN || msg == WM_NCMBUTTONDOWN || msg == WM_NCRBUTTONDOWN) {
          if (~window->_flags & UIWindow::MENU) {
-            _UIMenusClose();
+             window->ui()->_close_menus();
              window->ui()->update();
          }
       }
@@ -5966,7 +5966,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
 }
 
 unique_ptr<UI> UI::initialise(const UIConfig& cfg) {
-   ui       = new UI;
+   std::unique_ptr<UI> ui(new UI);
 
    std::string font_path = cfg.font_path;
    if (font_path.empty())
@@ -5999,9 +5999,9 @@ unique_ptr<UI> UI::initialise(const UIConfig& cfg) {
    windowClass.lpszClassName = "shadow";
    RegisterClass(&windowClass);
 
-   ui->_inspector.reset(new UIInspector(ui));
+   ui->_inspector.reset(new UIInspector(ui.get()));
 
-   return unique_ptr<UI>{ui};
+   return ui;
 }
 
 bool UI::_platform_message_loop_single(int* result) {
@@ -6042,7 +6042,7 @@ UIMenu& UIMenu::show() {
 
 UIWindow& UI::_platform_create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height) {
    UI* ui = this;
-   _UIMenusClose();
+   _close_menus();
 
    UIWindow* window = new UIWindow(ui, NULL, flags | UIElement::window_flag, UI::_platform_message_proc, "Window");
    window->_init_toplevel();
