@@ -5789,21 +5789,17 @@ void ProfLoadProfileData(void* _window) {
 
    {
       // Create an image of the graph for the zoom bar.
-      uint32_t  width = 1200, height = maxDepth * 30 + 30;
-      UIPainter painter(report->ui(), UIRectangle(0, width, 0, height));
-      painter._width  = width;
-      painter._height = height;
-      painter._bits   = (uint32_t*)malloc(width * height * 4);
+      uint32_t  width  = 1200;
+      uint32_t  height = maxDepth * 30 + 30;
+      UIPainter painter(report->ui(), width, height, (uint32_t*)malloc(width * height * 4));
 
       report->client = report->_bounds = report->_clip = painter._clip;
       ProfFlameGraphMessage(report, UIMessage::PAINT, 0, &painter);
       int newHeight = 30;
       ThumbnailResize(painter._bits, painter._width, painter._height, painter._width, newHeight);
-      painter._height          = newHeight;
-      painter._bits            = (uint32_t*)realloc(painter._bits, painter._width * painter._height * 4);
-      report->thumbnail       = painter._bits;
-      report->thumbnailWidth  = painter._width;
-      report->thumbnailHeight = painter._height;
+      report->thumbnail       = (uint32_t*)realloc(painter._bits, painter._width * newHeight * 4);
+      report->thumbnailWidth  = width;
+      report->thumbnailHeight = newHeight;
    }
 
    table->set_num_items(report->sortedFunctions.size());
@@ -5847,7 +5843,7 @@ UIElement* ProfWindowCreate(UIElement* parent) {
 #ifdef UI_FREETYPE
    // Since we will do multithreaded painting with fontFlameGraph, we need to make sure all its glyphs are ready to go.
    for (uintptr_t i = 0; i < sizeof(window->fontFlameGraph->_glyphs_rendered); i++) {
-      UIPainter fakePainter(parent->ui(), UIRectangle(0));
+      UIPainter fakePainter(parent->ui(), 0, 0, nullptr);
       UIFont*   previousFont = window->fontFlameGraph->activate();
       fakePainter.draw_glyph(0, 0, i, 0xFF000000);
       previousFont->activate();
@@ -7551,7 +7547,7 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
 
    ui_config = ctx.SettingsLoad(false);
    ui->_theme = ui_config._theme;
-
+   
    DebuggerStartThread();
    CommandSyncWithGvim();
    return ui;

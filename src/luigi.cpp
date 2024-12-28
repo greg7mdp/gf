@@ -518,7 +518,7 @@ void UIDrawBlock(UIPainter* painter, UIRectangle rectangle, uint32_t color) {
    }
 
 #ifdef UI_DEBUG
-   painter->fillCount += rectangle.width() * rectangle.height();
+   painter->_fill_count += rectangle.width() * rectangle.height();
 #endif
 }
 
@@ -4223,11 +4223,8 @@ void UI::update() {
          window->message(UIMessage::WINDOW_UPDATE_BEFORE_PAINT, 0, 0);
 
          if (window->_update_region.valid()) {
-            UIPainter painter(this,
-                              intersection(ui_rect_2s(window->width(), window->height()), window->_update_region));
-            painter._bits   = window->bits().data();
-            painter._width  = window->width();
-            painter._height = window->height();
+            UIPainter painter(window);
+            painter._clip = intersection(painter._clip, window->_update_region);
 
             window->paint(&painter);
             window->endpaint(&painter);
@@ -4235,7 +4232,7 @@ void UI::update() {
 
 #ifdef UI_DEBUG
             window->_last_full_fill_count =
-               (float)painter.fillCount / (window->_update_region.width() * window->_update_region.height());
+               (float)painter._fill_count / (window->_update_region.width() * window->_update_region.height());
 #endif
          }
 
@@ -4630,6 +4627,7 @@ UIPainter& UIPainter::draw_glyph(int x0, int y0, int c, uint32_t color) {
    if (c < 0 || c > 127)
       c = '?';
 
+   assert(_bits != nullptr);
    UIRectangle rectangle = intersection(_clip, UIRectangle(x0, x0 + 8, y0, y0 + 16));
 
    const uint8_t* data = (const uint8_t*)_uiFont + c * 16;
@@ -4769,13 +4767,10 @@ int _UIInspectorTableMessage(UIElement* table, UIMessage msg, int di, void* dp) 
       if (index >= 0)
          el = _UIInspectorFindNthElement(ui->_inspector->_target, &index).first;
       UIWindow* window  = ui->_inspector->_target;
-      UIPainter painter = {0};
       window->set_update_region(window->_bounds);
-      painter._bits   = window->bits().data();
-      painter._width  = window->width();
-      painter._height = window->height();
-      painter._clip   = ui_rect_2s(window->width(), window->height());
 
+      UIPainter painter(window);
+      
       auto& bits = window->bits();
       for (uint32_t i = 0; i < window->width() * window->height(); i++) {
          bits[i] = 0xFF00FF;
@@ -5834,7 +5829,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
    }
 
    UI* ui = window->ui();
-
+   
    if (msg == WM_CLOSE) {
       if (window->message(UIMessage::WINDOW_CLOSE, 0, 0)) {
           ui->update();

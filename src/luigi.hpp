@@ -28,7 +28,7 @@ using std::shared_ptr;
 using std::make_unique;
 using std::make_shared;
 
-#define UI_DEBUG 0
+#define UI_DEBUG 1
 
 #ifdef UI_LINUX
    #include <X11/Xlib.h>
@@ -1579,17 +1579,17 @@ public:
 
 // ------------------------------------------------------------------------------------------
 struct UIPainter {
-   UI*         _ui;                     // painter holds a `UI` to compute `string_width()` mostly
-   UIRectangle _clip   = UIRectangle(0);
-   uint32_t*   _bits   = nullptr;        // typically the bits of the window we are drawing on, except when offscreen output
-   uint32_t    _width  = 0;
-   uint32_t    _height = 0;
+   UI*             _ui;     // painter holds a `UI` to compute `string_width()` mostly
+   UIRectangle     _clip;   // clip to the window rectangle or sub-rectangle  we are drawing on
+   uint32_t* const _bits;   // typically the bits of the window we are drawing on, except when offscreen output
+   uint32_t        _width;  // full drawable width (_width * _height * sizeof(uint32_t) == sizeof _bits buffer)
+   uint32_t        _height; // full drawable height
 #ifdef UI_DEBUG
-   int fillCount = 0;
+   int             _fill_count = 0;
 #endif
 
-   UIPainter(UI* ui, UIRectangle rect)
-      : _ui(ui), _clip(rect) {}
+   UIPainter(UI* ui, uint32_t width, uint32_t height, uint32_t* bits)
+      : _ui(ui), _clip(ui_rect_2s(width, height)), _bits(bits), _width(width), _height(height) {}
 
    UIPainter(UIWindow* w);
 
