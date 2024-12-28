@@ -1335,7 +1335,7 @@ void SettingsAddTrustedFolder() {
 UIConfig Context::SettingsLoad(bool earlyPass) {
    bool        currentFolderIsTrusted = false;
    static bool cwdConfigNotTrusted    = false;
-   UIConfig ui_config;
+   UIConfig    ui_config;
 
    for (int i = 0; i < 2; i++) {
       INIState state;
@@ -1507,7 +1507,7 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
                if (strcmp(state.key, themeItems[i]))
                   continue;
                ((uint32_t*)&ui_config._theme)[i] = strtoul(state.value, nullptr, 16);
-               ui_config._has_theme = true;
+               ui_config._has_theme              = true;
             }
          } else if (0 == strcmp(state.section, "vim") && earlyPass && 0 == strcmp(state.key, "server_name")) {
             vimServerName = state.value;
@@ -1819,8 +1819,8 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
          buffer = std::format("    {} {}", ir.expression, ir.value);
       }
 
-      UIDrawString(painter, line, buffer, noInspectResults ? theme.codeOperator : theme.codeString,
-                   UIAlign::left, NULL);
+      UIDrawString(painter, line, buffer, noInspectResults ? theme.codeOperator : theme.codeString, UIAlign::left,
+                   NULL);
       line = line + UIRectangle(0, lineHeight);
       ++index;
    }
@@ -1937,8 +1937,7 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
       if (code->hittest(el->cursor_pos()) == m->index && el->is_hovered() &&
           (el->_window->_ctrl || el->_window->_alt || el->_window->_shift) && !el->_window->textbox_modified_flag()) {
-         UIDrawBorder(m->painter, m->bounds, el->_window->_ctrl ? theme.selected : theme.codeOperator,
-                      UIRectangle(2));
+         UIDrawBorder(m->painter, m->bounds, el->_window->_ctrl ? theme.selected : theme.codeOperator, UIRectangle(2));
          UIDrawString(m->painter, m->bounds, el->_window->_ctrl ? "=> run until " : "=> skip to ", theme.text,
                       UIAlign::right, NULL);
       } else if (m->index == currentEndOfBlock) {
@@ -4210,8 +4209,7 @@ int FilesButtonMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       if (i)
          UIDrawBlock(painter, el->_bounds, i == 2 ? theme.buttonPressed : theme.buttonHovered);
       UIDrawString(painter, el->_bounds + UIRectangle(ui_size::button_padding, 0, 0, 0), button->label(),
-                   button->_flags & UIButton::CHECKED ? theme.codeNumber : theme.codeDefault, UIAlign::left,
-                   NULL);
+                   button->_flags & UIButton::CHECKED ? theme.codeNumber : theme.codeDefault, UIAlign::left, NULL);
       return 1;
    }
 
@@ -6185,7 +6183,7 @@ int ViewWindowMatrixGridMessage(UIElement* el, UIMessage msg, int di, void* dp) 
                if (!c)
                   continue;
                painter->draw_glyph(el->_bounds.l + j * glyphWidth - grid->hScroll->position(),
-                           el->_bounds.t + i * glyphHeight - grid->vScroll->position(), c, theme.text);
+                                   el->_bounds.t + i * glyphHeight - grid->vScroll->position(), c, theme.text);
             } else if (grid->grid_type == grid_type_t::float_t || grid->grid_type == grid_type_t::double_t) {
                double f = grid->grid_type == grid_type_t::double_t ? ((double*)grid->data())[i * grid->w + j]
                                                                    : (double)((float*)grid->data())[i * grid->w + j];
@@ -6670,7 +6668,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
       UIPainter*  painter = (UIPainter*)dp;
       UIRectangle oldClip = painter->_clip;
-      painter->_clip       = intersection(client, painter->_clip);
+      painter->_clip      = intersection(client, painter->_clip);
       int ym              = (client.t + client.b) / 2;
       int h2              = (client.b - client.t) / 2;
       int yp              = ym;
@@ -7518,8 +7516,8 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
    ui_config.default_font_size = interface_font_size;
 
    auto ui = UI::initialise(ui_config); // sets `ui.default_font_path`
-   
-   //ui->_theme = uiThemeDark; // force it for now, overriding `gf2_config.ini` - should remove though!
+
+   // ui->_theme = uiThemeDark; // force it for now, overriding `gf2_config.ini` - should remove though!
 
    // create fonts for interface and code
    // -----------------------------------
@@ -7545,9 +7543,9 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
       print(std::cerr, "Warning: Layout string has additional text after the end of the top-level entry.\n");
    }
 
-   ui_config = ctx.SettingsLoad(false);
+   ui_config  = ctx.SettingsLoad(false);
    ui->_theme = ui_config._theme;
-   
+
    DebuggerStartThread();
    CommandSyncWithGvim();
    return ui;

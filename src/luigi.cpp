@@ -739,7 +739,7 @@ void UIDrawString(UIPainter* painter, UIRectangle r, std::string_view string, ui
       return;
 
    UIRectangle oldClip = painter->_clip;
-   painter->_clip       = intersection(r, oldClip);
+   painter->_clip      = intersection(r, oldClip);
 
    if (!painter->_clip.valid()) {
       painter->_clip = oldClip;
@@ -838,7 +838,7 @@ auto ui_mdi_child_calculate_layout(const UIRectangle& bounds, float scale) {
 
 void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode, std::string_view label,
                           double position, float scale) {
-   UI* ui = painter->ui();
+   UI*      ui            = painter->ui();
    bool     checked       = mode & UIControl::state_checked;
    bool     disabled      = mode & UIControl::state_disabled;
    bool     focused       = mode & UIControl::state_focused;
@@ -853,9 +853,9 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
                               : (pressed || hovered) ? ui->_theme.buttonHovered
                               : focused              ? ui->_theme.selected
                                                      : ui->_theme.buttonNormal;
-   uint32_t buttonTextColor = disabled                            ? ui->_theme.textDisabled
+   uint32_t buttonTextColor = disabled                             ? ui->_theme.textDisabled
                               : buttonColor == ui->_theme.selected ? ui->_theme.textSelected
-                                                                  : ui->_theme.text;
+                                                                   : ui->_theme.text;
 
    if (which == UIControl::checkbox) {
       uint32_t    color = buttonColor, textColor = buttonTextColor;
@@ -919,10 +919,13 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
                              isDown ? 25 : 24, ui->_theme.text);
       } else {
          painter->draw_glyph(isDown ? (bounds.r - ui->_active_font->_glyph_width - 2 * scale) : (bounds.l + 2 * scale),
-                             (bounds.t + bounds.b - ui->_active_font->_glyph_height) / 2, isDown ? 26 : 27, ui->_theme.text);
+                             (bounds.t + bounds.b - ui->_active_font->_glyph_height) / 2, isDown ? 26 : 27,
+                             ui->_theme.text);
       }
    } else if (which == UIControl::scroll_thumb) {
-      uint32_t color = pressed ? ui->_theme.buttonPressed : hovered ? ui->_theme.buttonHovered : ui->_theme.buttonNormal;
+      uint32_t color = pressed   ? ui->_theme.buttonPressed
+                       : hovered ? ui->_theme.buttonHovered
+                                 : ui->_theme.buttonNormal;
       UIDrawRectangle(painter, bounds, color, ui->_theme.border, UIRectangle(2));
    } else if (which == UIControl::gauge) {
       UIDrawRectangle(painter, bounds, ui->_theme.buttonNormal, ui->_theme.border, UIRectangle(1));
@@ -1089,7 +1092,7 @@ int _UIDialogWrapperMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::PAINT) {
       UIDrawControl((UIPainter*)dp, el->_children[0]->_bounds, UIControl::modal_popup, {}, 0, el->_window->scale());
    } else if (msg == UIMessage::KEY_TYPED) {
-      UI* ui = el->ui();
+      UI*         ui    = el->ui();
       UIKeyTyped* typed = (UIKeyTyped*)dp;
 
       if (el->_window->_ctrl)
@@ -1373,7 +1376,7 @@ const char* UIWindow::show_dialog(uint32_t flags, const char* format, ...) {
             if (format[i] == 'C')
                cancelButton = button;
             buttonCount++;
-            button->on_click([&, label=label](UIButton&) { ui()->_dialog_result = label; });
+            button->on_click([&, label = label](UIButton&) { ui()->_dialog_result = label; });
             if (format[i] == 'B')
                button->_user_proc = _UIDialogDefaultButtonMessage;
          } else if (format[i] == 's' /* label from string */) {
@@ -1413,8 +1416,8 @@ const char* UIWindow::show_dialog(uint32_t flags, const char* format, ...) {
    // Run the modal message loop.
 
    int result;
-   UI* ui            = this->ui();
-   ui->_dialog_result  = nullptr;
+   UI* ui               = this->ui();
+   ui->_dialog_result   = nullptr;
    ui->_dialog_can_exit = buttonCount != 0;
    for (int i = 1; i <= 3; i++)
       set_pressed(NULL, i);
@@ -1652,7 +1655,7 @@ UIElement::UIElement(UIElement* parent, uint32_t flags, message_proc_t message_p
    _id                  = ++s_id;
 
    if (parent)
-       parent->ui()->inspector_refresh();
+      parent->ui()->inspector_refresh();
 }
 
 UIElement::~UIElement() {}
@@ -2524,7 +2527,8 @@ UICode& UICode::position_to_byte(int x, int y, size_t* line, size_t* byte) {
    *line                = std::max((int64_t)0, (y - _bounds.t + _vscroll->position()) / lineHeight);
    if (*line >= num_lines())
       *line = num_lines() - 1;
-   int column = (x - _bounds.l + _hscroll->position() + ui->_active_font->_glyph_width / 2) / ui->_active_font->_glyph_width;
+   int column =
+      (x - _bounds.l + _hscroll->position() + ui->_active_font->_glyph_width / 2) / ui->_active_font->_glyph_width;
    if (~_flags & UICode::NO_MARGIN)
       column -= (ui->code_margin() + ui->code_margin_gap()) / ui->_active_font->_glyph_width;
    previousFont->activate();
@@ -2808,7 +2812,7 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
          }
 
          UIRectangle oldClip = painter->_clip;
-         painter->_clip       = intersection(oldClip, lineBounds);
+         painter->_clip      = intersection(oldClip, lineBounds);
          if (_hscroll)
             lineBounds.l -= (int64_t)_hscroll->position();
          selection.carets[0] = i == _selection[0].line ? byte_to_column(i, _selection[0].offset) : 0;
@@ -2819,7 +2823,8 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
          int  y = (lineBounds.t + lineBounds.b - ui->string_height()) / 2;
 
          if (is_focused() && i >= _selection[0].line && i < _selection[1].line) {
-            UIDrawBlock(painter, ui_rect_4pd(x, y, font()->_glyph_width, font()->_glyph_height), selection.colorBackground);
+            UIDrawBlock(painter, ui_rect_4pd(x, y, font()->_glyph_width, font()->_glyph_height),
+                        selection.colorBackground);
          }
 
          if (_hscroll)
@@ -3356,7 +3361,7 @@ int UITable::_class_message_proc(UIMessage msg, int di, void* dp) {
          row.t += rowHeight;
       }
 
-      bounds        = _bounds;
+      bounds         = _bounds;
       painter->_clip = intersection(oldClip, bounds);
       if (_hscroll)
          bounds.l -= (int64_t)_hscroll->position();
@@ -3940,8 +3945,7 @@ int UIImageDisplay::_class_message_proc(UIMessage msg, int di, void* dp) {
       int x = _UILinearMap(0, _panX, _panX + w / _zoom, 0, w) + _bounds.l;
       int y = _UILinearMap(0, _panY, _panY + h / _zoom, 0, h) + _bounds.t;
 
-      UIRectangle image =
-         UIRectangle(x, x + (int)(_width * _zoom), y, (int)(y + _height * _zoom));
+      UIRectangle image  = UIRectangle(x, x + (int)(_width * _zoom), y, (int)(y + _height * _zoom));
       UIRectangle bounds = intersection(painter->_clip, intersection(_bounds, image));
       if (!bounds.valid())
          return 0;
@@ -3969,7 +3973,7 @@ int UIImageDisplay::_class_message_proc(UIMessage msg, int di, void* dp) {
             int ty = (i - image.t) * zr;
 
             for (int j = bounds.l; j < bounds.r; j++) {
-               int tx                              = (j - image.l) * zr;
+               int tx                               = (j - image.l) * zr;
                destination[i * painter->_width + j] = _bits[ty * _width + tx];
             }
          }
@@ -4000,8 +4004,7 @@ int UIImageDisplay::_class_message_proc(UIMessage msg, int di, void* dp) {
       _previousWidth = bounds.r, _previousHeight = bounds.b;
       _update_viewport();
    } else if (msg == UIMessage::GET_CURSOR && (_flags & UIImageDisplay::INTERACTIVE) &&
-              (_bounds.width() < _width * _zoom ||
-               _bounds.height() < _height * _zoom)) {
+              (_bounds.width() < _width * _zoom || _bounds.height() < _height * _zoom)) {
       return (int)UICursor::hand;
    } else if (msg == UIMessage::MOUSE_DRAG) {
       _panX -= (cursor_pos().x - _previousPanPointX) / _zoom;
@@ -4021,7 +4024,7 @@ int UIImageDisplay::_class_message_proc(UIMessage msg, int di, void* dp) {
 
 UIImageDisplay& UIImageDisplay::set_content(uint32_t* bits, size_t w, size_t h, size_t stride) {
    free(bits);
-   bits   = (uint32_t*)malloc(w * h * 4);
+   bits    = (uint32_t*)malloc(w * h * 4);
    _width  = w;
    _height = h;
 
@@ -4051,8 +4054,7 @@ UIImageDisplay::UIImageDisplay(UIElement* parent, uint32_t flags, uint32_t* bits
    , _height(height)
    , _panX(0)
    , _panY(0)
-   , _zoom(1)
-{
+   , _zoom(1) {
    set_content(bits, width, height, stride);
 }
 
@@ -4072,7 +4074,7 @@ bool UI::_close_menus() {
 
    while (window) {
       if (window->_flags & UIWindow::MENU) {
-          inspector_notify_destroyed_window(window);
+         inspector_notify_destroyed_window(window);
 
          window->destroy();
          anyClosed = true;
@@ -4541,10 +4543,10 @@ const uint64_t _uiFont[] = {
 
 UIPainter& UIPainter::draw_glyph(int x0, int y0, int c, uint32_t color) {
 #ifdef UI_FREETYPE
-   UI *ui = this->ui();
-   
+   UI* ui = this->ui();
+
    UIFont* font = ui->_active_font;
-   //std_print("font = {}\n", (void *)font);
+   // std_print("font = {}\n", (void *)font);
 
    if (font->_is_freetype) {
       if (c < 0 || c >= max_glyphs)
@@ -4564,9 +4566,9 @@ UIPainter& UIPainter::draw_glyph(int x0, int y0, int c, uint32_t color) {
          FT_Render_Glyph(font->_font->glyph, ft_render_mode);
 
          FT_Bitmap_Copy(ui->_ft, &font->_font->glyph->bitmap, &font->_glyphs[c]);
-         font->_glyphs_offsets_x[c]  = font->_font->glyph->bitmap_left;
-         font->_glyphs_offsets_y[c]  = font->_font->size->metrics.ascender / 64 - font->_font->glyph->bitmap_top;
-         font->_glyphs_rendered[c] = true;
+         font->_glyphs_offsets_x[c] = font->_font->glyph->bitmap_left;
+         font->_glyphs_offsets_y[c] = font->_font->size->metrics.ascender / 64 - font->_font->glyph->bitmap_top;
+         font->_glyphs_rendered[c]  = true;
       }
 
       FT_Bitmap* bitmap = &font->_glyphs[c];
@@ -4655,7 +4657,7 @@ UIFont* UI::create_font(std::string_view cPath, uint32_t size) {
 
    unique_ptr<UIFont> font = make_unique<UIFont>();
 
-   font->_ui = this;
+   font->_ui           = this;
    font->_glyph_width  = 9;
    font->_glyph_height = 16;
 
@@ -4666,33 +4668,33 @@ UIFont* UI::create_font(std::string_view cPath, uint32_t size) {
    font->_glyphs_offsets_y = make_unique<int[]>(max_glyphs);
 
    int ret = FT_New_Face(_ft, cPath.data(), 0, &font->_font);
-      if (ret == 0) {
-         FT_Select_Charmap(font->_font, FT_ENCODING_UNICODE);
-         if (FT_HAS_FIXED_SIZES(font->_font) && font->_font->num_fixed_sizes) {
-            // Look for the smallest strike that's at least `size`.
-            int j = 0;
+   if (ret == 0) {
+      FT_Select_Charmap(font->_font, FT_ENCODING_UNICODE);
+      if (FT_HAS_FIXED_SIZES(font->_font) && font->_font->num_fixed_sizes) {
+         // Look for the smallest strike that's at least `size`.
+         int j = 0;
 
-            for (int i = 0; i < font->_font->num_fixed_sizes; i++) {
-               if ((uint32_t)font->_font->available_sizes[i].height >= size &&
-                   font->_font->available_sizes[i].y_ppem < font->_font->available_sizes[j].y_ppem) {
-                  j = i;
-               }
+         for (int i = 0; i < font->_font->num_fixed_sizes; i++) {
+            if ((uint32_t)font->_font->available_sizes[i].height >= size &&
+                font->_font->available_sizes[i].y_ppem < font->_font->available_sizes[j].y_ppem) {
+               j = i;
             }
-
-            FT_Set_Pixel_Sizes(font->_font, font->_font->available_sizes[j].x_ppem / 64,
-                               font->_font->available_sizes[j].y_ppem / 64);
-         } else {
-            FT_Set_Char_Size(font->_font, 0, size * 64, 100, 100);
          }
 
-         FT_Load_Char(font->_font, 'a', FT_LOAD_DEFAULT);
-         font->_glyph_width  = font->_font->glyph->advance.x / 64;
-         font->_glyph_height = (font->_font->size->metrics.ascender - font->_font->size->metrics.descender) / 64;
-         font->_is_freetype  = true;
+         FT_Set_Pixel_Sizes(font->_font, font->_font->available_sizes[j].x_ppem / 64,
+                            font->_font->available_sizes[j].y_ppem / 64);
       } else {
-         std_print("Cannot load font {} : {}\n", cPath, ret);
-         return nullptr;
+         FT_Set_Char_Size(font->_font, 0, size * 64, 100, 100);
       }
+
+      FT_Load_Char(font->_font, 'a', FT_LOAD_DEFAULT);
+      font->_glyph_width  = font->_font->glyph->advance.x / 64;
+      font->_glyph_height = (font->_font->size->metrics.ascender - font->_font->size->metrics.descender) / 64;
+      font->_is_freetype  = true;
+   } else {
+      std_print("Cannot load font {} : {}\n", cPath, ret);
+      return nullptr;
+   }
 #endif // UI_FREETYPE
 
    UIFont* f = font.get();
@@ -4738,7 +4740,7 @@ std::pair<UIElement*, size_t> _UIInspectorFindNthElement(UIElement* el, int* ind
 }
 
 int _UIInspectorTableMessage(UIElement* table, UIMessage msg, int di, void* dp) {
-   UI *ui = table->ui();
+   UI* ui = table->ui();
    if (!ui->_inspector->_target) {
       return 0;
    }
@@ -4763,11 +4765,11 @@ int _UIInspectorTableMessage(UIElement* table, UIMessage msg, int di, void* dp) 
       UIElement* el    = NULL;
       if (index >= 0)
          el = _UIInspectorFindNthElement(ui->_inspector->_target, &index).first;
-      UIWindow* window  = ui->_inspector->_target;
+      UIWindow* window = ui->_inspector->_target;
       window->set_update_region(window->_bounds);
 
       UIPainter painter(window);
-      
+
       auto& bits = window->bits();
       for (uint32_t i = 0; i < window->width() * window->height(); i++) {
          bits[i] = 0xFF00FF;
@@ -4953,7 +4955,7 @@ void UIWindow::_init_toplevel() {
    set_scale(1.0f);
    _window = this;
 
-   UI *ui = this->ui(); // has to be after `_window` is updated
+   UI* ui = this->ui(); // has to be after `_window` is updated
    set_hovered(this);
    set_next(ui->_toplevel_windows);
    ui->_toplevel_windows = this;
@@ -5042,8 +5044,8 @@ UIWindow& UI::_platform_create_window(UIWindow* owner, uint32_t flags, const cha
    XSetWindowAttributes attributes = {};
    attributes.override_redirect    = flags & UIWindow::MENU;
 
-   window->_xwindow = XCreateWindow(ui->_display, DefaultRootWindow(ui->_display), 0, 0, width, height, 0, 0, InputOutput,
-                                    CopyFromParent, CWOverrideRedirect, &attributes);
+   window->_xwindow = XCreateWindow(ui->_display, DefaultRootWindow(ui->_display), 0, 0, width, height, 0, 0,
+                                    InputOutput, CopyFromParent, CWOverrideRedirect, &attributes);
    if (cTitle)
       XStoreName(ui->_display, window->_xwindow, cTitle);
    XSelectInput(ui->_display, window->_xwindow,
@@ -5082,7 +5084,7 @@ UIWindow& UI::_platform_create_window(UIWindow* owner, uint32_t flags, const cha
    return *window;
 }
 
-UIWindow* _UIFindWindow(UI *ui, Window window) {
+UIWindow* _UIFindWindow(UI* ui, Window window) {
    UIWindow* w = ui->_toplevel_windows;
    while (w) {
       if (w->_xwindow == window) {
@@ -5095,7 +5097,7 @@ UIWindow* _UIFindWindow(UI *ui, Window window) {
 
 void UIWindow::write_clipboard_text(std::string_view text, sel_target_t t) {
    _ui->_paste_text = text;
-   Atom atom      = (t == sel_target_t::clipboard) ? _ui->clipboardID : _ui->primaryID;
+   Atom atom        = (t == sel_target_t::clipboard) ? _ui->clipboardID : _ui->primaryID;
    XSetSelectionOwner(_ui->_display, atom, _xwindow, 0);
 }
 
@@ -5164,8 +5166,8 @@ std::string UIWindow::read_clipboard_text(sel_target_t t) {
                unsigned long chunkSize;
 
                // Note that this call deletes the property.
-               XGetWindowProperty(_ui->_display, _ui->_copy_event.xproperty.window, _ui->_copy_event.xproperty.atom, 0L, ~0L,
-                                  True, AnyPropertyType, &target, &format, &chunkSize, &itemAmount,
+               XGetWindowProperty(_ui->_display, _ui->_copy_event.xproperty.window, _ui->_copy_event.xproperty.atom, 0L,
+                                  ~0L, True, AnyPropertyType, &target, &format, &chunkSize, &itemAmount,
                                   (unsigned char**)&data);
 
                if (chunkSize == 0) {
@@ -5187,11 +5189,11 @@ std::string UIWindow::read_clipboard_text(sel_target_t t) {
 }
 
 unique_ptr<UI> UI::initialise(const UIConfig& cfg) {
-   unique_ptr<UI> ui( new UI);
-   
+   unique_ptr<UI> ui(new UI);
+
    if (cfg._has_theme)
       ui->_theme = cfg._theme;
-   
+
    std::string font_path = cfg.font_path;
 
    #ifdef UI_FREETYPE
@@ -5277,7 +5279,7 @@ UIWindow& UIWindow::set_cursor(int cursor) {
    return *this;
 }
 
-#if 0
+   #if 0
 Display* _UIX11GetDisplay() {
    return ui->_display;
 }
@@ -5292,9 +5294,9 @@ void UIWindowPack(UIWindow* window, int _width) {
    XResizeWindow(window->ui()->_display, window->_xwindow, width, height);
 }
 
-#endif
+   #endif
 
-void UIWindow::endpaint(UIPainter* painter) const{
+void UIWindow::endpaint(UIPainter* painter) const {
    (void)painter;
    const auto& ur = _window->_update_region;
    XPutImage(_ui->_display, _window->_xwindow, DefaultGC(_ui->_display, 0), _window->_image, ur.l, ur.t, ur.l, ur.t,
@@ -5829,10 +5831,10 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
    }
 
    UI* ui = window->ui();
-   
+
    if (msg == WM_CLOSE) {
       if (window->message(UIMessage::WINDOW_CLOSE, 0, 0)) {
-          ui->update();
+         ui->update();
          return 0;
       } else {
          PostQuitMessage(0);
@@ -5916,13 +5918,13 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
                     (BITMAPINFO*)&info, DIB_RGB_COLORS, SRCCOPY);
       EndPaint(hwnd, &paint);
    } else if (msg == WM_SETCURSOR && LOWORD(lParam) == HTCLIENT) {
-      ::SetCursor( ui->_cursors[window->cursor_style()]);
+      ::SetCursor(ui->_cursors[window->cursor_style()]);
       return 1;
    } else if (msg == WM_SETFOCUS || msg == WM_KILLFOCUS) {
       ui->_close_menus();
 
       if (msg == WM_SETFOCUS) {
-          ui->inspector_set_focused_window(window);
+         ui->inspector_set_focused_window(window);
          window->message(UIMessage::WINDOW_ACTIVATE, 0, 0);
       }
    } else if (msg == WM_MOUSEACTIVATE && (window->_flags & UIWindow::MENU)) {
@@ -5944,15 +5946,15 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
          free(files[i]);
       free(files);
       DragFinish(drop);
-       ui->update();
+      ui->update();
    } else if (msg == WM_APP + 1) {
       window->message((UIMessage)wParam, 0, (void*)lParam);
-       ui->update();
+      ui->update();
    } else {
       if (msg == WM_NCLBUTTONDOWN || msg == WM_NCMBUTTONDOWN || msg == WM_NCRBUTTONDOWN) {
          if (~window->_flags & UIWindow::MENU) {
-             ui->_close_menus();
-             ui->update();
+            ui->_close_menus();
+            ui->update();
          }
       }
 
@@ -6044,7 +6046,7 @@ UIWindow& UI::_platform_create_window(UIWindow* owner, uint32_t flags, const cha
    UIWindow* window = new UIWindow(ui, NULL, flags | UIElement::window_flag, UI::_platform_message_proc, "Window");
    window->_init_toplevel();
    if (owner)
-       window->set_scale(owner->_scale);
+      window->set_scale(owner->_scale);
 
    if (flags & UIWindow::MENU) {
       UI_ASSERT(owner);

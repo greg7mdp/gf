@@ -28,7 +28,7 @@ using std::shared_ptr;
 using std::make_unique;
 using std::make_shared;
 
-#define UI_DEBUG 1
+#define UI_DEBUG 0
 
 #ifdef UI_LINUX
    #include <X11/Xlib.h>
