@@ -1560,6 +1560,16 @@ public:
    UITheme&  theme() { return _theme; }
    UIFont*   active_font() const { return _active_font; }
 
+   // ----------- inspector --------------------------------------------------------
+    void inspector_refresh() {
+        if constexpr (UIInspector::enabled()) if (_inspector) _inspector->refresh();
+    }
+    void inspector_notify_destroyed_window(UIWindow* w) {
+        if constexpr (UIInspector::enabled()) if (_inspector) _inspector->notify_destroyed_window(w);
+    }
+    void inspector_set_focused_window(UIWindow* w) {
+        if constexpr (UIInspector::enabled()) if (_inspector) _inspector->set_focused_window(w);
+    }
    // ----------- utilities --------------------------------------------------------
    int code_margin()     { return _active_font->_glyph_width * 5; }
    int code_margin_gap() { return _active_font->_glyph_width * 1; }

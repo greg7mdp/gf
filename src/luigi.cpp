@@ -1014,8 +1014,7 @@ void UIElement::_destroy_descendents(bool topLevel) {
          child->destroy();
    }
 
-   if constexpr (UIInspector::enabled())
-      ui()->_inspector->refresh();
+   ui()->inspector_refresh();
 }
 
 void UIElement::destroy_descendents() {
@@ -1212,8 +1211,7 @@ UIElement& UIElement::focus() {
          previous->message(UIMessage::UPDATE, UIUpdate::focused, 0);
       this->message(UIMessage::UPDATE, UIUpdate::focused, 0);
 
-      if constexpr (UIInspector::enabled())
-         ui()->_inspector->refresh();
+      ui()->inspector_refresh();
    }
    return *this;
 }
@@ -1653,8 +1651,8 @@ UIElement::UIElement(UIElement* parent, uint32_t flags, message_proc_t message_p
    static uint32_t s_id = 0;
    _id                  = ++s_id;
 
-   if constexpr (UIInspector::enabled())
-      parent->ui()->_inspector->refresh();
+   if (parent)
+       parent->ui()->inspector_refresh();
 }
 
 UIElement::~UIElement() {}
@@ -4074,8 +4072,7 @@ bool UI::_close_menus() {
 
    while (window) {
       if (window->_flags & UIWindow::MENU) {
-         if constexpr (UIInspector::enabled())
-            _inspector->notify_destroyed_window(window);
+          inspector_notify_destroyed_window(window);
 
          window->destroy();
          anyClosed = true;
@@ -4834,7 +4831,7 @@ void UIInspector::set_focused_window(UIWindow* window) {
 
    if (_target != window) {
       _target = window;
-      window->ui()->_inspector->refresh();
+      window->ui()->inspector_refresh();
    }
 }
 
@@ -4955,9 +4952,13 @@ void UI::_initialize_common(const UIConfig& cfg, const std::string& default_font
 void UIWindow::_init_toplevel() {
    set_scale(1.0f);
    _window = this;
+
+   UI *ui = this->ui(); // has to be after `_window` is updated
    set_hovered(this);
-   set_next(ui()->_toplevel_windows);
-   ui()->_toplevel_windows = this;
+   set_next(ui->_toplevel_windows);
+   ui->_toplevel_windows = this;
+
+   ui->inspector_refresh();
 }
 
 int UIWindow::_class_message_proc_common(UIMessage msg, int di, void* dp) {
@@ -5465,8 +5466,7 @@ bool UI::_process_x11_event(void* x_event) {
          window->input_event(UIMessage::MOUSE_WHEEL, 72, 0);
       }
 
-      if constexpr (UIInspector::enabled())
-         _inspector->set_focused_window(window);
+      inspector_set_focused_window(window);
    } else if (event->type == KeyPress) {
       UIWindow* window = _UIFindWindow(this, event->xkey.window);
       if (!window)
@@ -5922,7 +5922,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
       ui->_close_menus();
 
       if (msg == WM_SETFOCUS) {
-          ui->_inspector->set_focused_window(window);
+          ui->inspector_set_focused_window(window);
          window->message(UIMessage::WINDOW_ACTIVATE, 0, 0);
       }
    } else if (msg == WM_MOUSEACTIVATE && (window->_flags & UIWindow::MENU)) {
