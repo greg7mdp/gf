@@ -5833,9 +5833,11 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
       return DefWindowProc(hwnd, msg, wParam, lParam);
    }
 
+   UI* ui = window->ui();
+
    if (msg == WM_CLOSE) {
       if (window->message(UIMessage::WINDOW_CLOSE, 0, 0)) {
-          window->ui()->update();
+          ui->update();
          return 0;
       } else {
          PostQuitMessage(0);
@@ -5848,7 +5850,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
       window->_bounds = ui_rect_2s(window->width(), window->height());
       window->_clip   = ui_rect_2s(window->width(), window->height());
       window->relayout();
-      window->ui()->update();
+      ui->update();
    } else if (msg == WM_MOUSEMOVE) {
       if (!window->_tracking_leave) {
          window->_tracking_leave = true;
@@ -5919,13 +5921,13 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
                     (BITMAPINFO*)&info, DIB_RGB_COLORS, SRCCOPY);
       EndPaint(hwnd, &paint);
    } else if (msg == WM_SETCURSOR && LOWORD(lParam) == HTCLIENT) {
-      ::SetCursor( window->ui()->_cursors[window->cursor_style()]);
+      ::SetCursor( ui->_cursors[window->cursor_style()]);
       return 1;
    } else if (msg == WM_SETFOCUS || msg == WM_KILLFOCUS) {
-      window->ui()->_close_menus();
+      ui->_close_menus();
 
       if (msg == WM_SETFOCUS) {
-          window->ui()->_inspector->set_focused_window(window);
+          ui->_inspector->set_focused_window(window);
          window->message(UIMessage::WINDOW_ACTIVATE, 0, 0);
       }
    } else if (msg == WM_MOUSEACTIVATE && (window->_flags & UIWindow::MENU)) {
@@ -5947,15 +5949,15 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
          free(files[i]);
       free(files);
       DragFinish(drop);
-       window->ui()->update();
+       ui->update();
    } else if (msg == WM_APP + 1) {
       window->message((UIMessage)wParam, 0, (void*)lParam);
-       window->ui()->update();
+       ui->update();
    } else {
       if (msg == WM_NCLBUTTONDOWN || msg == WM_NCMBUTTONDOWN || msg == WM_NCRBUTTONDOWN) {
          if (~window->_flags & UIWindow::MENU) {
-             window->ui()->_close_menus();
-             window->ui()->update();
+             ui->_close_menus();
+             ui->update();
          }
       }
 
