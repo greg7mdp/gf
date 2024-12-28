@@ -134,13 +134,93 @@ uint32_t UIElement::state() const {
       #error "Unicode support requires Freetype"
    #endif
 
-int         Utf8GetCodePoint(const char* cString, size_t bytesLength, size_t* bytesConsumed);
-const char* Utf8GetPreviousChar(const char* string, const char* offset);
-size_t      Utf8GetCharBytes(const char* cString, size_t bytes);
-size_t      Utf8StringLength(const char* cString, size_t bytes);
-
 inline constexpr size_t _UNICODE_MAX_CODEPOINT = 0x10FFFF;
 inline constexpr int    max_glyphs             = _UNICODE_MAX_CODEPOINT + 1;
+
+int Utf8GetCodePoint(const char* cString, size_t bytesLength, size_t* bytesConsumed) {
+   UI_ASSERT(bytesLength > 0 && "Attempted to get UTF-8 code point from an empty string");
+
+   if (bytesConsumed == nullptr) {
+      size_t bytesConsumed;
+      return Utf8GetCodePoint(cString, bytesLength, &bytesConsumed);
+   }
+
+   size_t  numExtraBytes;
+   uint8_t first = cString[0];
+
+   *bytesConsumed = 1;
+   if ((first & 0xF0) == 0xF0) {
+      numExtraBytes = 3;
+   } else if ((first & 0xE0) == 0xE0) {
+      numExtraBytes = 2;
+   } else if ((first & 0xC0) == 0xC0) {
+      numExtraBytes = 1;
+   } else if (first & 0x7F) {
+      return first & 0x80 ? -1 : first;
+   } else {
+      return -1;
+   }
+
+   if (bytesLength < numExtraBytes + 1) {
+      return -1;
+   }
+
+   int codePoint = ((int)first & (0x3F >> numExtraBytes)) << (6 * numExtraBytes);
+   for (size_t idx = 1; idx < numExtraBytes + 1; idx++) {
+      char byte = cString[idx];
+      if ((byte & 0xC0) != 0x80) {
+         return -1;
+      }
+
+      codePoint |= (byte & 0x3F) << (6 * (numExtraBytes - idx));
+      (*bytesConsumed)++;
+   }
+
+   return codePoint > (int)_UNICODE_MAX_CODEPOINT ? -1 : codePoint;
+}
+
+const char* Utf8GetPreviousChar(const char* string, const char* offset) {
+   if (string == offset) {
+      return string;
+   }
+
+   const char* prev = offset - 1;
+   while (prev > string) {
+      if ((*prev & 0xC0) == 0x80)
+         prev--;
+      else
+         break;
+   }
+
+   return prev;
+}
+
+size_t Utf8GetCharBytes(const char* cString, size_t bytes) {
+   if (!cString) {
+      return 0;
+   }
+   size_t bytesConsumed;
+   Utf8GetCodePoint(cString, bytes, &bytesConsumed);
+   return bytesConsumed;
+}
+
+size_t Utf8StringLength(const char* cString, size_t bytes) {
+   if (!cString) {
+      return 0;
+   }
+   size_t length    = 0;
+   size_t byteIndex = 0;
+   while (byteIndex < bytes) {
+      size_t bytesConsumed;
+      Utf8GetCodePoint(cString + byteIndex, bytes - byteIndex, &bytesConsumed);
+      byteIndex += bytesConsumed;
+      length++;
+
+      UI_ASSERT(byteIndex <= bytes && "Overran the end of the string while counting the number of UTF-8 code points");
+   }
+
+   return length;
+}
 
 inline void _ui_advance_char(size_t& index, const char* text, size_t count) {
    assert(count >= index);
@@ -352,95 +432,6 @@ int UI::column_to_byte(std::string_view string, size_t column, size_t tabSize) {
 
    return (int)byte;
 }
-
-#ifdef UI_UNICODE
-
-int Utf8GetCodePoint(const char* cString, size_t bytesLength, size_t* bytesConsumed) {
-   UI_ASSERT(bytesLength > 0 && "Attempted to get UTF-8 code point from an empty string");
-
-   if (bytesConsumed == nullptr) {
-      size_t bytesConsumed;
-      return Utf8GetCodePoint(cString, bytesLength, &bytesConsumed);
-   }
-
-   size_t  numExtraBytes;
-   uint8_t first = cString[0];
-
-   *bytesConsumed = 1;
-   if ((first & 0xF0) == 0xF0) {
-      numExtraBytes = 3;
-   } else if ((first & 0xE0) == 0xE0) {
-      numExtraBytes = 2;
-   } else if ((first & 0xC0) == 0xC0) {
-      numExtraBytes = 1;
-   } else if (first & 0x7F) {
-      return first & 0x80 ? -1 : first;
-   } else {
-      return -1;
-   }
-
-   if (bytesLength < numExtraBytes + 1) {
-      return -1;
-   }
-
-   int codePoint = ((int)first & (0x3F >> numExtraBytes)) << (6 * numExtraBytes);
-   for (size_t idx = 1; idx < numExtraBytes + 1; idx++) {
-      char byte = cString[idx];
-      if ((byte & 0xC0) != 0x80) {
-         return -1;
-      }
-
-      codePoint |= (byte & 0x3F) << (6 * (numExtraBytes - idx));
-      (*bytesConsumed)++;
-   }
-
-   return codePoint > (int)_UNICODE_MAX_CODEPOINT ? -1 : codePoint;
-}
-
-const char* Utf8GetPreviousChar(const char* string, const char* offset) {
-   if (string == offset) {
-      return string;
-   }
-
-   const char* prev = offset - 1;
-   while (prev > string) {
-      if ((*prev & 0xC0) == 0x80)
-         prev--;
-      else
-         break;
-   }
-
-   return prev;
-}
-
-size_t Utf8GetCharBytes(const char* cString, size_t bytes) {
-   if (!cString) {
-      return 0;
-   }
-   size_t bytesConsumed;
-   Utf8GetCodePoint(cString, bytes, &bytesConsumed);
-   return bytesConsumed;
-}
-
-size_t Utf8StringLength(const char* cString, size_t bytes) {
-   if (!cString) {
-      return 0;
-   }
-   size_t length    = 0;
-   size_t byteIndex = 0;
-   while (byteIndex < bytes) {
-      size_t bytesConsumed;
-      Utf8GetCodePoint(cString + byteIndex, bytes - byteIndex, &bytesConsumed);
-      byteIndex += bytesConsumed;
-      length++;
-
-      UI_ASSERT(byteIndex <= bytes && "Overran the end of the string while counting the number of UTF-8 code points");
-   }
-
-   return length;
-}
-
-#endif
 
 // --------------------------------------------------
 // Animations.
