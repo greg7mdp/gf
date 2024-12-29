@@ -1492,8 +1492,8 @@ public:
 // ------------------------------------------------------------------------------------------
 struct UI {
 private:
-#ifdef UI_LINUX
-   using cursors_t   = std::array<Cursor, (uint32_t)UICursor::count>;
+#if defined(UI_LINUX)
+   using cursors_t = std::array<Cursor, (uint32_t)UICursor::count>;
 
    Display*    _display        = nullptr;
    Visual*     _visual         = nullptr;
@@ -1505,6 +1505,11 @@ private:
    cursors_t   _cursors{};
    std::string _paste_text;
    XEvent      _copy_event;
+#elif defined(UI_WINDOWS)
+   using cursors_t = std::array<HCURSOR, (uint32_t)UICursor::count>;
+
+   cursors_t   _cursors{};
+   bool        _assertion_failure = false;
 #endif
 
    void        _inspector_refresh();
@@ -1532,15 +1537,8 @@ public:
 
    std::unique_ptr<UIInspector> _inspector;
 
-#ifdef UI_WINDOWS
-   using cursors_t = std::array<HCURSOR, (uint32_t)UICursor::count>;
-
-   cursors_t _cursors{};
-   bool      _assertion_failure = false;
-#endif
-
 #ifdef UI_FREETYPE
-   FT_Library _ft = nullptr;
+   FT_Library  _ft = nullptr;
 #endif
 
    using font_map_t = std::unordered_map<UIFontSpec, unique_ptr<UIFont>>;
