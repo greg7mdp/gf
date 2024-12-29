@@ -1492,6 +1492,9 @@ public:
 // ------------------------------------------------------------------------------------------
 struct UI {
 private:
+   using font_map_t = std::unordered_map<UIFontSpec, unique_ptr<UIFont>>;
+   font_map_t _font_map;
+
 #if defined(UI_LINUX)
    enum atom_id_t { windowClosedID=0, primaryID, uriListID, plainTextID, dndEnterID, dndPositionID,
       dndStatusID, dndActionCopyID, dndDropID, dndSelectionID, dndFinishedID, dndAwareID, clipboardID,
@@ -1539,63 +1542,58 @@ public:
    FT_Library  _ft = nullptr;
 #endif
 
-   using font_map_t = std::unordered_map<UIFontSpec, unique_ptr<UIFont>>;
-   
-   font_map_t _font_map;
-   bool       _platform_message_loop_single(int* result);
-
-   ~UI() {
-      _font_map.clear();
-#ifdef UI_FREETYPE
-      FT_Done_FreeType(_ft);
-#endif
-   }
+   // ------ public functions -------------------------------------------------------------
+   ~UI();
 
    static unique_ptr<UI> initialise(const UIConfig& cfg);  // main entry point of the library
 
-   int       message_loop();
-   void      update();
-   void      process_animations();
-   bool      is_menu_open() const;
-   bool      _close_menus();
+   int         message_loop();
+   void        update();
+   void        process_animations();
+   bool        is_menu_open() const;
+   bool        close_menus();
 
+   UIMenu&     create_menu(UIElement* parent, uint32_t flags);
+   UIWindow&   create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height);
+   UIFont*     create_font(std::string_view path, uint32_t size);
 
-   UIMenu&   create_menu(UIElement* parent, uint32_t flags);
-   UIWindow& create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height);
-   UIFont*   create_font(std::string_view path, uint32_t size);
-
-   UITheme&  theme() { return _theme; }
-   UIFont*   active_font() const { return _active_font; }
+   UITheme&    theme() { return _theme; }
+   UIFont*     active_font() const { return _active_font; }
 
    void        write_clipboard_text(std::string_view text, UIWindow* w, sel_target_t t);
    std::string read_clipboard_text(UIWindow* w, sel_target_t t);
 
-   // ----------- inspector --------------------------------------------------------
-    void inspector_refresh() {
-        if constexpr (UIInspector::enabled()) if (_inspector) _inspector->refresh();
-    }
-    void inspector_notify_destroyed_window(UIWindow* w) {
-        if constexpr (UIInspector::enabled()) if (_inspector) _inspector->notify_destroyed_window(w);
-    }
-    void inspector_set_focused_window(UIWindow* w) {
-        if constexpr (UIInspector::enabled()) if (_inspector) _inspector->set_focused_window(w);
-    }
    // ----------- utilities --------------------------------------------------------
-   int code_margin()     { return _active_font->_glyph_width * 5; }
-   int code_margin_gap() { return _active_font->_glyph_width * 1; }
+   int         code_margin()     { return _active_font->_glyph_width * 5; }
+   int         code_margin_gap() { return _active_font->_glyph_width * 1; }
 
-   int     string_width(std::string_view string) const;
-   int     string_height() const { return _active_font->_glyph_height; }
-   UIPoint string_dims(std::string_view s) const { return UIPoint{string_width(s), string_height()}; }
+   int         string_width(std::string_view string) const;
+   int         string_height() const { return _active_font->_glyph_height; }
+   UIPoint     string_dims(std::string_view s) const { return UIPoint{string_width(s), string_height()}; }
 
-   static int byte_to_column(std::string_view string, size_t byte, size_t tabSize);
-   static int column_to_byte(std::string_view string, size_t column, size_t tabSize);
+   static int  byte_to_column(std::string_view string, size_t byte, size_t tabSize);
+   static int  column_to_byte(std::string_view string, size_t column, size_t tabSize);
 
    static bool is_digit(int c) { return std::isdigit(c); }
    static bool is_alpha(int c) { return std::isalpha(c) || c > 127; }
    static bool is_alnum(int c) { return std::isalnum(c) || c > 127; }
    static bool is_alnum_or_underscore(int c) { return is_alnum(c) || c == '_'; }
 
+   // ----------- internal library use - do not call ----------------------------------------
+   bool        platform_message_loop_single(int* result);
+
+   //  inspector
+   void       inspector_refresh() {
+      if constexpr (UIInspector::enabled()) if (_inspector) _inspector->refresh();
+   }
+   void       inspector_notify_destroyed_window(UIWindow* w) {
+      if constexpr (UIInspector::enabled()) if (_inspector) _inspector->notify_destroyed_window(w);
+   }
+   void       inspector_set_focused_window(UIWindow* w) {
+      if constexpr (UIInspector::enabled()) if (_inspector) _inspector->set_focused_window(w);
+   }
+
+   // platform dependent stuff
 #if defined(UI_LINUX)
    Display*    native_display() const { return _display; }
    cursors_t&  native_cursors() { return _cursors; }
