@@ -7561,7 +7561,7 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
    }
 
    ui_config  = ctx.SettingsLoad(false);
-   ui->_theme = ui_config._theme;
+   ui->theme() = ui_config._theme;
 
    DebuggerStartThread();
    CommandSyncWithGvim();

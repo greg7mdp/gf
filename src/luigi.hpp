@@ -1493,7 +1493,13 @@ public:
 struct UI {
 private:
    using font_map_t = std::unordered_map<UIFontSpec, unique_ptr<UIFont>>;
-   font_map_t _font_map;
+   font_map_t  _font_map;
+public:
+
+   UIWindow*   _toplevel_windows = nullptr;
+private:
+   UITheme     _theme;
+
 
 #if defined(UI_LINUX)
    enum atom_id_t { windowClosedID=0, primaryID, uriListID, plainTextID, dndEnterID, dndPositionID,
@@ -1516,15 +1522,12 @@ private:
    void        _inspector_refresh();
    void        _initialize_common(const UIConfig& cfg, const std::string& default_font_path);
 
-   // platform specific functions
+   // ----- internal platform specific functions - do not call --------------------------------
    UIWindow&   _platform_create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int _width, int _height);
    static int  _platform_message_proc(UIElement* el, UIMessage msg, int di, void* dp);
    bool        _process_x11_event(void* x_event);
 
 public:
-   UIWindow*   _toplevel_windows = nullptr;
-   UITheme     _theme;
-
    std::vector<UIElement*> _animating;
 
    bool        _quit             = false;
@@ -1559,6 +1562,8 @@ public:
 
    UITheme&    theme() { return _theme; }
    UIFont*     active_font() const { return _active_font; }
+
+   UIWindow**   toplevel_windows_head() { return &_toplevel_windows; }
 
    void        write_clipboard_text(std::string_view text, UIWindow* w, sel_target_t t);
    std::string read_clipboard_text(UIWindow* w, sel_target_t t);
