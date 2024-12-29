@@ -3592,8 +3592,8 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::KEY_TYPED) {
       UIKeyTyped* m        = (UIKeyTyped*)dp;
       bool        handled  = true;
-      bool        shift    = _window->_shift;
-      bool        alt      = _window->_alt;
+      bool        shift    = !!_window->_shift;
+      bool        alt      = !!_window->_alt;
       bool        ctrl     = _window->_ctrl && !alt;
       bool        modifier = ctrl || alt || shift;
       bool        selection = _carets[0] != _carets[1];
@@ -3607,29 +3607,27 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
          _move_one(m->code == UIKeycode::LEFT, shift, _window->_ctrl);
       } else if (m->code == UIKeycode::HOME || m->code == UIKeycode::END) {
          _move_to_end(m->code == UIKeycode::HOME, shift);
-      } else if ((m->is('A') || m->is('a')) && ctrl && shift) {
-         _select_all();                                        // `Ctrl-Shift-a` selects all
       } else if (m->text.size() && !alt && !ctrl && m->text[0] >= 0x20) {
          replace_text(m->text, true);
-      } else if ((m->is('C') || m->is('X') || m->is('c') || m->is('x') || m->code == UIKeycode::INSERT) && ctrl && !shift) {
+      } else if ((m->is('c') || m->is('x') || m->code == UIKeycode::INSERT) && ctrl && !shift) {
          copy();
-         if (m->is('X') || m->is('x')) 
+         if (m->is('x')) 
             replace_text("", true);
-      } else if (((m->is('V') || m->is('v')) && ctrl && !shift) || (m->code == UIKeycode::INSERT && !modifier)) {
+      } else if (((m->is('v')) && ctrl && !shift) || (m->code == UIKeycode::INSERT && !modifier)) {
          paste(sel_target_t::clipboard);
       } else {
          // implement some readline key bindings - see https://readline.kablamo.org/emacs.html
          // ----------------------------------------------------------------------------------
-         if (ctrl && (m->is('A') || m->is('E') || m->is('a') || m->is('e'))) {
-            _move_to_end(m->is('A') || m->is('a'), shift);    // `ctrl-a` move to beg of line, `ctrl-e` to the end
-         } else if ((ctrl || alt) && (m->is('F') || m->is('B') || m->is('f') || m->is('b'))) {
-            _move_one(m->is('B') || m->is('b'), shift, alt);  // `ctrl-f` move forward, `ctrl-b` back, with `alt` by word 
-         } else if ((ctrl || alt) && !shift && m->is('d')) {
+         if (ctrl && (m->is('a') || m->is('e'))) {
+            _move_to_end(m->is('a'), shift);                 // `ctrl-a` move to beg of line, `ctrl-e` to the end
+         } else if ((ctrl ^ alt) && (m->is('f') || m->is('b'))) {
+            _move_one(m->is('b'), shift, alt);               // `ctrl-f` move forward, `ctrl-b` back, with `alt` by word 
+         } else if ((ctrl ^ alt) && !shift && m->is('d')) {
             if (selection)
                replace_text("", true);                       // if there is selected text, just delete it
             else
                _delete_one(false, alt);                      // `ctrl-d` deletes one char, `alt-d` one word
-         } else if ((ctrl && !alt) && (m->is('u') || m->is('k'))) {
+         } else if ((ctrl && !alt && !shift) && (m->is('u') || m->is('k'))) {
             if (!selection)
                _carets[0] = m->is('u') ? 0 : text().size();
             replace_text("", true);                          // if there is selected text, just delete it

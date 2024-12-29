@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <cctype>
 #include <functional>
 #include <memory>
 #include <string>
@@ -469,7 +470,7 @@ struct UIKeyTyped {
    std::string_view text;
    UIKeycode        code = static_cast<UIKeycode>(0);
 
-   bool is(char c) { return code == UI_KEYCODE_LETTER(c); }
+   bool is(char c) { assert(std::islower(c)); return code == UI_KEYCODE_LETTER(c) || code == UI_KEYCODE_LETTER(c - ('a' - 'A')); }
 };
 
 // ------------------------------------------------------------------------------------------
@@ -1323,8 +1324,8 @@ private:
    }
    static int _DialogTextboxMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
 
-   int _byte_to_column(std::string_view string, int byte);
-   int _column_to_byte(std::string_view string, int column);
+   int  _byte_to_column(std::string_view string, int byte);
+   int  _column_to_byte(std::string_view string, int column);
 
    void _delete_one(bool backwards, bool by_word);
    void _move_one(bool backwards, bool select, bool by_word);
@@ -1343,6 +1344,7 @@ public:
    UITextbox& move_caret(bool backward, bool word);
    UITextbox& copy();
    UITextbox& paste(sel_target_t t);
+   UITextbox& undo();
 
    UITextbox& set_reject_next_key(bool v) { _reject_next_key = v; return *this; }
 };
