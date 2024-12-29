@@ -1493,21 +1493,19 @@ public:
 struct UI {
 private:
 #if defined(UI_LINUX)
+   enum atom_id_t { windowClosedID=0, primaryID, uriListID, plainTextID, dndEnterID, dndPositionID,
+      dndStatusID, dndActionCopyID, dndDropID, dndSelectionID, dndFinishedID, dndAwareID, clipboardID,
+      xSelectionDataID, textID, targetID, incrID, atom_id_last };
    using cursors_t = std::array<Cursor, (uint32_t)UICursor::count>;
-
    Display*    _display        = nullptr;
    Visual*     _visual         = nullptr;
    XIM         _xim            = nullptr;
-   Atom        windowClosedID = 0, primaryID = 0, uriListID = 0, plainTextID = 0;
-   Atom        dndEnterID = 0, dndPositionID = 0, dndStatusID = 0, dndActionCopyID = 0;
-   Atom        dndDropID = 0, dndSelectionID = 0, dndFinishedID = 0, dndAwareID = 0;
-   Atom        clipboardID = 0, xSelectionDataID = 0, textID = 0, targetID = 0, incrID = 0;
+   std::array<Atom, atom_id_last> _atoms;
    cursors_t   _cursors{};
    std::string _paste_text;
    XEvent      _copy_event;
 #elif defined(UI_WINDOWS)
    using cursors_t = std::array<HCURSOR, (uint32_t)UICursor::count>;
-
    cursors_t   _cursors{};
    bool        _assertion_failure = false;
 #endif

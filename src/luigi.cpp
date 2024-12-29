@@ -5095,14 +5095,14 @@ UIWindow& UI::_platform_create_window(UIWindow* owner, uint32_t flags, const cha
                         y + owner->height() / 2 - height / 2, width, height);
    }
 
-   XSetWMProtocols(ui->native_display(), window->_xwindow, &ui->windowClosedID, 1);
+   XSetWMProtocols(ui->native_display(), window->_xwindow, &ui->_atoms[windowClosedID], 1);
    window->_image = XCreateImage(ui->native_display(), ui->_visual, 24, ZPixmap, 0, NULL, 10, 10, 32, 0);
 
    window->_xic = XCreateIC(ui->_xim, XNInputStyle, XIMPreeditNothing | XIMStatusNothing, XNClientWindow,
                             window->_xwindow, XNFocusWindow, window->_xwindow, nullptr);
 
    int dndVersion = 4;
-   XChangeProperty(ui->native_display(), window->_xwindow, ui->dndAwareID, XA_ATOM, 32 /* bits */, PropModeReplace,
+   XChangeProperty(ui->native_display(), window->_xwindow, ui->_atoms[dndAwareID], XA_ATOM, 32 /* bits */, PropModeReplace,
                    (uint8_t*)&dndVersion, 1);
 
    return *window;
@@ -5121,12 +5121,12 @@ UIWindow* _UIFindWindow(UI* ui, Window window) {
 
 void UI::write_clipboard_text(std::string_view text, UIWindow* w, sel_target_t t) {
    _paste_text = text;
-   Atom atom        = (t == sel_target_t::clipboard) ? clipboardID : primaryID;
+   Atom atom        = (t == sel_target_t::clipboard) ? _atoms[clipboardID] : _atoms[primaryID];
    XSetSelectionOwner(native_display(), atom, w->native_window(), 0);
 }
 
 std::string UI::read_clipboard_text(UIWindow* w, sel_target_t t) {
-   Atom atom = (t == sel_target_t::clipboard) ? clipboardID : primaryID;
+   Atom atom = (t == sel_target_t::clipboard) ? _atoms[clipboardID] : _atoms[primaryID];
 
    Window clipboardOwner = XGetSelectionOwner(native_display(), atom);
 
@@ -5138,7 +5138,7 @@ std::string UI::read_clipboard_text(UIWindow* w, sel_target_t t) {
       return _paste_text;
    }
 
-   XConvertSelection(native_display(), atom, XA_STRING, xSelectionDataID, w->native_window(), CurrentTime);
+   XConvertSelection(native_display(), atom, XA_STRING, _atoms[xSelectionDataID], w->native_window(), CurrentTime);
    XSync(native_display(), 0);
    XNextEvent(native_display(), &_copy_event);
 
@@ -5161,7 +5161,7 @@ std::string UI::read_clipboard_text(UIWindow* w, sel_target_t t) {
 
       // non incremental transfer
       // ------------------------
-      if (target != incrID) {
+      if (target != _atoms[incrID]) {
          std::string res;
          res.resize(size);
          memcpy(res.data(), data, size);
@@ -5250,23 +5250,23 @@ unique_ptr<UI> UI::initialise(const UIConfig& cfg) {
    ui->_display = XOpenDisplay(NULL);
    ui->_visual  = XDefaultVisual(ui->native_display(), 0);
 
-   ui->windowClosedID   = XInternAtom(ui->native_display(), "WM_DELETE_WINDOW", 0);
-   ui->primaryID        = XInternAtom(ui->native_display(), "PRIMARY", 0);
-   ui->dndEnterID       = XInternAtom(ui->native_display(), "XdndEnter", 0);
-   ui->dndPositionID    = XInternAtom(ui->native_display(), "XdndPosition", 0);
-   ui->dndStatusID      = XInternAtom(ui->native_display(), "XdndStatus", 0);
-   ui->dndActionCopyID  = XInternAtom(ui->native_display(), "XdndActionCopy", 0);
-   ui->dndDropID        = XInternAtom(ui->native_display(), "XdndDrop", 0);
-   ui->dndSelectionID   = XInternAtom(ui->native_display(), "XdndSelection", 0);
-   ui->dndFinishedID    = XInternAtom(ui->native_display(), "XdndFinished", 0);
-   ui->dndAwareID       = XInternAtom(ui->native_display(), "XdndAware", 0);
-   ui->uriListID        = XInternAtom(ui->native_display(), "text/uri-list", 0);
-   ui->plainTextID      = XInternAtom(ui->native_display(), "text/plain", 0);
-   ui->clipboardID      = XInternAtom(ui->native_display(), "CLIPBOARD", 0);
-   ui->xSelectionDataID = XInternAtom(ui->native_display(), "XSEL_DATA", 0);
-   ui->textID           = XInternAtom(ui->native_display(), "TEXT", 0);
-   ui->targetID         = XInternAtom(ui->native_display(), "TARGETS", 0);
-   ui->incrID           = XInternAtom(ui->native_display(), "INCR", 0);
+   ui->_atoms[windowClosedID]   = XInternAtom(ui->native_display(), "WM_DELETE_WINDOW", 0);
+   ui->_atoms[primaryID]        = XInternAtom(ui->native_display(), "PRIMARY", 0);
+   ui->_atoms[dndEnterID]       = XInternAtom(ui->native_display(), "XdndEnter", 0);
+   ui->_atoms[dndPositionID]    = XInternAtom(ui->native_display(), "XdndPosition", 0);
+   ui->_atoms[dndStatusID]      = XInternAtom(ui->native_display(), "XdndStatus", 0);
+   ui->_atoms[dndActionCopyID]  = XInternAtom(ui->native_display(), "XdndActionCopy", 0);
+   ui->_atoms[dndDropID]        = XInternAtom(ui->native_display(), "XdndDrop", 0);
+   ui->_atoms[dndSelectionID]   = XInternAtom(ui->native_display(), "XdndSelection", 0);
+   ui->_atoms[dndFinishedID]    = XInternAtom(ui->native_display(), "XdndFinished", 0);
+   ui->_atoms[dndAwareID]       = XInternAtom(ui->native_display(), "XdndAware", 0);
+   ui->_atoms[uriListID]        = XInternAtom(ui->native_display(), "text/uri-list", 0);
+   ui->_atoms[plainTextID]      = XInternAtom(ui->native_display(), "text/plain", 0);
+   ui->_atoms[clipboardID]      = XInternAtom(ui->native_display(), "CLIPBOARD", 0);
+   ui->_atoms[xSelectionDataID] = XInternAtom(ui->native_display(), "XSEL_DATA", 0);
+   ui->_atoms[textID]           = XInternAtom(ui->native_display(), "TEXT", 0);
+   ui->_atoms[targetID]         = XInternAtom(ui->native_display(), "TARGETS", 0);
+   ui->_atoms[incrID]           = XInternAtom(ui->native_display(), "INCR", 0);
 
    ui->_cursors[(uint32_t)UICursor::arrow]             = XCreateFontCursor(ui->native_display(), XC_left_ptr);
    ui->_cursors[(uint32_t)UICursor::text]              = XCreateFontCursor(ui->native_display(), XC_xterm);
@@ -5586,12 +5586,12 @@ bool UI::_process_x11_event(void* x_event) {
    } else if (event->type == FocusOut || event->type == ResizeRequest) {
       _close_menus();
       update();
-   } else if (event->type == ClientMessage && event->xclient.message_type == dndEnterID) {
+   } else if (event->type == ClientMessage && event->xclient.message_type == _atoms[dndEnterID]) {
       UIWindow* window = _UIFindWindow(this, event->xclient.window);
       if (!window)
          return false;
       window->_drag_source = (Window)event->xclient.data.l[0];
-   } else if (event->type == ClientMessage && event->xclient.message_type == dndPositionID) {
+   } else if (event->type == ClientMessage && event->xclient.message_type == _atoms[dndPositionID]) {
       UIWindow* window = _UIFindWindow(this, event->xclient.window);
       if (!window)
          return false;
@@ -5599,31 +5599,31 @@ bool UI::_process_x11_event(void* x_event) {
       m.type                = ClientMessage;
       m.display             = event->xclient.display;
       m.window              = (Window)event->xclient.data.l[0];
-      m.message_type        = dndStatusID;
+      m.message_type        = _atoms[dndStatusID];
       m.format              = 32;
       m.data.l[0]           = window->_xwindow;
       m.data.l[1]           = true;
-      m.data.l[4]           = dndActionCopyID;
+      m.data.l[4]           = _atoms[dndActionCopyID];
       XSendEvent(_display, m.window, False, NoEventMask, (XEvent*)&m);
       XFlush(_display);
-   } else if (event->type == ClientMessage && event->xclient.message_type == dndDropID) {
+   } else if (event->type == ClientMessage && event->xclient.message_type == _atoms[dndDropID]) {
       UIWindow* window = _UIFindWindow(this, event->xclient.window);
       if (!window)
          return false;
 
       // TODO Dropping text.
 
-      if (!XConvertSelection(_display, dndSelectionID, uriListID, primaryID, window->_xwindow,
+      if (!XConvertSelection(_display, _atoms[dndSelectionID], _atoms[uriListID], _atoms[primaryID], window->_xwindow,
                              event->xclient.data.l[2])) {
          XClientMessageEvent m = {0};
          m.type                = ClientMessage;
          m.display             = _display;
          m.window              = window->_drag_source;
-         m.message_type        = dndFinishedID;
+         m.message_type        = _atoms[dndFinishedID];
          m.format              = 32;
          m.data.l[0]           = window->_xwindow;
          m.data.l[1]           = 0;
-         m.data.l[2]           = dndActionCopyID;
+         m.data.l[2]           = _atoms[dndActionCopyID];
          XSendEvent(_display, m.window, False, NoEventMask, (XEvent*)&m);
          XFlush(_display);
       }
@@ -5638,11 +5638,11 @@ bool UI::_process_x11_event(void* x_event) {
       int           format = 0;
       unsigned long count = 0, bytesLeft = 0;
       uint8_t*      data = NULL;
-      XGetWindowProperty(_display, window->_xwindow, primaryID, 0, 65536, False, AnyPropertyType, &type, &format,
+      XGetWindowProperty(_display, window->_xwindow, _atoms[primaryID], 0, 65536, False, AnyPropertyType, &type, &format,
                          &count, &bytesLeft, &data);
 
       if (format == 8 /* bits per character */) {
-         if (event->xselection.target == uriListID) {
+         if (event->xselection.target == _atoms[uriListID]) {
             char* copy      = (char*)malloc(count);
             int   fileCount = 0;
 
@@ -5684,7 +5684,7 @@ bool UI::_process_x11_event(void* x_event) {
 
             free(files);
             free(copy);
-         } else if (event->xselection.target == plainTextID) {
+         } else if (event->xselection.target == _atoms[plainTextID]) {
             // TODO.
          }
       }
@@ -5695,11 +5695,11 @@ bool UI::_process_x11_event(void* x_event) {
       m.type                = ClientMessage;
       m.display             = _display;
       m.window              = window->_drag_source;
-      m.message_type        = dndFinishedID;
+      m.message_type        = _atoms[dndFinishedID];
       m.format              = 32;
       m.data.l[0]           = window->_xwindow;
       m.data.l[1]           = true;
-      m.data.l[2]           = dndActionCopyID;
+      m.data.l[2]           = _atoms[dndActionCopyID];
       XSendEvent(_display, m.window, False, NoEventMask, (XEvent*)&m);
       XFlush(_display);
 
@@ -5710,22 +5710,22 @@ bool UI::_process_x11_event(void* x_event) {
       if (!window)
          return false;
 
-      if ((XGetSelectionOwner(_display, clipboardID) == window->_xwindow) &&
-          (event->xselectionrequest.selection == clipboardID)) {
+      if ((XGetSelectionOwner(_display, _atoms[clipboardID]) == window->_xwindow) &&
+          (event->xselectionrequest.selection == _atoms[clipboardID])) {
          XSelectionRequestEvent requestEvent = event->xselectionrequest;
          Atom                   utf8ID       = XInternAtom(_display, "UTF8_STRING", 1);
          if (utf8ID == None)
             utf8ID = XA_STRING;
 
          Atom type                = requestEvent.target;
-         type                     = (type == textID) ? XA_STRING : type;
+         type                     = (type == _atoms[textID]) ? XA_STRING : type;
          int changePropertyResult = 0;
 
-         if (requestEvent.target == XA_STRING || requestEvent.target == textID || requestEvent.target == utf8ID) {
+         if (requestEvent.target == XA_STRING || requestEvent.target == _atoms[textID] || requestEvent.target == utf8ID) {
             changePropertyResult =
                XChangeProperty(requestEvent.display, requestEvent.requestor, requestEvent.property, type, 8,
                                PropModeReplace, (const unsigned char*)_paste_text.c_str(), _paste_text.size());
-         } else if (requestEvent.target == targetID) {
+         } else if (requestEvent.target == _atoms[targetID]) {
             changePropertyResult = XChangeProperty(requestEvent.display, requestEvent.requestor, requestEvent.property,
                                                    XA_ATOM, 32, PropModeReplace, (unsigned char*)&utf8ID, 1);
          }
