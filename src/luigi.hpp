@@ -750,7 +750,6 @@ private:
 
 public:
    friend struct UI;
-   friend struct UIElement;
 
    enum {
       MENU            = (1 << 0),
@@ -767,7 +766,7 @@ public:
    float _last_full_fill_count = 0;
 #endif
 
-#ifdef UI_LINUX
+#if defined(UI_LINUX)
    Window   _xwindow     = 0;
    XImage*  _image       = nullptr;
    XIC      _xic         = nullptr;
@@ -775,9 +774,7 @@ public:
    unsigned _shift_code  = 0;
    unsigned _alt_code    = 0;
    Window   _drag_source = 0;
-#endif
-
-#ifdef UI_WINDOWS
+#elif defined(UI_WINDOWS)
    HWND _hwnd           = 0;
    bool _tracking_leave = false;
 #endif
@@ -822,6 +819,7 @@ public:
    UIPoint     cursor_pos() const { return _cursor; }
 
    UIWindow&   set_update_region(const UIRectangle& r) { _update_region = r; return *this; }
+   const UIRectangle& update_region() const { return _update_region; }
 
    int         cursor_style() const { return _cursor_style; }
 
@@ -838,12 +836,18 @@ public:
 
    UIWindow&   set_name(std::string_view name);
    
-   UI*         ui() const { return _window->_ui; }
+   UI*         ui() const { assert(_ui == _window->_ui); return _window->_ui; }
 
    // ------ delete functions from UIElement we shouldn't use on a UIWindow --------------
    bool        is_hovered() const = delete; // do not call on UIWindow. only on UIElement
    bool        is_focused() const = delete; // do not call on UIWindow. only on UIElement
    bool        is_pressed() const = delete; // do not call on UIWindow. only on UIElement
+
+#if defined(UI_LINUX)
+   Window native_window() const { return _xwindow; }
+#elif defined(UI_WINDOWS)
+   HWND native_window() const { return _hwnd; }
+#endif
 };
 
 // ------------------------------- need UIWindow to be defined -------------------------------
@@ -852,7 +856,7 @@ inline bool    UIElement::is_hovered() const { return _window->hovered() == this
 inline bool    UIElement::is_focused() const { return _window->focused() == this; }
 inline bool    UIElement::is_pressed() const { return _window->pressed() == this; }
 inline UIPoint UIElement::cursor_pos() const { return _window->cursor_pos(); }
-inline UI*     UIElement::ui() const { return _window->_ui; }
+inline UI*     UIElement::ui() const         { return _window->ui(); }
 
 // ------------------------------------------------------------------------------------------
 struct UIPanel : public UIElementCast<UIPanel> {
@@ -1310,7 +1314,8 @@ public:
 
 // ------------------------------------------------------------------------------------------
 struct UITextbox : public UIElementCast<UITextbox> {
-   friend struct UIWindow;
+   static int _DialogTextboxMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
+
 private:
    std::string           _buffer;
    std::array<size_t, 2> _carets{}; // carets[0] is the cursor position, carets[1] end of selection
@@ -1322,7 +1327,6 @@ private:
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<UITextbox*>(el)->_class_message_proc(msg, di, dp);
    }
-   static int _DialogTextboxMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
 
    int  _byte_to_column(std::string_view string, int byte);
    int  _column_to_byte(std::string_view string, int column);
@@ -1333,7 +1337,6 @@ private:
    void _select_all();
 
 public:
-
    UITextbox(UIElement* parent, uint32_t flags);
    
    std::string_view text() const { return std::string_view(_buffer); }
@@ -1488,9 +1491,6 @@ public:
 
 // ------------------------------------------------------------------------------------------
 struct UI {
-   friend struct UIMenu;
-   friend struct UIWindow;
-
 private:
 #ifdef UI_LINUX
    using cursors_t   = std::array<Cursor, (uint32_t)UICursor::count>;
@@ -1511,7 +1511,6 @@ private:
    void        _initialize_common(const UIConfig& cfg, const std::string& default_font_path);
 
    // platform specific functions
-   bool        _platform_message_loop_single(int* result);
    UIWindow&   _platform_create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int _width, int _height);
    static int  _platform_message_proc(UIElement* el, UIMessage msg, int di, void* dp);
    bool        _process_x11_event(void* x_event);
@@ -1544,10 +1543,13 @@ public:
    FT_Library _ft = nullptr;
 #endif
 
-   std::unordered_map<UIFontSpec, unique_ptr<UIFont>> font_map;
+   using font_map_t = std::unordered_map<UIFontSpec, unique_ptr<UIFont>>;
+   
+   font_map_t _font_map;
+   bool       _platform_message_loop_single(int* result);
 
    ~UI() {
-      font_map.clear();
+      _font_map.clear();
 #ifdef UI_FREETYPE
       FT_Done_FreeType(_ft);
 #endif
@@ -1568,6 +1570,9 @@ public:
 
    UITheme&  theme() { return _theme; }
    UIFont*   active_font() const { return _active_font; }
+
+   void        write_clipboard_text(std::string_view text, UIWindow* w, sel_target_t t);
+   std::string read_clipboard_text(UIWindow* w, sel_target_t t);
 
    // ----------- inspector --------------------------------------------------------
     void inspector_refresh() {
@@ -1594,6 +1599,13 @@ public:
    static bool is_alpha(int c) { return std::isalpha(c) || c > 127; }
    static bool is_alnum(int c) { return std::isalnum(c) || c > 127; }
    static bool is_alnum_or_underscore(int c) { return is_alnum(c) || c == '_'; }
+
+#if defined(UI_LINUX)
+   Display*    native_display() const { return _display; }
+   cursors_t&  native_cursors() { return _cursors; }
+#elif defined(UI_WINDOWS)
+   cursors_t&  native_cursors() { return _cursors; }
+#endif
 };
 
 // ------------------------------------------------------------------------------------------

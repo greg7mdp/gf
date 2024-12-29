@@ -470,6 +470,15 @@ void UI::process_animations() {
    }
 }
 
+void UIWindow::write_clipboard_text(std::string_view text, sel_target_t t) {
+   _ui->write_clipboard_text(text, this, t);
+}
+
+std::string UIWindow::read_clipboard_text(sel_target_t t) {
+   return _ui->read_clipboard_text(this, t);
+}
+
+
 // --------------------------------------------------
 // Rendering.
 // --------------------------------------------------
@@ -1272,7 +1281,7 @@ UISwitcher& UIElement::add_switcher(uint32_t flags) {
 }
 
 UIMenu& UIElement::add_menu(uint32_t flags) {
-   return *new UIMenu(_window->_ui, this, flags);
+   return *new UIMenu(_window->ui(), this, flags);
 }
 
 UITextbox& UIElement::add_textbox(uint32_t flags) {
@@ -1380,8 +1389,8 @@ const char* UIWindow::show_dialog(uint32_t flags, const char* format, ...) {
                focus = textbox;
             if (*buffer)
                textbox->replace_text(*buffer, false);
-            textbox->_cp = buffer; // when the textbox text is updated, `*buffer` will contain a `char*` to the string
-            textbox->_user_proc = UITextbox::_DialogTextboxMessageProc;
+            textbox->set_cp(buffer);      // when the textbox text is updated, `*buffer` will contain a `char*` to the string
+            textbox->set_user_proc(UITextbox::_DialogTextboxMessageProc);
          } else if (format[i] == 'f' /* horizontal fill */) {
             UISpacerCreate(row, UIElement::h_fill, 0, 0);
          } else if (format[i] == 'l' /* horizontal line */) {
@@ -1503,10 +1512,10 @@ void UIElement::repaint(const UIRectangle* region) {
       return;
    }
 
-   if (_window->_update_region.valid()) {
-      _window->_update_region = bounding(_window->_update_region, r);
+   if (_window->update_region().valid()) {
+      _window->set_update_region(bounding(_window->update_region(), r));
    } else {
-      _window->_update_region = r;
+      _window->set_update_region(r);
    }
 }
 
@@ -4667,7 +4676,7 @@ UIFont* UI::create_font(std::string_view cPath, uint32_t size) {
 
    UIFontSpec spec{std::string{cPath}, size};
 
-   if (auto it = font_map.find(spec); it != font_map.end())
+   if (auto it = _font_map.find(spec); it != _font_map.end())
       return it->second.get();
 
    unique_ptr<UIFont> font = make_unique<UIFont>();
@@ -4713,7 +4722,7 @@ UIFont* UI::create_font(std::string_view cPath, uint32_t size) {
 #endif // UI_FREETYPE
 
    UIFont* f = font.get();
-   font_map.emplace(std::move(spec), std::move(font));
+   _font_map.emplace(std::move(spec), std::move(font));
    return f;
 }
 
@@ -5037,7 +5046,7 @@ int UI::_platform_message_proc(UIElement* el, UIMessage msg, int di, void* dp) {
       window->_image->data = NULL;
       XDestroyImage(window->_image);
       XDestroyIC(window->_xic);
-      XDestroyWindow(window->_ui->_display, window->_xwindow);
+      XDestroyWindow(window->_ui->native_display(), window->_xwindow);
       return 0;
    }
 
@@ -5059,41 +5068,41 @@ UIWindow& UI::_platform_create_window(UIWindow* owner, uint32_t flags, const cha
    XSetWindowAttributes attributes = {};
    attributes.override_redirect    = flags & UIWindow::MENU;
 
-   window->_xwindow = XCreateWindow(ui->_display, DefaultRootWindow(ui->_display), 0, 0, width, height, 0, 0,
+   window->_xwindow = XCreateWindow(ui->native_display(), DefaultRootWindow(ui->native_display()), 0, 0, width, height, 0, 0,
                                     InputOutput, CopyFromParent, CWOverrideRedirect, &attributes);
    if (cTitle)
-      XStoreName(ui->_display, window->_xwindow, cTitle);
-   XSelectInput(ui->_display, window->_xwindow,
+      XStoreName(ui->native_display(), window->_xwindow, cTitle);
+   XSelectInput(ui->native_display(), window->_xwindow,
                 SubstructureNotifyMask | ExposureMask | PointerMotionMask | ButtonPressMask | ButtonReleaseMask |
                    KeyPressMask | KeyReleaseMask | StructureNotifyMask | EnterWindowMask | LeaveWindowMask |
                    ButtonMotionMask | KeymapStateMask | FocusChangeMask | PropertyChangeMask);
 
    if (flags & UIWindow::MAXIMIZE) {
-      Atom atoms[2] = {XInternAtom(ui->_display, "_NET_WM_STATE_MAXIMIZED_HORZ", 0),
-                       XInternAtom(ui->_display, "_NET_WM_STATE_MAXIMIZED_VERT", 0)};
-      XChangeProperty(ui->_display, window->_xwindow, XInternAtom(ui->_display, "_NET_WM_STATE", 0), XA_ATOM, 32,
+      Atom atoms[2] = {XInternAtom(ui->native_display(), "_NET_WM_STATE_MAXIMIZED_HORZ", 0),
+                       XInternAtom(ui->native_display(), "_NET_WM_STATE_MAXIMIZED_VERT", 0)};
+      XChangeProperty(ui->native_display(), window->_xwindow, XInternAtom(ui->native_display(), "_NET_WM_STATE", 0), XA_ATOM, 32,
                       PropModeReplace, (unsigned char*)atoms, 2);
    }
 
    if (~flags & UIWindow::MENU) {
-      XMapRaised(ui->_display, window->_xwindow);
+      XMapRaised(ui->native_display(), window->_xwindow);
    }
 
    if (flags & UIWindow::CENTER_IN_OWNER) {
       int x = 0, y = 0;
       owner->get_screen_position(&x, &y);
-      XMoveResizeWindow(ui->_display, window->_xwindow, x + owner->width() / 2 - width / 2,
+      XMoveResizeWindow(ui->native_display(), window->_xwindow, x + owner->width() / 2 - width / 2,
                         y + owner->height() / 2 - height / 2, width, height);
    }
 
-   XSetWMProtocols(ui->_display, window->_xwindow, &ui->windowClosedID, 1);
-   window->_image = XCreateImage(ui->_display, ui->_visual, 24, ZPixmap, 0, NULL, 10, 10, 32, 0);
+   XSetWMProtocols(ui->native_display(), window->_xwindow, &ui->windowClosedID, 1);
+   window->_image = XCreateImage(ui->native_display(), ui->_visual, 24, ZPixmap, 0, NULL, 10, 10, 32, 0);
 
    window->_xic = XCreateIC(ui->_xim, XNInputStyle, XIMPreeditNothing | XIMStatusNothing, XNClientWindow,
                             window->_xwindow, XNFocusWindow, window->_xwindow, nullptr);
 
    int dndVersion = 4;
-   XChangeProperty(ui->_display, window->_xwindow, ui->dndAwareID, XA_ATOM, 32 /* bits */, PropModeReplace,
+   XChangeProperty(ui->native_display(), window->_xwindow, ui->dndAwareID, XA_ATOM, 32 /* bits */, PropModeReplace,
                    (uint8_t*)&dndVersion, 1);
 
    return *window;
@@ -5110,78 +5119,78 @@ UIWindow* _UIFindWindow(UI* ui, Window window) {
    return NULL;
 }
 
-void UIWindow::write_clipboard_text(std::string_view text, sel_target_t t) {
-   _ui->_paste_text = text;
-   Atom atom        = (t == sel_target_t::clipboard) ? _ui->clipboardID : _ui->primaryID;
-   XSetSelectionOwner(_ui->_display, atom, _xwindow, 0);
+void UI::write_clipboard_text(std::string_view text, UIWindow* w, sel_target_t t) {
+   _paste_text = text;
+   Atom atom        = (t == sel_target_t::clipboard) ? clipboardID : primaryID;
+   XSetSelectionOwner(native_display(), atom, w->native_window(), 0);
 }
 
-std::string UIWindow::read_clipboard_text(sel_target_t t) {
-   Atom atom = (t == sel_target_t::clipboard) ? _ui->clipboardID : _ui->primaryID;
+std::string UI::read_clipboard_text(UIWindow* w, sel_target_t t) {
+   Atom atom = (t == sel_target_t::clipboard) ? clipboardID : primaryID;
 
-   Window clipboardOwner = XGetSelectionOwner(_ui->_display, atom);
+   Window clipboardOwner = XGetSelectionOwner(native_display(), atom);
 
    if (clipboardOwner == None) {
       return {};
    }
 
-   if (_UIFindWindow(ui(), clipboardOwner)) {
-      return _ui->_paste_text;
+   if (_UIFindWindow(this, clipboardOwner)) {
+      return _paste_text;
    }
 
-   XConvertSelection(_ui->_display, atom, XA_STRING, _ui->xSelectionDataID, _xwindow, CurrentTime);
-   XSync(_ui->_display, 0);
-   XNextEvent(_ui->_display, &_ui->_copy_event);
+   XConvertSelection(native_display(), atom, XA_STRING, xSelectionDataID, w->native_window(), CurrentTime);
+   XSync(native_display(), 0);
+   XNextEvent(native_display(), &_copy_event);
 
    // Hack to get around the fact that PropertyNotify arrives before SelectionNotify.
    // We need PropertyNotify for incremental transfers.
-   while (_ui->_copy_event.type == PropertyNotify) {
-      XNextEvent(_ui->_display, &_ui->_copy_event);
+   while (_copy_event.type == PropertyNotify) {
+      XNextEvent(native_display(), &_copy_event);
    }
 
-   if (_ui->_copy_event.type == SelectionNotify && _ui->_copy_event.xselection.selection == atom &&
-       _ui->_copy_event.xselection.property) {
+   if (_copy_event.type == SelectionNotify && _copy_event.xselection.selection == atom &&
+       _copy_event.xselection.property) {
       Atom target;
       // This `itemAmount` is actually `bytes_after_return`
       unsigned long size, itemAmount;
       char*         data;
       int           format;
-      XGetWindowProperty(_ui->_copy_event.xselection.display, _ui->_copy_event.xselection.requestor,
-                         _ui->_copy_event.xselection.property, 0L, ~0L, 0, AnyPropertyType, &target, &format, &size,
+      XGetWindowProperty(_copy_event.xselection.display, _copy_event.xselection.requestor,
+                         _copy_event.xselection.property, 0L, ~0L, 0, AnyPropertyType, &target, &format, &size,
                          &itemAmount, (unsigned char**)&data);
 
       // non incremental transfer
       // ------------------------
-      if (target != _ui->incrID) {
+      if (target != incrID) {
          std::string res;
          res.resize(size);
          memcpy(res.data(), data, size);
          XFree(data);
-         XDeleteProperty(_ui->_copy_event.xselection.display, _ui->_copy_event.xselection.requestor,
-                         _ui->_copy_event.xselection.property);
+         XDeleteProperty(_copy_event.xselection.display, _copy_event.xselection.requestor,
+                         _copy_event.xselection.property);
          return res;
       }
 
       // incremental transfer
       // --------------------
       XFree(data);
-      XDeleteProperty(_ui->_display, _ui->_copy_event.xselection.requestor, _ui->_copy_event.xselection.property);
-      XSync(_ui->_display, 0);
+      XDeleteProperty(native_display(), _copy_event.xselection.requestor, _copy_event.xselection.property);
+      XSync(native_display(), 0);
 
       size = 0;
       std::string res;
 
       while (true) {
          // TODO Timeout.
-         XNextEvent(_ui->_display, &_ui->_copy_event);
+         XNextEvent(native_display(), &_copy_event);
 
-         if (_ui->_copy_event.type == PropertyNotify) {
+         if (_copy_event.type == PropertyNotify) {
             // The other case - PropertyDelete would be caused by us and can be ignored
-            if (_ui->_copy_event.xproperty.state == PropertyNewValue) {
+            if (_copy_event.xproperty.state == PropertyNewValue) {
                unsigned long chunkSize;
 
                // Note that this call deletes the property.
-               XGetWindowProperty(_ui->_display, _ui->_copy_event.xproperty.window, _ui->_copy_event.xproperty.atom, 0L,
+               XGetWindowProperty(native_display(), _copy_event.xproperty.window, _copy_event.xproperty.atom, 0L,
                                   ~0L, True, AnyPropertyType, &target, &format, &chunkSize, &itemAmount,
                                   (unsigned char**)&data);
 
@@ -5239,49 +5248,49 @@ unique_ptr<UI> UI::initialise(const UIConfig& cfg) {
    XInitThreads();
 
    ui->_display = XOpenDisplay(NULL);
-   ui->_visual  = XDefaultVisual(ui->_display, 0);
+   ui->_visual  = XDefaultVisual(ui->native_display(), 0);
 
-   ui->windowClosedID   = XInternAtom(ui->_display, "WM_DELETE_WINDOW", 0);
-   ui->primaryID        = XInternAtom(ui->_display, "PRIMARY", 0);
-   ui->dndEnterID       = XInternAtom(ui->_display, "XdndEnter", 0);
-   ui->dndPositionID    = XInternAtom(ui->_display, "XdndPosition", 0);
-   ui->dndStatusID      = XInternAtom(ui->_display, "XdndStatus", 0);
-   ui->dndActionCopyID  = XInternAtom(ui->_display, "XdndActionCopy", 0);
-   ui->dndDropID        = XInternAtom(ui->_display, "XdndDrop", 0);
-   ui->dndSelectionID   = XInternAtom(ui->_display, "XdndSelection", 0);
-   ui->dndFinishedID    = XInternAtom(ui->_display, "XdndFinished", 0);
-   ui->dndAwareID       = XInternAtom(ui->_display, "XdndAware", 0);
-   ui->uriListID        = XInternAtom(ui->_display, "text/uri-list", 0);
-   ui->plainTextID      = XInternAtom(ui->_display, "text/plain", 0);
-   ui->clipboardID      = XInternAtom(ui->_display, "CLIPBOARD", 0);
-   ui->xSelectionDataID = XInternAtom(ui->_display, "XSEL_DATA", 0);
-   ui->textID           = XInternAtom(ui->_display, "TEXT", 0);
-   ui->targetID         = XInternAtom(ui->_display, "TARGETS", 0);
-   ui->incrID           = XInternAtom(ui->_display, "INCR", 0);
+   ui->windowClosedID   = XInternAtom(ui->native_display(), "WM_DELETE_WINDOW", 0);
+   ui->primaryID        = XInternAtom(ui->native_display(), "PRIMARY", 0);
+   ui->dndEnterID       = XInternAtom(ui->native_display(), "XdndEnter", 0);
+   ui->dndPositionID    = XInternAtom(ui->native_display(), "XdndPosition", 0);
+   ui->dndStatusID      = XInternAtom(ui->native_display(), "XdndStatus", 0);
+   ui->dndActionCopyID  = XInternAtom(ui->native_display(), "XdndActionCopy", 0);
+   ui->dndDropID        = XInternAtom(ui->native_display(), "XdndDrop", 0);
+   ui->dndSelectionID   = XInternAtom(ui->native_display(), "XdndSelection", 0);
+   ui->dndFinishedID    = XInternAtom(ui->native_display(), "XdndFinished", 0);
+   ui->dndAwareID       = XInternAtom(ui->native_display(), "XdndAware", 0);
+   ui->uriListID        = XInternAtom(ui->native_display(), "text/uri-list", 0);
+   ui->plainTextID      = XInternAtom(ui->native_display(), "text/plain", 0);
+   ui->clipboardID      = XInternAtom(ui->native_display(), "CLIPBOARD", 0);
+   ui->xSelectionDataID = XInternAtom(ui->native_display(), "XSEL_DATA", 0);
+   ui->textID           = XInternAtom(ui->native_display(), "TEXT", 0);
+   ui->targetID         = XInternAtom(ui->native_display(), "TARGETS", 0);
+   ui->incrID           = XInternAtom(ui->native_display(), "INCR", 0);
 
-   ui->_cursors[(uint32_t)UICursor::arrow]             = XCreateFontCursor(ui->_display, XC_left_ptr);
-   ui->_cursors[(uint32_t)UICursor::text]              = XCreateFontCursor(ui->_display, XC_xterm);
-   ui->_cursors[(uint32_t)UICursor::split_v]           = XCreateFontCursor(ui->_display, XC_sb_v_double_arrow);
-   ui->_cursors[(uint32_t)UICursor::split_h]           = XCreateFontCursor(ui->_display, XC_sb_h_double_arrow);
-   ui->_cursors[(uint32_t)UICursor::flipped_arrow]     = XCreateFontCursor(ui->_display, XC_right_ptr);
-   ui->_cursors[(uint32_t)UICursor::cross_hair]        = XCreateFontCursor(ui->_display, XC_crosshair);
-   ui->_cursors[(uint32_t)UICursor::hand]              = XCreateFontCursor(ui->_display, XC_hand1);
-   ui->_cursors[(uint32_t)UICursor::resize_up]         = XCreateFontCursor(ui->_display, XC_top_side);
-   ui->_cursors[(uint32_t)UICursor::resize_left]       = XCreateFontCursor(ui->_display, XC_left_side);
-   ui->_cursors[(uint32_t)UICursor::resize_up_right]   = XCreateFontCursor(ui->_display, XC_top_right_corner);
-   ui->_cursors[(uint32_t)UICursor::resize_up_left]    = XCreateFontCursor(ui->_display, XC_top_left_corner);
-   ui->_cursors[(uint32_t)UICursor::resize_down]       = XCreateFontCursor(ui->_display, XC_bottom_side);
-   ui->_cursors[(uint32_t)UICursor::resize_right]      = XCreateFontCursor(ui->_display, XC_right_side);
-   ui->_cursors[(uint32_t)UICursor::resize_down_left]  = XCreateFontCursor(ui->_display, XC_bottom_left_corner);
-   ui->_cursors[(uint32_t)UICursor::resize_down_right] = XCreateFontCursor(ui->_display, XC_bottom_right_corner);
+   ui->_cursors[(uint32_t)UICursor::arrow]             = XCreateFontCursor(ui->native_display(), XC_left_ptr);
+   ui->_cursors[(uint32_t)UICursor::text]              = XCreateFontCursor(ui->native_display(), XC_xterm);
+   ui->_cursors[(uint32_t)UICursor::split_v]           = XCreateFontCursor(ui->native_display(), XC_sb_v_double_arrow);
+   ui->_cursors[(uint32_t)UICursor::split_h]           = XCreateFontCursor(ui->native_display(), XC_sb_h_double_arrow);
+   ui->_cursors[(uint32_t)UICursor::flipped_arrow]     = XCreateFontCursor(ui->native_display(), XC_right_ptr);
+   ui->_cursors[(uint32_t)UICursor::cross_hair]        = XCreateFontCursor(ui->native_display(), XC_crosshair);
+   ui->_cursors[(uint32_t)UICursor::hand]              = XCreateFontCursor(ui->native_display(), XC_hand1);
+   ui->_cursors[(uint32_t)UICursor::resize_up]         = XCreateFontCursor(ui->native_display(), XC_top_side);
+   ui->_cursors[(uint32_t)UICursor::resize_left]       = XCreateFontCursor(ui->native_display(), XC_left_side);
+   ui->_cursors[(uint32_t)UICursor::resize_up_right]   = XCreateFontCursor(ui->native_display(), XC_top_right_corner);
+   ui->_cursors[(uint32_t)UICursor::resize_up_left]    = XCreateFontCursor(ui->native_display(), XC_top_left_corner);
+   ui->_cursors[(uint32_t)UICursor::resize_down]       = XCreateFontCursor(ui->native_display(), XC_bottom_side);
+   ui->_cursors[(uint32_t)UICursor::resize_right]      = XCreateFontCursor(ui->native_display(), XC_right_side);
+   ui->_cursors[(uint32_t)UICursor::resize_down_left]  = XCreateFontCursor(ui->native_display(), XC_bottom_left_corner);
+   ui->_cursors[(uint32_t)UICursor::resize_down_right] = XCreateFontCursor(ui->native_display(), XC_bottom_right_corner);
 
    XSetLocaleModifiers("");
 
-   ui->_xim = XOpenIM(ui->_display, 0, 0, 0);
+   ui->_xim = XOpenIM(ui->native_display(), 0, 0, 0);
 
    if (!ui->_xim) {
       XSetLocaleModifiers("@im=none");
-      ui->_xim = XOpenIM(ui->_display, 0, 0, 0);
+      ui->_xim = XOpenIM(ui->native_display(), 0, 0, 0);
    }
 
    ui->_inspector.reset(new UIInspector(ui.get()));
@@ -5290,37 +5299,37 @@ unique_ptr<UI> UI::initialise(const UIConfig& cfg) {
 }
 
 UIWindow& UIWindow::set_cursor(int cursor) {
-   XDefineCursor(_ui->_display, _xwindow, _ui->_cursors[cursor]);
+   XDefineCursor(_ui->native_display(), _xwindow, _ui->native_cursors()[cursor]);
    return *this;
 }
 
-   #if 0
+#if 0
 Display* _UIX11GetDisplay() {
-   return ui->_display;
+   return ui->x11_display();
 }
 
 void _UIX11ResetCursor(UIWindow* window) {
-   XDefineCursor(window->ui()->_display, window->_xwindow, window->ui()->_cursors[(uint32_t)UICursor::arrow]);
+   XDefineCursor(window->ui()->x11_display(), window->_xwindow, window->ui()->native_cursors()[(uint32_t)UICursor::arrow]);
 }
 
 void UIWindowPack(UIWindow* window, int _width) {
    int width  = _width ? _width : window->_children[0]->message(UIMessage::GET_WIDTH, 0, 0);
    int height = window->_children[0]->message(UIMessage::GET_HEIGHT, width, 0);
-   XResizeWindow(window->ui()->_display, window->_xwindow, width, height);
+   XResizeWindow(window->ui()->x11_display(), window->_xwindow, width, height);
 }
 
-   #endif
+#endif
 
 void UIWindow::endpaint(UIPainter* painter) const {
    (void)painter;
    const auto& ur = _window->_update_region;
-   XPutImage(_ui->_display, _window->_xwindow, DefaultGC(_ui->_display, 0), _window->_image, ur.l, ur.t, ur.l, ur.t,
+   XPutImage(_ui->native_display(), _window->_xwindow, DefaultGC(_ui->native_display(), 0), _window->_image, ur.l, ur.t, ur.l, ur.t,
              UI_RECT_SIZE(_window->_update_region));
 }
 
 void UIWindow::get_screen_position(int* _x, int* _y) const {
    Window child;
-   XTranslateCoordinates(_ui->_display, _window->_xwindow, DefaultRootWindow(_ui->_display), 0, 0, _x, _y, &child);
+   XTranslateCoordinates(_ui->native_display(), _window->_xwindow, DefaultRootWindow(_ui->native_display()), 0, 0, _x, _y, &child);
 }
 
 UIMenu& UIMenu::show() {
@@ -5331,10 +5340,10 @@ UIMenu& UIMenu::show() {
    Screen* menuScreen = NULL;
    int     screenX, screenY;
 
-   for (int i = 0; i < ScreenCount(ui->_display); i++) {
-      Screen* screen = ScreenOfDisplay(ui->_display, i);
+   for (int i = 0; i < ScreenCount(ui->native_display()); i++) {
+      Screen* screen = ScreenOfDisplay(ui->native_display(), i);
       int     x, y;
-      XTranslateCoordinates(ui->_display, screen->root, DefaultRootWindow(ui->_display), 0, 0, &x, &y, &child);
+      XTranslateCoordinates(ui->native_display(), screen->root, DefaultRootWindow(ui->native_display()), 0, 0, &x, &y, &child);
 
       if (_point.x >= x && _point.x < x + screen->width && _point.y >= y && _point.y < y + screen->height) {
          menuScreen = screen;
@@ -5352,7 +5361,7 @@ UIMenu& UIMenu::show() {
       // report screen sizes incorrectly.
       int       wx, wy;
       UIWindow* parentWindow = this->_parent_window;
-      XTranslateCoordinates(ui->_display, parentWindow->_xwindow, DefaultRootWindow(ui->_display), 0, 0, &wx, &wy,
+      XTranslateCoordinates(ui->native_display(), parentWindow->_xwindow, DefaultRootWindow(ui->native_display()), 0, 0, &wx, &wy,
                             &child);
       if (_point.x + width > wx + (int)parentWindow->width())
          _point.x = wx + parentWindow->width() - width;
@@ -5381,14 +5390,14 @@ UIMenu& UIMenu::show() {
    }
 
    Atom properties[] = {
-      XInternAtom(ui->_display, "_NET_WM_WINDOW_TYPE", true),
-      XInternAtom(ui->_display, "_NET_WM_WINDOW_TYPE_DROPDOWN_MENU", true),
-      XInternAtom(ui->_display, "_MOTIF_WM_HINTS", true),
+      XInternAtom(ui->native_display(), "_NET_WM_WINDOW_TYPE", true),
+      XInternAtom(ui->native_display(), "_NET_WM_WINDOW_TYPE_DROPDOWN_MENU", true),
+      XInternAtom(ui->native_display(), "_MOTIF_WM_HINTS", true),
    };
 
-   XChangeProperty(ui->_display, _window->_xwindow, properties[0], XA_ATOM, 32, PropModeReplace, (uint8_t*)properties,
+   XChangeProperty(ui->native_display(), _window->_xwindow, properties[0], XA_ATOM, 32, PropModeReplace, (uint8_t*)properties,
                    2);
-   XSetTransientForHint(ui->_display, _window->_xwindow, DefaultRootWindow(ui->_display));
+   XSetTransientForHint(ui->native_display(), _window->_xwindow, DefaultRootWindow(ui->native_display()));
 
    struct Hints {
       int flags;
@@ -5400,11 +5409,11 @@ UIMenu& UIMenu::show() {
 
    struct Hints hints = {0};
    hints.flags        = 2;
-   XChangeProperty(ui->_display, _window->_xwindow, properties[2], properties[2], 32, PropModeReplace, (uint8_t*)&hints,
+   XChangeProperty(ui->native_display(), _window->_xwindow, properties[2], properties[2], 32, PropModeReplace, (uint8_t*)&hints,
                    5);
 
-   XMapWindow(ui->_display, _window->_xwindow);
-   XMoveResizeWindow(ui->_display, _window->_xwindow, _point.x, _point.y, width, height);
+   XMapWindow(ui->native_display(), _window->_xwindow);
+   XMoveResizeWindow(ui->native_display(), _window->_xwindow, _point.x, _point.y, width, height);
    return *this;
 }
 
@@ -5795,7 +5804,7 @@ void UIWindow::post_message(UIMessage msg, void* _dp) const {
    // HACK! Xlib doesn't seem to have a nice way to do this,
    // so send a specially crafted key press event instead.
    // TODO Maybe ClientMessage is what this should use?
-   Display* dpy = ui()->_display;
+   Display* dpy = ui()->native_display();
 
    uintptr_t dp    = (uintptr_t)_dp;
    XKeyEvent event = {0};
@@ -5819,7 +5828,7 @@ void UIWindow::post_message(UIMessage msg, void* _dp) const {
 }
 
 UIWindow& UIWindow::set_name(std::string_view name) {
-   XStoreName(ui()->_display, _xwindow, name.data());
+   XStoreName(ui()->native_display(), _xwindow, name.data());
    return *this;
 }
 
@@ -5933,7 +5942,7 @@ LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
                     (BITMAPINFO*)&info, DIB_RGB_COLORS, SRCCOPY);
       EndPaint(hwnd, &paint);
    } else if (msg == WM_SETCURSOR && LOWORD(lParam) == HTCLIENT) {
-      ::SetCursor(ui->_cursors[window->cursor_style()]);
+      ::SetCursor(ui->native_cursors()[window->cursor_style()]);
       return 1;
    } else if (msg == WM_SETFOCUS || msg == WM_KILLFOCUS) {
       ui->_close_menus();
@@ -5989,21 +5998,22 @@ unique_ptr<UI> UI::initialise(const UIConfig& cfg) {
    ui->_default_font_path = font_path;
    ui->_initialize_common(cfg, font_path);
 
-   ui->_cursors[(uint32_t)UICursor::arrow]             = LoadCursor(NULL, IDC_ARROW);
-   ui->_cursors[(uint32_t)UICursor::text]              = LoadCursor(NULL, IDC_IBEAM);
-   ui->_cursors[(uint32_t)UICursor::split_v]           = LoadCursor(NULL, IDC_SIZENS);
-   ui->_cursors[(uint32_t)UICursor::split_h]           = LoadCursor(NULL, IDC_SIZEWE);
-   ui->_cursors[(uint32_t)UICursor::flipped_arrow]     = LoadCursor(NULL, IDC_ARROW);
-   ui->_cursors[(uint32_t)UICursor::cross_hair]        = LoadCursor(NULL, IDC_CROSS);
-   ui->_cursors[(uint32_t)UICursor::hand]              = LoadCursor(NULL, IDC_HAND);
-   ui->_cursors[(uint32_t)UICursor::resize_up]         = LoadCursor(NULL, IDC_SIZENS);
-   ui->_cursors[(uint32_t)UICursor::resize_left]       = LoadCursor(NULL, IDC_SIZEWE);
-   ui->_cursors[(uint32_t)UICursor::resize_up_right]   = LoadCursor(NULL, IDC_SIZENESW);
-   ui->_cursors[(uint32_t)UICursor::resize_up_left]    = LoadCursor(NULL, IDC_SIZENWSE);
-   ui->_cursors[(uint32_t)UICursor::resize_down]       = LoadCursor(NULL, IDC_SIZENS);
-   ui->_cursors[(uint32_t)UICursor::resize_right]      = LoadCursor(NULL, IDC_SIZEWE);
-   ui->_cursors[(uint32_t)UICursor::resize_down_left]  = LoadCursor(NULL, IDC_SIZENESW);
-   ui->_cursors[(uint32_t)UICursor::resize_down_right] = LoadCursor(NULL, IDC_SIZENWSE);
+   auto& cursors = ui->native_cursors();
+   cursors[(uint32_t)UICursor::arrow]             = LoadCursor(NULL, IDC_ARROW);
+   cursors[(uint32_t)UICursor::text]              = LoadCursor(NULL, IDC_IBEAM);
+   cursors[(uint32_t)UICursor::split_v]           = LoadCursor(NULL, IDC_SIZENS);
+   cursors[(uint32_t)UICursor::split_h]           = LoadCursor(NULL, IDC_SIZEWE);
+   cursors[(uint32_t)UICursor::flipped_arrow]     = LoadCursor(NULL, IDC_ARROW);
+   cursors[(uint32_t)UICursor::cross_hair]        = LoadCursor(NULL, IDC_CROSS);
+   cursors[(uint32_t)UICursor::hand]              = LoadCursor(NULL, IDC_HAND);
+   cursors[(uint32_t)UICursor::resize_up]         = LoadCursor(NULL, IDC_SIZENS);
+   cursors[(uint32_t)UICursor::resize_left]       = LoadCursor(NULL, IDC_SIZEWE);
+   cursors[(uint32_t)UICursor::resize_up_right]   = LoadCursor(NULL, IDC_SIZENESW);
+   cursors[(uint32_t)UICursor::resize_up_left]    = LoadCursor(NULL, IDC_SIZENWSE);
+   cursors[(uint32_t)UICursor::resize_down]       = LoadCursor(NULL, IDC_SIZENS);
+   cursors[(uint32_t)UICursor::resize_right]      = LoadCursor(NULL, IDC_SIZEWE);
+   cursors[(uint32_t)UICursor::resize_down_left]  = LoadCursor(NULL, IDC_SIZENESW);
+   cursors[(uint32_t)UICursor::resize_down_right] = LoadCursor(NULL, IDC_SIZENWSE);
 
    WNDCLASS windowClass      = {0};
    windowClass.lpfnWndProc   = _UIWindowProcedure;
@@ -6097,7 +6107,7 @@ void UIWindow::endpaint(UIPainter* painter) const {
 }
 
 UIWindow& UIWindow::set_cursor(int cursor) {
-   ::SetCursor(ui()->_cursors[cursor]);
+   ::SetCursor(ui()->native_cursors()[cursor]);
    return *this;
 }
 
@@ -6119,8 +6129,9 @@ UIWindow& UIWindow::set_name(std::string_view name) {
    return *this;
 }
 
-void UIWindow::write_clipboard_text(std::string_view text, sel_target_t) {
-   if (OpenClipboard(_hwnd)) {
+void UI::write_clipboard_text(std::string_view text, UIWindow* w, sel_target_t) {
+   HWND hwnd = w->native_window();
+   if (OpenClipboard(hwnd)) {
       EmptyClipboard();
       HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, text.size() + 1);
       char*   copy   = (char*)GlobalLock(memory);
@@ -6131,10 +6142,11 @@ void UIWindow::write_clipboard_text(std::string_view text, sel_target_t) {
    }
 }
 
-std::string UIWindow::read_clipboard_text(sel_target_t) {
+std::string UI::read_clipboard_text(UIWindow* w, sel_target_t) {
+   HWND hwnd = w->native_window();
    std::string res;
 
-   if (!OpenClipboard(_hwnd)) {
+   if (!OpenClipboard(hwnd)) {
       return res;
    }
 
