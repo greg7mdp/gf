@@ -82,7 +82,7 @@ using std::make_shared;
 
 #ifdef UI_LINUX
 enum class UIKeycode : int {
-    A         = XK_a,
+    A         = XK_A,
     ZERO      = XK_0,
     BACKSPACE = XK_BackSpace,
     DEL       = XK_Delete,
@@ -454,7 +454,7 @@ struct UIShortcut {
    bool                  ctrl  = false;
    bool                  shift = false;
    bool                  alt   = false;
-   std::function<void()> invoke;
+   std::function<bool()> invoke; // should return true if event handled
 };
 
 // ------------------------------------------------------------------------------------------
@@ -468,6 +468,8 @@ struct UIStringSelection {
 struct UIKeyTyped {
    std::string_view text;
    UIKeycode        code = static_cast<UIKeycode>(0);
+
+   bool is(char c) { return code == UI_KEYCODE_LETTER(c); }
 };
 
 // ------------------------------------------------------------------------------------------
@@ -1309,10 +1311,10 @@ public:
 struct UITextbox : public UIElementCast<UITextbox> {
    friend struct UIWindow;
 private:
-   std::string        _buffer;
-   std::array<int, 2> _carets{};
-   int                _scroll;
-   bool               _reject_next_key;
+   std::string           _buffer;
+   std::array<size_t, 2> _carets{}; // carets[0] is the cursor position, carets[1] end of selection
+   int                   _scroll;
+   bool                  _reject_next_key;
 
    int _class_message_proc(UIMessage msg, int di, void* dp);
 
@@ -1321,8 +1323,13 @@ private:
    }
    static int _DialogTextboxMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
 
-   int byte_to_column(std::string_view string, int byte);
-   int column_to_byte(std::string_view string, int column);
+   int _byte_to_column(std::string_view string, int byte);
+   int _column_to_byte(std::string_view string, int column);
+
+   void _delete_one(bool backwards, bool by_word);
+   void _move_one(bool backwards, bool select, bool by_word);
+   void _move_to_end(bool backwards, bool select);
+   void _select_all();
 
 public:
 

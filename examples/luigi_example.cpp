@@ -172,8 +172,11 @@ int main(int argc, char** argv) {
    }
 
    window.register_shortcut(UIShortcut{.code = UI_KEYCODE_LETTER('T'), .ctrl = true, .invoke = []() {
+                                          if (!label)
+                                             return false;
                                           label->set_label("Keyboard shortcut!");
                                           label->refresh();
+                                          return true;
                                        }});
 
    {

@@ -404,11 +404,11 @@ void UIColorToRGB(float h, float s, float v, uint32_t* rgb) {
    *rgb = ui_color_from_rgb(r, g, b);
 }
 
-int UI::byte_to_column(std::string_view string, size_t byte, size_t tabSize) {
+int UI::byte_to_column(std::string_view string, const size_t byte, const size_t tabSize) {
    size_t ti = 0, i = 0;
-   size_t bytes = string.size();
+   const size_t bytes = string.size();
 
-   while (i < byte && i < bytes) {
+   while (i < std::min(byte, bytes)) {
       ti++;
       _ui_skip_tab(ti, &string[i], bytes - i, tabSize);
       _ui_advance_char(i, &string[i], byte);
@@ -417,9 +417,9 @@ int UI::byte_to_column(std::string_view string, size_t byte, size_t tabSize) {
    return (int)ti;
 }
 
-int UI::column_to_byte(std::string_view string, size_t column, size_t tabSize) {
+int UI::column_to_byte(std::string_view string, const size_t column, const size_t tabSize) {
    size_t byte = 0, ti = 0;
-   size_t bytes = string.size();
+   const size_t bytes = string.size();
 
    while (byte < bytes) {
       ti++;
@@ -3449,11 +3449,11 @@ UITable* UITableCreate(UIElement* parent, uint32_t flags, const char* columns) {
 // Textboxes.
 // --------------------------------------------------
 
-int UITextbox::byte_to_column(std::string_view string, int byte) {
+int UITextbox::_byte_to_column(std::string_view string, int byte) {
    return UI::byte_to_column(string, byte, 4);
 }
 
-int UITextbox::column_to_byte(std::string_view string, int column) {
+int UITextbox::_column_to_byte(std::string_view string, int column) {
    return UI::column_to_byte(string, column, 4);
 }
 
@@ -3494,7 +3494,7 @@ UITextbox& UITextbox::move_caret(bool backward, bool word) {
       std::string_view cur_text = text();
       if (_carets[0] > 0 && backward) {
          _ui_move_caret_backwards(_carets[0], cur_text.data(), _carets[0], 0);
-      } else if (_carets[0] < (int)cur_text.size() && !backward) {
+      } else if (_carets[0] < cur_text.size() && !backward) {
          _ui_move_caret_forward(_carets[0], cur_text, _carets[0]);
       } else {
          return *this;
@@ -3502,7 +3502,7 @@ UITextbox& UITextbox::move_caret(bool backward, bool word) {
 
       if (!word) {
          return *this;
-      } else if (_carets[0] != (int)cur_text.size() && _carets[0] != 0) {
+      } else if (_carets[0] != cur_text.size() && _carets[0] != 0) {
          if (_ui_move_caret_by_word(cur_text, _carets[0]))
             break;
       }
@@ -3566,8 +3566,8 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
       }
 
       UIStringSelection selection = {};
-      selection.carets[0]         = byte_to_column(text(), _carets[0]);
-      selection.carets[1]         = byte_to_column(text(), _carets[1]);
+      selection.carets[0]         = _byte_to_column(text(), _carets[0]);
+      selection.carets[1]         = _byte_to_column(text(), _carets[1]);
       selection.colorBackground   = ui->_theme.selected;
       selection.colorText         = ui->_theme.textSelected;
       textBounds.l -= _scroll;
@@ -3583,61 +3583,59 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
       int column = (_window->cursor_pos().x - _bounds.l + _scroll - scale(ui_size::textbox_margin) +
                     ui->_active_font->_glyph_width / 2) /
                    ui->_active_font->_glyph_width;
-      _carets[0] = _carets[1] = column <= 0 ? 0 : column_to_byte(text(), column);
+      _carets[0] = _carets[1] = column <= 0 ? 0 : _column_to_byte(text(), column);
       focus();
    } else if (msg == UIMessage::UPDATE) {
       repaint(nullptr);
    } else if (msg == UIMessage::DEALLOCATE) {
       ;
    } else if (msg == UIMessage::KEY_TYPED) {
-      UIKeyTyped* m       = (UIKeyTyped*)dp;
-      bool        handled = true;
-
+      UIKeyTyped* m        = (UIKeyTyped*)dp;
+      bool        handled  = true;
+      bool        shift    = _window->_shift;
+      bool        alt      = _window->_alt;
+      bool        ctrl     = _window->_ctrl && !alt;
+      bool        modifier = ctrl || alt || shift;
+      bool        selection = _carets[0] != _carets[1];
+      
       if (_reject_next_key) {
          _reject_next_key = false;
          handled          = false;
       } else if (m->code == UIKeycode::BACKSPACE || m->code == UIKeycode::DEL) {
-         if (_carets[0] == _carets[1]) {
-            move_caret(m->code == UIKeycode::BACKSPACE, _window->_ctrl);
-         }
-
-         replace_text("", true);
+         _delete_one(m->code == UIKeycode::BACKSPACE, ctrl);
       } else if (m->code == UIKeycode::LEFT || m->code == UIKeycode::RIGHT) {
-         if (_carets[0] == _carets[1] || _window->_shift) {
-            move_caret(m->code == UIKeycode::LEFT, _window->_ctrl);
-            if (!_window->_shift)
-               _carets[1] = _carets[0];
-         } else {
-            _carets[1 - _window->_shift] = _carets[_window->_shift];
-         }
+         _move_one(m->code == UIKeycode::LEFT, shift, _window->_ctrl);
       } else if (m->code == UIKeycode::HOME || m->code == UIKeycode::END) {
-         if (m->code == UIKeycode::HOME) {
-            _carets[0] = 0;
-         } else {
-            _carets[0] = text().size();
-         }
-
-         if (!_window->_shift) {
-            _carets[1] = _carets[0];
-         }
-      } else if (m->code == UI_KEYCODE_LETTER('A') && _window->_ctrl) {
-         _carets[1] = 0;
-         _carets[0] = text().size();
-      } else if (m->text.size() && !_window->_alt && !_window->_ctrl && m->text[0] >= 0x20) {
+         _move_to_end(m->code == UIKeycode::HOME, shift);
+      } else if ((m->is('A') || m->is('a')) && ctrl && shift) {
+         _select_all();                                        // `Ctrl-Shift-a` selects all
+      } else if (m->text.size() && !alt && !ctrl && m->text[0] >= 0x20) {
          replace_text(m->text, true);
-      } else if ((m->code == UI_KEYCODE_LETTER('C') || m->code == UI_KEYCODE_LETTER('X') ||
-                  m->code == UIKeycode::INSERT) &&
-                 _window->_ctrl && !_window->_alt && !_window->_shift) {
+      } else if ((m->is('C') || m->is('X') || m->is('c') || m->is('x') || m->code == UIKeycode::INSERT) && ctrl && !shift) {
          copy();
-
-         if (m->code == UI_KEYCODE_LETTER('X')) {
+         if (m->is('X') || m->is('x')) 
             replace_text("", true);
-         }
-      } else if ((m->code == UI_KEYCODE_LETTER('V') && _window->_ctrl && !_window->_alt && !_window->_shift) ||
-                 (m->code == UIKeycode::INSERT && !_window->_ctrl && !_window->_alt && _window->_shift)) {
+      } else if (((m->is('V') || m->is('v')) && ctrl && !shift) || (m->code == UIKeycode::INSERT && !modifier)) {
          paste(sel_target_t::clipboard);
       } else {
-         handled = false;
+         // implement some readline key bindings - see https://readline.kablamo.org/emacs.html
+         // ----------------------------------------------------------------------------------
+         if (ctrl && (m->is('A') || m->is('E') || m->is('a') || m->is('e'))) {
+            _move_to_end(m->is('A') || m->is('a'), shift);    // `ctrl-a` move to beg of line, `ctrl-e` to the end
+         } else if ((ctrl || alt) && (m->is('F') || m->is('B') || m->is('f') || m->is('b'))) {
+            _move_one(m->is('B') || m->is('b'), shift, alt);  // `ctrl-f` move forward, `ctrl-b` back, with `alt` by word 
+         } else if ((ctrl || alt) && !shift && m->is('d')) {
+            if (selection)
+               replace_text("", true);                       // if there is selected text, just delete it
+            else
+               _delete_one(false, alt);                      // `ctrl-d` deletes one char, `alt-d` one word
+         } else if ((ctrl && !alt) && (m->is('u') || m->is('k'))) {
+            if (!selection)
+               _carets[0] = m->is('u') ? 0 : text().size();
+            replace_text("", true);                          // if there is selected text, just delete it
+         } else {
+            handled = false;
+         }
       }
 
       if (handled) {
@@ -3645,7 +3643,7 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
          return 1;
       }
    } else if (msg == UIMessage::RIGHT_DOWN) {
-      int c0 = _carets[0], c1 = _carets[1];
+      size_t c0 = _carets[0], c1 = _carets[1];
       _class_message_proc(UIMessage::LEFT_DOWN, di, dp);
 
       if (c0 < c1 ? (_carets[0] >= c0 && _carets[0] < c1) : (_carets[0] >= c1 && _carets[0] < c0)) {
@@ -3673,6 +3671,34 @@ UITextbox::UITextbox(UIElement* parent, uint32_t flags)
    , _carets({0, 0})
    , _scroll(0)
    , _reject_next_key(false) {}
+
+void UITextbox::_delete_one(bool backwards, bool by_word) {
+   if (_carets[0] == _carets[1]) {
+      move_caret(backwards, by_word);
+   }
+   replace_text("", true);
+}
+
+void UITextbox::_move_one(bool backwards, bool select, bool by_word) {
+   if (_carets[0] == _carets[1] || select) {
+      move_caret(backwards, by_word);
+      if (!select)
+         _carets[1] = _carets[0];
+   } else {
+      _carets[1 - select] = _carets[select];
+   }
+}
+
+void UITextbox::_move_to_end(bool backwards, bool select) {
+   _carets[0] = (backwards ? 0ull : text().size());
+   if (!select)
+      _carets[1] = _carets[0];
+}
+
+void UITextbox::_select_all() {
+   _carets[1] = 0;
+   _carets[0] = text().size();
+}
 
 UITextbox* UITextboxCreate(UIElement* parent, uint32_t flags) {
    return new UITextbox(parent, flags);
@@ -4443,8 +4469,8 @@ bool UIWindow::input_event(UIMessage msg, int di, void* dp) {
                for (const auto& shortcut : views::reverse(_shortcuts)) {
                   if (shortcut.code == m->code && shortcut.ctrl == _ctrl && shortcut.shift == _shift &&
                       shortcut.alt == _alt) {
-                     shortcut.invoke();
-                     handled = true;
+                     if (shortcut.invoke())
+                        handled = true;
                      break;
                   }
                }

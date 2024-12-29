@@ -456,7 +456,7 @@ end
 bool DisplaySetPosition(const char* file, std::optional<size_t> line, bool useGDBToGetFullPath);
 void WatchAddExpression2(string_view string);
 int  WatchWindowMessage(UIElement* el, UIMessage msg, int di, void* dp);
-void CommandInspectLine();
+bool CommandInspectLine();
 
 // ------------------------------------------------------
 // Utilities:
@@ -1179,27 +1179,27 @@ static void CommandEnableBreakpoint(int index) {
    BreakpointCommand(index, "enable");
 }
 
-void CommandSyncWithGvim() {
+bool CommandSyncWithGvim() {
    char buffer[1024];
    std_format_to_n(buffer, sizeof(buffer), "vim --servername {} --remote-expr \"execute(\\\"ls\\\")\" | grep %%",
                    vimServerName);
    FILE* file = popen(buffer, "r");
    if (!file)
-      return;
+      return false;
    buffer[fread(buffer, 1, 1023, file)] = 0;
    pclose(file);
    char* name = strchr(buffer, '"');
    if (!name)
-      return;
+      return false;
    char* nameEnd = strchr(++name, '"');
    if (!nameEnd)
-      return;
+      return false;
    *nameEnd   = 0;
    char* line = nameEnd + 1;
    while (!isdigit(*line) && *line)
       line++;
    if (!line)
-      return;
+      return false;
    int  lineNumber = sv_atoi(line);
    char buffer2[PATH_MAX];
 
@@ -1209,11 +1209,11 @@ void CommandSyncWithGvim() {
                       vimServerName);
       FILE* file = popen(buffer, "r");
       if (!file)
-         return;
+         return false;
       buffer[fread(buffer, 1, 1023, file)] = 0;
       pclose(file);
       if (!strchr(buffer, '\n'))
-         return;
+         return false;
       *strchr(buffer, '\n') = 0;
       std_format_to_n(buffer2, sizeof(buffer2), "{}/{}", buffer, name);
    } else {
@@ -1221,6 +1221,7 @@ void CommandSyncWithGvim() {
    }
 
    DisplaySetPosition(buffer2, lineNumber - 1, false); // lines in vi are 1-based
+   return true;
 }
 
 void CommandToggleBreakpoint(int line = 0) {
@@ -1372,7 +1373,7 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
             shortcut.ctrl   = strstr(state.key, "ctrl+");
             shortcut.shift  = strstr(state.key, "shift+");
             shortcut.alt    = strstr(state.key, "alt+");
-            shortcut.invoke = [cmd = state.value]() { CommandCustom(cmd); };
+            shortcut.invoke = [cmd = state.value]() { CommandCustom(cmd); return true; };
 
             const char* codeStart = state.key;
 
@@ -1732,7 +1733,7 @@ void DisassemblyUpdateLine() {
    }
 }
 
-void CommandToggleDisassembly() {
+bool CommandToggleDisassembly() {
    showingDisassembly     = !showingDisassembly;
    autoPrintResultLine    = 0;
    autoPrintExpression[0] = 0;
@@ -1753,9 +1754,10 @@ void CommandToggleDisassembly() {
    }
 
    displayCode->refresh();
+   return true;
 }
 
-void CommandSetDisassemblyMode() {
+bool CommandSetDisassemblyMode() {
    const char* newMode = windowMain->show_dialog(0, "Select the disassembly mode:\n%b\n%b\n%b", "Disassembly only",
                                                  "With source", "Source centric");
 
@@ -1770,6 +1772,7 @@ void CommandSetDisassemblyMode() {
       CommandToggleDisassembly();
       CommandToggleDisassembly();
    }
+   return true;
 }
 
 void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
@@ -2250,10 +2253,10 @@ int InspectLineModeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    return 0;
 }
 
-void CommandInspectLine() {
+bool CommandInspectLine() {
    auto currentLine = displayCode->current_line();
    if (!currentLine)
-      return;
+      return false;
 
    inspectModeRestoreLine = *currentLine;
    inInspectLineMode      = true;
@@ -2263,6 +2266,7 @@ void CommandInspectLine() {
    // Create an element to receive key input messages.
    UIElement* el = UIElementCreate(sizeof(UIElement), windowMain, 0, InspectLineModeMessage, 0);
    el->focus();
+   return true;
 }
 
 // ---------------------------------------------------/
@@ -2520,7 +2524,7 @@ void BitmapAddDialog() {
 vector<unique_ptr<char[]>> commandHistory;
 size_t                     commandHistoryIndex;
 
-void CommandPreviousCommand() {
+bool CommandPreviousCommand() {
    if (commandHistoryIndex < commandHistory.size()) {
       textboxInput->clear(false);
       textboxInput->replace_text(commandHistory[commandHistoryIndex].get(), false);
@@ -2528,9 +2532,10 @@ void CommandPreviousCommand() {
          commandHistoryIndex++;
       textboxInput->refresh();
    }
+   return true;
 }
 
-void CommandNextCommand() {
+bool CommandNextCommand() {
    textboxInput->clear(false);
 
    if (commandHistoryIndex > 0) {
@@ -2539,11 +2544,13 @@ void CommandNextCommand() {
    }
 
    textboxInput->refresh();
+   return true;
 }
 
-void CommandClearOutput() {
+bool CommandClearOutput() {
    displayOutput->clear();
    displayOutput->refresh();
+   return true;
 }
 
 int TextboxInputMessage(UIElement* el, UIMessage msg, int di, void* dp) {
@@ -3269,16 +3276,16 @@ WatchWindow* WatchGetFocused() {
    return windowMain->focused()->_class_proc == WatchWindowMessage ? (WatchWindow*)windowMain->focused()->_cp : NULL;
 }
 
-void CommandWatchAddEntryForAddress(WatchWindow* _w) {
+bool CommandWatchAddEntryForAddress(WatchWindow* _w) {
    WatchWindow* w = _w ? _w : WatchGetFocused();
    if (!w)
-      return;
+      return false;
    if (w->mode == WATCH_NORMAL && w->selectedRow == w->rows.size())
-      return;
+      return false;
    const auto& watch = w->rows[w->selectedRow];
    auto        res   = WatchGetAddress(watch);
    if (res.empty())
-      return;
+      return false;
 
    if (w->mode != WATCH_NORMAL) {
       ctx.InterfaceWindowSwitchToAndFocus("Watch");
@@ -3289,7 +3296,7 @@ void CommandWatchAddEntryForAddress(WatchWindow* _w) {
    auto address = res;
    res          = WatchEvaluate("gf_typeof", watch);
    if (res.empty() || res.contains("??"))
-      return;
+      return false;
    resize_to_lf(res);
 
    auto buffer = std::format("({}*){}", res, address);
@@ -3297,23 +3304,24 @@ void CommandWatchAddEntryForAddress(WatchWindow* _w) {
    WatchEnsureRowVisible(w, w->selectedRow);
    w->_parent->refresh();
    w->refresh();
+   return true;
 }
 
-void CommandWatchAddEntryForAddress() {
-   CommandWatchAddEntryForAddress(WatchGetFocused());
+bool CommandWatchAddEntryForAddress() {
+   return CommandWatchAddEntryForAddress(WatchGetFocused());
 }
 
-void CommandWatchViewSourceAtAddress(WatchWindow* _w) {
+bool CommandWatchViewSourceAtAddress(WatchWindow* _w) {
    WatchWindow* w = _w ? _w : WatchGetFocused();
    if (!w)
-      return;
+      return false;
    if (w->mode == WATCH_NORMAL && w->selectedRow == w->rows.size())
-      return;
+      return false;
    char* position = (char*)w->rows[w->selectedRow]->value.c_str();
    while (*position && !isdigit(*position))
       position++;
    if (!(*position))
-      return;
+      return false;
    uint64_t value = strtoul(position, nullptr, 0);
    auto     res   = EvaluateCommand(std::format("info line * 0x{:x}", value));
    position       = (char*)res.c_str();
@@ -3321,28 +3329,29 @@ void CommandWatchViewSourceAtAddress(WatchWindow* _w) {
    if (res.contains("No line number")) {
       resize_to_lf(res);
       windowMain->show_dialog(0, "%s\n%f%B", res.c_str(), "OK");
-      return;
+      return false;
    }
 
    while (*position && !isdigit(*position))
       position++;
    if (!(*position))
-      return;
+      return false;
    size_t line = strtol(position, &position, 0);
    while (*position && *position != '"')
       position++;
    if (!(*position))
-      return;
+      return false;
    char* file = position + 1;
    char* end  = strchr(file, '"');
    if (!end)
-      return;
+      return false;
    *end = 0;
    DisplaySetPosition(file, line - 1, false);
+   return true;
 }
 
-void CommandWatchViewSourceAtAddress() {
-   CommandWatchViewSourceAtAddress(WatchGetFocused());
+bool CommandWatchViewSourceAtAddress() {
+   return CommandWatchViewSourceAtAddress(WatchGetFocused());
 }
 
 void CommandWatchSaveAsRecurse(FILE* file, const shared_ptr<Watch>& watch, int indent, int indexInParentArray) {
@@ -3830,15 +3839,16 @@ void WatchWindowFocus(UIElement* el) {
    w->focus();
 }
 
-void CommandAddWatch() {
+bool CommandAddWatch() {
    UIElement* el = ctx.InterfaceWindowSwitchToAndFocus("Watch");
    if (!el)
-      return;
+      return false;
    WatchWindow* w = (WatchWindow*)el->_cp;
    if (w->textbox)
-      return;
+      return false;
    w->selectedRow = w->rows.size();
    WatchCreateTextboxForRow(w, false);
+   return true;
 }
 
 // ---------------------------------------------------/
@@ -4088,9 +4098,9 @@ int DataTabMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    return 0;
 }
 
-void CommandToggleFillDataTab() {
+bool CommandToggleFillDataTab() {
    if (!dataTab)
-      return;
+      return false;
    static UIElement *oldParent, *oldBefore;
    buttonFillWindow->_flags ^= UIButton::CHECKED;
 
@@ -4103,6 +4113,7 @@ void CommandToggleFillDataTab() {
       oldBefore = dataTab->change_parent(switcherMain, NULL);
       UISwitcherSwitchTo(switcherMain, dataTab);
    }
+   return true;
 }
 
 UIElement* DataWindowCreate(UIElement* parent) {
@@ -7065,8 +7076,10 @@ void Context::RegisterExtensions() {
 
    interfaceDataViewers.push_back({"Add waveform...", WaveformAddDialog});
    interfaceCommands.push_back({
-      .label = nullptr,
-      .shortcut{.code = UI_KEYCODE_LETTER('V'), .ctrl = true, .shift = true, .invoke = []() { ViewWindowView(); }}
+      .label = nullptr, .shortcut{.code = UI_KEYCODE_LETTER('V'), .ctrl = true, .shift = true, .invoke = []() {
+                                     ViewWindowView();
+                                     return true;
+                                  }}
    });
 }
 
@@ -7161,7 +7174,7 @@ void MsgReceivedControl(std::unique_ptr<std::string> input) {
 }
 
 auto gdb_invoker(string_view cmd) {
-   return [cmd]() { CommandSendToGDB(cmd); };
+   return [cmd]() { CommandSendToGDB(cmd); return true; };
 }
 
 void Context::InterfaceAddBuiltinWindowsAndCommands() {
@@ -7234,11 +7247,11 @@ void Context::InterfaceAddBuiltinWindowsAndCommands() {
       .shortcut{.code = UI_KEYCODE_FKEY(11), .ctrl = true, .shift = true, .invoke = gdb_invoker("reverse-step")}
    });
    interfaceCommands.push_back({
-      .label = "Break\tF8", .shortcut{.code = UI_KEYCODE_FKEY(8), .invoke = [&]() { ctx.InterruptGdb(0); }}
+      .label = "Break\tF8", .shortcut{.code = UI_KEYCODE_FKEY(8), .invoke = [&]() { ctx.InterruptGdb(0); return true; }}
    });
    interfaceCommands.push_back({
       .label = "Toggle breakpoint\tF9",
-      .shortcut{.code = UI_KEYCODE_FKEY(9), .invoke = []() { CommandToggleBreakpoint(); }}
+      .shortcut{.code = UI_KEYCODE_FKEY(9), .invoke = []() { CommandToggleBreakpoint(); return true; }}
    });
    interfaceCommands.push_back({
       .label = "Sync with gvim\tF2", .shortcut{.code = UI_KEYCODE_FKEY(2), .invoke = CommandSyncWithGvim}
@@ -7248,27 +7261,15 @@ void Context::InterfaceAddBuiltinWindowsAndCommands() {
       .shortcut{.code = UI_KEYCODE_LETTER('P'), .ctrl = true, .shift = true, .invoke = gdb_invoker("gf-get-pwd")}
    });
    interfaceCommands.push_back({
-      .label = "Toggle disassembly\tCtrl+D",
-      .shortcut{.code = UI_KEYCODE_LETTER('D'), .ctrl = true, .invoke = CommandToggleDisassembly}
-   });
-   interfaceCommands.push_back({
       .label = "Set disassembly mode\tCtrl+M",
       .shortcut{.code = UI_KEYCODE_LETTER('M'), .ctrl = true, .invoke = CommandSetDisassemblyMode}
    });
-   interfaceCommands.push_back({.label = "Add watch", .shortcut{.invoke = CommandAddWatch}});
    interfaceCommands.push_back({
-      .label = "Inspect line", .shortcut{.code = UIKeycode::BACKTICK, .invoke = CommandInspectLine}
+      .label = "Inspect line", .shortcut{.code = UIKeycode::BACKTICK, .invoke = CommandInspectLine }
    });
    interfaceCommands.push_back({
       .label = nullptr,
-      .shortcut{.code = UI_KEYCODE_LETTER('E'), .ctrl = true, .invoke = []() { CommandWatchAddEntryForAddress(); }}
-   });
-   interfaceCommands.push_back({
-      .label = nullptr,
-      .shortcut{.code = UI_KEYCODE_LETTER('G'), .ctrl = true, .invoke = []() { CommandWatchViewSourceAtAddress(); }}
-   });
-   interfaceCommands.push_back({
-      .label = nullptr, .shortcut{.code = UI_KEYCODE_LETTER('B'), .ctrl = true, .invoke = CommandToggleFillDataTab}
+      .shortcut{.code = UI_KEYCODE_LETTER('G'), .ctrl = true, .invoke = []() { CommandWatchViewSourceAtAddress(); return true; } }
    });
    interfaceCommands.push_back({
       .label = nullptr,
@@ -7278,10 +7279,26 @@ void Context::InterfaceAddBuiltinWindowsAndCommands() {
       .label = nullptr,
       .shortcut{.code = UI_KEYCODE_LETTER('N'), .ctrl = true, .shift = false, .invoke = CommandNextCommand}
    });
+#if 0
+   // conflicts with textbox readlime bindings
+   // -----------------------------------------
+   interfaceCommands.push_back({
+      .label = "Toggle disassembly\tCtrl+D",
+      .shortcut{.code = UI_KEYCODE_LETTER('D'), .ctrl = true, .invoke = CommandToggleDisassembly}
+   });
+   interfaceCommands.push_back({.label = "Add watch", .shortcut{.invoke = CommandAddWatch}});
+   interfaceCommands.push_back({
+      .label = nullptr,
+      .shortcut{.code = UI_KEYCODE_LETTER('E'), .ctrl = true, .invoke = []() { CommandWatchAddEntryForAddress(); return true; } }
+   });
+   interfaceCommands.push_back({
+      .label = nullptr, .shortcut{.code = UI_KEYCODE_LETTER('B'), .ctrl = true, .invoke = CommandToggleFillDataTab}
+   });
    interfaceCommands.push_back({
       .label = nullptr,
       .shortcut{.code = UI_KEYCODE_LETTER('L'), .ctrl = true, .shift = false, .invoke = CommandClearOutput}
    });
+#endif
 
    msgReceivedData    = ReceiveMessageRegister(MsgReceivedData);
    msgReceivedControl = ReceiveMessageRegister(MsgReceivedControl);
