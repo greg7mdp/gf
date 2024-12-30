@@ -1505,7 +1505,86 @@ private:
    UITheme                 _theme;
    std::vector<UIElement*> _animating;
 
+public:
+   bool                    _quit             = false;
+   const char*             _dialog_result    = nullptr;
+   bool                    _dialog_can_exit  = false;
+
+   std::string             _default_font_path; // default font used
+   UIFont*                 _active_font  = nullptr;
+   UIFont*                 _default_font = nullptr;
+
+   unique_ptr<UIInspector> _inspector;
+
+#ifdef UI_FREETYPE
+   FT_Library             _ft = nullptr;
+#endif
+
+   // ------ public functions -------------------------------------------------------------
+   ~UI();
+
+   static unique_ptr<UI> initialise(const UIConfig& cfg);  // main entry point of the library
+
+   int          message_loop();
+   void         update();
+   void         process_animations();
+   bool         is_menu_open() const;
+   bool         close_menus();
+   bool         animate(UIElement *el, bool stop);
+
+   UIMenu&      create_menu(UIElement* parent, uint32_t flags);
+   UIWindow&    create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height);
+   UIFont*      create_font(std::string_view path, uint32_t size);
+
+   UITheme&     theme() { return _theme; }
+   UIFont*      active_font() const { return _active_font; }
+
+   UIWindow**   toplevel_windows_head() { return &_toplevel_windows; }
+
+   void         write_clipboard_text(std::string_view text, UIWindow* w, sel_target_t t);
+   std::string  read_clipboard_text(UIWindow* w, sel_target_t t);
+
+   // ----------- utilities --------------------------------------------------------
+   int          code_margin()     { return _active_font->_glyph_width * 5; }
+   int          code_margin_gap() { return _active_font->_glyph_width * 1; }
+
+   int          string_width(std::string_view string) const;
+   int          string_height() const { return _active_font->_glyph_height; }
+   UIPoint      string_dims(std::string_view s) const { return UIPoint{string_width(s), string_height()}; }
+
+   static int   byte_to_column(std::string_view string, size_t byte, size_t tabSize);
+   static int   column_to_byte(std::string_view string, size_t column, size_t tabSize);
+
+   static bool  is_digit(int c) { return std::isdigit(c); }
+   static bool  is_alpha(int c) { return std::isalpha(c) || c > 127; }
+   static bool  is_alnum(int c) { return std::isalnum(c) || c > 127; }
+   static bool  is_alnum_or_underscore(int c) { return is_alnum(c) || c == '_'; }
+
+   // ----------- internal library use - do not call ----------------------------------------
+   bool         platform_message_loop_single(int* result);
+
+   //  inspector
+   void         inspector_refresh()                            { if (_inspector) _inspector->refresh(); }
+   void         inspector_notify_destroyed_window(UIWindow* w) { if (_inspector) _inspector->notify_destroyed_window(w); }
+   void         inspector_set_focused_window(UIWindow* w)      { if (_inspector) _inspector->set_focused_window(w); }
+
+   int          automation_run_tests();
+   void         automation_process_message();
+   void         automation_keyboard_type_single(int code, bool ctrl, bool shift, bool alt);
+   void         automation_keyboard_type(const char* string);
+   bool         automation_check_code_line_matches(UICode* code, size_t lineIndex, std::string_view input);
+   bool         automation_check_table_item_matches(UITable* table, size_t row, size_t column, std::string_view input);
+
+private:
+   // ----- internal functions  --------------------------------------------------------------
+   void         _initialize_common(const UIConfig& cfg, const std::string& default_font_path);
+   UIWindow&    _platform_create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int _width, int _height);
+   static int   _platform_message_proc(UIElement* el, UIMessage msg, int di, void* dp);
+   void         _inspector_refresh();
+
+   // platform dependent stuff
 #if defined(UI_LINUX)
+private:
    using cursors_t = std::array<Cursor, (uint32_t)UICursor::count>;
    Display*                _display = nullptr;
    Visual*                 _visual  = nullptr;
@@ -1517,100 +1596,15 @@ private:
 
    UIWindow*   _find_x11_window(Window window) const;
    bool        _process_x11_event(XEvent* x_event);
-#elif defined(UI_WINDOWS)
-   using cursors_t = std::array<HCURSOR, (uint32_t)UICursor::count>;
-   cursors_t               _cursors{};
-   bool                    _assertion_failure = false;
-#endif
-
-   // ----- internal (and often platform specific) functions - do not call --------------------------------
-   void        _initialize_common(const UIConfig& cfg, const std::string& default_font_path);
-   UIWindow&   _platform_create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int _width, int _height);
-   static int  _platform_message_proc(UIElement* el, UIMessage msg, int di, void* dp);
-   void        _inspector_refresh();
-
 public:
-   bool                   _quit             = false;
-   const char*            _dialog_result    = nullptr;
-   UIElement*             _dialog_old_focus = nullptr;
-   bool                   _dialog_can_exit  = false;
-
-   std::string            _default_font_path; // default font used
-   UIFont*                _active_font  = nullptr;
-   UIFont*                _default_font = nullptr;
-
-   std::unique_ptr<UIInspector> _inspector;
-
-#ifdef UI_FREETYPE
-   FT_Library             _ft = nullptr;
-#endif
-
-   // ------ public functions -------------------------------------------------------------
-   ~UI();
-
-   static unique_ptr<UI> initialise(const UIConfig& cfg);  // main entry point of the library
-
-   int         message_loop();
-   void        update();
-   void        process_animations();
-   bool        is_menu_open() const;
-   bool        close_menus();
-   bool        animate(UIElement *el, bool stop);
-
-   UIMenu&     create_menu(UIElement* parent, uint32_t flags);
-   UIWindow&   create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height);
-   UIFont*     create_font(std::string_view path, uint32_t size);
-
-   UITheme&    theme() { return _theme; }
-   UIFont*     active_font() const { return _active_font; }
-
-   UIWindow**   toplevel_windows_head() { return &_toplevel_windows; }
-
-   void        write_clipboard_text(std::string_view text, UIWindow* w, sel_target_t t);
-   std::string read_clipboard_text(UIWindow* w, sel_target_t t);
-
-   // ----------- utilities --------------------------------------------------------
-   int         code_margin()     { return _active_font->_glyph_width * 5; }
-   int         code_margin_gap() { return _active_font->_glyph_width * 1; }
-
-   int         string_width(std::string_view string) const;
-   int         string_height() const { return _active_font->_glyph_height; }
-   UIPoint     string_dims(std::string_view s) const { return UIPoint{string_width(s), string_height()}; }
-
-   static int  byte_to_column(std::string_view string, size_t byte, size_t tabSize);
-   static int  column_to_byte(std::string_view string, size_t column, size_t tabSize);
-
-   static bool is_digit(int c) { return std::isdigit(c); }
-   static bool is_alpha(int c) { return std::isalpha(c) || c > 127; }
-   static bool is_alnum(int c) { return std::isalnum(c) || c > 127; }
-   static bool is_alnum_or_underscore(int c) { return is_alnum(c) || c == '_'; }
-
-   // ----------- internal library use - do not call ----------------------------------------
-   bool        platform_message_loop_single(int* result);
-
-   //  inspector
-   void       inspector_refresh() {
-      if constexpr (UIInspector::enabled()) if (_inspector) _inspector->refresh();
-   }
-   void       inspector_notify_destroyed_window(UIWindow* w) {
-      if constexpr (UIInspector::enabled()) if (_inspector) _inspector->notify_destroyed_window(w);
-   }
-   void       inspector_set_focused_window(UIWindow* w) {
-      if constexpr (UIInspector::enabled()) if (_inspector) _inspector->set_focused_window(w);
-   }
-
-   int        automation_run_tests();
-   void       automation_process_message();
-   void       automation_keyboard_type_single(int code, bool ctrl, bool shift, bool alt);
-   void       automation_keyboard_type(const char* string);
-   bool       automation_check_code_line_matches(UICode* code, size_t lineIndex, std::string_view input);
-   bool       automation_check_table_item_matches(UITable* table, size_t row, size_t column, std::string_view input);
-
-   // platform dependent stuff
-#if defined(UI_LINUX)
    Display*    native_display() const { return _display; }
    cursors_t&  native_cursors() { return _cursors; }
 #elif defined(UI_WINDOWS)
+private:
+   using cursors_t = std::array<HCURSOR, (uint32_t)UICursor::count>;
+   cursors_t               _cursors{};
+   bool                    _assertion_failure = false;
+public:
    cursors_t&  native_cursors() { return _cursors; }
 #endif
 };

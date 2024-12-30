@@ -1018,7 +1018,8 @@ void UIElement::_destroy_descendents(bool topLevel) {
          child->destroy();
    }
 
-   ui()->inspector_refresh();
+   if constexpr (UIInspector::enabled())
+      ui()->inspector_refresh();
 }
 
 void UIElement::destroy_descendents() {
@@ -1655,8 +1656,9 @@ UIElement::UIElement(UIElement* parent, uint32_t flags, message_proc_t message_p
    static uint32_t s_id = 0;
    _id                  = ++s_id;
 
-   if (parent)
-      parent->ui()->inspector_refresh();
+   if constexpr (UIInspector::enabled())
+      if (parent)
+         parent->ui()->inspector_refresh();
 }
 
 UIElement::~UIElement() {}
@@ -5296,7 +5298,8 @@ unique_ptr<UI> UI::initialise(const UIConfig& cfg) {
       ui->_xim = XOpenIM(ui->native_display(), 0, 0, 0);
    }
 
-   ui->_inspector.reset(new UIInspector(ui.get()));
+   if constexpr (UIInspector::enabled())
+      ui->_inspector.reset(new UIInspector(ui.get()));
 
    return ui;
 }
