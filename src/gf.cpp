@@ -5845,7 +5845,7 @@ UIElement* ProfWindowCreate(UIElement* parent) {
    const int   fontSizeFlameGraph = 8;
    ProfWindow* window             = new ProfWindow;
    UI*         ui                 = parent->ui();
-   window->fontFlameGraph         = ui->create_font(ui->_default_font_path, fontSizeFlameGraph);
+   window->fontFlameGraph         = ui->create_font(ui->default_font_path(), fontSizeFlameGraph);
    UIPanel* panel                 = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
    panel->_cp                     = window;
    panel->add_button(UIElement::v_fill, "Step over profiled").on_click([window](UIButton&) {
@@ -7551,7 +7551,7 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
 
    // create fonts for interface and code
    // -----------------------------------
-   const auto& font_path = ui->_default_font_path;
+   const auto& font_path = ui->default_font_path();
    code_font             = ui->create_font(font_path, code_font_size);
    ui->create_font(font_path, interface_font_size)->activate();
 

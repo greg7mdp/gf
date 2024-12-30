@@ -1504,15 +1504,14 @@ private:
    UIWindow*               _toplevel_windows = nullptr;
    UITheme                 _theme;
    std::vector<UIElement*> _animating;
+   std::string             _default_font_path;
+   UIFont*                 _active_font  = nullptr;
+   UIFont*                 _default_font = nullptr;
 
 public:
    bool                    _quit             = false;
    const char*             _dialog_result    = nullptr;
    bool                    _dialog_can_exit  = false;
-
-   std::string             _default_font_path; // default font used
-   UIFont*                 _active_font  = nullptr;
-   UIFont*                 _default_font = nullptr;
 
    unique_ptr<UIInspector> _inspector;
 
@@ -1538,6 +1537,10 @@ public:
 
    UITheme&     theme() { return _theme; }
    UIFont*      active_font() const { return _active_font; }
+   UIFont*      default_font() const { return _default_font; }
+   void         set_active_font(UIFont *font) { _active_font = font; }
+
+   const std::string& default_font_path() const { return _default_font_path; }
 
    UIWindow**   toplevel_windows_head() { return &_toplevel_windows; }
 

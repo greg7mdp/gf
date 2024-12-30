@@ -780,13 +780,14 @@ void UIDrawString(UIPainter* painter, UIRectangle r, std::string_view string, ui
       string = string.substr(1);
 #endif
       uint32_t colorText = color;
+      UIFont *active_font = ui->active_font();
 
       if (i >= selectFrom && i < selectTo) {
-         int w = ui->_active_font->_glyph_width;
+         int w = active_font->_glyph_width;
          if (c == '\t') {
             int ii = i;
             while (++ii & 3)
-               w += ui->_active_font->_glyph_width;
+               w += active_font->_glyph_width;
          }
          UIDrawBlock(painter, UIRectangle(x, x + w, y, y + height), selection->colorBackground);
          colorText = selection->colorText;
@@ -800,11 +801,11 @@ void UIDrawString(UIPainter* painter, UIRectangle r, std::string_view string, ui
          UIDrawInvert(painter, UIRectangle(x, x + 1, y, y + height));
       }
 
-      x += ui->_active_font->_glyph_width, i++;
+      x += active_font->_glyph_width, i++;
 
       if (c == '\t') {
          while (i & 3)
-            x += ui->_active_font->_glyph_width, i++;
+            x += active_font->_glyph_width, i++;
       }
 
       j += bytesConsumed;
@@ -916,14 +917,15 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
       bool     isDown = which == UIControl::scroll_down;
       uint32_t color  = pressed ? theme.buttonPressed : hovered ? theme.buttonHovered : theme.panel2;
       UIDrawRectangle(painter, bounds, color, theme.border, UIRectangle(0));
+      UIFont *active_font = ui->active_font();
 
       if (mode & UIControl::state_vertical) {
-         painter->draw_glyph((bounds.l + bounds.r - ui->_active_font->_glyph_width) / 2 + 1,
-                             isDown ? (bounds.b - ui->_active_font->_glyph_height - 2 * scale) : (bounds.t + 2 * scale),
+         painter->draw_glyph((bounds.l + bounds.r - active_font->_glyph_width) / 2 + 1,
+                             isDown ? (bounds.b - active_font->_glyph_height - 2 * scale) : (bounds.t + 2 * scale),
                              isDown ? 25 : 24, theme.text);
       } else {
-         painter->draw_glyph(isDown ? (bounds.r - ui->_active_font->_glyph_width - 2 * scale) : (bounds.l + 2 * scale),
-                             (bounds.t + bounds.b - ui->_active_font->_glyph_height) / 2, isDown ? 26 : 27, theme.text);
+         painter->draw_glyph(isDown ? (bounds.r - active_font->_glyph_width - 2 * scale) : (bounds.l + 2 * scale),
+                             (bounds.t + bounds.b - active_font->_glyph_height) / 2, isDown ? 26 : 27, theme.text);
       }
    } else if (which == UIControl::scroll_thumb) {
       uint32_t color = pressed ? theme.buttonPressed : hovered ? theme.buttonHovered : theme.buttonNormal;
@@ -1972,7 +1974,7 @@ int UIButton::_class_message_proc(UIMessage msg, int di, void* dp) {
       int labelSize  = ui()->string_width(_label);
       int paddedSize = labelSize + scale(ui_size::button_padding);
       if (isDropDown)
-         paddedSize += ui()->_active_font->_glyph_width * 2;
+         paddedSize += ui()->active_font()->_glyph_width * 2;
       int minimumSize = scale((_flags & UIButton::SMALL) ? 0
                               : isMenuItem               ? ui_size::menu_item_minimum_width
                                                          : ui_size::button_minimum_width);
@@ -2529,13 +2531,14 @@ UICode& UICode::position_to_byte(int x, int y, size_t* line, size_t* byte) {
    UI*     ui           = this->ui();
    UIFont* previousFont = _font->activate();
    int     lineHeight   = ui->string_height();
+   UIFont *active_font  = ui->active_font();
    *line                = std::max((int64_t)0, (y - _bounds.t + _vscroll->position()) / lineHeight);
    if (*line >= num_lines())
       *line = num_lines() - 1;
    int column =
-      (x - _bounds.l + _hscroll->position() + ui->_active_font->_glyph_width / 2) / ui->_active_font->_glyph_width;
+      (x - _bounds.l + _hscroll->position() + active_font->_glyph_width / 2) / active_font->_glyph_width;
    if (~_flags & UICode::NO_MARGIN)
-      column -= (ui->code_margin() + ui->code_margin_gap()) / ui->_active_font->_glyph_width;
+      column -= (ui->code_margin() + ui->code_margin_gap()) / active_font->_glyph_width;
    previousFont->activate();
    *byte = column_to_byte(*line, column);
    return *this;
@@ -2666,14 +2669,15 @@ int UIDrawStringHighlighted(UIPainter* painter, UIRectangle lineBounds, std::str
       }
 
       int oldX = x;
+      UIFont *active_font = ui->active_font();
 
       if (c == '\t') {
-         x += ui->_active_font->_glyph_width, ti++;
+         x += active_font->_glyph_width, ti++;
          while (ti % tabSize)
-            x += ui->_active_font->_glyph_width, ti++, j++;
+            x += active_font->_glyph_width, ti++, j++;
       } else {
          painter->draw_glyph(x, y, c, colors[tokenType]);
-         x += ui->_active_font->_glyph_width, ti++;
+         x += active_font->_glyph_width, ti++;
       }
 
       if (selection && j >= selection->carets[0] && j < selection->carets[1]) {
@@ -2980,8 +2984,8 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
          if (_window->_shift) {
             move_caret(m->code == UIKeycode::LEFT, _window->_ctrl);
          } else if (!_window->_ctrl) {
-            _hscroll->position() +=
-               m->code == UIKeycode::LEFT ? -ui->_active_font->_glyph_width : ui->_active_font->_glyph_width;
+            UIFont *active_font = ui->active_font();
+            _hscroll->position() += m->code == UIKeycode::LEFT ? -active_font->_glyph_width : active_font->_glyph_width;
             refresh();
          } else {
             return 0;
@@ -3108,7 +3112,7 @@ UICode& UICode::insert_content(std::string_view new_content, bool replace) {
 UICode::UICode(UIElement* parent, uint32_t flags)
    : UIElementCast<UICode>(parent, flags, UICode::_ClassMessageProc, "Code")
    , UIScrollbarPair(this)
-   , _font(parent->ui()->_active_font) {}
+   , _font(parent->ui()->active_font()) {}
 
 UICode* UICodeCreate(UIElement* parent, uint32_t flags) {
    return new UICode(parent, flags);
@@ -3439,8 +3443,8 @@ int UITable::_class_message_proc(UIMessage msg, int di, void* dp) {
          return 1;
       } else if ((m->code == UIKeycode::LEFT || m->code == UIKeycode::RIGHT) && !_window->_ctrl && !_window->_alt &&
                  !_window->_shift) {
-         _hscroll->position() +=
-            m->code == UIKeycode::LEFT ? -ui()->_active_font->_glyph_width : ui()->_active_font->_glyph_width;
+         UIFont *active_font = ui()->active_font();
+         _hscroll->position() += m->code == UIKeycode::LEFT ? -active_font->_glyph_width : active_font->_glyph_width;
          refresh();
          return 1;
       }
@@ -3597,9 +3601,10 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::GET_CURSOR) {
       return (int)UICursor::text;
    } else if (msg == UIMessage::LEFT_DOWN) {
-      int column = (_window->cursor_pos().x - _bounds.l + _scroll - scale(ui_size::textbox_margin) +
-                    ui->_active_font->_glyph_width / 2) /
-                   ui->_active_font->_glyph_width;
+      UIFont *active_font = ui->active_font();
+      int     column      = (_window->cursor_pos().x - _bounds.l + _scroll - scale(ui_size::textbox_margin) +
+                    active_font->_glyph_width / 2) /
+                   active_font->_glyph_width;
       _carets[0] = _carets[1] = column <= 0 ? 0 : _column_to_byte(text(), column);
       focus();
    } else if (msg == UIMessage::UPDATE) {
@@ -4585,7 +4590,7 @@ UIPainter& UIPainter::draw_glyph(int x0, int y0, int c, uint32_t color) {
 #ifdef UI_FREETYPE
    UI* ui = this->ui();
 
-   UIFont* font = ui->_active_font;
+   UIFont* font = ui->active_font();
    // std_print("font = {}\n", (void *)font);
 
    if (font->_is_freetype) {
@@ -4743,8 +4748,8 @@ UIFont* UI::create_font(std::string_view cPath, uint32_t size) {
 }
 
 UIFont* UIFont::activate() {
-   UIFont* previous  = _ui->_active_font;
-   _ui->_active_font = this;
+   UIFont* previous  = _ui->active_font();
+   _ui->set_active_font(this);
    return previous;
 }
 
@@ -4839,7 +4844,7 @@ UIInspector::UIInspector(UI* ui)
    _table                 = UITableCreate(splitPane, 0, "Class\tBounds\tID");
    _table->_user_proc     = _UIInspectorTableMessage;
    _log                   = UICodeCreate(splitPane, 0);
-   _log->set_font(ui->_default_font);
+   _log->set_font(ui->default_font());
 }
 
 int _UIInspectorCountElements(UIElement* el) {
