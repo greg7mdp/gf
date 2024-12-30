@@ -4890,28 +4890,28 @@ void UIInspector::notify_destroyed_window(UIWindow* window) {
 
 #ifdef UI_AUTOMATION_TESTS
 
-int UIAutomationRunTests();
+int UI::automation_run_tests() { return 1; }
 
-void UIAutomationProcessMessage() {
+void UI::automation_process_message() {
    int result;
    UI::platform_message_loop_single(&result);
 }
 
-void UIAutomationKeyboardTypeSingle(intptr_t code, bool ctrl, bool shift, bool alt) {
-   UIWindow*  window = ui->_toplevel_windows; // TODO Get the focused window.
-   UIKeyTyped m      = {0};
-   m.code            = code;
-   window->ctrl      = ctrl;
-   window->alt       = alt;
-   window->shift     = shift;
-   window->imput_event(UIMessage::KEY_TYPED, 0, &m);
-   window->ctrl  = false;
-   window->alt   = false;
-   window->shift = false;
+void UI::automation_keyboard_type_single(int code, bool ctrl, bool shift, bool alt) {
+   UIWindow*  window = _toplevel_windows; // TODO Get the focused window.
+   UIKeyTyped m;
+   m.code            = (UIKeycode)code;
+   window->_ctrl      = ctrl;
+   window->_alt       = alt;
+   window->_shift     = shift;
+   window->input_event(UIMessage::KEY_TYPED, 0, &m);
+   window->_ctrl  = false;
+   window->_alt   = false;
+   window->_shift = false;
 }
 
-void UIAutomationKeyboardType(const char* string) {
-   UIWindow* window = ui->_toplevel_windows; // TODO Get the focused window.
+void UI::automation_keyboard_type(const char* string) {
+   UIWindow* window = _toplevel_windows; // TODO Get the focused window.
 
    UIKeyTyped m;
    char       c[2];
@@ -4921,56 +4921,41 @@ void UIAutomationKeyboardType(const char* string) {
 
    for (int i = 0; string[i]; i++) {
       c[0]          = string[i];
-      window->ctrl  = false;
-      window->alt   = false;
-      window->shift = (c[0] >= 'A' && c[0] <= 'Z');
+      window->_ctrl  = false;
+      window->_alt   = false;
+      window->_shift = (c[0] >= 'A' && c[0] <= 'Z');
       m.code        = (c[0] >= 'A' && c[0] <= 'Z')   ? UI_KEYCODE_LETTER(c[0])
                       : c[0] == '\n'                 ? UIKeycode::ENTER
                       : c[0] == '\t'                 ? UIKeycode::TAB
                       : c[0] == ' '                  ? UIKeycode::SPACE
                       : (c[0] >= '0' && c[0] <= '9') ? UI_KEYCODE_DIGIT(c[0])
-                                                     : 0;
+                                                     : (UIKeycode)0;
       window->input_event(UIMessage::KEY_TYPED, 0, &m);
    }
 
-   window->ctrl  = false;
-   window->alt   = false;
-   window->shift = false;
+   window->_ctrl  = false;
+   window->_alt   = false;
+   window->_shift = false;
 }
 
-bool UIAutomationCheckCodeLineMatches(UICode* code, int lineIndex, const char* input) {
-   if (lineIndex < 1 || lineIndex > code->lineCount)
+bool UI::automation_check_code_line_matches(UICode* code, size_t lineIndex, std::string_view input) {
+   if (lineIndex < 1 || lineIndex > code->num_lines())
       return false;
+   return input == code->line(lineIndex - 1);
+}
+
+bool UI::automation_check_table_item_matches(UITable* table, size_t row, size_t column, std::string_view input) {
    int bytes = 0;
    for (int i = 0; input[i]; i++)
       bytes++;
-   if (bytes != code->lines[lineIndex - 1].bytes)
-      return false;
-   for (int i = 0; input[i]; i++)
-      if (code->content[code->lines[lineIndex - 1].offset + i] != input[i])
-         return false;
-   return true;
-}
-
-bool UIAutomationCheckTableItemMatches(UITable* table, int row, int column, const char* input) {
-   int bytes = 0;
-   for (int i = 0; input[i]; i++)
-      bytes++;
-   if (row < 0 || row >= table->num_items())
-      return false;
-   if (column < 0 || column >= table->columnCount)
+   if (row >= table->num_items() || column >= table->num_columns())
       return false;
    UITableGetItem m(bytes + 1);
    m.column   = column;
    m.index    = row;
-   int length = &table->e->message(UIMessage::TABLE_GET_ITEM, 0, &m);
-   if (length != bytes)
-      return false;
+   int length = table->message(UIMessage::TABLE_GET_ITEM, 0, &m);
    auto buffer = m.buff(length);
-   for (int i = 0; input[i]; i++)
-      if (buffer[i] != input[i])
-         return false;
-   return true;
+   return m.buff(length) == input;
 }
 
 #endif // UI_AUTOMATION_TESTS
@@ -5018,8 +5003,8 @@ int UIWindow::_class_message_proc_common(UIMessage msg, int di, void* dp) {
 
 int UI::message_loop() {
    update();
-#ifdef UI_AUTOMATION_TESTS
-   return UIAutomationRunTests();
+#if 0 && defined(UI_AUTOMATION_TESTS)
+   return UI::automation_run_tests();
 #else
    int result = 0;
    while (!_quit && platform_message_loop_single(&result))
@@ -5124,15 +5109,15 @@ UIWindow& UI::_platform_create_window(UIWindow* owner, uint32_t flags, const cha
    return *window;
 }
 
-UIWindow* _UIFindWindow(UI* ui, Window window) {
-   UIWindow* w = ui->_toplevel_windows;
+UIWindow* UI::_find_x11_window(Window window) const {
+   UIWindow* w = _toplevel_windows;
    while (w) {
       if (w->_xwindow == window) {
          return w;
       }
       w = w->next();
    }
-   return NULL;
+   return nullptr;
 }
 
 void UI::write_clipboard_text(std::string_view text, UIWindow* w, sel_target_t t) {
@@ -5150,7 +5135,7 @@ std::string UI::read_clipboard_text(UIWindow* w, sel_target_t t) {
       return {};
    }
 
-   if (_UIFindWindow(this, clipboardOwner)) {
+   if (_find_x11_window(clipboardOwner)) {
       return _paste_text;
    }
 
@@ -5438,7 +5423,7 @@ UIMenu& UIMenu::show() {
 bool UI::_process_x11_event(void* x_event) {
    XEvent* event = (XEvent*)x_event;
    if (event->type == ClientMessage && (Atom)event->xclient.data.l[0] == _atoms[windowClosedID]) {
-      UIWindow* window = _UIFindWindow(this, event->xclient.window);
+      UIWindow* window = _find_x11_window(event->xclient.window);
       if (!window)
          return false;
       bool exit = !window->message(UIMessage::WINDOW_CLOSE, 0, 0);
@@ -5447,13 +5432,13 @@ bool UI::_process_x11_event(void* x_event) {
       update();
       return false;
    } else if (event->type == Expose) {
-      UIWindow* window = _UIFindWindow(this, event->xexpose.window);
+      UIWindow* window = _find_x11_window(event->xexpose.window);
       if (!window)
          return false;
       XPutImage(_display, window->_xwindow, DefaultGC(_display, 0), window->_image, 0, 0, 0, 0, window->width(),
                 window->height());
    } else if (event->type == ConfigureNotify) {
-      UIWindow* window = _UIFindWindow(this, event->xconfigure.window);
+      UIWindow* window = _find_x11_window(event->xconfigure.window);
       if (!window)
          return false;
 
@@ -5476,13 +5461,13 @@ bool UI::_process_x11_event(void* x_event) {
          update();
       }
    } else if (event->type == MotionNotify) {
-      UIWindow* window = _UIFindWindow(this, event->xmotion.window);
+      UIWindow* window = _find_x11_window(event->xmotion.window);
       if (!window)
          return false;
       window->set_cursor_pos({event->xmotion.x, event->xmotion.y});
       window->input_event(UIMessage::MOUSE_MOVE, 0, 0);
    } else if (event->type == LeaveNotify) {
-      UIWindow* window = _UIFindWindow(this, event->xcrossing.window);
+      UIWindow* window = _find_x11_window(event->xcrossing.window);
       if (!window)
          return false;
 
@@ -5492,7 +5477,7 @@ bool UI::_process_x11_event(void* x_event) {
 
       window->input_event(UIMessage::MOUSE_MOVE, 0, 0);
    } else if (event->type == ButtonPress || event->type == ButtonRelease) {
-      UIWindow* window = _UIFindWindow(this, event->xbutton.window);
+      UIWindow* window = _find_x11_window(event->xbutton.window);
       if (!window)
          return false;
       window->set_cursor_pos({event->xbutton.x, event->xbutton.y});
@@ -5510,7 +5495,7 @@ bool UI::_process_x11_event(void* x_event) {
 
       inspector_set_focused_window(window);
    } else if (event->type == KeyPress) {
-      UIWindow* window = _UIFindWindow(this, event->xkey.window);
+      UIWindow* window = _find_x11_window(event->xkey.window);
       if (!window)
          return false;
 
@@ -5570,7 +5555,7 @@ bool UI::_process_x11_event(void* x_event) {
          window->input_event(UIMessage::KEY_TYPED, 0, &m);
       }
    } else if (event->type == KeyRelease) {
-      UIWindow* window = _UIFindWindow(this, event->xkey.window);
+      UIWindow* window = _find_x11_window(event->xkey.window);
       if (!window)
          return false;
 
@@ -5594,7 +5579,7 @@ bool UI::_process_x11_event(void* x_event) {
          window->input_event(UIMessage::KEY_RELEASED, 0, &m);
       }
    } else if (event->type == FocusIn) {
-      UIWindow* window = _UIFindWindow(this, event->xfocus.window);
+      UIWindow* window = _find_x11_window(event->xfocus.window);
       if (!window)
          return false;
       window->_ctrl = window->_shift = window->_alt = false;
@@ -5603,12 +5588,12 @@ bool UI::_process_x11_event(void* x_event) {
       close_menus();
       update();
    } else if (event->type == ClientMessage && event->xclient.message_type == _atoms[dndEnterID]) {
-      UIWindow* window = _UIFindWindow(this, event->xclient.window);
+      UIWindow* window = _find_x11_window(event->xclient.window);
       if (!window)
          return false;
       window->_drag_source = (Window)event->xclient.data.l[0];
    } else if (event->type == ClientMessage && event->xclient.message_type == _atoms[dndPositionID]) {
-      UIWindow* window = _UIFindWindow(this, event->xclient.window);
+      UIWindow* window = _find_x11_window(event->xclient.window);
       if (!window)
          return false;
       XClientMessageEvent m = {0};
@@ -5623,7 +5608,7 @@ bool UI::_process_x11_event(void* x_event) {
       XSendEvent(_display, m.window, False, NoEventMask, (XEvent*)&m);
       XFlush(_display);
    } else if (event->type == ClientMessage && event->xclient.message_type == _atoms[dndDropID]) {
-      UIWindow* window = _UIFindWindow(this, event->xclient.window);
+      UIWindow* window = _find_x11_window(event->xclient.window);
       if (!window)
          return false;
 
@@ -5644,7 +5629,7 @@ bool UI::_process_x11_event(void* x_event) {
          XFlush(_display);
       }
    } else if (event->type == SelectionNotify) {
-      UIWindow* window = _UIFindWindow(this, event->xselection.requestor);
+      UIWindow* window = _find_x11_window(event->xselection.requestor);
       if (!window)
          return false;
       if (!window->_drag_source)
@@ -5722,7 +5707,7 @@ bool UI::_process_x11_event(void* x_event) {
       window->_drag_source = 0; // Drag complete.
       update();
    } else if (event->type == SelectionRequest) {
-      UIWindow* window = _UIFindWindow(this, event->xclient.window);
+      UIWindow* window = _find_x11_window(event->xclient.window);
       if (!window)
          return false;
 
