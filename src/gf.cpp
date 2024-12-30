@@ -1973,9 +1973,8 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 }
 
 UIElement* SourceWindowCreate(UIElement* parent) {
-   displayCode = UICodeCreate(parent, selectableSource ? UICode::SELECTABLE : 0);
-   displayCode->set_font(code_font);
-   displayCode->_user_proc = DisplayCodeMessage;
+   displayCode =
+      &parent->add_code(selectableSource ? UICode::SELECTABLE : 0).set_font(code_font).set_user_proc(DisplayCodeMessage);
    return displayCode;
 }
 
@@ -2267,8 +2266,7 @@ bool CommandInspectLine() {
    displayCode->refresh();
 
    // Create an element to receive key input messages.
-   UIElement* el = UIElementCreate(sizeof(UIElement), windowMain, 0, InspectLineModeMessage, 0);
-   el->focus();
+   windowMain->add_element(0, InspectLineModeMessage, 0).focus();
    return true;
 }
 
@@ -2472,22 +2470,22 @@ void BitmapViewerUpdate(std::string pointerString, std::string widthString, std:
       bitmap->height  = std::move(heightString);
       bitmap->stride  = std::move(strideString);
 
-      UIMDIChild* window             = UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Bitmap");
-      window->_user_proc             = BitmapViewerWindowMessage;
-      window->_cp                    = bitmap;
-      bitmap->autoToggle             = UIButtonCreate(window, UIButton::SMALL | UIElement::non_client_flag, "Auto");
-      bitmap->autoToggle->_cp        = (void*)BitmapViewerAutoUpdateCallback;
-      bitmap->autoToggle->_user_proc = DataViewerAutoUpdateButtonMessage;
-      UIButtonCreate(window, UIButton::SMALL | UIElement::non_client_flag, "Refresh")->_user_proc =
-         BitmapViewerRefreshMessage;
+      UIMDIChild* window = &dataWindow->add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Bitmap")
+                               .set_user_proc(BitmapViewerWindowMessage)
+                               .set_cp(bitmap);
+      bitmap->autoToggle = &window->add_button(UIButton::SMALL | UIElement::non_client_flag, "Auto")
+                               .set_cp((void*)BitmapViewerAutoUpdateCallback)
+                               .set_user_proc(DataViewerAutoUpdateButtonMessage);
+      window->add_button(UIButton::SMALL | UIElement::non_client_flag, "Refresh")
+         .set_user_proc(BitmapViewerRefreshMessage);
       owner = window;
 
-      UIPanel* panel = UIPanelCreate(owner, UIPanel::EXPAND);
+      UIPanel* panel = &owner->add_panel(UIPanel::EXPAND);
       bitmap->display =
-         UIImageDisplayCreate(panel, UIImageDisplay::INTERACTIVE | UIElement::v_fill, bits, width, height, stride);
-      bitmap->labelPanel          = UIPanelCreate(panel, UIPanel::COLOR_1 | UIElement::v_fill);
-      bitmap->label               = UILabelCreate(bitmap->labelPanel, UIElement::h_fill, {});
-      bitmap->display->_user_proc = BitmapViewerDisplayMessage;
+         &panel->add_imagedisplay(UIImageDisplay::INTERACTIVE | UIElement::v_fill, bits, width, height, stride)
+             .set_user_proc(BitmapViewerDisplayMessage);
+      bitmap->labelPanel          = &panel->add_panel(UIPanel::COLOR_1 | UIElement::v_fill);
+      bitmap->label               = &bitmap->labelPanel->add_label(UIElement::h_fill, {});
    }
 
    BitmapViewer* bitmap = (BitmapViewer*)owner->_cp;
@@ -2628,10 +2626,11 @@ int TextboxInputMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 }
 
 UIElement* ConsoleWindowCreate(UIElement* parent) {
-   UIPanel* panel2 = UIPanelCreate(parent, UIPanel::EXPAND);
-   displayOutput   = UICodeCreate(panel2, UICode::NO_MARGIN | UIElement::v_fill | UICode::SELECTABLE);
-   UIPanel* panel3 = UIPanelCreate(panel2, UIPanel::HORIZONTAL | UIPanel::EXPAND | UIPanel::COLOR_1);
-   panel3->set_border(UIRectangle(5)).set_gap(5);
+   UIPanel* panel2 = &parent->add_panel(UIPanel::EXPAND);
+   displayOutput   = &panel2->add_code(UICode::NO_MARGIN | UIElement::v_fill | UICode::SELECTABLE);
+   UIPanel* panel3 = &panel2->add_panel(UIPanel::HORIZONTAL | UIPanel::EXPAND | UIPanel::COLOR_1)
+                         .set_border(UIRectangle(5))
+                         .set_gap(5);
    trafficLight = &panel3->add_spacer(0, 30, 30).set_user_proc(TrafficLightMessage);
    panel3->add_button(0, "Menu").on_click([](UIButton& buttonMenu) { ctx.InterfaceShowMenu(&buttonMenu); });
    textboxInput = &panel3->add_textbox(UIElement::h_fill).set_user_proc(TextboxInputMessage).focus();
@@ -3119,8 +3118,7 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
       return;
    }
 
-   UIMDIChild* child =
-      UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, UIRectangle(0), std::format("Log {}", res));
+   UIMDIChild* child = &dataWindow->add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(0), std::format("Log {}", res));
 
    res                = EvaluateCommand(std::format("watch * {}", res));
    const char* number = strstr(res.c_str(), "point ");
@@ -3155,9 +3153,9 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
       }
    }
 
-   UISplitPane* panel = UISplitPaneCreate(child, 0, 0.5f);
-   UITable*     table = UITableCreate(panel, UIElement::h_fill | UIElement::v_fill, logger->columns);
-   UITable* trace = UITableCreate(panel, UIElement::h_fill | UIElement::v_fill, "Index\tFunction\tLocation\tAddress");
+   UISplitPane* panel = &child->add_splitpane(0, 0.5f);
+   UITable*     table = &panel->add_table(UIElement::h_fill | UIElement::v_fill, logger->columns);
+   UITable* trace = &panel->add_table(UIElement::h_fill | UIElement::v_fill, "Index\tFunction\tLocation\tAddress");
 
    logger->id                    = sv_atoi(number, 6);
    logger->table                 = table;
@@ -3264,9 +3262,7 @@ void WatchCreateTextboxForRow(WatchWindow* w, bool addExistingText) {
    int         rowHeight = (int)(ui_size::textbox_height * w->_window->scale());
    UIRectangle row       = w->_bounds;
    row.t += w->selectedRow * rowHeight, row.b = row.t + rowHeight;
-   w->textbox             = UITextboxCreate(w, 0);
-   w->textbox->_user_proc = WatchTextboxMessage;
-   w->textbox->_cp        = w;
+   w->textbox = &w->add_textbox(0).set_user_proc(WatchTextboxMessage).set_cp(w);
    w->textbox->move(row, true);
    w->textbox->focus();
 
@@ -3695,7 +3691,7 @@ WatchWindow::WatchWindow(UIElement* parent, uint32_t flags, const char* name)
 }
 
 UIElement* WatchWindowCreate(UIElement* parent) {
-   UIPanel*     panel = UIPanelCreate(parent, UIPanel::SCROLL | UIPanel::COLOR_1);
+   UIPanel*     panel = &parent->add_panel(UIPanel::SCROLL | UIPanel::COLOR_1);
    WatchWindow* w     = new WatchWindow(panel, UIElement::h_fill | UIElement::tab_stop_flag, "Watch");
    panel->_user_proc  = WatchPanelMessage;
    panel->_cp         = w;
@@ -3708,7 +3704,7 @@ UIElement* WatchWindowCreate(UIElement* parent) {
 }
 
 UIElement* LocalsWindowCreate(UIElement* parent) {
-   UIPanel*     panel = UIPanelCreate(parent, UIPanel::SCROLL | UIPanel::COLOR_1);
+   UIPanel*     panel = &parent->add_panel(UIPanel::SCROLL | UIPanel::COLOR_1);
    WatchWindow* w     = new WatchWindow(panel, UIElement::h_fill | UIElement::tab_stop_flag, "Locals");
    panel->_user_proc  = WatchPanelMessage;
    panel->_cp         = w;
@@ -3903,16 +3899,12 @@ int TableStackMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 }
 
 UIElement* StackWindowCreate(UIElement* parent) {
-   UITable* table    = UITableCreate(parent, 0, "Index\tFunction\tLocation\tAddress");
-   table->_user_proc = TableStackMessage;
-   return table;
+   return &parent->add_table(0, "Index\tFunction\tLocation\tAddress").set_user_proc(TableStackMessage);
 }
 
 void StackWindowUpdate(const char*, UIElement* _table) {
-   UITable* table = (UITable*)_table;
-   table->set_num_items(stack.size());
-   table->resize_columns();
-   table->refresh();
+   UITable& table = *(UITable*)_table;
+   table.set_num_items(stack.size()).resize_columns().refresh();
 }
 
 // ---------------------------------------------------/
@@ -4069,10 +4061,7 @@ int TableBreakpointsMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 }
 
 UIElement* BreakpointsWindowCreate(UIElement* parent) {
-   UITable* table    = UITableCreate(parent, 0, "File\tLine\tEnabled\tCondition\tHit");
-   table->_cp        = new BreakpointTableData;
-   table->_user_proc = TableBreakpointsMessage;
-   return table;
+   return &parent->add_table(0, "File\tLine\tEnabled\tCondition\tHit").set_cp(new BreakpointTableData).set_user_proc(TableBreakpointsMessage);
 }
 
 void BreakpointsWindowUpdate(const char*, UIElement* _table) {
@@ -4120,8 +4109,8 @@ bool CommandToggleFillDataTab() {
 }
 
 UIElement* DataWindowCreate(UIElement* parent) {
-   dataTab         = UIPanelCreate(parent, UIPanel::EXPAND);
-   UIPanel* panel5 = UIPanelCreate(dataTab, UIPanel::COLOR_1 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
+   dataTab         = &parent->add_panel(UIPanel::EXPAND);
+   UIPanel* panel5 = &dataTab->add_panel(UIPanel::COLOR_1 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
 
    panel5->add_button(UIButton::SMALL, "Fill window").on_click([](UIButton&) { CommandToggleFillDataTab(); });
    for (const auto& idw : ctx.interfaceDataViewers) {
@@ -4165,12 +4154,10 @@ int TextboxStructNameMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
 UIElement* StructWindowCreate(UIElement* parent) {
    StructWindow* window        = new StructWindow;
-   UIPanel*      panel         = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
-   window->textbox             = UITextboxCreate(panel, 0);
-   window->textbox->_user_proc = TextboxStructNameMessage;
-   window->textbox->_cp        = window;
-   window->display             = UICodeCreate(panel, UIElement::v_fill | UICode::NO_MARGIN | UICode::SELECTABLE);
-   window->display->insert_content("Type the name of a struct to view its layout.", false);
+   UIPanel*      panel         = &parent->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND);
+   window->textbox             = &panel->add_textbox(0).set_user_proc(TextboxStructNameMessage).set_cp(window);
+   window->display             = &panel->add_code(UIElement::v_fill | UICode::NO_MARGIN | UICode::SELECTABLE)
+                         .insert_content("Type the name of a struct to view its layout.", false);
    return panel;
 }
 
@@ -4246,13 +4233,13 @@ bool FilesPanelPopulate(FilesWindow* window) {
 
    for (auto name : names) {
       if (name[0] != '.' || name[1] != 0) {
-         UIButton* button = UIButtonCreate(window->panel, 0, name);
-         button->_flags &= ~UIElement::tab_stop_flag;
-         button->_cp        = window;
-         button->_user_proc = FilesButtonMessage;
+         UIButton* button = &window->panel->add_button(0, name)
+                                .clear_flag(UIElement::tab_stop_flag)
+                                .set_cp(window)
+                                .set_user_proc(FilesButtonMessage);
 
          if (S_ISDIR(FilesGetMode(window, button, &oldLength))) {
-            button->_flags |= UIButton::CHECKED;
+            button->set_flag(UIButton::CHECKED);
          }
 
          window->directory[oldLength] = 0;
@@ -4286,19 +4273,19 @@ void FilesNavigateToActiveFile(FilesWindow* window) {
 
 UIElement* FilesWindowCreate(UIElement* parent) {
    FilesWindow* window    = new FilesWindow;
-   UIPanel*     container = UIPanelCreate(parent, UIPanel::EXPAND);
-   window->panel = UIPanelCreate(container, UIPanel::COLOR_1 | UIPanel::EXPAND | UIPanel::SCROLL | UIElement::v_fill);
-   window->panel->set_gap(-1).set_border(UIRectangle(1));
-   window->panel->_cp = window;
-   UIPanel* row       = UIPanelCreate(container, UIPanel::COLOR_2 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
+   UIPanel*     container = &parent->add_panel(UIPanel::EXPAND);
+   window->panel = &container->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND | UIPanel::SCROLL | UIElement::v_fill)
+                       .set_gap(-1)
+                       .set_border(UIRectangle(1))
+                       .set_cp(window);
+   UIPanel* row       = &container->add_panel(UIPanel::COLOR_2 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
 
    row->add_button(UIButton::SMALL, "-> cwd").on_click([window](UIButton&) { FilesNavigateToCWD(window); });
-
    row->add_button(UIButton::SMALL, "-> active file").on_click([window](UIButton&) {
       FilesNavigateToActiveFile(window);
    });
 
-   window->path = UILabelCreate(row, UIElement::h_fill, "");
+   window->path = &row->add_label(UIElement::h_fill, "");
    FilesNavigateToCWD(window);
    return container;
 }
@@ -4313,7 +4300,7 @@ struct RegisterData {
 vector<RegisterData> registerData;
 
 UIElement* RegistersWindowCreate(UIElement* parent) {
-   return UIPanelCreate(parent, UIPanel::SMALL_SPACING | UIPanel::COLOR_1 | UIPanel::SCROLL);
+   return &parent->add_panel(UIPanel::SMALL_SPACING | UIPanel::COLOR_1 | UIPanel::SCROLL);
 }
 
 void RegistersWindowUpdate(const char*, UIElement* panel) {
@@ -4367,10 +4354,10 @@ void RegistersWindowUpdate(const char*, UIElement* panel) {
 
       newRegisterData.push_back(data);
 
-      UIPanel* row = UIPanelCreate(panel, UIPanel::HORIZONTAL | UIElement::h_fill);
+      UIPanel* row = &panel->add_panel(UIPanel::HORIZONTAL | UIElement::h_fill);
       if (modified)
-         row->_user_proc = ModifiedRowMessage;
-      UILabelCreate(row, 0, {stringStart, static_cast<size_t>(stringEnd - stringStart)});
+         row->set_user_proc(ModifiedRowMessage);
+      row->add_label(0, {stringStart, static_cast<size_t>(stringEnd - stringStart)});
 
       bool isPC = false;
       if (nameEnd == nameStart + 3 && 0 == memcmp(nameStart, "rip", 3))
@@ -4408,9 +4395,9 @@ void RegistersWindowUpdate(const char*, UIElement* panel) {
 
 UIElement* CommandsWindowCreate(UIElement* parent) {
    UIPanel* panel =
-      UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::SMALL_SPACING | UIPanel::EXPAND | UIPanel::SCROLL);
+      &parent->add_panel(UIPanel::COLOR_1 | UIPanel::SMALL_SPACING | UIPanel::EXPAND | UIPanel::SCROLL);
    if (!presetCommands.size())
-      UILabelCreate(panel, 0, "No preset commands found in config file!");
+      panel->add_label(0, "No preset commands found in config file!");
 
    for (const auto& cmd : presetCommands) {
       panel->add_button(0, cmd.key).on_click([command = std::format("gf-command {}", cmd.key)](UIButton&) {
@@ -4471,7 +4458,7 @@ void LogReceived(char* buffer) {
 }
 
 UIElement* LogWindowCreate(UIElement* parent) {
-   UICode*   code = UICodeCreate(parent, UICode::SELECTABLE);
+   UICode*   code = &parent->add_code(UICode::SELECTABLE);
    pthread_t thread;
    pthread_create(&thread, nullptr, LogWindowThread, code);
    return code;
@@ -4515,10 +4502,7 @@ int ThreadTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 }
 
 UIElement* ThreadWindowCreate(UIElement* parent) {
-   UITable* table    = UITableCreate(parent, 0, "ID\tFrame");
-   table->_cp        = new ThreadWindow;
-   table->_user_proc = ThreadTableMessage;
-   return table;
+   return &parent->add_table(0, "ID\tFrame").set_cp(new ThreadWindow).set_user_proc(ThreadTableMessage);
 }
 
 void ThreadWindowUpdate(const char*, UIElement* _table) {
@@ -4628,17 +4612,15 @@ void ExecutableWindowSaveButton(void* _window) {
 
 UIElement* ExecutableWindowCreate(UIElement* parent) {
    ExecutableWindow* window = new ExecutableWindow;
-   UIPanel*          panel  = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
-   UILabelCreate(panel, 0, "Path to executable:");
-   window->path = UITextboxCreate(panel, 0);
-   window->path->replace_text(executablePath ?: "", false);
-   UILabelCreate(panel, 0, "Command line arguments:");
-   window->arguments = UITextboxCreate(panel, 0);
-   window->arguments->replace_text(executableArguments ?: "", false);
-   window->askDirectory = UICheckboxCreate(panel, 0, "Ask GDB for working directory");
-   window->askDirectory->set_check(executableAskDirectory ? UICheckbox::checked : UICheckbox::unchecked);
-   UIPanel* row = UIPanelCreate(panel, UIPanel::HORIZONTAL);
+   UIPanel*          panel  = &parent->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND);
+   panel->add_label(0, "Path to executable:");
+   window->path = &panel->add_textbox(0).replace_text(executablePath ?: "", false);
+   panel->add_label(0, "Command line arguments:");
+   window->arguments = &panel->add_textbox(0).replace_text(executableArguments ?: "", false);
+   window->askDirectory = &panel->add_checkbox(0, "Ask GDB for working directory")
+                              .set_check(executableAskDirectory ? UICheckbox::checked : UICheckbox::unchecked);
 
+   UIPanel* row = &panel->add_panel(UIPanel::HORIZONTAL);
    row->add_button(0, "Run").on_click([window](UIButton&) { ExecutableWindowRunButton(window); });
    row->add_button(0, "Start").on_click([window](UIButton&) { ExecutableWindowStartButton(window); });
    row->add_spacer(0, 10, 0);
@@ -4743,7 +4725,7 @@ int TextboxSearchCommandMessage(UIElement* el, UIMessage msg, int di, void* dp) 
 
 UIElement* CommandSearchWindowCreate(UIElement* parent) {
    CommandSearchWindow* window = new CommandSearchWindow;
-   UIPanel*             panel  = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
+   UIPanel*             panel  = &parent->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND);
 
    window->textbox = &panel->add_textbox(0).set_user_proc(TextboxSearchCommandMessage).set_cp(window);
    window->display = &panel->add_code(UIElement::v_fill | UICode::NO_MARGIN | UICode::SELECTABLE)
@@ -5682,12 +5664,12 @@ void ProfLoadProfileData(void* _window) {
       }
    }
 
-   UIMDIChild* window = UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, ui_rect_2s(800, 600), "Flame graph");
-   UIButton*   switchViewButton = UIButtonCreate(window, UIButton::SMALL | UIElement::non_client_flag, "Table view");
-   UITable*    table            = UITableCreate(window, 0, "Name\tTime spent (ms)\tCall count\tAverage per call (ms)");
+   UIMDIChild* window = &dataWindow->add_mdichild(UIMDIChild::CLOSE_BUTTON, ui_rect_2s(800, 600), "Flame graph");
+   UIButton*   switchViewButton = &window->add_button(UIButton::SMALL | UIElement::non_client_flag, "Table view");
+   UITable*    table            = &window->add_table(0, "Name\tTime spent (ms)\tCall count\tAverage per call (ms)");
    ProfFlameGraphReport* report = new ProfFlameGraphReport(window, 0);
 
-   report->vScroll = UIScrollBarCreate(report, 0);
+   report->vScroll = &report->add_scrollbar(0);
    report->font    = data->fontFlameGraph;
 
    window->_cp        = report;
@@ -5846,8 +5828,7 @@ UIElement* ProfWindowCreate(UIElement* parent) {
    ProfWindow* window             = new ProfWindow;
    UI*         ui                 = parent->ui();
    window->fontFlameGraph         = ui->create_font(ui->default_font_path(), fontSizeFlameGraph);
-   UIPanel* panel                 = UIPanelCreate(parent, UIPanel::COLOR_1 | UIPanel::EXPAND);
-   panel->_cp                     = window;
+   UIPanel* panel                 = &parent->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND).set_cp(window);
    panel->add_button(UIElement::v_fill, "Step over profiled").on_click([window](UIButton&) {
       ProfStepOverProfiled(window);
    });
@@ -5886,7 +5867,7 @@ struct MemoryWindow : public UIElement {
 
    MemoryWindow(UIElement* parent)
       : UIElement(parent, 0, MemoryWindowMessage, "memory window")
-      , gotoButton(UIButtonCreate(this, UIButton::SMALL, "&")) {
+      , gotoButton(&add_button(UIButton::SMALL, "&")) {
       gotoButton->on_click([this](UIButton&) { MemoryWindowGotoButtonInvoke(this); });
    }
 };
@@ -6092,8 +6073,8 @@ struct ViewWindowMatrixGrid : public UIElement {
       : UIElement(parent, UIElement::h_fill | UIElement::v_fill, ViewWindowMatrixGridMessage, "Matrix grid")
       , w(w)
       , h(h) {
-      hScroll = UIScrollBarCreate(this, UIScrollBar::HORIZONTAL);
-      vScroll = UIScrollBarCreate(this, 0);
+      hScroll = &add_scrollbar(UIScrollBar::HORIZONTAL);
+      vScroll = &add_scrollbar(0);
       hScroll->set_maximum(w * parent->ui()->string_width("A") * itemCharacters);
       vScroll->set_maximum(h * parent->ui()->string_height());
 
@@ -6126,7 +6107,7 @@ struct ViewWindowString : public UIElement {
 
    ViewWindowString(UIElement* parent, unique_ptr<char[]> data, int length)
       : UIElement(parent, UIElement::h_fill | UIElement::v_fill, ViewWindowStringMessage, "String display")
-      , vScroll(UIScrollBarCreate(this, 0))
+      , vScroll(&add_scrollbar(0))
       , data(std::move(data))
       , length(length) {}
 };
@@ -6351,7 +6332,7 @@ void ViewWindowView(void* cp) {
    resize_to_lf(res);
    std_format_to_n(type, sizeof(type), "{}", res);
    std_format_to_n(buffer, sizeof(buffer), "Type: {}", type);
-   UILabelCreate(panel, 0, buffer);
+   panel->add_label(0, buffer);
 
    res = WatchEvaluate("gf_valueof", watch);
    resize_to_lf(res);
@@ -6371,13 +6352,13 @@ void ViewWindowView(void* cp) {
 
       std_format_to_n(buffer, sizeof(buffer), " 8b: {} {} 0x{:x} '{:c}'", (int8_t)value, (uint8_t)value, (uint8_t)value,
                       (char)value);
-      UILabelCreate(panel, 0, buffer);
+      panel->add_label(0, buffer);
       std_format_to_n(buffer, sizeof(buffer), "16b: {} {} 0x{:x}", (int16_t)value, (uint16_t)value, (uint16_t)value);
-      UILabelCreate(panel, 0, buffer);
+      panel->add_label(0, buffer);
       std_format_to_n(buffer, sizeof(buffer), "32b: {} {} 0x{:x}", (int32_t)value, (uint32_t)value, (uint32_t)value);
-      UILabelCreate(panel, 0, buffer);
+      panel->add_label(0, buffer);
       std_format_to_n(buffer, sizeof(buffer), "64b: %{} {} 0x{:x}", (int64_t)value, (uint64_t)value, (uint64_t)value);
-      UILabelCreate(panel, 0, buffer);
+      panel->add_label(0, buffer);
 
       int p = std_format_to_n(buffer, sizeof(buffer), "Bin: ");
 
@@ -6387,7 +6368,7 @@ void ViewWindowView(void* cp) {
             buffer[p++] = ' ';
       }
 
-      UILabelCreate(panel, 0, {buffer, static_cast<size_t>(p)});
+      panel->add_label(0, {buffer, static_cast<size_t>(p)});
 
       p = std_format_to_n(buffer, sizeof(buffer), "     ");
 
@@ -6397,7 +6378,7 @@ void ViewWindowView(void* cp) {
             buffer[p++] = ' ';
       }
 
-      UILabelCreate(panel, 0, {buffer, static_cast<size_t>(p)});
+      panel->add_label(0, {buffer, static_cast<size_t>(p)});
 
       if (value <= 0xFFFFFFFF) {
          new ViewWindowColorSwatch(panel, (uint32_t)value);
@@ -6452,7 +6433,7 @@ void ViewWindowView(void* cp) {
          // print("got '{}'\n", data);
          new ViewWindowString(panel, std::move(data), length);
          std_format_to_n(buffer, sizeof(buffer), "{}+1 bytes", length);
-         UILabelCreate(panel, UIElement::h_fill, buffer);
+         panel->add_label(UIElement::h_fill, buffer);
       } else {
          goto unrecognised;
       }
@@ -6504,13 +6485,13 @@ void ViewWindowView(void* cp) {
 
          double determinant = ViewWindowMatrixCalculateDeterminant(matrix, w);
          std_format_to_n(buffer, sizeof(buffer), "Determinant: {:f}", determinant);
-         UILabelCreate(panel, 0, buffer);
+         panel->add_label(0, buffer);
       }
    } else {
    unrecognised:;
       // TODO Custom view.
       // TODO Table view for array of structures.
-      UILabelCreate(panel, 0, "No view available for type.");
+      panel->add_label(0, "No view available for type.");
    }
 
    // Relayout the panel.
@@ -6524,7 +6505,7 @@ void ViewWindowView() {
 void ViewWindowUpdate(const char* data, UIElement* el) {}
 
 UIElement* ViewWindowCreate(UIElement* parent) {
-   UIPanel* panel = UIPanelCreate(parent, UIPanel::EXPAND | UIPanel::COLOR_1);
+   UIPanel* panel = &parent->add_panel(UIPanel::EXPAND | UIPanel::COLOR_1);
    panel->add_button(0, "View (Ctrl+Shift+V)").on_click([panel](UIButton&) { ViewWindowView(panel); });
    panel->add_label(0, "Select a watch expression, then click View.");
    return panel;
@@ -7015,19 +6996,19 @@ void WaveformViewerUpdate(const char* pointerString, const char* sampleCountStri
       if (channelsString)
          std_format_to_n(viewer->channels, sizeof(viewer->channels), "{}", channelsString);
 
-      UIMDIChild* window      = UIMDIChildCreate(dataWindow, UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Waveform");
-      window->_user_proc      = WaveformViewerWindowMessage;
-      window->_cp             = viewer;
-      viewer->autoToggle      = UIButtonCreate(window, UIButton::SMALL | UIElement::non_client_flag, "Auto");
-      viewer->autoToggle->_cp = (void*)WaveformViewerAutoUpdateCallback;
-      viewer->autoToggle->_user_proc = DataViewerAutoUpdateButtonMessage;
-      UIButtonCreate(window, UIButton::SMALL | UIElement::non_client_flag, "Refresh")->_user_proc =
-         WaveformViewerRefreshMessage;
+      UIMDIChild* window = &dataWindow->add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Waveform")
+                               .set_user_proc(WaveformViewerWindowMessage)
+                               .set_cp(viewer);
+      viewer->autoToggle = &window->add_button(UIButton::SMALL | UIElement::non_client_flag, "Auto")
+                               .set_cp((void*)WaveformViewerAutoUpdateCallback)
+                               .set_user_proc(DataViewerAutoUpdateButtonMessage);
+      window->add_button(UIButton::SMALL | UIElement::non_client_flag, "Refresh")
+         .set_user_proc(WaveformViewerRefreshMessage);
       owner = window;
 
-      UIPanel* panel              = UIPanelCreate(owner, UIPanel::EXPAND);
-      viewer->labelPanel          = UIPanelCreate(panel, UIPanel::COLOR_1 | UIElement::v_fill);
-      viewer->label               = UILabelCreate(viewer->labelPanel, UIElement::h_fill, {});
+      UIPanel* panel              = &owner->add_panel(UIPanel::EXPAND);
+      viewer->labelPanel          = &panel->add_panel(UIPanel::COLOR_1 | UIElement::v_fill);
+      viewer->label               = &viewer->labelPanel->add_label(UIElement::h_fill, {});
       viewer->display             = WaveformDisplayCreate(panel, UIElement::v_fill);
       viewer->display->_user_proc = WaveformViewerDisplayMessage;
    }
@@ -7461,7 +7442,7 @@ void Context::InterfaceLayoutCreate(UIElement* parent) {
       if (*token == 'v')
          flags |= UIElement::vertical_flag;
       InterfaceLayoutNextToken("(");
-      UIElement* container = UISplitPaneCreate(parent, flags, sv_atoi(InterfaceLayoutNextToken("#")) * 0.01f);
+      UIElement* container = &parent->add_splitpane(flags, sv_atoi(InterfaceLayoutNextToken("#")) * 0.01f);
       InterfaceLayoutNextToken(",");
       InterfaceLayoutCreate(container);
       InterfaceLayoutNextToken(",");
@@ -7475,8 +7456,8 @@ void Context::InterfaceLayoutCreate(UIElement* parent) {
             copy[i] = '\t';
          else if (copy[i] == ')')
             copy[i] = 0;
-      UIElement* container  = UITabPaneCreate(parent, UIElement::v_fill | UIElement::h_fill, copy);
-      container->_user_proc = InterfaceTabPaneMessage;
+      UIElement* container =
+         &parent->add_tabpane(UIElement::v_fill | UIElement::h_fill, copy).set_user_proc(InterfaceTabPaneMessage);
       free(copy);
       InterfaceLayoutCreate(container);
 
@@ -7565,8 +7546,8 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
       windowMain->register_shortcut(ic.shortcut);
    }
 
-   switcherMain = UISwitcherCreate(windowMain, 0);
-   InterfaceLayoutCreate(UIPanelCreate(switcherMain, UIPanel::EXPAND));
+   switcherMain = &windowMain->add_switcher(0);
+   InterfaceLayoutCreate(&switcherMain->add_panel(UIPanel::EXPAND));
    UISwitcherSwitchTo(switcherMain, switcherMain->_children[0]);
 
    if (*InterfaceLayoutNextToken()) {

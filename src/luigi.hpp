@@ -665,6 +665,8 @@ public:
    message_proc_t user_proc() const { return _user_proc; }
 
    UIElement&     set_cp(void* cp) { _cp = cp; return *this; }
+   UIElement&     clear_flag(uint32_t flag) { _flags &= ~flag; return *this; }
+   UIElement&     set_flag(uint32_t flag)   { _flags |= flag; return *this; }
 
    bool           is_hovered() const;
    bool           is_focused() const;
@@ -675,11 +677,12 @@ public:
    UITheme&       theme() const;                 // indirect access to `UI`
    UIFont*        active_font() const;           // indirect access to `UI`
    
-   // functions to create child UI elements
-   // -------------------------------------
+   // functions to create child UI elements (alphabetical order)
+   // ----------------------------------------------------------
    UIButton&       add_button(uint32_t flags, std::string_view label);
    UICheckbox&     add_checkbox(uint32_t flags, std::string_view label);
    UICode&         add_code(uint32_t flags);
+   UIElement&      add_element(uint32_t flags, message_proc_t message_proc, const char* cClassName);
    UIGauge&        add_gauge(uint32_t flags);
    UIImageDisplay& add_imagedisplay(uint32_t flags, uint32_t* bits, size_t width, size_t height, size_t stride);
    UILabel&        add_label(uint32_t flags, std::string_view label);
@@ -692,8 +695,8 @@ public:
    UISpacer&       add_spacer(uint32_t flags, int width, int height);
    UISplitPane&    add_splitpane(uint32_t flags, float weight);
    UISwitcher&     add_switcher(uint32_t flags);
-   UITabPane&      add_tabpane(uint32_t flags, const char* tabs);
-   UITable&        add_table(uint32_t flags, const char* columns);
+   UITabPane&      add_tabpane(uint32_t flags, const char* tabs);  // tabs: separate with \t, terminate with \0 
+   UITable&        add_table(uint32_t flags, const char* columns); // tabs: separate with \t, terminate with \0 
    UITextbox&      add_textbox(uint32_t flags);
    UIWrapPanel&    add_wrappanel(uint32_t flags);
 };
@@ -711,6 +714,8 @@ struct UIElementCast : public UIElement{
    Derived& set_user_proc(message_proc_t proc) { return static_cast<Derived&>(UIElement::set_user_proc(proc)); }
    Derived& focus() { return static_cast<Derived&>(UIElement::focus()); }
    Derived& set_cp(void* cp) { return static_cast<Derived&>(UIElement::set_cp(cp)); }
+   Derived& clear_flag(uint32_t flag) { return static_cast<Derived&>(UIElement::clear_flag(flag)); }
+   Derived& set_flag(uint32_t flag) { return static_cast<Derived&>(UIElement::set_flag(flag)); }
 };
 
 // ------------------------------------------------------------------------------------------
@@ -1516,7 +1521,7 @@ public:
    unique_ptr<UIInspector> _inspector;
 
 #ifdef UI_FREETYPE
-   FT_Library             _ft = nullptr;
+   FT_Library              _ft = nullptr;
 #endif
 
    // ------ public functions -------------------------------------------------------------
@@ -1648,39 +1653,10 @@ inline UITheme& UIElement::theme() const { return ui()->theme(); }
 inline UIFont*  UIElement::active_font() const { return ui()->active_font(); }
 
 // ------------------------------------------------------------------------------------------
-UIElement* UIElementCreate(size_t bytes, UIElement* parent, uint32_t flags,
-                           int (*messageClass)(UIElement*, UIMessage, int, void*), const char* cClassName);
 
-UICheckbox*   UICheckboxCreate(UIElement* parent, uint32_t flags, std::string_view label);
-UIMDIClient*  UIMDIClientCreate(UIElement* parent, uint32_t flags);
-UIMDIChild*   UIMDIChildCreate(UIElement* parent, uint32_t flags, UIRectangle initialBounds, std::string_view title);
-UIPanel*      UIPanelCreate(UIElement* parent, uint32_t flags);
-UIScrollBar*  UIScrollBarCreate(UIElement* parent, uint32_t flags);
-UISlider*     UISliderCreate(UIElement* parent, uint32_t flags);
-UISpacer*     UISpacerCreate(UIElement* parent, uint32_t flags, int width, int height);
-UISplitPane*  UISplitPaneCreate(UIElement* parent, uint32_t flags, float weight);
-UITabPane*    UITabPaneCreate(UIElement* parent, uint32_t flags,
-                              const char* tabs /* separate with \t, terminate with \0 */);
-UIWrapPanel*  UIWrapPanelCreate(UIElement* parent, uint32_t flags);
-
-UIGauge* UIGaugeCreate(UIElement* parent, uint32_t flags);
-
-UIButton* UIButtonCreate(UIElement* parent, uint32_t flags, std::string_view label);
-
-UILabel*  UILabelCreate(UIElement* parent, uint32_t flags, std::string_view label);
-
-UIImageDisplay* UIImageDisplayCreate(UIElement* parent, uint32_t flags, uint32_t* bits, size_t width, size_t height,
-                                     size_t stride);
-UISwitcher* UISwitcherCreate(UIElement* parent, uint32_t flags);
 /**/ void        UISwitcherSwitchTo(UISwitcher* switcher, UIElement* child);
 
 typedef void (*UIDialogUserCallback)(UIElement*);
-
-UITextbox* UITextboxCreate(UIElement* parent, uint32_t flags);
-UITable* UITableCreate(UIElement* parent, uint32_t flags,
-                       const char* columns /* separate with \t, terminate with \0 */);
-
-UICode* UICodeCreate(UIElement* parent, uint32_t flags);
 
 void UIDrawBlock(UIPainter* painter, UIRectangle rectangle, uint32_t color);
 void UIDrawCircle(UIPainter* painter, int centerX, int centerY, int radius, uint32_t fillColor, uint32_t outlineColor,

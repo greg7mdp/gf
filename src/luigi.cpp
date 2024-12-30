@@ -1243,6 +1243,10 @@ UIButton& UIElement::add_button(uint32_t flags, std::string_view label) {
    return *new UIButton(this, flags, label);
 }
 
+UIElement& UIElement::add_element(uint32_t flags, message_proc_t message_proc, const char* cClassName) {
+   return *new UIElement(this, flags, message_proc, cClassName);
+}
+
 UICheckbox& UIElement::add_checkbox(uint32_t flags, std::string_view label) {
    return *new UICheckbox(this, flags, label);
 }
@@ -1344,10 +1348,10 @@ const char* UIWindow::show_dialog(uint32_t flags, const char* format, ...) {
    // Create the dialog wrapper and panel.
 
    UI_ASSERT(!_dialog);
-   _dialog        = UIElementCreate(sizeof(UIElement), this, 0, _UIDialogWrapperMessage, "DialogWrapper");
-   UIPanel* panel = UIPanelCreate(_dialog, UIPanel::MEDIUM_SPACING | UIPanel::COLOR_1);
-   panel->set_border(UIRectangle(ui_size::pane_medium_border * 2));
-   _children[0]->_flags |= UIElement::disabled_flag;
+   _dialog        = &add_element(0, _UIDialogWrapperMessage, "DialogWrapper");
+   UIPanel* panel = &_dialog->add_panel(UIPanel::MEDIUM_SPACING | UIPanel::COLOR_1)
+                        .set_border(UIRectangle(ui_size::pane_medium_border * 2));
+   _children[0]->set_flag(UIElement::disabled_flag);
 
    // Create the dialog contents.
 
@@ -1361,8 +1365,7 @@ const char* UIWindow::show_dialog(uint32_t flags, const char* format, ...) {
 
    for (int i = 0; format[i]; i++) {
       if (i == 0 || format[i - 1] == '\n') {
-         row = UIPanelCreate(panel, UIPanel::HORIZONTAL | UIElement::h_fill);
-         row->set_gap(ui_size::pane_small_gap);
+         row = &panel->add_panel(UIPanel::HORIZONTAL | UIElement::h_fill).set_gap(ui_size::pane_small_gap);
       }
 
       if (format[i] == ' ' || format[i] == '\n') {
@@ -1372,7 +1375,7 @@ const char* UIWindow::show_dialog(uint32_t flags, const char* format, ...) {
          if (format[i] == 'b' /* button */ || format[i] == 'B' /* default button */ ||
              format[i] == 'C' /* cancel button */) {
             const char* label  = va_arg(arguments, const char*);
-            UIButton*   button = UIButtonCreate(row, 0, label);
+            UIButton*   button = &row->add_button(0, label);
             if (!focus)
                focus = button;
             if (format[i] == 'B')
@@ -1385,10 +1388,10 @@ const char* UIWindow::show_dialog(uint32_t flags, const char* format, ...) {
                button->_user_proc = _UIDialogDefaultButtonMessage;
          } else if (format[i] == 's' /* label from string */) {
             const char* label = va_arg(arguments, const char*);
-            UILabelCreate(row, 0, label);
+            row->add_label(0, label);
          } else if (format[i] == 't' /* textbox */) {
             char**     buffer  = va_arg(arguments, char**);
-            UITextbox* textbox = UITextboxCreate(row, UIElement::h_fill);
+            UITextbox* textbox = &row->add_textbox(UIElement::h_fill);
             if (!focus)
                focus = textbox;
             if (*buffer)
@@ -1396,9 +1399,9 @@ const char* UIWindow::show_dialog(uint32_t flags, const char* format, ...) {
             textbox->set_cp(buffer); // when the textbox text is updated, `*buffer` will contain a `char*` to the string
             textbox->set_user_proc(UITextbox::_DialogTextboxMessageProc);
          } else if (format[i] == 'f' /* horizontal fill */) {
-            UISpacerCreate(row, UIElement::h_fill, 0, 0);
+            row->add_spacer(UIElement::h_fill, 0, 0);
          } else if (format[i] == 'l' /* horizontal line */) {
-            UISpacerCreate(row, UIElement::border_flag | UIElement::h_fill, 0, 1);
+            row->add_spacer(UIElement::border_flag | UIElement::h_fill, 0, 1);
          } else if (format[i] == 'u' /* user */) {
             UIDialogUserCallback callback = va_arg(arguments, UIDialogUserCallback);
             callback(row);
@@ -1407,7 +1410,7 @@ const char* UIWindow::show_dialog(uint32_t flags, const char* format, ...) {
          int j = i;
          while (format[j] && format[j] != '%' && format[j] != '\n')
             j++;
-         UILabelCreate(row, 0, {format + i, static_cast<size_t>(j - i)});
+         row->add_label(0, {format + i, static_cast<size_t>(j - i)});
          i = j - 1;
       }
    }
@@ -1665,12 +1668,6 @@ UIElement::UIElement(UIElement* parent, uint32_t flags, message_proc_t message_p
 
 UIElement::~UIElement() {}
 
-UIElement* UIElementCreate(size_t bytes, UIElement* parent, uint32_t flags, message_proc_t message_proc,
-                           const char* cClassName) {
-   UIElement* el = new UIElement(parent, flags, message_proc, cClassName);
-   return el;
-}
-
 // --------------------------------------------------
 // Panels.
 // --------------------------------------------------
@@ -1849,12 +1846,8 @@ UIPanel::UIPanel(UIElement* parent, uint32_t flags)
    }
 
    if (flags & UIPanel::SCROLL) {
-      _scrollBar = UIScrollBarCreate(this, UIElement::non_client_flag);
+      _scrollBar = &add_scrollbar(UIElement::non_client_flag);
    }
-}
-
-UIPanel* UIPanelCreate(UIElement* parent, uint32_t flags) {
-   return new UIPanel(parent, flags);
 }
 
 void _UIWrapPanelLayoutRow(UIWrapPanel* panel, uint32_t rowStart, uint32_t rowEnd, int rowY, int rowHeight) {
@@ -1920,10 +1913,6 @@ int UIWrapPanel::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* d
 UIWrapPanel::UIWrapPanel(UIElement* parent, uint32_t flags)
    : UIElementCast<UIWrapPanel>(parent, flags, UIWrapPanel::_ClassMessageProc, "Wrap Panel") {}
 
-UIWrapPanel* UIWrapPanelCreate(UIElement* parent, uint32_t flags) {
-   return new UIWrapPanel(parent, flags);
-}
-
 int UISwitcher::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
    UISwitcher* switcher = (UISwitcher*)el;
 
@@ -1951,10 +1940,6 @@ void UISwitcherSwitchTo(UISwitcher* switcher, UIElement* child) {
 UISwitcher::UISwitcher(UIElement* parent, uint32_t flags)
    : UIElementCast<UISwitcher>(parent, flags, UISwitcher::_ClassMessageProc, "Switcher")
    , _active(nullptr) {}
-
-UISwitcher* UISwitcherCreate(UIElement* parent, uint32_t flags) {
-   return new UISwitcher(parent, flags);
-}
 
 // --------------------------------------------------
 // Checkboxes and buttons.
@@ -2023,10 +2008,6 @@ UIButton::UIButton(UIElement* parent, uint32_t flags, std::string_view label)
    : UIElementCast<UIButton>(parent, flags | UIElement::tab_stop_flag, UIButton::_ClassMessageProc, "Button")
    , _label(label) {}
 
-UIButton* UIButtonCreate(UIElement* parent, uint32_t flags, std::string_view label) {
-   return new UIButton(parent, flags | UIElement::tab_stop_flag, label);
-}
-
 // ------------------------------------------------------------------------------------------
 int UICheckbox::_class_message_proc(UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::GET_HEIGHT) {
@@ -2076,10 +2057,6 @@ UICheckbox::UICheckbox(UIElement* parent, uint32_t flags, std::string_view label
    , _label(label) {}
 
 
-UICheckbox* UICheckboxCreate(UIElement* parent, uint32_t flags, std::string_view label) {
-   return new UICheckbox(parent, flags | UIElement::tab_stop_flag, label);
-}
-
 // --------------------------------------------------
 // Labels.
 // --------------------------------------------------
@@ -2109,10 +2086,6 @@ UILabel& UILabel::set_label(std::string_view new_label) {
 UILabel::UILabel(UIElement* parent, uint32_t flags, std::string_view label)
    : UIElementCast<UILabel>(parent, flags | UIElement::tab_stop_flag, UILabel::_ClassMessageProc, "Label")
    , _label(label) {}
-
-UILabel* UILabelCreate(UIElement* parent, uint32_t flags, std::string_view label) {
-   return new UILabel(parent, flags, label);
-}
 
 // --------------------------------------------------
 // Split panes.
@@ -2184,11 +2157,7 @@ int UISplitPane::_class_message_proc(UIMessage msg, int di, void* dp) {
 UISplitPane::UISplitPane(UIElement* parent, uint32_t flags, float weight)
    : UIElementCast<UISplitPane>(parent, flags, UISplitPane::_ClassMessageProc, "Split Pane")
    , _weight(weight) {
-   UIElementCreate(sizeof(UIElement), this, 0, UISplitter::_ClassMessageProc, "Splitter");
-}
-
-UISplitPane* UISplitPaneCreate(UIElement* parent, uint32_t flags, float weight) {
-   return new UISplitPane(parent, flags, weight);
+   add_element(0, UISplitter::_ClassMessageProc, "Splitter");
 }
 
 // --------------------------------------------------
@@ -2268,10 +2237,6 @@ UITabPane::UITabPane(UIElement* parent, uint32_t flags, const char* tabs)
    , _tabs(tabs)
    , _active(0) {}
 
-UITabPane* UITabPaneCreate(UIElement* parent, uint32_t flags, const char* tabs) {
-   return new UITabPane(parent, flags, tabs);
-}
-
 // --------------------------------------------------
 // Spacers.
 // --------------------------------------------------
@@ -2290,10 +2255,6 @@ UISpacer::UISpacer(UIElement* parent, uint32_t flags, int width, int height)
    : UIElementCast<UISpacer>(parent, flags, UISpacer::_ClassMessageProc, "Spacer")
    , _width(width)
    , _height(height) {}
-
-UISpacer* UISpacerCreate(UIElement* parent, uint32_t flags, int width, int height) {
-   return new UISpacer(parent, flags, width, height);
-}
 
 // --------------------------------------------------
 // Scroll bars.
@@ -2456,10 +2417,6 @@ UIScrollBar::UIScrollBar(UIElement* parent, uint32_t flags)
    auto scrolldown =
       new UIElement(this, flags, _UIScrollUpDownMessageProc, !_horizontal ? "Scroll Down" : "Scroll Right");
    scrolldown->_cp = (void*)(uintptr_t)1;
-}
-
-UIScrollBar* UIScrollBarCreate(UIElement* parent, uint32_t flags) {
-   return new UIScrollBar(parent, flags);
 }
 
 // --------------------------------------------------
@@ -3114,10 +3071,6 @@ UICode::UICode(UIElement* parent, uint32_t flags)
    , UIScrollbarPair(this)
    , _font(parent->ui()->active_font()) {}
 
-UICode* UICodeCreate(UIElement* parent, uint32_t flags) {
-   return new UICode(parent, flags);
-}
-
 // --------------------------------------------------
 // Gauges.
 // --------------------------------------------------
@@ -3148,10 +3101,6 @@ UIGauge::UIGauge(UIElement* parent, uint32_t flags)
    : UIElementCast<UIGauge>(parent, flags, UIGauge::_ClassMessageProc, "Gauge")
    , _position(0)
    , _vertical(!!(flags & vertical_flag)) {}
-
-UIGauge* UIGaugeCreate(UIElement* parent, uint32_t flags) {
-   return new UIGauge(parent, flags);
-}
 
 // --------------------------------------------------
 // Sliders.
@@ -3206,10 +3155,6 @@ UISlider::UISlider(UIElement* parent, uint32_t flags)
    , _position(0)
    , _steps(0)
    , _vertical(!!(flags & vertical_flag)) {}
-
-UISlider* UISliderCreate(UIElement* parent, uint32_t flags) {
-   return new UISlider(parent, flags);
-}
 
 // --------------------------------------------------
 // Tables.
@@ -3460,10 +3405,6 @@ UITable::UITable(UIElement* parent, uint32_t flags, const char* columns)
    , _num_items(0)
    , _columns(columns)
    , _column_highlight((size_t)-1) {}
-
-UITable* UITableCreate(UIElement* parent, uint32_t flags, const char* columns) {
-   return new UITable(parent, flags, columns);
-}
 
 // --------------------------------------------------
 // Textboxes.
@@ -3720,10 +3661,6 @@ void UITextbox::_select_all() {
    _carets[0] = text().size();
 }
 
-UITextbox* UITextboxCreate(UIElement* parent, uint32_t flags) {
-   return new UITextbox(parent, flags);
-}
-
 // --------------------------------------------------
 // MDI clients.
 // --------------------------------------------------
@@ -3920,18 +3857,10 @@ UIMDIChild::UIMDIChild(UIElement* parent, uint32_t flags, const UIRectangle& ini
    }
 }
 
-UIMDIChild* UIMDIChildCreate(UIElement* parent, uint32_t flags, UIRectangle initialBounds, std::string_view title) {
-   return new UIMDIChild(parent, flags, initialBounds, title);
-}
-
 UIMDIClient::UIMDIClient(UIElement* parent, uint32_t flags)
    : UIElementCast<UIMDIClient>(parent, flags, UIMDIClient::_ClassMessageProc, "MDIClient")
    , _active(nullptr)
    , _cascade(0) {}
-
-UIMDIClient* UIMDIClientCreate(UIElement* parent, uint32_t flags) {
-   return new UIMDIClient(parent, flags);
-}
 
 // --------------------------------------------------
 // Image displays.
@@ -4096,11 +4025,6 @@ UIImageDisplay::UIImageDisplay(UIElement* parent, uint32_t flags, uint32_t* bits
    set_content(bits, width, height, stride);
 }
 
-UIImageDisplay* UIImageDisplayCreate(UIElement* parent, uint32_t flags, uint32_t* bits, size_t width, size_t height,
-                                     size_t stride) {
-   return new UIImageDisplay(parent, flags, bits, width, height, stride);
-}
-
 // --------------------------------------------------
 // Menus (common).
 // --------------------------------------------------
@@ -4211,7 +4135,7 @@ void UIMenu::_prepare(int* width, int* height) {
 UIMenu::UIMenu(UI* ui, UIElement* parent, uint32_t flags)
    : UIElementCast<UIMenu>(&ui->create_window(parent->_window, UIWindow::MENU, 0, 0, 0), flags,
                            UIMenu::_ClassMessageProc, "Menu")
-   , _vscroll(UIScrollBarCreate(this, non_client_flag))
+   , _vscroll(&add_scrollbar(non_client_flag))
    , _parent_window(parent->_window) {
    if (parent->_parent) {
       UIRectangle screenBounds = parent->screen_bounds();
@@ -4840,11 +4764,9 @@ UIInspector::UIInspector(UI* ui)
       return;
 
    _inspector             = &ui->create_window(0, UIWindow::INSPECTOR, "Inspector", 0, 0);
-   UISplitPane* splitPane = UISplitPaneCreate(_inspector, 0, 0.5f);
-   _table                 = UITableCreate(splitPane, 0, "Class\tBounds\tID");
-   _table->_user_proc     = _UIInspectorTableMessage;
-   _log                   = UICodeCreate(splitPane, 0);
-   _log->set_font(ui->default_font());
+   UISplitPane& splitPane = _inspector->add_splitpane(0, 0.5f);
+   _table                 = &splitPane.add_table(0, "Class\tBounds\tID").set_user_proc(_UIInspectorTableMessage);
+   _log                   = &splitPane.add_code(0).set_font(ui->default_font());
 }
 
 int _UIInspectorCountElements(UIElement* el) {
