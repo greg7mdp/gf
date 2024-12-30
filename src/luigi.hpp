@@ -1514,6 +1514,9 @@ private:
    cursors_t               _cursors{};
    std::string             _paste_text;
    XEvent                  _copy_event;
+
+   UIWindow*   _find_x11_window(Window window) const;
+   bool        _process_x11_event(XEvent* x_event);
 #elif defined(UI_WINDOWS)
    using cursors_t = std::array<HCURSOR, (uint32_t)UICursor::count>;
    cursors_t               _cursors{};
@@ -1524,8 +1527,6 @@ private:
    void        _initialize_common(const UIConfig& cfg, const std::string& default_font_path);
    UIWindow&   _platform_create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int _width, int _height);
    static int  _platform_message_proc(UIElement* el, UIMessage msg, int di, void* dp);
-   bool        _process_x11_event(void* x_event);
-   UIWindow*   _find_x11_window(Window window) const;
    void        _inspector_refresh();
 
 public:

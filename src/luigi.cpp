@@ -5424,8 +5424,7 @@ UIMenu& UIMenu::show() {
 
 // return true if we should exit, normally return false
 // ----------------------------------------------------
-bool UI::_process_x11_event(void* x_event) {
-   XEvent* event = (XEvent*)x_event;
+bool UI::_process_x11_event(XEvent* event) {
    if (event->type == ClientMessage && (Atom)event->xclient.data.l[0] == _atoms[windowClosedID]) {
       UIWindow* window = _find_x11_window(event->xclient.window);
       if (!window)
@@ -6074,7 +6073,7 @@ UIWindow& UI::_platform_create_window(UIWindow* owner, uint32_t flags, const cha
    UI* ui = this;
    close_menus();
 
-   UIWindow* window = new UIWindow(ui, NULL, flags | UIElement::window_flag, UI::platform_message_proc, "Window");
+   UIWindow* window = new UIWindow(ui, NULL, flags | UIElement::window_flag, UI::_platform_message_proc, "Window");
    window->_init_toplevel();
    if (owner)
       window->set_scale(owner->_scale);
