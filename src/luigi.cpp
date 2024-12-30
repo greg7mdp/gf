@@ -4889,9 +4889,7 @@ void UIInspector::notify_destroyed_window(UIWindow* window) {
 
 #ifdef UI_AUTOMATION_TESTS
 
-int UI::automation_run_tests() {
-   return 1;
-}
+int UI::automation_run_tests() { return 1; }
 
 void UI::automation_process_message() {
    int result;
