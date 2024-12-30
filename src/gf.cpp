@@ -4560,86 +4560,68 @@ struct ExecutableWindow {
    UITextbox*  path         = nullptr;
    UITextbox*  arguments    = nullptr;
    UICheckbox* askDirectory = nullptr;
+
+   void start_or_run(bool pause) {
+      auto res = EvaluateCommand(std::format("file \"{}\"", path->text()));
+
+      if (res.contains("No such file or directory.")) {
+         windowMain->show_dialog(0, "The executable path is invalid.\n%f%B", "OK");
+         return;
+      }
+
+      (void)EvaluateCommand(std::format("start {}", arguments->text()));
+
+      if (askDirectory->check() == UICheckbox::checked) {
+         CommandParseInternal("gf-get-pwd", true);
+      }
+
+      if (!pause) {
+         (void)CommandParseInternal("run", false);
+      } else {
+         DebuggerGetStack();
+         DisplaySetPositionFromStack();
+      }
+   }
+
+   void save() {
+      FILE* f = fopen(localConfigPath, "rb");
+      if (f) {
+         const char* result = windowMain->show_dialog(0, ".project.gf already exists in the current directory.\n%f%B%C",
+                                                      "Overwrite", "Cancel");
+         if (strcmp(result, "Overwrite"))
+            return;
+         fclose(f);
+      }
+
+      f = fopen(localConfigPath, "wb");
+      print(f, "[executable]\npath={}\narguments={}\nask_directory={}\n", path->text(),
+            arguments->text(), askDirectory->check() == UICheckbox::checked ? '1' : '0');
+      fclose(f);
+      SettingsAddTrustedFolder();
+      windowMain->show_dialog(0, "Saved executable settings!\n%f%B", "OK");
+   }
 };
 
-void ExecutableWindowStartOrRun(ExecutableWindow* window, bool pause) {
-   auto res = EvaluateCommand(std::format("file \"{}\"", window->path->text()));
-
-   if (res.contains("No such file or directory.")) {
-      windowMain->show_dialog(0, "The executable path is invalid.\n%f%B", "OK");
-      return;
-   }
-
-   (void)EvaluateCommand(std::format("start {}", window->arguments->text()));
-
-   if (window->askDirectory->check() == UICheckbox::checked) {
-      CommandParseInternal("gf-get-pwd", true);
-   }
-
-   if (!pause) {
-      (void)CommandParseInternal("run", false);
-   } else {
-      DebuggerGetStack();
-      DisplaySetPositionFromStack();
-   }
-}
-
-void ExecutableWindowRunButton(void* _window) {
-   ExecutableWindowStartOrRun((ExecutableWindow*)_window, false);
-}
-
-void ExecutableWindowStartButton(void* _window) {
-   ExecutableWindowStartOrRun((ExecutableWindow*)_window, true);
-}
-
-void ExecutableWindowSaveButton(void* _window) {
-   ExecutableWindow* window = (ExecutableWindow*)_window;
-   FILE*             f      = fopen(localConfigPath, "rb");
-
-   if (f) {
-      const char* result = windowMain->show_dialog(0, ".project.gf already exists in the current directory.\n%f%B%C",
-                                                   "Overwrite", "Cancel");
-      if (strcmp(result, "Overwrite"))
-         return;
-      fclose(f);
-   }
-
-   f = fopen(localConfigPath, "wb");
-   print(f, "[executable]\npath={}\narguments={}\nask_directory={}\n", window->path->text(), window->arguments->text(),
-         window->askDirectory->check() == UICheckbox::checked ? '1' : '0');
-   fclose(f);
-   SettingsAddTrustedFolder();
-   windowMain->show_dialog(0, "Saved executable settings!\n%f%B", "OK");
-}
-
 UIElement* ExecutableWindowCreate(UIElement* parent) {
-   ExecutableWindow* window = new ExecutableWindow;
-   UIPanel*          panel  = &parent->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND);
+   ExecutableWindow* win   = new ExecutableWindow;
+   UIPanel*          panel = &parent->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND);
 
    panel->add_n(
       [&](auto& p) { p.add_label(0, "Path to executable:"); },
-      [&](auto& p) { window->path = &p.add_textbox(0).replace_text(executablePath ?: "", false); },
+      [&](auto& p) { win->path = &p.add_textbox(0).replace_text(executablePath ?: "", false); },
       [&](auto& p) { p.add_label(0, "Command line arguments:"); },
-      [&](auto& p) { window->arguments = &p.add_textbox(0).replace_text(executableArguments ?: "", false); },
+      [&](auto& p) { win->arguments = &p.add_textbox(0).replace_text(executableArguments ?: "", false); },
       [&](auto& p) {
-         window->askDirectory = &p.add_checkbox(0, "Ask GDB for working directory")
-                                    .set_check(executableAskDirectory ? UICheckbox::checked : UICheckbox::unchecked);
+         win->askDirectory = &p.add_checkbox(0, "Ask GDB for working directory")
+                                 .set_check(executableAskDirectory ? UICheckbox::checked : UICheckbox::unchecked);
       },
       [&](auto& p) {
          p.add_panel(UIPanel::HORIZONTAL)
             .add_n(
-               [&](auto& p) {
-                  p.add_button(0, "Run").on_click([window](UIButton&) { ExecutableWindowRunButton(window); });
-               },
-               [&](auto& p) {
-                  p.add_button(0, "Start").on_click([window](UIButton&) { ExecutableWindowStartButton(window); });
-               },
+               [&](auto& p) { p.add_button(0, "Run").on_click([win](UIButton&) { win->start_or_run(false); }); },
+               [&](auto& p) { p.add_button(0, "Start").on_click([win](UIButton&) { win->start_or_run(true); }); },
                [&](auto& p) { p.add_spacer(0, 10, 0); },
-               [&](auto& p) {
-                  p.add_button(0, "Save to .project.gf").on_click([window](UIButton&) {
-                     ExecutableWindowSaveButton(window);
-                  });
-               });
+               [&](auto& p) { p.add_button(0, "Save to .project.gf").on_click([win](UIButton&) { win->save(); }); });
       });
    return panel;
 }
