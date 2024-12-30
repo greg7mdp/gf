@@ -438,19 +438,22 @@ int UI::column_to_byte(std::string_view string, const size_t column, const size_
 // --------------------------------------------------
 
 bool UIElement::animate(bool stop) {
-   auto& animating = ui()->_animating;
+   return ui()->animate(this, stop);
+}
+
+bool UI::animate(UIElement *el, bool stop) {
    if (stop) {
-      if (auto it = std::ranges::find(animating, this); it != animating.end()) {
-         animating.erase(it);
+      if (auto it = std::ranges::find(_animating, el); it != _animating.end()) {
+         _animating.erase(it);
          return true;
       }
       return false;
    } else {
-      if (auto it = std::ranges::find(animating, this); it != animating.end())
+      if (auto it = std::ranges::find(_animating, el); it != _animating.end())
          return true;
 
-      animating.push_back(this);
-      UI_ASSERT(~_flags & destroy_flag);
+      _animating.push_back(el);
+      UI_ASSERT(~el->_flags & UIElement::destroy_flag);
       return true;
    }
 }
@@ -5036,6 +5039,10 @@ UIWindow::~UIWindow() {}
 // --------------------------------------------------
 
 #ifdef UI_LINUX
+
+enum atom_id_t { windowClosedID=0, primaryID, uriListID, plainTextID, dndEnterID, dndPositionID,
+                 dndStatusID, dndActionCopyID, dndDropID, dndSelectionID, dndFinishedID, dndAwareID, clipboardID,
+                 xSelectionDataID, textID, targetID, incrID, atom_id_last };
 
 int UI::_platform_message_proc(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::DEALLOCATE) {

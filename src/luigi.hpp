@@ -747,7 +747,6 @@ private:
    UIRectangle             _update_region;
    UI*                     _ui;
 
-   
    int _class_message_proc_common(UIMessage msg, int di, void* dp);
    void _init_toplevel();
 
@@ -1501,32 +1500,28 @@ public:
 struct UI {
 private:
    using font_map_t = std::unordered_map<UIFontSpec, unique_ptr<UIFont>>;
-   font_map_t  _font_map;
-   UIWindow*   _toplevel_windows = nullptr;
-   UITheme     _theme;
-
+   font_map_t              _font_map;
+   UIWindow*               _toplevel_windows = nullptr;
+   UITheme                 _theme;
+   std::vector<UIElement*> _animating;
 
 #if defined(UI_LINUX)
-   enum atom_id_t { windowClosedID=0, primaryID, uriListID, plainTextID, dndEnterID, dndPositionID,
-      dndStatusID, dndActionCopyID, dndDropID, dndSelectionID, dndFinishedID, dndAwareID, clipboardID,
-      xSelectionDataID, textID, targetID, incrID, atom_id_last };
    using cursors_t = std::array<Cursor, (uint32_t)UICursor::count>;
-   Display*    _display        = nullptr;
-   Visual*     _visual         = nullptr;
-   XIM         _xim            = nullptr;
-   std::array<Atom, atom_id_last> _atoms;
-   cursors_t   _cursors{};
-   std::string _paste_text;
-   XEvent      _copy_event;
+   Display*                _display = nullptr;
+   Visual*                 _visual  = nullptr;
+   XIM                     _xim     = nullptr;
+   std::array<Atom, 17>    _atoms;
+   cursors_t               _cursors{};
+   std::string             _paste_text;
+   XEvent                  _copy_event;
 #elif defined(UI_WINDOWS)
    using cursors_t = std::array<HCURSOR, (uint32_t)UICursor::count>;
-   cursors_t   _cursors{};
-   bool        _assertion_failure = false;
+   cursors_t               _cursors{};
+   bool                    _assertion_failure = false;
 #endif
 
-   void        _initialize_common(const UIConfig& cfg, const std::string& default_font_path);
-
    // ----- internal (and often platform specific) functions - do not call --------------------------------
+   void        _initialize_common(const UIConfig& cfg, const std::string& default_font_path);
    UIWindow&   _platform_create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int _width, int _height);
    static int  _platform_message_proc(UIElement* el, UIMessage msg, int di, void* dp);
    bool        _process_x11_event(void* x_event);
@@ -1534,21 +1529,19 @@ private:
    void        _inspector_refresh();
 
 public:
-   std::vector<UIElement*> _animating;
+   bool                   _quit             = false;
+   const char*            _dialog_result    = nullptr;
+   UIElement*             _dialog_old_focus = nullptr;
+   bool                   _dialog_can_exit  = false;
 
-   bool        _quit             = false;
-   const char* _dialog_result    = nullptr;
-   UIElement*  _dialog_old_focus = nullptr;
-   bool        _dialog_can_exit  = false;
-
-   std::string _default_font_path;             // default font used
-   UIFont*     _active_font  = nullptr;
-   UIFont*     _default_font = nullptr;
+   std::string            _default_font_path; // default font used
+   UIFont*                _active_font  = nullptr;
+   UIFont*                _default_font = nullptr;
 
    std::unique_ptr<UIInspector> _inspector;
 
 #ifdef UI_FREETYPE
-   FT_Library  _ft = nullptr;
+   FT_Library             _ft = nullptr;
 #endif
 
    // ------ public functions -------------------------------------------------------------
@@ -1561,6 +1554,7 @@ public:
    void        process_animations();
    bool        is_menu_open() const;
    bool        close_menus();
+   bool        animate(UIElement *el, bool stop);
 
    UIMenu&     create_menu(UIElement* parent, uint32_t flags);
    UIWindow&   create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height);
