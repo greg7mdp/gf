@@ -699,6 +699,7 @@ public:
    UITable&        add_table(uint32_t flags, const char* columns); // tabs: separate with \t, terminate with \0 
    UITextbox&      add_textbox(uint32_t flags);
    UIWrapPanel&    add_wrappanel(uint32_t flags);
+
 };
 
 // ------------------------------------------------------------------------------------------
@@ -716,6 +717,12 @@ struct UIElementCast : public UIElement{
    Derived& set_cp(void* cp) { return static_cast<Derived&>(UIElement::set_cp(cp)); }
    Derived& clear_flag(uint32_t flag) { return static_cast<Derived&>(UIElement::clear_flag(flag)); }
    Derived& set_flag(uint32_t flag) { return static_cast<Derived&>(UIElement::set_flag(flag)); }
+
+   template<class... F>
+   Derived&      add_n(F&&... f) {
+      (std::forward<F>(f)(*this), ...);
+      return static_cast<Derived&>(*this);
+   }
 };
 
 // ------------------------------------------------------------------------------------------

@@ -1973,8 +1973,9 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 }
 
 UIElement* SourceWindowCreate(UIElement* parent) {
-   displayCode =
-      &parent->add_code(selectableSource ? UICode::SELECTABLE : 0).set_font(code_font).set_user_proc(DisplayCodeMessage);
+   displayCode = &parent->add_code(selectableSource ? UICode::SELECTABLE : 0)
+                     .set_font(code_font)
+                     .set_user_proc(DisplayCodeMessage);
    return displayCode;
 }
 
@@ -2484,8 +2485,8 @@ void BitmapViewerUpdate(std::string pointerString, std::string widthString, std:
       bitmap->display =
          &panel->add_imagedisplay(UIImageDisplay::INTERACTIVE | UIElement::v_fill, bits, width, height, stride)
              .set_user_proc(BitmapViewerDisplayMessage);
-      bitmap->labelPanel          = &panel->add_panel(UIPanel::COLOR_1 | UIElement::v_fill);
-      bitmap->label               = &bitmap->labelPanel->add_label(UIElement::h_fill, {});
+      bitmap->labelPanel = &panel->add_panel(UIPanel::COLOR_1 | UIElement::v_fill);
+      bitmap->label      = &bitmap->labelPanel->add_label(UIElement::h_fill, {});
    }
 
    BitmapViewer* bitmap = (BitmapViewer*)owner->_cp;
@@ -3155,7 +3156,7 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
 
    UISplitPane* panel = &child->add_splitpane(0, 0.5f);
    UITable*     table = &panel->add_table(UIElement::h_fill | UIElement::v_fill, logger->columns);
-   UITable* trace = &panel->add_table(UIElement::h_fill | UIElement::v_fill, "Index\tFunction\tLocation\tAddress");
+   UITable*     trace = &panel->add_table(UIElement::h_fill | UIElement::v_fill, "Index\tFunction\tLocation\tAddress");
 
    logger->id                    = sv_atoi(number, 6);
    logger->table                 = table;
@@ -4061,7 +4062,9 @@ int TableBreakpointsMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 }
 
 UIElement* BreakpointsWindowCreate(UIElement* parent) {
-   return &parent->add_table(0, "File\tLine\tEnabled\tCondition\tHit").set_cp(new BreakpointTableData).set_user_proc(TableBreakpointsMessage);
+   return &parent->add_table(0, "File\tLine\tEnabled\tCondition\tHit")
+              .set_cp(new BreakpointTableData)
+              .set_user_proc(TableBreakpointsMessage);
 }
 
 void BreakpointsWindowUpdate(const char*, UIElement* _table) {
@@ -4153,10 +4156,10 @@ int TextboxStructNameMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 }
 
 UIElement* StructWindowCreate(UIElement* parent) {
-   StructWindow* window        = new StructWindow;
-   UIPanel*      panel         = &parent->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND);
-   window->textbox             = &panel->add_textbox(0).set_user_proc(TextboxStructNameMessage).set_cp(window);
-   window->display             = &panel->add_code(UIElement::v_fill | UICode::NO_MARGIN | UICode::SELECTABLE)
+   StructWindow* window = new StructWindow;
+   UIPanel*      panel  = &parent->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND);
+   window->textbox      = &panel->add_textbox(0).set_user_proc(TextboxStructNameMessage).set_cp(window);
+   window->display      = &panel->add_code(UIElement::v_fill | UICode::NO_MARGIN | UICode::SELECTABLE)
                          .insert_content("Type the name of a struct to view its layout.", false);
    return panel;
 }
@@ -4278,7 +4281,7 @@ UIElement* FilesWindowCreate(UIElement* parent) {
                        .set_gap(-1)
                        .set_border(UIRectangle(1))
                        .set_cp(window);
-   UIPanel* row       = &container->add_panel(UIPanel::COLOR_2 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
+   UIPanel* row = &container->add_panel(UIPanel::COLOR_2 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
 
    row->add_button(UIButton::SMALL, "-> cwd").on_click([window](UIButton&) { FilesNavigateToCWD(window); });
    row->add_button(UIButton::SMALL, "-> active file").on_click([window](UIButton&) {
@@ -4394,8 +4397,7 @@ void RegistersWindowUpdate(const char*, UIElement* panel) {
 // ---------------------------------------------------/
 
 UIElement* CommandsWindowCreate(UIElement* parent) {
-   UIPanel* panel =
-      &parent->add_panel(UIPanel::COLOR_1 | UIPanel::SMALL_SPACING | UIPanel::EXPAND | UIPanel::SCROLL);
+   UIPanel* panel = &parent->add_panel(UIPanel::COLOR_1 | UIPanel::SMALL_SPACING | UIPanel::EXPAND | UIPanel::SCROLL);
    if (!presetCommands.size())
       panel->add_label(0, "No preset commands found in config file!");
 
@@ -4613,18 +4615,32 @@ void ExecutableWindowSaveButton(void* _window) {
 UIElement* ExecutableWindowCreate(UIElement* parent) {
    ExecutableWindow* window = new ExecutableWindow;
    UIPanel*          panel  = &parent->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND);
-   panel->add_label(0, "Path to executable:");
-   window->path = &panel->add_textbox(0).replace_text(executablePath ?: "", false);
-   panel->add_label(0, "Command line arguments:");
-   window->arguments = &panel->add_textbox(0).replace_text(executableArguments ?: "", false);
-   window->askDirectory = &panel->add_checkbox(0, "Ask GDB for working directory")
-                              .set_check(executableAskDirectory ? UICheckbox::checked : UICheckbox::unchecked);
 
-   UIPanel* row = &panel->add_panel(UIPanel::HORIZONTAL);
-   row->add_button(0, "Run").on_click([window](UIButton&) { ExecutableWindowRunButton(window); });
-   row->add_button(0, "Start").on_click([window](UIButton&) { ExecutableWindowStartButton(window); });
-   row->add_spacer(0, 10, 0);
-   row->add_button(0, "Save to .project.gf").on_click([window](UIButton&) { ExecutableWindowSaveButton(window); });
+   panel->add_n(
+      [&](auto& p) { p.add_label(0, "Path to executable:"); },
+      [&](auto& p) { window->path = &p.add_textbox(0).replace_text(executablePath ?: "", false); },
+      [&](auto& p) { p.add_label(0, "Command line arguments:"); },
+      [&](auto& p) { window->arguments = &p.add_textbox(0).replace_text(executableArguments ?: "", false); },
+      [&](auto& p) {
+         window->askDirectory = &p.add_checkbox(0, "Ask GDB for working directory")
+                                    .set_check(executableAskDirectory ? UICheckbox::checked : UICheckbox::unchecked);
+      },
+      [&](auto& p) {
+         p.add_panel(UIPanel::HORIZONTAL)
+            .add_n(
+               [&](auto& p) {
+                  p.add_button(0, "Run").on_click([window](UIButton&) { ExecutableWindowRunButton(window); });
+               },
+               [&](auto& p) {
+                  p.add_button(0, "Start").on_click([window](UIButton&) { ExecutableWindowStartButton(window); });
+               },
+               [&](auto& p) { p.add_spacer(0, 10, 0); },
+               [&](auto& p) {
+                  p.add_button(0, "Save to .project.gf").on_click([window](UIButton&) {
+                     ExecutableWindowSaveButton(window);
+                  });
+               });
+      });
    return panel;
 }
 
