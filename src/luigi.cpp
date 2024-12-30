@@ -405,7 +405,7 @@ void UIColorToRGB(float h, float s, float v, uint32_t* rgb) {
 }
 
 int UI::byte_to_column(std::string_view string, const size_t byte, const size_t tabSize) {
-   size_t ti = 0, i = 0;
+   size_t       ti = 0, i = 0;
    const size_t bytes = string.size();
 
    while (i < std::min(byte, bytes)) {
@@ -418,7 +418,7 @@ int UI::byte_to_column(std::string_view string, const size_t byte, const size_t 
 }
 
 int UI::column_to_byte(std::string_view string, const size_t column, const size_t tabSize) {
-   size_t byte = 0, ti = 0;
+   size_t       byte = 0, ti = 0;
    const size_t bytes = string.size();
 
    while (byte < bytes) {
@@ -855,9 +855,9 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
                               : (pressed || hovered) ? theme.buttonHovered
                               : focused              ? theme.selected
                                                      : theme.buttonNormal;
-   uint32_t buttonTextColor = disabled                             ? theme.textDisabled
+   uint32_t buttonTextColor = disabled                        ? theme.textDisabled
                               : buttonColor == theme.selected ? theme.textSelected
-                                                                   : theme.text;
+                                                              : theme.text;
 
    if (which == UIControl::checkbox) {
       uint32_t    color = buttonColor, textColor = buttonTextColor;
@@ -878,8 +878,7 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
       UIDrawRectangle(painter, bounds, color, theme.border, UIRectangle(borderSize));
 
       if (checked && !focused) {
-         UIDrawBlock(painter, bounds + ui_rect_1i((int)(ui_size::button_checked_area * scale)),
-                     theme.buttonPressed);
+         UIDrawBlock(painter, bounds + ui_rect_1i((int)(ui_size::button_checked_area * scale)), theme.buttonPressed);
       }
 
       UIRectangle innerBounds = bounds + ui_rect_2i((int)(ui_size::menu_item_margin * scale), 0);
@@ -921,13 +920,10 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
                              isDown ? 25 : 24, theme.text);
       } else {
          painter->draw_glyph(isDown ? (bounds.r - ui->_active_font->_glyph_width - 2 * scale) : (bounds.l + 2 * scale),
-                             (bounds.t + bounds.b - ui->_active_font->_glyph_height) / 2, isDown ? 26 : 27,
-                             theme.text);
+                             (bounds.t + bounds.b - ui->_active_font->_glyph_height) / 2, isDown ? 26 : 27, theme.text);
       }
    } else if (which == UIControl::scroll_thumb) {
-      uint32_t color = pressed   ? theme.buttonPressed
-                       : hovered ? theme.buttonHovered
-                                 : theme.buttonNormal;
+      uint32_t color = pressed ? theme.buttonPressed : hovered ? theme.buttonHovered : theme.buttonNormal;
       UIDrawRectangle(painter, bounds, color, theme.border, UIRectangle(2));
    } else if (which == UIControl::gauge) {
       UIDrawRectangle(painter, bounds, theme.buttonNormal, theme.border, UIRectangle(1));
@@ -1391,7 +1387,7 @@ const char* UIWindow::show_dialog(uint32_t flags, const char* format, ...) {
                focus = textbox;
             if (*buffer)
                textbox->replace_text(*buffer, false);
-            textbox->set_cp(buffer);      // when the textbox text is updated, `*buffer` will contain a `char*` to the string
+            textbox->set_cp(buffer); // when the textbox text is updated, `*buffer` will contain a `char*` to the string
             textbox->set_user_proc(UITextbox::_DialogTextboxMessageProc);
          } else if (format[i] == 'f' /* horizontal fill */) {
             UISpacerCreate(row, UIElement::h_fill, 0, 0);
@@ -2578,7 +2574,7 @@ int UIDrawStringHighlighted(UIPainter* painter, UIRectangle lineBounds, std::str
       UI_CODE_TOKEN_TYPE_PREPROCESSOR,
    };
 
-   auto& theme = ui->theme();
+   auto&    theme    = ui->theme();
    uint32_t colors[] = {
       theme.codeDefault, theme.codeComment,  theme.codeString,
       theme.codeNumber,  theme.codeOperator, theme.codePreprocessor,
@@ -3294,7 +3290,7 @@ UITable& UITable::resize_columns() {
       int    longest = ui()->string_width(column(position, end));
 
       for (size_t i = 0; i < num_items(); i++) {
-         m.index   = i;
+         m._row    = i;
          int bytes = message(UIMessage::TABLE_GET_ITEM, 0, &m);
          int width = ui()->string_width(m.buff(bytes));
 
@@ -3303,8 +3299,8 @@ UITable& UITable::resize_columns() {
          }
       }
 
-      _column_widths[m.column] = longest;
-      m.column++;
+      _column_widths[m._column] = longest;
+      m._column++;
       if (_columns[end] == '\t')
          position = end + 1;
       else
@@ -3336,15 +3332,15 @@ int UITable::_class_message_proc(UIMessage msg, int di, void* dp) {
             break;
          }
 
-         row.b        = row.t + rowHeight;
-         m.index      = i;
-         m.isSelected = false;
-         m.column     = 0;
+         row.b          = row.t + rowHeight;
+         m._row         = i;
+         m._is_selected = false;
+         m._column      = 0;
 
          int bytes = message(UIMessage::TABLE_GET_ITEM, 0, &m);
 
          uint32_t rowFlags =
-            (m.isSelected ? UIControl::state_selected : 0) | (hovered == i ? UIControl::state_hovered : 0);
+            (m._is_selected ? UIControl::state_selected : 0) | (hovered == i ? UIControl::state_hovered : 0);
          UIDrawControl(painter, row, UIControl::table_row | rowFlags, {}, 0, _window->scale());
 
          UIRectangle cell = row;
@@ -3352,8 +3348,8 @@ int UITable::_class_message_proc(UIMessage msg, int di, void* dp) {
 
          for (size_t j = 0; j < _column_widths.size(); j++) {
             if (j) {
-               m.column = j;
-               bytes    = message(UIMessage::TABLE_GET_ITEM, 0, &m);
+               m._column = j;
+               bytes     = message(UIMessage::TABLE_GET_ITEM, 0, &m);
             }
 
             cell.r = cell.l + _column_widths[j];
@@ -3580,7 +3576,7 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
          _scroll = caretX - textBounds.width() + _scroll + 1;
       }
 
-      auto& theme = ui->theme();
+      auto&             theme     = ui->theme();
       UIStringSelection selection = {};
       selection.carets[0]         = _byte_to_column(text(), _carets[0]);
       selection.carets[1]         = _byte_to_column(text(), _carets[1]);
@@ -3606,14 +3602,14 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::DEALLOCATE) {
       ;
    } else if (msg == UIMessage::KEY_TYPED) {
-      UIKeyTyped* m        = (UIKeyTyped*)dp;
-      bool        handled  = true;
-      bool        shift    = !!_window->_shift;
-      bool        alt      = !!_window->_alt;
-      bool        ctrl     = _window->_ctrl && !alt;
-      bool        modifier = ctrl || alt || shift;
+      UIKeyTyped* m         = (UIKeyTyped*)dp;
+      bool        handled   = true;
+      bool        shift     = !!_window->_shift;
+      bool        alt       = !!_window->_alt;
+      bool        ctrl      = _window->_ctrl && !alt;
+      bool        modifier  = ctrl || alt || shift;
       bool        selection = _carets[0] != _carets[1];
-      
+
       if (_reject_next_key) {
          _reject_next_key = false;
          handled          = false;
@@ -3627,7 +3623,7 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
          replace_text(m->text, true);
       } else if ((m->is('c') || m->is('x') || m->code == UIKeycode::INSERT) && ctrl && !shift) {
          copy();
-         if (m->is('x')) 
+         if (m->is('x'))
             replace_text("", true);
       } else if (((m->is('v')) && ctrl && !shift) || (m->code == UIKeycode::INSERT && !modifier)) {
          paste(sel_target_t::clipboard);
@@ -3635,18 +3631,18 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
          // implement some readline key bindings - see https://readline.kablamo.org/emacs.html
          // ----------------------------------------------------------------------------------
          if (ctrl && (m->is('a') || m->is('e'))) {
-            _move_to_end(m->is('a'), shift);                 // `ctrl-a` move to beg of line, `ctrl-e` to the end
+            _move_to_end(m->is('a'), shift); // `ctrl-a` move to beg of line, `ctrl-e` to the end
          } else if ((ctrl ^ alt) && (m->is('f') || m->is('b'))) {
-            _move_one(m->is('b'), shift, alt);               // `ctrl-f` move forward, `ctrl-b` back, with `alt` by word 
+            _move_one(m->is('b'), shift, alt); // `ctrl-f` move forward, `ctrl-b` back, with `alt` by word
          } else if ((ctrl ^ alt) && !shift && m->is('d')) {
             if (selection)
-               replace_text("", true);                       // if there is selected text, just delete it
+               replace_text("", true); // if there is selected text, just delete it
             else
-               _delete_one(false, alt);                      // `ctrl-d` deletes one char, `alt-d` one word
+               _delete_one(false, alt); // `ctrl-d` deletes one char, `alt-d` one word
          } else if ((ctrl && !alt && !shift) && (m->is('u') || m->is('k'))) {
             if (!selection)
                _carets[0] = m->is('u') ? 0 : text().size();
-            replace_text("", true);                          // if there is selected text, just delete it
+            replace_text("", true); // if there is selected text, just delete it
          } else {
             handled = false;
          }
@@ -3854,9 +3850,9 @@ int UIMDIChild::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp
 }
 
 int UIMDIClient::_class_message_proc(UIMessage msg, int di, void* dp) {
-   UI* ui = this->ui();
+   UI*   ui    = this->ui();
    auto& theme = ui->theme();
-   
+
    if (msg == UIMessage::PAINT) {
       if (~_flags & UIMDIClient::_TRANSPARENT) {
          UIDrawBlock((UIPainter*)dp, _bounds, theme.panel2);
@@ -4235,9 +4231,9 @@ UIRectangle UIElement::screen_bounds() {
 }
 
 UI::~UI() {
-      _font_map.clear();
+   _font_map.clear();
 #ifdef UI_FREETYPE
-      FT_Done_FreeType(_ft);
+   FT_Done_FreeType(_ft);
 #endif
 }
 
@@ -4786,17 +4782,17 @@ int _UIInspectorTableMessage(UIElement* table, UIMessage msg, int di, void* dp) 
 
    if (msg == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m     = (UITableGetItem*)dp;
-      int             index = m->index;
+      int             index = m->_row;
       auto [el, depth]      = _UIInspectorFindNthElement(ui->_inspector->_target, &index);
       if (!el)
          return 0;
 
-      if (m->column == 0) {
+      if (m->_column == 0) {
          return m->format_to("{}{}", std::string_view{"                ", depth * 2}, el->_class_name);
-      } else if (m->column == 1) {
+      } else if (m->_column == 1) {
          const auto& b = el->_bounds;
          return m->format_to("{}:{}, {}:{}", b.l, b.r, b.t, b.b);
-      } else if (m->column == 2) {
+      } else if (m->_column == 2) {
          return m->format_to("{}{:c}", el->_id, el->is_focused() ? '*' : ' ');
       }
    } else if (msg == UIMessage::MOUSE_MOVE) {
@@ -4890,28 +4886,30 @@ void UIInspector::notify_destroyed_window(UIWindow* window) {
 
 #ifdef UI_AUTOMATION_TESTS
 
-int UIAutomationRunTests();
+int UI::automation_run_tests() {
+   return 1;
+}
 
-void UIAutomationProcessMessage() {
+void UI::automation_process_message() {
    int result;
    UI::platform_message_loop_single(&result);
 }
 
-void UIAutomationKeyboardTypeSingle(intptr_t code, bool ctrl, bool shift, bool alt) {
-   UIWindow*  window = ui->_toplevel_windows; // TODO Get the focused window.
-   UIKeyTyped m      = {0};
-   m.code            = code;
-   window->ctrl      = ctrl;
-   window->alt       = alt;
-   window->shift     = shift;
-   window->imput_event(UIMessage::KEY_TYPED, 0, &m);
-   window->ctrl  = false;
-   window->alt   = false;
-   window->shift = false;
+void UI::automation_keyboard_type_single(int code, bool ctrl, bool shift, bool alt) {
+   UIWindow*  window = _toplevel_windows; // TODO Get the focused window.
+   UIKeyTyped m;
+   m.code         = (UIKeycode)code;
+   window->_ctrl  = ctrl;
+   window->_alt   = alt;
+   window->_shift = shift;
+   window->input_event(UIMessage::KEY_TYPED, 0, &m);
+   window->_ctrl  = false;
+   window->_alt   = false;
+   window->_shift = false;
 }
 
-void UIAutomationKeyboardType(const char* string) {
-   UIWindow* window = ui->_toplevel_windows; // TODO Get the focused window.
+void UI::automation_keyboard_type(const char* string) {
+   UIWindow* window = _toplevel_windows; // TODO Get the focused window.
 
    UIKeyTyped m;
    char       c[2];
@@ -4920,57 +4918,40 @@ void UIAutomationKeyboardType(const char* string) {
    m.text = std::string_view{c, 1};
 
    for (int i = 0; string[i]; i++) {
-      c[0]          = string[i];
-      window->ctrl  = false;
-      window->alt   = false;
-      window->shift = (c[0] >= 'A' && c[0] <= 'Z');
-      m.code        = (c[0] >= 'A' && c[0] <= 'Z')   ? UI_KEYCODE_LETTER(c[0])
-                      : c[0] == '\n'                 ? UIKeycode::ENTER
-                      : c[0] == '\t'                 ? UIKeycode::TAB
-                      : c[0] == ' '                  ? UIKeycode::SPACE
-                      : (c[0] >= '0' && c[0] <= '9') ? UI_KEYCODE_DIGIT(c[0])
-                                                     : 0;
+      c[0]           = string[i];
+      window->_ctrl  = false;
+      window->_alt   = false;
+      window->_shift = (c[0] >= 'A' && c[0] <= 'Z');
+      m.code         = (c[0] >= 'A' && c[0] <= 'Z')   ? UI_KEYCODE_LETTER(c[0])
+                       : c[0] == '\n'                 ? UIKeycode::ENTER
+                       : c[0] == '\t'                 ? UIKeycode::TAB
+                       : c[0] == ' '                  ? UIKeycode::SPACE
+                       : (c[0] >= '0' && c[0] <= '9') ? UI_KEYCODE_DIGIT(c[0])
+                                                      : (UIKeycode)0;
       window->input_event(UIMessage::KEY_TYPED, 0, &m);
    }
 
-   window->ctrl  = false;
-   window->alt   = false;
-   window->shift = false;
+   window->_ctrl  = false;
+   window->_alt   = false;
+   window->_shift = false;
 }
 
-bool UIAutomationCheckCodeLineMatches(UICode* code, int lineIndex, const char* input) {
-   if (lineIndex < 1 || lineIndex > code->lineCount)
+bool UI::automation_check_code_line_matches(UICode* code, size_t lineIndex, std::string_view input) {
+   if (lineIndex < 1 || lineIndex > code->num_lines())
       return false;
+   return input == code->line(lineIndex - 1);
+}
+
+bool UI::automation_check_table_item_matches(UITable* table, size_t row, size_t column, std::string_view input) {
    int bytes = 0;
    for (int i = 0; input[i]; i++)
       bytes++;
-   if (bytes != code->lines[lineIndex - 1].bytes)
+   if (row >= table->num_items() || column >= table->num_columns())
       return false;
-   for (int i = 0; input[i]; i++)
-      if (code->content[code->lines[lineIndex - 1].offset + i] != input[i])
-         return false;
-   return true;
-}
-
-bool UIAutomationCheckTableItemMatches(UITable* table, int row, int column, const char* input) {
-   int bytes = 0;
-   for (int i = 0; input[i]; i++)
-      bytes++;
-   if (row < 0 || row >= table->num_items())
-      return false;
-   if (column < 0 || column >= table->columnCount)
-      return false;
-   UITableGetItem m(bytes + 1);
-   m.column   = column;
-   m.index    = row;
-   int length = &table->e->message(UIMessage::TABLE_GET_ITEM, 0, &m);
-   if (length != bytes)
-      return false;
-   auto buffer = m.buff(length);
-   for (int i = 0; input[i]; i++)
-      if (buffer[i] != input[i])
-         return false;
-   return true;
+   UITableGetItem m(bytes + 1, row, column);
+   int            length = table->message(UIMessage::TABLE_GET_ITEM, 0, &m);
+   auto           buffer = m.buff(length);
+   return m.buff(length) == input;
 }
 
 #endif // UI_AUTOMATION_TESTS
@@ -5018,8 +4999,8 @@ int UIWindow::_class_message_proc_common(UIMessage msg, int di, void* dp) {
 
 int UI::message_loop() {
    update();
-#ifdef UI_AUTOMATION_TESTS
-   return UIAutomationRunTests();
+#if 0 && defined(UI_AUTOMATION_TESTS)
+   return UI::automation_run_tests();
 #else
    int result = 0;
    while (!_quit && platform_message_loop_single(&result))
@@ -5084,8 +5065,8 @@ UIWindow& UI::_platform_create_window(UIWindow* owner, uint32_t flags, const cha
    XSetWindowAttributes attributes = {};
    attributes.override_redirect    = flags & UIWindow::MENU;
 
-   window->_xwindow = XCreateWindow(ui->native_display(), DefaultRootWindow(ui->native_display()), 0, 0, width, height, 0, 0,
-                                    InputOutput, CopyFromParent, CWOverrideRedirect, &attributes);
+   window->_xwindow = XCreateWindow(ui->native_display(), DefaultRootWindow(ui->native_display()), 0, 0, width, height,
+                                    0, 0, InputOutput, CopyFromParent, CWOverrideRedirect, &attributes);
    if (cTitle)
       XStoreName(ui->native_display(), window->_xwindow, cTitle);
    XSelectInput(ui->native_display(), window->_xwindow,
@@ -5096,8 +5077,8 @@ UIWindow& UI::_platform_create_window(UIWindow* owner, uint32_t flags, const cha
    if (flags & UIWindow::MAXIMIZE) {
       Atom atoms[2] = {XInternAtom(ui->native_display(), "_NET_WM_STATE_MAXIMIZED_HORZ", 0),
                        XInternAtom(ui->native_display(), "_NET_WM_STATE_MAXIMIZED_VERT", 0)};
-      XChangeProperty(ui->native_display(), window->_xwindow, XInternAtom(ui->native_display(), "_NET_WM_STATE", 0), XA_ATOM, 32,
-                      PropModeReplace, (unsigned char*)atoms, 2);
+      XChangeProperty(ui->native_display(), window->_xwindow, XInternAtom(ui->native_display(), "_NET_WM_STATE", 0),
+                      XA_ATOM, 32, PropModeReplace, (unsigned char*)atoms, 2);
    }
 
    if (~flags & UIWindow::MENU) {
@@ -5118,26 +5099,26 @@ UIWindow& UI::_platform_create_window(UIWindow* owner, uint32_t flags, const cha
                             window->_xwindow, XNFocusWindow, window->_xwindow, nullptr);
 
    int dndVersion = 4;
-   XChangeProperty(ui->native_display(), window->_xwindow, ui->_atoms[dndAwareID], XA_ATOM, 32 /* bits */, PropModeReplace,
-                   (uint8_t*)&dndVersion, 1);
+   XChangeProperty(ui->native_display(), window->_xwindow, ui->_atoms[dndAwareID], XA_ATOM, 32 /* bits */,
+                   PropModeReplace, (uint8_t*)&dndVersion, 1);
 
    return *window;
 }
 
-UIWindow* _UIFindWindow(UI* ui, Window window) {
-   UIWindow* w = ui->_toplevel_windows;
+UIWindow* UI::_find_x11_window(Window window) const {
+   UIWindow* w = _toplevel_windows;
    while (w) {
       if (w->_xwindow == window) {
          return w;
       }
       w = w->next();
    }
-   return NULL;
+   return nullptr;
 }
 
 void UI::write_clipboard_text(std::string_view text, UIWindow* w, sel_target_t t) {
    _paste_text = text;
-   Atom atom        = (t == sel_target_t::clipboard) ? _atoms[clipboardID] : _atoms[primaryID];
+   Atom atom   = (t == sel_target_t::clipboard) ? _atoms[clipboardID] : _atoms[primaryID];
    XSetSelectionOwner(native_display(), atom, w->native_window(), 0);
 }
 
@@ -5150,7 +5131,7 @@ std::string UI::read_clipboard_text(UIWindow* w, sel_target_t t) {
       return {};
    }
 
-   if (_UIFindWindow(this, clipboardOwner)) {
+   if (_find_x11_window(clipboardOwner)) {
       return _paste_text;
    }
 
@@ -5206,8 +5187,8 @@ std::string UI::read_clipboard_text(UIWindow* w, sel_target_t t) {
                unsigned long chunkSize;
 
                // Note that this call deletes the property.
-               XGetWindowProperty(native_display(), _copy_event.xproperty.window, _copy_event.xproperty.atom, 0L,
-                                  ~0L, True, AnyPropertyType, &target, &format, &chunkSize, &itemAmount,
+               XGetWindowProperty(native_display(), _copy_event.xproperty.window, _copy_event.xproperty.atom, 0L, ~0L,
+                                  True, AnyPropertyType, &target, &format, &chunkSize, &itemAmount,
                                   (unsigned char**)&data);
 
                if (chunkSize == 0) {
@@ -5284,21 +5265,22 @@ unique_ptr<UI> UI::initialise(const UIConfig& cfg) {
    ui->_atoms[targetID]         = XInternAtom(ui->native_display(), "TARGETS", 0);
    ui->_atoms[incrID]           = XInternAtom(ui->native_display(), "INCR", 0);
 
-   ui->_cursors[(uint32_t)UICursor::arrow]             = XCreateFontCursor(ui->native_display(), XC_left_ptr);
-   ui->_cursors[(uint32_t)UICursor::text]              = XCreateFontCursor(ui->native_display(), XC_xterm);
-   ui->_cursors[(uint32_t)UICursor::split_v]           = XCreateFontCursor(ui->native_display(), XC_sb_v_double_arrow);
-   ui->_cursors[(uint32_t)UICursor::split_h]           = XCreateFontCursor(ui->native_display(), XC_sb_h_double_arrow);
-   ui->_cursors[(uint32_t)UICursor::flipped_arrow]     = XCreateFontCursor(ui->native_display(), XC_right_ptr);
-   ui->_cursors[(uint32_t)UICursor::cross_hair]        = XCreateFontCursor(ui->native_display(), XC_crosshair);
-   ui->_cursors[(uint32_t)UICursor::hand]              = XCreateFontCursor(ui->native_display(), XC_hand1);
-   ui->_cursors[(uint32_t)UICursor::resize_up]         = XCreateFontCursor(ui->native_display(), XC_top_side);
-   ui->_cursors[(uint32_t)UICursor::resize_left]       = XCreateFontCursor(ui->native_display(), XC_left_side);
-   ui->_cursors[(uint32_t)UICursor::resize_up_right]   = XCreateFontCursor(ui->native_display(), XC_top_right_corner);
-   ui->_cursors[(uint32_t)UICursor::resize_up_left]    = XCreateFontCursor(ui->native_display(), XC_top_left_corner);
-   ui->_cursors[(uint32_t)UICursor::resize_down]       = XCreateFontCursor(ui->native_display(), XC_bottom_side);
-   ui->_cursors[(uint32_t)UICursor::resize_right]      = XCreateFontCursor(ui->native_display(), XC_right_side);
-   ui->_cursors[(uint32_t)UICursor::resize_down_left]  = XCreateFontCursor(ui->native_display(), XC_bottom_left_corner);
-   ui->_cursors[(uint32_t)UICursor::resize_down_right] = XCreateFontCursor(ui->native_display(), XC_bottom_right_corner);
+   ui->_cursors[(uint32_t)UICursor::arrow]            = XCreateFontCursor(ui->native_display(), XC_left_ptr);
+   ui->_cursors[(uint32_t)UICursor::text]             = XCreateFontCursor(ui->native_display(), XC_xterm);
+   ui->_cursors[(uint32_t)UICursor::split_v]          = XCreateFontCursor(ui->native_display(), XC_sb_v_double_arrow);
+   ui->_cursors[(uint32_t)UICursor::split_h]          = XCreateFontCursor(ui->native_display(), XC_sb_h_double_arrow);
+   ui->_cursors[(uint32_t)UICursor::flipped_arrow]    = XCreateFontCursor(ui->native_display(), XC_right_ptr);
+   ui->_cursors[(uint32_t)UICursor::cross_hair]       = XCreateFontCursor(ui->native_display(), XC_crosshair);
+   ui->_cursors[(uint32_t)UICursor::hand]             = XCreateFontCursor(ui->native_display(), XC_hand1);
+   ui->_cursors[(uint32_t)UICursor::resize_up]        = XCreateFontCursor(ui->native_display(), XC_top_side);
+   ui->_cursors[(uint32_t)UICursor::resize_left]      = XCreateFontCursor(ui->native_display(), XC_left_side);
+   ui->_cursors[(uint32_t)UICursor::resize_up_right]  = XCreateFontCursor(ui->native_display(), XC_top_right_corner);
+   ui->_cursors[(uint32_t)UICursor::resize_up_left]   = XCreateFontCursor(ui->native_display(), XC_top_left_corner);
+   ui->_cursors[(uint32_t)UICursor::resize_down]      = XCreateFontCursor(ui->native_display(), XC_bottom_side);
+   ui->_cursors[(uint32_t)UICursor::resize_right]     = XCreateFontCursor(ui->native_display(), XC_right_side);
+   ui->_cursors[(uint32_t)UICursor::resize_down_left] = XCreateFontCursor(ui->native_display(), XC_bottom_left_corner);
+   ui->_cursors[(uint32_t)UICursor::resize_down_right] =
+      XCreateFontCursor(ui->native_display(), XC_bottom_right_corner);
 
    XSetLocaleModifiers("");
 
@@ -5319,7 +5301,7 @@ UIWindow& UIWindow::set_cursor(int cursor) {
    return *this;
 }
 
-#if 0
+   #if 0
 Display* _UIX11GetDisplay() {
    return ui->x11_display();
 }
@@ -5334,18 +5316,19 @@ void UIWindowPack(UIWindow* window, int _width) {
    XResizeWindow(window->ui()->x11_display(), window->_xwindow, width, height);
 }
 
-#endif
+   #endif
 
 void UIWindow::endpaint(UIPainter* painter) const {
    (void)painter;
    const auto& ur = _window->_update_region;
-   XPutImage(_ui->native_display(), _window->_xwindow, DefaultGC(_ui->native_display(), 0), _window->_image, ur.l, ur.t, ur.l, ur.t,
-             UI_RECT_SIZE(_window->_update_region));
+   XPutImage(_ui->native_display(), _window->_xwindow, DefaultGC(_ui->native_display(), 0), _window->_image, ur.l, ur.t,
+             ur.l, ur.t, UI_RECT_SIZE(_window->_update_region));
 }
 
 void UIWindow::get_screen_position(int* _x, int* _y) const {
    Window child;
-   XTranslateCoordinates(_ui->native_display(), _window->_xwindow, DefaultRootWindow(_ui->native_display()), 0, 0, _x, _y, &child);
+   XTranslateCoordinates(_ui->native_display(), _window->_xwindow, DefaultRootWindow(_ui->native_display()), 0, 0, _x,
+                         _y, &child);
 }
 
 UIMenu& UIMenu::show() {
@@ -5359,7 +5342,8 @@ UIMenu& UIMenu::show() {
    for (int i = 0; i < ScreenCount(ui->native_display()); i++) {
       Screen* screen = ScreenOfDisplay(ui->native_display(), i);
       int     x, y;
-      XTranslateCoordinates(ui->native_display(), screen->root, DefaultRootWindow(ui->native_display()), 0, 0, &x, &y, &child);
+      XTranslateCoordinates(ui->native_display(), screen->root, DefaultRootWindow(ui->native_display()), 0, 0, &x, &y,
+                            &child);
 
       if (_point.x >= x && _point.x < x + screen->width && _point.y >= y && _point.y < y + screen->height) {
          menuScreen = screen;
@@ -5377,8 +5361,8 @@ UIMenu& UIMenu::show() {
       // report screen sizes incorrectly.
       int       wx, wy;
       UIWindow* parentWindow = this->_parent_window;
-      XTranslateCoordinates(ui->native_display(), parentWindow->_xwindow, DefaultRootWindow(ui->native_display()), 0, 0, &wx, &wy,
-                            &child);
+      XTranslateCoordinates(ui->native_display(), parentWindow->_xwindow, DefaultRootWindow(ui->native_display()), 0, 0,
+                            &wx, &wy, &child);
       if (_point.x + width > wx + (int)parentWindow->width())
          _point.x = wx + parentWindow->width() - width;
       if (_point.y + height > wy + (int)parentWindow->height())
@@ -5411,8 +5395,8 @@ UIMenu& UIMenu::show() {
       XInternAtom(ui->native_display(), "_MOTIF_WM_HINTS", true),
    };
 
-   XChangeProperty(ui->native_display(), _window->_xwindow, properties[0], XA_ATOM, 32, PropModeReplace, (uint8_t*)properties,
-                   2);
+   XChangeProperty(ui->native_display(), _window->_xwindow, properties[0], XA_ATOM, 32, PropModeReplace,
+                   (uint8_t*)properties, 2);
    XSetTransientForHint(ui->native_display(), _window->_xwindow, DefaultRootWindow(ui->native_display()));
 
    struct Hints {
@@ -5425,8 +5409,8 @@ UIMenu& UIMenu::show() {
 
    struct Hints hints = {0};
    hints.flags        = 2;
-   XChangeProperty(ui->native_display(), _window->_xwindow, properties[2], properties[2], 32, PropModeReplace, (uint8_t*)&hints,
-                   5);
+   XChangeProperty(ui->native_display(), _window->_xwindow, properties[2], properties[2], 32, PropModeReplace,
+                   (uint8_t*)&hints, 5);
 
    XMapWindow(ui->native_display(), _window->_xwindow);
    XMoveResizeWindow(ui->native_display(), _window->_xwindow, _point.x, _point.y, width, height);
@@ -5438,7 +5422,7 @@ UIMenu& UIMenu::show() {
 bool UI::_process_x11_event(void* x_event) {
    XEvent* event = (XEvent*)x_event;
    if (event->type == ClientMessage && (Atom)event->xclient.data.l[0] == _atoms[windowClosedID]) {
-      UIWindow* window = _UIFindWindow(this, event->xclient.window);
+      UIWindow* window = _find_x11_window(event->xclient.window);
       if (!window)
          return false;
       bool exit = !window->message(UIMessage::WINDOW_CLOSE, 0, 0);
@@ -5447,13 +5431,13 @@ bool UI::_process_x11_event(void* x_event) {
       update();
       return false;
    } else if (event->type == Expose) {
-      UIWindow* window = _UIFindWindow(this, event->xexpose.window);
+      UIWindow* window = _find_x11_window(event->xexpose.window);
       if (!window)
          return false;
       XPutImage(_display, window->_xwindow, DefaultGC(_display, 0), window->_image, 0, 0, 0, 0, window->width(),
                 window->height());
    } else if (event->type == ConfigureNotify) {
-      UIWindow* window = _UIFindWindow(this, event->xconfigure.window);
+      UIWindow* window = _find_x11_window(event->xconfigure.window);
       if (!window)
          return false;
 
@@ -5476,13 +5460,13 @@ bool UI::_process_x11_event(void* x_event) {
          update();
       }
    } else if (event->type == MotionNotify) {
-      UIWindow* window = _UIFindWindow(this, event->xmotion.window);
+      UIWindow* window = _find_x11_window(event->xmotion.window);
       if (!window)
          return false;
       window->set_cursor_pos({event->xmotion.x, event->xmotion.y});
       window->input_event(UIMessage::MOUSE_MOVE, 0, 0);
    } else if (event->type == LeaveNotify) {
-      UIWindow* window = _UIFindWindow(this, event->xcrossing.window);
+      UIWindow* window = _find_x11_window(event->xcrossing.window);
       if (!window)
          return false;
 
@@ -5492,7 +5476,7 @@ bool UI::_process_x11_event(void* x_event) {
 
       window->input_event(UIMessage::MOUSE_MOVE, 0, 0);
    } else if (event->type == ButtonPress || event->type == ButtonRelease) {
-      UIWindow* window = _UIFindWindow(this, event->xbutton.window);
+      UIWindow* window = _find_x11_window(event->xbutton.window);
       if (!window)
          return false;
       window->set_cursor_pos({event->xbutton.x, event->xbutton.y});
@@ -5510,7 +5494,7 @@ bool UI::_process_x11_event(void* x_event) {
 
       inspector_set_focused_window(window);
    } else if (event->type == KeyPress) {
-      UIWindow* window = _UIFindWindow(this, event->xkey.window);
+      UIWindow* window = _find_x11_window(event->xkey.window);
       if (!window)
          return false;
 
@@ -5570,7 +5554,7 @@ bool UI::_process_x11_event(void* x_event) {
          window->input_event(UIMessage::KEY_TYPED, 0, &m);
       }
    } else if (event->type == KeyRelease) {
-      UIWindow* window = _UIFindWindow(this, event->xkey.window);
+      UIWindow* window = _find_x11_window(event->xkey.window);
       if (!window)
          return false;
 
@@ -5594,7 +5578,7 @@ bool UI::_process_x11_event(void* x_event) {
          window->input_event(UIMessage::KEY_RELEASED, 0, &m);
       }
    } else if (event->type == FocusIn) {
-      UIWindow* window = _UIFindWindow(this, event->xfocus.window);
+      UIWindow* window = _find_x11_window(event->xfocus.window);
       if (!window)
          return false;
       window->_ctrl = window->_shift = window->_alt = false;
@@ -5603,12 +5587,12 @@ bool UI::_process_x11_event(void* x_event) {
       close_menus();
       update();
    } else if (event->type == ClientMessage && event->xclient.message_type == _atoms[dndEnterID]) {
-      UIWindow* window = _UIFindWindow(this, event->xclient.window);
+      UIWindow* window = _find_x11_window(event->xclient.window);
       if (!window)
          return false;
       window->_drag_source = (Window)event->xclient.data.l[0];
    } else if (event->type == ClientMessage && event->xclient.message_type == _atoms[dndPositionID]) {
-      UIWindow* window = _UIFindWindow(this, event->xclient.window);
+      UIWindow* window = _find_x11_window(event->xclient.window);
       if (!window)
          return false;
       XClientMessageEvent m = {0};
@@ -5623,7 +5607,7 @@ bool UI::_process_x11_event(void* x_event) {
       XSendEvent(_display, m.window, False, NoEventMask, (XEvent*)&m);
       XFlush(_display);
    } else if (event->type == ClientMessage && event->xclient.message_type == _atoms[dndDropID]) {
-      UIWindow* window = _UIFindWindow(this, event->xclient.window);
+      UIWindow* window = _find_x11_window(event->xclient.window);
       if (!window)
          return false;
 
@@ -5644,7 +5628,7 @@ bool UI::_process_x11_event(void* x_event) {
          XFlush(_display);
       }
    } else if (event->type == SelectionNotify) {
-      UIWindow* window = _UIFindWindow(this, event->xselection.requestor);
+      UIWindow* window = _find_x11_window(event->xselection.requestor);
       if (!window)
          return false;
       if (!window->_drag_source)
@@ -5654,8 +5638,8 @@ bool UI::_process_x11_event(void* x_event) {
       int           format = 0;
       unsigned long count = 0, bytesLeft = 0;
       uint8_t*      data = NULL;
-      XGetWindowProperty(_display, window->_xwindow, _atoms[primaryID], 0, 65536, False, AnyPropertyType, &type, &format,
-                         &count, &bytesLeft, &data);
+      XGetWindowProperty(_display, window->_xwindow, _atoms[primaryID], 0, 65536, False, AnyPropertyType, &type,
+                         &format, &count, &bytesLeft, &data);
 
       if (format == 8 /* bits per character */) {
          if (event->xselection.target == _atoms[uriListID]) {
@@ -5722,7 +5706,7 @@ bool UI::_process_x11_event(void* x_event) {
       window->_drag_source = 0; // Drag complete.
       update();
    } else if (event->type == SelectionRequest) {
-      UIWindow* window = _UIFindWindow(this, event->xclient.window);
+      UIWindow* window = _find_x11_window(event->xclient.window);
       if (!window)
          return false;
 
@@ -5737,7 +5721,8 @@ bool UI::_process_x11_event(void* x_event) {
          type                     = (type == _atoms[textID]) ? XA_STRING : type;
          int changePropertyResult = 0;
 
-         if (requestEvent.target == XA_STRING || requestEvent.target == _atoms[textID] || requestEvent.target == utf8ID) {
+         if (requestEvent.target == XA_STRING || requestEvent.target == _atoms[textID] ||
+             requestEvent.target == utf8ID) {
             changePropertyResult =
                XChangeProperty(requestEvent.display, requestEvent.requestor, requestEvent.property, type, 8,
                                PropModeReplace, (const unsigned char*)_paste_text.c_str(), _paste_text.size());
@@ -6014,7 +5999,7 @@ unique_ptr<UI> UI::initialise(const UIConfig& cfg) {
    ui->_default_font_path = font_path;
    ui->_initialize_common(cfg, font_path);
 
-   auto& cursors = ui->native_cursors();
+   auto& cursors                                  = ui->native_cursors();
    cursors[(uint32_t)UICursor::arrow]             = LoadCursor(NULL, IDC_ARROW);
    cursors[(uint32_t)UICursor::text]              = LoadCursor(NULL, IDC_IBEAM);
    cursors[(uint32_t)UICursor::split_v]           = LoadCursor(NULL, IDC_SIZENS);
@@ -6159,7 +6144,7 @@ void UI::write_clipboard_text(std::string_view text, UIWindow* w, sel_target_t) 
 }
 
 std::string UI::read_clipboard_text(UIWindow* w, sel_target_t) {
-   HWND hwnd = w->native_window();
+   HWND        hwnd = w->native_window();
    std::string res;
 
    if (!OpenClipboard(hwnd)) {

@@ -1373,7 +1373,10 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
             shortcut.ctrl   = strstr(state.key, "ctrl+");
             shortcut.shift  = strstr(state.key, "shift+");
             shortcut.alt    = strstr(state.key, "alt+");
-            shortcut.invoke = [cmd = state.value]() { CommandCustom(cmd); return true; };
+            shortcut.invoke = [cmd = state.value]() {
+               CommandCustom(cmd);
+               return true;
+            };
 
             const char* codeStart = state.key;
 
@@ -3012,16 +3015,16 @@ int WatchLoggerTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
    if (msg == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m     = (UITableGetItem*)dp;
-      WatchLogEntry*  entry = &logger->entries[m->index];
-      m->isSelected         = m->index == logger->selectedEntry;
+      WatchLogEntry*  entry = &logger->entries[m->_row];
+      m->_is_selected       = (int)m->_row == logger->selectedEntry;
 
-      if (m->column == 0) {
+      if (m->_column == 0) {
          return m->format_to("{}", entry->value);
-      } else if (m->column == 1) {
+      } else if (m->_column == 1) {
          return m->format_to("{}", entry->where);
       } else {
-         if (m->column - 2 < (int)entry->evaluated.size()) {
-            return m->format_to("{}", entry->evaluated[m->column - 2].result);
+         if (m->_column - 2 < entry->evaluated.size()) {
+            return m->format_to("{}", entry->evaluated[m->_column - 2].result);
          } else {
             return 0;
          }
@@ -3047,15 +3050,15 @@ int WatchLoggerTraceMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
    if (msg == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m     = (UITableGetItem*)dp;
-      StackEntry*     entry = &logger->entries[logger->selectedEntry].trace[m->index];
+      StackEntry*     entry = &logger->entries[logger->selectedEntry].trace[m->_row];
 
-      if (m->column == 0) {
+      if (m->_column == 0) {
          return m->format_to("{}", entry->id);
-      } else if (m->column == 1) {
+      } else if (m->_column == 1) {
          return m->format_to("{}", entry->function);
-      } else if (m->column == 2) {
+      } else if (m->_column == 2) {
          return m->format_to("{}", entry->location);
-      } else if (m->column == 3) {
+      } else if (m->_column == 3) {
          return m->format_to("0x{:X}", entry->address);
       }
    } else if (msg == UIMessage::LEFT_DOWN || msg == UIMessage::MOUSE_DRAG) {
@@ -3872,16 +3875,16 @@ void StackSetFrame(UIElement* el, int index) {
 int TableStackMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m = (UITableGetItem*)dp;
-      m->isSelected     = (size_t)m->index == stackSelected;
-      StackEntry* entry = &stack[m->index];
+      m->_is_selected   = (size_t)m->_row == stackSelected;
+      StackEntry* entry = &stack[m->_row];
 
-      if (m->column == 0) {
+      if (m->_column == 0) {
          return m->format_to("{}", entry->id);
-      } else if (m->column == 1) {
+      } else if (m->_column == 1) {
          return m->format_to("{}", entry->function);
-      } else if (m->column == 2) {
+      } else if (m->_column == 2) {
          return m->format_to("{}", entry->location);
-      } else if (m->column == 3) {
+      } else if (m->_column == 3) {
          return m->format_to("0x{:X}", entry->address);
       }
    } else if (msg == UIMessage::LEFT_DOWN || msg == UIMessage::MOUSE_DRAG) {
@@ -3949,21 +3952,21 @@ int TableBreakpointsMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
    if (msg == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m     = (UITableGetItem*)dp;
-      Breakpoint*     entry = &breakpoints[m->index];
-      m->isSelected         = rng::find(data->selected, entry->number) != rng::end(data->selected);
+      Breakpoint*     entry = &breakpoints[m->_row];
+      m->_is_selected       = rng::find(data->selected, entry->number) != rng::end(data->selected);
 
-      if (m->column == 0) {
+      if (m->_column == 0) {
          return m->format_to("{}", entry->file);
-      } else if (m->column == 1) {
+      } else if (m->_column == 1) {
          if (entry->watchpoint)
             return m->format_to("watch {}", entry->number);
          else
             return m->format_to("{}", entry->line);
-      } else if (m->column == 2) {
+      } else if (m->_column == 2) {
          return m->format_to("{}", entry->enabled ? "yes" : "no");
-      } else if (m->column == 3) {
+      } else if (m->_column == 3) {
          return m->format_to("{}", entry->condition);
-      } else if (m->column == 4) {
+      } else if (m->_column == 4) {
          if (entry->hit > 0) {
             return m->format_to("{}", entry->hit);
          }
@@ -4493,12 +4496,12 @@ int ThreadTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
    if (msg == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m = (UITableGetItem*)dp;
-      m->isSelected     = window->threads[m->index].active;
+      m->_is_selected   = window->threads[m->_row].active;
 
-      if (m->column == 0) {
-         return m->format_to("{}", window->threads[m->index].id);
-      } else if (m->column == 1) {
-         return m->format_to("{}", window->threads[m->index].frame);
+      if (m->_column == 0) {
+         return m->format_to("{}", window->threads[m->_row].id);
+      } else if (m->_column == 1) {
+         return m->format_to("{}", window->threads[m->_row].frame);
       }
    } else if (msg == UIMessage::LEFT_DOWN) {
       int index = ((UITable*)el)->hittest(el->cursor_pos());
@@ -5495,17 +5498,17 @@ int ProfTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
    if (msg == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem*    m     = (UITableGetItem*)dp;
-      ProfFunctionEntry* entry = &report->sortedFunctions[m->index];
+      ProfFunctionEntry* entry = &report->sortedFunctions[m->_row];
 
-      if (m->column == 0) {
+      if (m->_column == 0) {
          return m->format_to("{}", entry->cName);
-      } else if (m->column == 1) {
+      } else if (m->_column == 1) {
          return m->format_to("{:f}", entry->totalTime);
-      } else if (m->column == 2) {
+      } else if (m->_column == 2) {
          return m->format_to("{}", entry->callCount);
-      } else if (m->column == 3) {
+      } else if (m->_column == 3) {
          return m->format_to("{:f}", entry->totalTime / entry->callCount);
-      } else if (m->column == 4) {
+      } else if (m->_column == 4) {
          return m->format_to("{:f}", entry->totalTime / report->totalTime * 100);
       }
    } else if (msg == UIMessage::LEFT_DOWN) {
@@ -7174,7 +7177,10 @@ void MsgReceivedControl(std::unique_ptr<std::string> input) {
 }
 
 auto gdb_invoker(string_view cmd) {
-   return [cmd]() { CommandSendToGDB(cmd); return true; };
+   return [cmd]() {
+      CommandSendToGDB(cmd);
+      return true;
+   };
 }
 
 void Context::InterfaceAddBuiltinWindowsAndCommands() {
@@ -7247,11 +7253,16 @@ void Context::InterfaceAddBuiltinWindowsAndCommands() {
       .shortcut{.code = UI_KEYCODE_FKEY(11), .ctrl = true, .shift = true, .invoke = gdb_invoker("reverse-step")}
    });
    interfaceCommands.push_back({
-      .label = "Break\tF8", .shortcut{.code = UI_KEYCODE_FKEY(8), .invoke = [&]() { ctx.InterruptGdb(0); return true; }}
+      .label = "Break\tF8", .shortcut{.code = UI_KEYCODE_FKEY(8), .invoke = [&]() {
+                                         ctx.InterruptGdb(0);
+                                         return true;
+                                      }}
    });
    interfaceCommands.push_back({
-      .label = "Toggle breakpoint\tF9",
-      .shortcut{.code = UI_KEYCODE_FKEY(9), .invoke = []() { CommandToggleBreakpoint(); return true; }}
+      .label = "Toggle breakpoint\tF9", .shortcut{.code = UI_KEYCODE_FKEY(9), .invoke = []() {
+                                                     CommandToggleBreakpoint();
+                                                     return true;
+                                                  }}
    });
    interfaceCommands.push_back({
       .label = "Sync with gvim\tF2", .shortcut{.code = UI_KEYCODE_FKEY(2), .invoke = CommandSyncWithGvim}
@@ -7265,11 +7276,13 @@ void Context::InterfaceAddBuiltinWindowsAndCommands() {
       .shortcut{.code = UI_KEYCODE_LETTER('M'), .ctrl = true, .invoke = CommandSetDisassemblyMode}
    });
    interfaceCommands.push_back({
-      .label = "Inspect line", .shortcut{.code = UIKeycode::BACKTICK, .invoke = CommandInspectLine }
+      .label = "Inspect line", .shortcut{.code = UIKeycode::BACKTICK, .invoke = CommandInspectLine}
    });
    interfaceCommands.push_back({
-      .label = nullptr,
-      .shortcut{.code = UI_KEYCODE_LETTER('G'), .ctrl = true, .invoke = []() { CommandWatchViewSourceAtAddress(); return true; } }
+      .label = nullptr, .shortcut{.code = UI_KEYCODE_LETTER('G'), .ctrl = true, .invoke = []() {
+                                     CommandWatchViewSourceAtAddress();
+                                     return true;
+                                  }}
    });
    interfaceCommands.push_back({
       .label = nullptr,
@@ -7560,7 +7573,7 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
       print(std::cerr, "Warning: Layout string has additional text after the end of the top-level entry.\n");
    }
 
-   ui_config  = ctx.SettingsLoad(false);
+   ui_config   = ctx.SettingsLoad(false);
    ui->theme() = ui_config._theme;
 
    DebuggerStartThread();

@@ -30,6 +30,7 @@ using std::make_unique;
 using std::make_shared;
 
 #define UI_DEBUG 0
+#define UI_AUTOMATION_TESTS 1
 
 #ifdef UI_LINUX
    #include <X11/Xlib.h>
@@ -475,22 +476,28 @@ struct UIKeyTyped {
 
 // ------------------------------------------------------------------------------------------
 struct UITableGetItem {
-   std::string buffer;
-   int         index      = 0;
-   int         column     = 0;
-   bool        isSelected = false;
+   std::string _buffer;
+   size_t      _row         = 0;
+   size_t      _column      = 0;
+   bool        _is_selected = false;
 
    UITableGetItem(size_t buffer_size) {
-      buffer.resize(buffer_size);
+      _buffer.resize(buffer_size);
+   }
+
+   UITableGetItem(size_t buffer_size, size_t row, size_t column)
+      : UITableGetItem(buffer_size) {
+      _row    = row;
+      _column = column;
    }
 
    template <class... Args>
    int format_to(std::format_string<Args...> fmt, Args&&... args) {
-      return std_format_to_n(&buffer[0], buffer.size(), fmt, std::forward<Args>(args)...);
+      return std_format_to_n(&_buffer[0], _buffer.size(), fmt, std::forward<Args>(args)...);
    }
 
-   std::string_view buff(int num_chars) { return std::string_view(&buffer[0], (size_t)num_chars); }
-   size_t           buff_size() const { return buffer.size(); }
+   std::string_view buff(int num_chars) { return std::string_view(&_buffer[0], (size_t)num_chars); }
+   size_t           buff_size() const { return _buffer.size(); }
 };
 
 inline float ui_color_alpha_f(uint32_t x) { return static_cast<float>(((x >> 24) & 0xFF)) / 255.0f; }
@@ -1303,6 +1310,7 @@ public:
    int      header_hittest(UIPoint p) { return header_hittest(p.x, p.y); }
 
    bool     ensure_visible(int index);
+   size_t   num_columns() const            { return _column_widths.size(); }
    size_t&  num_items()                    { return _num_items; }
    UITable& set_num_items(size_t n)        { _num_items = n; return *this; }
    UITable& set_column_highlight(size_t c) { _column_highlight = c; return *this; }
@@ -1494,10 +1502,7 @@ struct UI {
 private:
    using font_map_t = std::unordered_map<UIFontSpec, unique_ptr<UIFont>>;
    font_map_t  _font_map;
-public:
-
    UIWindow*   _toplevel_windows = nullptr;
-private:
    UITheme     _theme;
 
 
@@ -1519,13 +1524,14 @@ private:
    bool        _assertion_failure = false;
 #endif
 
-   void        _inspector_refresh();
    void        _initialize_common(const UIConfig& cfg, const std::string& default_font_path);
 
-   // ----- internal platform specific functions - do not call --------------------------------
+   // ----- internal (and often platform specific) functions - do not call --------------------------------
    UIWindow&   _platform_create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int _width, int _height);
    static int  _platform_message_proc(UIElement* el, UIMessage msg, int di, void* dp);
    bool        _process_x11_event(void* x_event);
+   UIWindow*   _find_x11_window(Window window) const;
+   void        _inspector_refresh();
 
 public:
    std::vector<UIElement*> _animating;
@@ -1597,6 +1603,13 @@ public:
    void       inspector_set_focused_window(UIWindow* w) {
       if constexpr (UIInspector::enabled()) if (_inspector) _inspector->set_focused_window(w);
    }
+
+   int        automation_run_tests();
+   void       automation_process_message();
+   void       automation_keyboard_type_single(int code, bool ctrl, bool shift, bool alt);
+   void       automation_keyboard_type(const char* string);
+   bool       automation_check_code_line_matches(UICode* code, size_t lineIndex, std::string_view input);
+   bool       automation_check_table_item_matches(UITable* table, size_t row, size_t column, std::string_view input);
 
    // platform dependent stuff
 #if defined(UI_LINUX)

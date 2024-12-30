@@ -141,11 +141,11 @@ int main(int argc, char** argv) {
       tabPane.add_table(0, "Column 1\tColumn 2")
          .set_num_items(100000)
          .on_getitem([](UITable&, UITableGetItem& m) -> int {
-            m.isSelected = selected == m.index;
-            if (m.column == 0) {
-               return m.format_to("Item {}", m.index);
+            m._is_selected = (selected == (int)m._row);
+            if (m._column == 0) {
+               return m.format_to("Item {}", m._row);
             } else {
-               return m.format_to("other column {}", m.index);
+               return m.format_to("other column {}", m._row);
             }
          })
          .on_click([](UITable& table) {
