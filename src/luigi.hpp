@@ -167,6 +167,19 @@ void print(FILE* f, std::format_string<Args...> fmt, Args&&... args) {
 
 std::string LoadFile(const char* path); // load whole file into string
 
+// ---------------------------------------------------------------------------
+// assigns val to var, and returns true if the value changed
+// ---------------------------------------------------------------------------
+template<class T, class V>
+bool ui_change(T& var, V&& val) noexcept(std::is_nothrow_move_assignable_v<T> &&
+                                         std::is_nothrow_copy_assignable_v<T>) {
+    if (var != val) {
+        var = std::forward<V>(val);
+        return true;
+    }
+    return false;
+}
+
 // --------------------------------------------------
 // Definitions.
 // --------------------------------------------------
@@ -948,7 +961,8 @@ public:
 // ------------------------------------------------------------------------------------------
 struct UICheckbox : public UIElementCast<UICheckbox> {
 private:
-   uint8_t                          _checked;
+   bool                             _checked;     // value that is updated by default, unless `track` is called
+   bool*                            _checked_ptr;
    std::string                      _label;
    std::function<void(UICheckbox&)> _on_click;
 
@@ -964,8 +978,15 @@ public:
    UICheckbox&      set_label(std::string_view label);
    std::string_view label() const     { return _label; }
 
-   UICheckbox&      set_checked(bool b) { _checked = b; repaint(nullptr); return *this; }
-   bool             checked() const     { return _checked; }
+   UICheckbox&      set_checked(bool b) { if (ui_change(*_checked_ptr,  b)) repaint(nullptr); return *this; }
+   bool             checked() const     { return *_checked_ptr; }
+
+   UICheckbox&      track(bool* val_ptr) {
+      bool cur = *_checked_ptr;
+      _checked_ptr  = val_ptr ? val_ptr : &_checked;
+      *_checked_ptr = cur; // inherits the current value of the checkbox
+      return *this; 
+   }
 
    UICheckbox&      on_click(std::function<void(UICheckbox&)> f) { _on_click = std::move(f); return *this; }
 };

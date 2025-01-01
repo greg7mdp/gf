@@ -2049,7 +2049,8 @@ UICheckbox& UICheckbox::set_label(std::string_view new_label) {
 
 UICheckbox::UICheckbox(UIElement* parent, uint32_t flags, std::string_view label)
    : UIElementCast<UICheckbox>(parent, flags | UIElement::tab_stop_flag, UICheckbox::_ClassMessageProc, "Checkbox")
-   , _checked(0)
+   , _checked(false)
+   , _checked_ptr(&_checked)
    , _label(label) {}
 
 

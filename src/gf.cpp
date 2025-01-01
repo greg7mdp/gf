@@ -276,6 +276,18 @@ struct Context {
 Context ctx;
 
 // --------------------------------------------------------------------------------------------
+struct GF_Config {
+   // executable window
+   // -----------------
+   std::string exe_path;
+   std::string exe_args;
+   bool        exe_ask_dir = true;
+
+
+};
+
+GF_Config gfc;
+
 FILE*                      commandLog      = nullptr;
 char                       emptyString     = 0;
 const char*                vimServerName   = "GVIM";
@@ -285,9 +297,6 @@ vector<INIState>           presetCommands;
 char                       globalConfigPath[PATH_MAX];
 char                       localConfigDirectory[PATH_MAX];
 char                       localConfigPath[PATH_MAX];
-const char*                executablePath         = nullptr;
-const char*                executableArguments    = nullptr;
-bool                       executableAskDirectory = true;
 vector<ReceiveMessageType> receiveMessageTypes;
 const char*  layoutString = "v(75,h(80,Source,v(50,t(Exe,Breakpoints,Commands,Struct),t(Stack,Files,Thread,CmdSearch)))"
                             ",h(65,Console,t(Watch,Locals,Registers,Data)))";
@@ -1524,11 +1533,11 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
             pthread_create(&thread, nullptr, ControlPipeThread, nullptr);
          } else if (0 == strcmp(state.section, "executable") && earlyPass) {
             if (0 == strcmp(state.key, "path")) {
-               executablePath = state.value;
+               gfc.exe_path = state.value;
             } else if (0 == strcmp(state.key, "arguments")) {
-               executableArguments = state.value;
+               gfc.exe_args = state.value;
             } else if (0 == strcmp(state.key, "ask_directory")) {
-               executableAskDirectory = sv_atoi(state.value);
+               gfc.exe_ask_dir = sv_atoi(state.value);
             }
          } else if (earlyPass && *state.section && *state.key && *state.value) {
             if (auto it = interfaceWindows.find(state.section); it != interfaceWindows.end()) {
@@ -4558,7 +4567,7 @@ void ThreadWindowUpdate(const char*, UIElement* _table) {
 struct ExecutableWindow {
    UITextbox*  path         = nullptr;
    UITextbox*  arguments    = nullptr;
-   UICheckbox* askDirectory = nullptr;
+   bool        should_ask;
 
    void start_or_run(bool pause) {
       auto res = EvaluateCommand(std::format("file \"{}\"", path->text()));
@@ -4570,7 +4579,7 @@ struct ExecutableWindow {
 
       (void)EvaluateCommand(std::format("start {}", arguments->text()));
 
-      if (askDirectory->checked()) {
+      if (should_ask) {
          CommandParseInternal("gf-get-pwd", true);
       }
 
@@ -4593,8 +4602,8 @@ struct ExecutableWindow {
       }
 
       f = fopen(localConfigPath, "wb");
-      print(f, "[executable]\npath={}\narguments={}\nask_directory={}\n", path->text(),
-            arguments->text(), askDirectory->checked() ? '1' : '0');
+      print(f, "[executable]\npath={}\narguments={}\nask_directory={}\n", path->text(), arguments->text(),
+            should_ask ? '1' : '0');
       fclose(f);
       SettingsAddTrustedFolder();
       windowMain->show_dialog(0, "Saved executable settings!\n%f%B", "OK");
@@ -4607,11 +4616,11 @@ UIElement* ExecutableWindowCreate(UIElement* parent) {
 
    panel->add_n(
       [&](auto& p) { p.add_label(0, "Path to executable:"); },
-      [&](auto& p) { win->path = &p.add_textbox(0).replace_text(executablePath ?: "", false); },
+      [&](auto& p) { win->path = &p.add_textbox(0).replace_text(gfc.exe_path, false); },
       [&](auto& p) { p.add_label(0, "Command line arguments:"); },
-      [&](auto& p) { win->arguments = &p.add_textbox(0).replace_text(executableArguments ?: "", false); },
+      [&](auto& p) { win->arguments = &p.add_textbox(0).replace_text(gfc.exe_args, false); },
       [&](auto& p) {
-         win->askDirectory = &p.add_checkbox(0, "Ask GDB for working directory").set_checked(executableAskDirectory);
+         p.add_checkbox(0, "Ask GDB for working directory").set_checked(gfc.exe_ask_dir).track(&win->should_ask);
       },
       [&](auto& p) {
          p.add_panel(UIPanel::HORIZONTAL)
@@ -4720,12 +4729,16 @@ int TextboxSearchCommandMessage(UIElement* el, UIMessage msg, int di, void* dp) 
 }
 
 UIElement* CommandSearchWindowCreate(UIElement* parent) {
-   CommandSearchWindow* window = new CommandSearchWindow;
-   UIPanel*             panel  = &parent->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND);
+   CommandSearchWindow* win = new CommandSearchWindow;
 
-   window->textbox = &panel->add_textbox(0).set_user_proc(TextboxSearchCommandMessage).set_cp(window);
-   window->display = &panel->add_code(UIElement::v_fill | UICode::NO_MARGIN | UICode::SELECTABLE)
-                         .insert_content("Type here to search \nGDB command descriptions.", true);
+   UIPanel* panel =
+      &parent->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND)
+          .add_n(
+             [&](auto& p) { win->textbox = &p.add_textbox(0).set_user_proc(TextboxSearchCommandMessage).set_cp(win); },
+             [&](auto& p) {
+                win->display = &p.add_code(UIElement::v_fill | UICode::NO_MARGIN | UICode::SELECTABLE)
+                                   .insert_content("Type here to search \nGDB command descriptions.", true);
+             });
    return panel;
 }
 
