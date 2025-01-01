@@ -1346,7 +1346,7 @@ int UITextbox::_DialogTextboxMessageProc(UIElement* el, UIMessage msg, int di, v
 
 std::string_view UIWindow::show_dialog(uint32_t flags, const char* format, ...) {
    // Create the dialog wrapper and panel.
-
+   // ------------------------------------
    UI_ASSERT(!_dialog);
    _dialog        = &add_element(0, _UIDialogWrapperMessage, "DialogWrapper");
    UIPanel* panel = &_dialog->add_panel(UIPanel::MEDIUM_SPACING | UIPanel::COLOR_1)
@@ -1354,7 +1354,7 @@ std::string_view UIWindow::show_dialog(uint32_t flags, const char* format, ...) 
    _children[0]->set_flag(UIElement::disabled_flag);
 
    // Create the dialog contents.
-
+   // ---------------------------
    va_list arguments;
    va_start(arguments, format);
    UIPanel*   row           = NULL;
@@ -1372,8 +1372,9 @@ std::string_view UIWindow::show_dialog(uint32_t flags, const char* format, ...) 
       } else if (format[i] == '%') {
          i++;
 
-         if (format[i] == 'b' /* button */ || format[i] == 'B' /* default button */ ||
-             format[i] == 'C' /* cancel button */) {
+         if (format[i] == 'b' || // --> button
+             format[i] == 'B' || // --> default button
+             format[i] == 'C') { // --> cancel button
             const char* label  = va_arg(arguments, const char*);
             UIButton*   button = &row->add_button(0, label);
             if (!focus)
@@ -1386,10 +1387,10 @@ std::string_view UIWindow::show_dialog(uint32_t flags, const char* format, ...) 
             button->on_click([&, label = label](UIButton&) { ui()->_dialog_result = label; });
             if (format[i] == 'B')
                button->_user_proc = _UIDialogDefaultButtonMessage;
-         } else if (format[i] == 's' /* label from string */) {
+         } else if (format[i] == 's') { // --> label from string
             const char* label = va_arg(arguments, const char*);
             row->add_label(0, label);
-         } else if (format[i] == 't' /* textbox */) {
+         } else if (format[i] == 't') { // --> textbox
             char**     buffer  = va_arg(arguments, char**);
             UITextbox* textbox = &row->add_textbox(UIElement::h_fill);
             if (!focus)
@@ -1398,11 +1399,11 @@ std::string_view UIWindow::show_dialog(uint32_t flags, const char* format, ...) 
                textbox->replace_text(*buffer, false);
             textbox->set_cp(buffer); // when the textbox text is updated, `*buffer` will contain a `char*` to the string
             textbox->set_user_proc(UITextbox::_DialogTextboxMessageProc);
-         } else if (format[i] == 'f' /* horizontal fill */) {
+         } else if (format[i] == 'f') { // --> horizontal fill
             row->add_spacer(UIElement::h_fill, 0, 0);
-         } else if (format[i] == 'l' /* horizontal line */) {
+         } else if (format[i] == 'l') { // --> horizontal line
             row->add_spacer(UIElement::border_flag | UIElement::h_fill, 0, 1);
-         } else if (format[i] == 'u' /* user */) {
+         } else if (format[i] == 'u') { // --> user
             UIDialogUserCallback callback = va_arg(arguments, UIDialogUserCallback);
             callback(row);
          }
@@ -1421,7 +1422,7 @@ std::string_view UIWindow::show_dialog(uint32_t flags, const char* format, ...) 
    (focus ? focus : _dialog)->focus();
 
    // Run the modal message loop.
-
+   // ---------------------------
    int result;
    UI* ui               = this->ui();
    ui->_dialog_result   = nullptr;
@@ -1450,7 +1451,7 @@ std::string_view UIWindow::show_dialog(uint32_t flags, const char* format, ...) 
    }
 
    // Destroy the dialog.
-
+   // -------------------
    _children[0]->_flags &= ~UIElement::disabled_flag;
    _dialog->destroy();
    _dialog = NULL;
