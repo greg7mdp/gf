@@ -1344,7 +1344,7 @@ int UITextbox::_DialogTextboxMessageProc(UIElement* el, UIMessage msg, int di, v
 // UIWindow
 // --------------------------------------------------
 
-const char* UIWindow::show_dialog(uint32_t flags, const char* format, ...) {
+std::string_view UIWindow::show_dialog(uint32_t flags, const char* format, ...) {
    // Create the dialog wrapper and panel.
 
    UI_ASSERT(!_dialog);
@@ -2016,12 +2016,7 @@ int UICheckbox::_class_message_proc(UIMessage msg, int di, void* dp) {
       int labelSize = ui()->string_width(_label);
       return scale(labelSize + ui_size::checkbox_box + ui_size::checkbox_gap);
    } else if (msg == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, _bounds,
-                    UIControl::checkbox |
-                       (check() == indeterminate ? UIControl::state_indeterminate
-                        : check() == checked     ? UIControl::state_checked
-                                                 : 0) |
-                       state(),
+      UIDrawControl((UIPainter*)dp, _bounds, UIControl::checkbox | (checked() ? UIControl::state_checked : 0) | state(),
                     _label, 0, _window->scale());
    } else if (msg == UIMessage::UPDATE) {
       repaint(nullptr);
@@ -2034,7 +2029,7 @@ int UICheckbox::_class_message_proc(UIMessage msg, int di, void* dp) {
          repaint(nullptr);
       }
    } else if (msg == UIMessage::CLICKED) {
-      set_check((_check + 1) % ((_flags & allow_indeterminate) ? 3 : 2));
+      set_checked(!checked());
       if (_on_click)
          _on_click(*this);
    }
@@ -2053,7 +2048,7 @@ UICheckbox& UICheckbox::set_label(std::string_view new_label) {
 
 UICheckbox::UICheckbox(UIElement* parent, uint32_t flags, std::string_view label)
    : UIElementCast<UICheckbox>(parent, flags | UIElement::tab_stop_flag, UICheckbox::_ClassMessageProc, "Checkbox")
-   , _check(0)
+   , _checked(0)
    , _label(label) {}
 
 

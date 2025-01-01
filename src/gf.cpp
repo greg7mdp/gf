@@ -1147,10 +1147,9 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
    } else if (command == "gf-inspect-line") {
       CommandInspectLine();
    } else if (command == "target remote :1234" && confirmCommandConnect &&
-              0 == strcmp("Cancel",
-                          windowMain->show_dialog(0, "Connect to remote target?\n%f%B%C", "Connect", "Cancel"))) {
+              windowMain->show_dialog(0, "Connect to remote target?\n%f%B%C", "Connect", "Cancel") == "Cancel") {
    } else if (command == "kill" && confirmCommandKill &&
-              0 == strcmp("Cancel", windowMain->show_dialog(0, "Kill debugging target?\n%f%B%C", "Kill", "Cancel"))) {
+              windowMain->show_dialog(0, "Kill debugging target?\n%f%B%C", "Kill", "Cancel") == "Cancel") {
    } else {
       res = DebuggerSend(command, true, synchronous);
    }
@@ -1761,14 +1760,14 @@ bool CommandToggleDisassembly() {
 }
 
 bool CommandSetDisassemblyMode() {
-   const char* newMode = windowMain->show_dialog(0, "Select the disassembly mode:\n%b\n%b\n%b", "Disassembly only",
-                                                 "With source", "Source centric");
+   auto newMode = windowMain->show_dialog(0, "Select the disassembly mode:\n%b\n%b\n%b", "Disassembly only",
+                                          "With source", "Source centric");
 
-   if (0 == strcmp(newMode, "Disassembly only"))
+   if (newMode == "Disassembly only")
       disassemblyCommand = "disas";
-   if (0 == strcmp(newMode, "With source"))
+   else if (newMode == "With source")
       disassemblyCommand = "disas /s";
-   if (0 == strcmp(newMode, "Source centric"))
+   else if (newMode == "Source centric")
       disassemblyCommand = "disas /m";
 
    if (showingDisassembly) {
@@ -2428,9 +2427,9 @@ int BitmapViewerDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          .add_item(0, "Save to file...",
                    [el](UIButton&) {
                       static char* path = NULL;
-                      const char*  result =
+                      auto         result =
                          windowMain->show_dialog(0, "Save to file       \nPath:\n%t\n%f%B%C", &path, "Save", "Cancel");
-                      if (strcmp(result, "Save"))
+                      if (result != "Save")
                          return;
 
                       UIImageDisplay* display = (UIImageDisplay*)el;
@@ -2508,13 +2507,13 @@ void BitmapViewerUpdate(std::string pointerString, std::string widthString, std:
 void BitmapAddDialog() {
    static char *pointer = nullptr, *width = nullptr, *height = nullptr, *stride = nullptr;
 
-   const char* result =
+   auto result =
       windowMain->show_dialog(0,
                               "Add bitmap\n\n%l\n\nPointer to bits: (32bpp, RR GG BB "
                               "AA)\n%t\nWidth:\n%t\nHeight:\n%t\nStride: (optional)\n%t\n\n%l\n\n%f%B%C",
                               &pointer, &width, &height, &stride, "Add", "Cancel");
 
-   if (0 == strcmp(result, "Add")) {
+   if (result == "Add") {
       BitmapViewerUpdate(pointer ?: "", width ?: "", height ?: "", (stride && stride[0]) ? stride : "");
    }
 }
@@ -3110,11 +3109,11 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
 
    char* expressionsToEvaluate = nullptr;
 
-   const char* result = windowMain->show_dialog(
+   auto result = windowMain->show_dialog(
       0, "-- Watch logger settings --\nExpressions to evaluate (separate with semicolons):\n%t\n\n%l\n\n%f%B%C",
       &expressionsToEvaluate, "Start", "Cancel");
 
-   if (0 == strcmp(result, "Cancel")) {
+   if (result == "Cancel") {
       free(expressionsToEvaluate);
       return;
    }
@@ -3385,10 +3384,10 @@ void CommandWatchSaveAs(WatchWindow* _w) {
    if (w->selectedRow == w->rows.size())
       return;
 
-   char*       filePath = nullptr;
-   const char* result   = windowMain->show_dialog(0, "Path:            \n%t\n%f%B%C", &filePath, "Save", "Cancel");
+   char* filePath = nullptr;
+   auto  result   = windowMain->show_dialog(0, "Path:            \n%t\n%f%B%C", &filePath, "Save", "Cancel");
 
-   if (0 == strcmp(result, "Cancel")) {
+   if (result == "Cancel") {
       free(filePath);
       return;
    }
@@ -4571,7 +4570,7 @@ struct ExecutableWindow {
 
       (void)EvaluateCommand(std::format("start {}", arguments->text()));
 
-      if (askDirectory->check() == UICheckbox::checked) {
+      if (askDirectory->checked()) {
          CommandParseInternal("gf-get-pwd", true);
       }
 
@@ -4586,16 +4585,16 @@ struct ExecutableWindow {
    void save() {
       FILE* f = fopen(localConfigPath, "rb");
       if (f) {
-         const char* result = windowMain->show_dialog(0, ".project.gf already exists in the current directory.\n%f%B%C",
-                                                      "Overwrite", "Cancel");
-         if (strcmp(result, "Overwrite"))
+         auto result = windowMain->show_dialog(0, ".project.gf already exists in the current directory.\n%f%B%C",
+                                               "Overwrite", "Cancel");
+         if (result != "Overwrite")
             return;
          fclose(f);
       }
 
       f = fopen(localConfigPath, "wb");
       print(f, "[executable]\npath={}\narguments={}\nask_directory={}\n", path->text(),
-            arguments->text(), askDirectory->check() == UICheckbox::checked ? '1' : '0');
+            arguments->text(), askDirectory->checked() ? '1' : '0');
       fclose(f);
       SettingsAddTrustedFolder();
       windowMain->show_dialog(0, "Saved executable settings!\n%f%B", "OK");
@@ -4612,8 +4611,7 @@ UIElement* ExecutableWindowCreate(UIElement* parent) {
       [&](auto& p) { p.add_label(0, "Command line arguments:"); },
       [&](auto& p) { win->arguments = &p.add_textbox(0).replace_text(executableArguments ?: "", false); },
       [&](auto& p) {
-         win->askDirectory = &p.add_checkbox(0, "Ask GDB for working directory")
-                                 .set_check(executableAskDirectory ? UICheckbox::checked : UICheckbox::unchecked);
+         win->askDirectory = &p.add_checkbox(0, "Ask GDB for working directory").set_checked(executableAskDirectory);
       },
       [&](auto& p) {
          p.add_panel(UIPanel::HORIZONTAL)
@@ -5989,8 +5987,7 @@ void MemoryWindowGotoButtonInvoke(void* cp) {
    MemoryWindow* window     = (MemoryWindow*)cp;
    char*         expression = nullptr;
 
-   if (0 == strcmp("Goto", windowMain->show_dialog(0, "Enter address expression:\n%t\n%f%b%b", &expression, "Goto",
-                                                   "Cancel"))) {
+   if (windowMain->show_dialog(0, "Enter address expression:\n%t\n%f%b%b", &expression, "Goto", "Cancel") == "Goto") {
       char buffer[4096];
       std_format_to_n(buffer, sizeof(buffer), "py gf_valueof(['{}'],' ')", expression);
       auto        res    = EvaluateCommand(buffer);
@@ -6923,9 +6920,9 @@ int WaveformViewerRefreshMessage(UIElement* el, UIMessage msg, int di, void* dp)
 
 void WaveformViewerSaveToFile(WaveformDisplay* display) {
    static char* path = NULL;
-   const char*  result =
+   auto result =
       windowMain->show_dialog(0, "Save to file       \nPath:\n%t\n%f%b%b%b", &path, "Save", "Save and open", "Cancel");
-   if (0 == strcmp(result, "Cancel"))
+   if (result == "Cancel")
       return;
    FILE* f = fopen(path, "wb");
    if (!f) {
@@ -6959,7 +6956,7 @@ void WaveformViewerSaveToFile(WaveformDisplay* display) {
    fwrite(display->samples, display->channels * 4, display->sampleCount, f); // Sample data.
    fclose(f);
 
-   if (0 == strcmp(result, "Save and open")) {
+   if (result == "Save and open") {
       char buffer[4000];
       std_format_to_n(buffer, sizeof(buffer), "xdg-open \"{}\"", path);
       system(buffer);
@@ -7036,13 +7033,13 @@ void WaveformViewerUpdate(const char* pointerString, const char* sampleCountStri
 void WaveformAddDialog() {
    static char *pointer = nullptr, *sampleCount = nullptr, *channels = nullptr;
 
-   const char* result = windowMain->show_dialog(
+   auto result = windowMain->show_dialog(
       0,
       "Add waveform\n\n%l\n\nPointer to samples: (float *)\n%t\nSample count (per channel):\n%t\n"
       "Channels (interleaved):\n%t\n\n%l\n\n%f%b%b",
       &pointer, &sampleCount, &channels, "Add", "Cancel");
 
-   if (0 == strcmp(result, "Add")) {
+   if (result == "Add") {
       WaveformViewerUpdate(pointer, sampleCount, channels, nullptr);
    }
 }

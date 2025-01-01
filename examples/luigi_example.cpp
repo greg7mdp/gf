@@ -50,7 +50,7 @@ int main(int argc, char** argv) {
    auto button_cb = [](UIButton& button) {
       std_print("clicked button '{}'...", button.label());
 
-      if (check_delete->check() == UICheckbox::checked) {
+      if (check_delete->checked()) {
          button.parent().refresh();
          button.destroy();
          std_print(" and deleted it!\n");
@@ -167,7 +167,7 @@ int main(int argc, char** argv) {
       UIPanel& settingsPanel = tabPane.add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING | UIPanel::HORIZONTAL);
       settingsPanel.add_label(0, "Delete top-left panel buttons on click:");
       check_delete = &settingsPanel.add_checkbox(0, "Off").on_click([](UICheckbox& cb) {
-         cb.set_label(cb.check() == UICheckbox::checked ? "On" : "Off");
+         cb.set_label(cb.checked() ? "On" : "Off");
       });
    }
 

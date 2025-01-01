@@ -839,13 +839,13 @@ public:
    UIWindow&   set_update_region(const UIRectangle& r) { _update_region = r; return *this; }
    const UIRectangle& update_region() const { return _update_region; }
 
+   std::string_view   show_dialog(uint32_t flags, const char* format, ...);
+
    int         cursor_style() const { return _cursor_style; }
 
    UIWindow&   register_shortcut(UIShortcut shortcut);
 
    bool        input_event(UIMessage message, int di, void* dp);
-
-   const char* show_dialog(uint32_t flags, const char* format, ...);
 
    void        write_clipboard_text(std::string_view text, sel_target_t t);
    std::string read_clipboard_text(sel_target_t t);
@@ -948,7 +948,7 @@ public:
 // ------------------------------------------------------------------------------------------
 struct UICheckbox : public UIElementCast<UICheckbox> {
 private:
-   uint8_t                          _check;
+   uint8_t                          _checked;
    std::string                      _label;
    std::function<void(UICheckbox&)> _on_click;
 
@@ -959,16 +959,13 @@ private:
    }
 
 public:
-   enum { allow_indeterminate = 1 << 0 };
-   enum { unchecked = 0, checked = 1, indeterminate = 2 };
-
    UICheckbox(UIElement* parent, uint32_t flags, std::string_view label);
 
    UICheckbox&      set_label(std::string_view label);
    std::string_view label() const     { return _label; }
 
-   UICheckbox&      set_check(bool b) { _check = b; repaint(nullptr); return *this; }
-   uint8_t          check() const     { return _check; }
+   UICheckbox&      set_checked(bool b) { _checked = b; repaint(nullptr); return *this; }
+   bool             checked() const     { return _checked; }
 
    UICheckbox&      on_click(std::function<void(UICheckbox&)> f) { _on_click = std::move(f); return *this; }
 };
