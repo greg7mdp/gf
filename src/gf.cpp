@@ -181,7 +181,7 @@ struct InterfaceWindow {
    UIElement* el                                      = nullptr;
    bool       queuedUpdate                            = false;
    bool       alwaysUpdate                            = false;
-   void (*config)(const char* key, const char* value) = nullptr;
+   void (*config)(string_view key, string_view value) = nullptr;
 };
 
 struct InterfaceDataViewer {
@@ -198,6 +198,50 @@ struct INIState {
    size_t sectionBytes = 0;
    size_t keyBytes     = 0;
    size_t valueBytes   = 0;
+
+   INIState& operator=(const INIState&) = delete;
+
+   INIState& operator=(INIState&&) = default;
+
+   INIState() = default;
+
+   ~INIState() {
+      free(buffer);
+      free(section);
+      free(key);
+      free(value);
+   }
+
+   INIState(INIState&& o) : INIState() {
+      std::swap(buffer , o.buffer);
+      std::swap(section , o.section);
+      std::swap(key , o.key);
+      std::swap(value , o.value);
+      std::swap(bytes , o.bytes);
+      std::swap(sectionBytes , o.sectionBytes);
+      std::swap(keyBytes , o.keyBytes);
+      std::swap(valueBytes , o.valueBytes);
+
+   }
+
+   // this because INIState is filled with pointers to strings hacked from the result of `LoadFile(configFile)`,
+   // and then inserted into a vector (see `presetCommands.push_back(state.clone())`
+   // Hard to not leak memory with these shenanigans.
+   INIState clone() {
+      INIState s = *this;
+      if (buffer)  s.buffer = strdup(buffer);
+      if (section) s.section = strdup(section);
+      if (key)     s.key = strdup(key);
+      if (value)   s.value = strdup(value);
+      return s;
+   }
+
+   void clear() {
+      buffer = section = key = value = nullptr;
+   }
+
+private:
+   INIState(const INIState&) = default;
 };
 
 struct ReceiveMessageType {
@@ -277,13 +321,16 @@ Context ctx;
 
 // --------------------------------------------------------------------------------------------
 struct GF_Config {
+   const char* layout_string = "v(75,h(80,Source,v(50,t(Exe,Breakpoints,Commands,Struct),t(Stack,Files,Thread,CmdSearch)))"
+      ",h(65,Console,t(Watch,Locals,Registers,Data)))";
+   
    // executable window
    // -----------------
    std::string exe_path;
    std::string exe_args;
    bool        exe_ask_dir = true;
 
-
+   
 };
 
 GF_Config gfc;
@@ -298,8 +345,6 @@ char                       globalConfigPath[PATH_MAX];
 char                       localConfigDirectory[PATH_MAX];
 char                       localConfigPath[PATH_MAX];
 vector<ReceiveMessageType> receiveMessageTypes;
-const char*  layoutString = "v(75,h(80,Source,v(50,t(Exe,Breakpoints,Commands,Struct),t(Stack,Files,Thread,CmdSearch)))"
-                            ",h(65,Console,t(Watch,Locals,Registers,Data)))";
 int          code_font_size      = 13;
 int          interface_font_size = 11;
 int          window_width        = 800;
@@ -1350,7 +1395,7 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
       INIState state;
       auto     config = LoadFile(i ? localConfigPath : globalConfigPath);
       state.bytes     = config.size();
-      state.buffer    = config[0] ? strdup(config.c_str()) : nullptr;
+      state.buffer    = config[0] ? (char *)config.c_str() : nullptr;
 
       if (earlyPass && i && !currentFolderIsTrusted && state.buffer) {
          print(std::cerr, "Would you like to load the config file .project.gf from your current directory?\n");
@@ -1429,7 +1474,7 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
             } else if (0 == strcmp(state.key, "scale")) {
                ui_scale = atof(state.value);
             } else if (0 == strcmp(state.key, "layout")) {
-               layoutString = state.value;
+               gfc.layout_string = strdup(state.value);
             } else if (0 == strcmp(state.key, "maximize")) {
                maximize = sv_atoi(state.value);
             } else if (0 == strcmp(state.key, "restore_watch_window")) {
@@ -1445,7 +1490,7 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
             if (0 == strcmp(state.key, "argument")) {
                ctx.gdbArgc++;
                ctx.gdbArgv                  = (char**)realloc(ctx.gdbArgv, sizeof(char*) * (ctx.gdbArgc + 1));
-               ctx.gdbArgv[ctx.gdbArgc - 1] = state.value;
+               ctx.gdbArgv[ctx.gdbArgc - 1] = strdup(state.value);
                ctx.gdbArgv[ctx.gdbArgc]     = nullptr;
             } else if (0 == strcmp(state.key, "arguments")) {
                char buffer[2048];
@@ -1485,14 +1530,15 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
                   std_format_to_n(buffer, sizeof(buffer), "{}",
                                   std::string_view{&state.value[argumentStart], (size_t)(argumentEnd - argumentStart)});
 
-                  ctx.gdbArgc++;
+                  ctx.gdbArgc++;    // 0 is for the program name
                   ctx.gdbArgv                  = (char**)realloc(ctx.gdbArgv, sizeof(char*) * (ctx.gdbArgc + 1));
                   ctx.gdbArgv[ctx.gdbArgc - 1] = strdup(buffer);
                   ctx.gdbArgv[ctx.gdbArgc]     = nullptr;
                }
             } else if (0 == strcmp(state.key, "path")) {
-               ctx.gdbPath    = state.value;
-               ctx.gdbArgv[0] = state.value;
+               char *path = strdup(state.value);
+               ctx.gdbPath    = path;
+               ctx.gdbArgv[0] = path;
             } else if (0 == strcmp(state.key, "log_all_output") && sv_atoi(state.value)) {
                if (auto it = interfaceWindows.find("Log"); it != interfaceWindows.end()) {
                   const auto& [name, window] = *it;
@@ -1510,7 +1556,7 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
                backtraceCountLimit = sv_atoi(state.value);
             }
          } else if (0 == strcmp(state.section, "commands") && earlyPass && state.keyBytes && state.valueBytes) {
-            presetCommands.push_back(state);
+            presetCommands.push_back(state.clone());
          } else if (0 == strcmp(state.section, "trusted_folders") && earlyPass && state.keyBytes) {
             if (0 == strcmp(localConfigDirectory, state.key))
                currentFolderIsTrusted = true;
@@ -1522,12 +1568,12 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
                ui_config._has_theme              = true;
             }
          } else if (0 == strcmp(state.section, "vim") && earlyPass && 0 == strcmp(state.key, "server_name")) {
-            vimServerName = state.value;
+            vimServerName = strdup(state.value);
          } else if (0 == strcmp(state.section, "pipe") && earlyPass && 0 == strcmp(state.key, "log")) {
-            logPipePath = state.value;
+            logPipePath = strdup(state.value);
             mkfifo(logPipePath, 6 + 6 * 8 + 6 * 64);
          } else if (0 == strcmp(state.section, "pipe") && earlyPass && 0 == strcmp(state.key, "control")) {
-            controlPipePath = state.value;
+            controlPipePath = strdup(state.value);
             mkfifo(controlPipePath, 6 + 6 * 8 + 6 * 64);
             pthread_t thread;
             pthread_create(&thread, nullptr, ControlPipeThread, nullptr);
@@ -1548,6 +1594,7 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
             }
          }
       }
+      state.clear(); // get rid of the pointers into the readfile buffer
    }
    return ui_config;
 }
@@ -7389,26 +7436,28 @@ int InterfaceTabPaneMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    return 0;
 }
 
+// !!! Oh no! this actually advances the global pointer `gfc.layout_string`
+// ------------------------------------------------------------------------
 const char* InterfaceLayoutNextToken(const char* expected = nullptr) {
    static char buffer[32];
    char*       out = buffer;
 
-   while (isspace(*layoutString)) {
-      layoutString++;
+   while (isspace(*gfc.layout_string)) {
+      gfc.layout_string++;
    }
 
-   char first = *layoutString;
+   char first = *gfc.layout_string;
 
    if (first == 0) {
       *out = 0;
    } else if (first == ',' || first == '(' || first == ')') {
       out[0] = first;
       out[1] = 0;
-      layoutString++;
+      gfc.layout_string++;
    } else if (isalnum(first)) {
       for (uintptr_t i = 0; i < sizeof(buffer) - 1; i++) {
-         if (isalnum(*layoutString)) {
-            *out++ = *layoutString++;
+         if (isalnum(*gfc.layout_string)) {
+            *out++ = *gfc.layout_string++;
          } else {
             break;
          }
@@ -7458,7 +7507,7 @@ void Context::InterfaceLayoutCreate(UIElement* parent) {
       InterfaceLayoutNextToken(")");
    } else if (0 == strcmp("t", token)) {
       InterfaceLayoutNextToken("(");
-      char* copy = strdup(layoutString);
+      char* copy = strdup(gfc.layout_string); // watch out, gfc.layout_string is modified by InterfaceLayoutNextToken
       for (uintptr_t i = 0; copy[i]; i++)
          if (copy[i] == ',')
             copy[i] = '\t';
