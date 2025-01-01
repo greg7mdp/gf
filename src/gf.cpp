@@ -5721,22 +5721,19 @@ void ProfLoadProfileData(void* _window) {
    }
 
    UIMDIChild* window = &dataWindow->add_mdichild(UIMDIChild::CLOSE_BUTTON, ui_rect_2s(800, 600), "Flame graph");
-   UIButton*   switchViewButton = &window->add_button(UIButton::SMALL | UIElement::non_client_flag, "Table view");
-   UITable*    table            = &window->add_table(0, "Name\tTime spent (ms)\tCall count\tAverage per call (ms)");
    ProfFlameGraphReport* report = new ProfFlameGraphReport(window, 0);
+
+   report->switchViewButton = &window->add_button(UIButton::SMALL | UIElement::non_client_flag, "Table view")
+                                  .set_cp(report)
+                                  .on_click([report](UIButton&) { ProfSwitchView(report); });
+   UITable* table = report->table = &window->add_table(0, "Name\tTime spent (ms)\tCall count\tAverage per call (ms)")
+                                        .set_cp(report)
+                                        .set_user_proc(ProfTableMessage);
 
    report->vScroll = &report->add_scrollbar(0);
    report->font    = data->fontFlameGraph;
 
-   window->_cp        = report;
-   window->_user_proc = ProfReportWindowMessage;
-
-   switchViewButton->_cp = report;
-   switchViewButton->on_click([report](UIButton&) { ProfSwitchView(report); });
-   table->_cp               = report;
-   table->_user_proc        = ProfTableMessage;
-   report->switchViewButton = switchViewButton;
-   report->table            = table;
+   window->set_cp(report).set_user_proc(ProfReportWindowMessage);
 
    report->functions   = functions;
    functions           = {};
@@ -5923,9 +5920,8 @@ struct MemoryWindow : public UIElement {
 
    MemoryWindow(UIElement* parent)
       : UIElement(parent, 0, MemoryWindowMessage, "memory window")
-      , gotoButton(&add_button(UIButton::SMALL, "&")) {
-      gotoButton->on_click([this](UIButton&) { MemoryWindowGotoButtonInvoke(this); });
-   }
+      , gotoButton(
+           &add_button(UIButton::SMALL, "&").on_click([this](UIButton&) { MemoryWindowGotoButtonInvoke(this); })) {}
 };
 
 int MemoryWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
