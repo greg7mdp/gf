@@ -492,11 +492,11 @@ UIPainter::UIPainter(UIWindow* w)
    , _width(w->width())
    , _height(w->height()) {}
 
-void UIDrawBlock(UIPainter* painter, UIRectangle rectangle, uint32_t color) {
-   rectangle = intersection(painter->_clip, rectangle);
+UIPainter& UIPainter::draw_block(UIRectangle rectangle, uint32_t color) {
+   rectangle = intersection(_clip, rectangle);
 
    if (!rectangle.valid()) {
-      return;
+      return *this;
    }
 
 #ifdef UI_SSE2
@@ -504,7 +504,7 @@ void UIDrawBlock(UIPainter* painter, UIRectangle rectangle, uint32_t color) {
 #endif
 
    for (int line = rectangle.t; line < rectangle.b; line++) {
-      uint32_t* bits  = painter->_bits + line * painter->_width + rectangle.l;
+      uint32_t* bits  = _bits + line * _width + rectangle.l;
       int       count = rectangle.width();
 
 #ifdef UI_SSE2
@@ -521,16 +521,17 @@ void UIDrawBlock(UIPainter* painter, UIRectangle rectangle, uint32_t color) {
    }
 
 #ifdef UI_DEBUG
-   painter->_fill_count += rectangle.width() * rectangle.height();
+   _fill_count += rectangle.width() * rectangle.height();
 #endif
+   return *this;
 }
 
-bool UIDrawLine(UIPainter* painter, int x0, int y0, int x1, int y1, uint32_t color) {
+UIPainter&  UIPainter::draw_line(int x0, int y0, int x1, int y1, uint32_t color) {
    // Apply the clip.
 
-   UIRectangle c = painter->_clip;
+   UIRectangle c = _clip;
    if (!c.valid())
-      return false;
+      return *this;
    int       dx = x1 - x0, dy = y1 - y0;
    const int p[4] = {-dx, dx, -dy, dy};
    const int q[4] = {x0 - c.l, c.r - 1 - x0, y0 - c.t, c.b - 1 - y0};
@@ -538,12 +539,12 @@ bool UIDrawLine(UIPainter* painter, int x0, int y0, int x1, int y1, uint32_t col
 
    for (int i = 0; i < 4; i++) {
       if (!p[i] && q[i] < 0)
-         return false;
+         return *this;
       float r = (float)q[i] / p[i];
       if (p[i] < 0 && r > t1)
-         return false;
+         return *this;
       if (p[i] > 0 && r < t0)
-         return false;
+         return *this;
       if (p[i] < 0 && r > t0)
          t0 = r;
       if (p[i] > 0 && r < t1)
@@ -569,7 +570,7 @@ bool UIDrawLine(UIPainter* painter, int x0, int y0, int x1, int y1, uint32_t col
 
    // Draw the line using Bresenham's line algorithm.
 
-   uint32_t* bits = painter->_bits + y0 * painter->_width + x0;
+   uint32_t* bits = _bits + y0 * _width + x0;
 
    if (dy * dy < dx * dx) {
       int m = 2 * dy - dx;
@@ -577,13 +578,13 @@ bool UIDrawLine(UIPainter* painter, int x0, int y0, int x1, int y1, uint32_t col
       for (int i = 0; i < dx; i++, bits += dxs) {
          *bits = color;
          if (m > 0)
-            bits += painter->_width, m -= 2 * dx;
+            bits += _width, m -= 2 * dx;
          m += 2 * dy;
       }
    } else {
       int m = 2 * dx - dy;
 
-      for (int i = 0; i < dy; i++, bits += painter->_width) {
+      for (int i = 0; i < dy; i++, bits += _width) {
          *bits = color;
          if (m > 0)
             bits += dxs, m -= 2 * dy;
@@ -591,10 +592,10 @@ bool UIDrawLine(UIPainter* painter, int x0, int y0, int x1, int y1, uint32_t col
       }
    }
 
-   return true;
+   return *this;
 }
 
-void UIDrawCircle(UIPainter* painter, int cx, int cy, int radius, uint32_t fillColor, uint32_t outlineColor,
+UIPainter& UIPainter::draw_circle(int cx, int cy, int radius, uint32_t fillColor, uint32_t outlineColor,
                   bool hollow) {
    // TODO There's a hole missing at the bottom of the circle!
    // TODO This looks bad at small radii (< 20).
@@ -613,26 +614,27 @@ void UIDrawCircle(UIPainter* painter, int cx, int cy, int radius, uint32_t fillC
       int ix = x, iy = cy + y;
 
       while (py <= iy) {
-         if (py >= painter->_clip.t && py < painter->_clip.b) {
+         if (py >= _clip.t && py < _clip.b) {
             for (int s = 0; s <= ix || s <= px; s++) {
                bool inOutline = ((s <= ix) != (s <= px)) || ((ix == px) && (s == ix));
                if (hollow && !inOutline)
                   continue;
-               bool clip0 = cx + s >= painter->_clip.l && cx + s < painter->_clip.r;
-               bool clip1 = cx - s >= painter->_clip.l && cx - s < painter->_clip.r;
+               bool clip0 = cx + s >= _clip.l && cx + s < _clip.r;
+               bool clip1 = cx - s >= _clip.l && cx - s < _clip.r;
                if (clip0)
-                  painter->_bits[painter->_width * py + cx + s] = inOutline ? outlineColor : fillColor;
+                  _bits[_width * py + cx + s] = inOutline ? outlineColor : fillColor;
                if (clip1)
-                  painter->_bits[painter->_width * py + cx - s] = inOutline ? outlineColor : fillColor;
+                  _bits[_width * py + cx - s] = inOutline ? outlineColor : fillColor;
             }
          }
 
          px = ix, py++;
       }
    }
+   return *this;
 }
 
-void UIDrawTriangle(UIPainter* painter, int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color) {
+UIPainter& UIPainter::draw_triangle(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color) {
    // Step 1: Sort the points by their y-coordinate.
    if (y1 < y0) {
       int xt = x0;
@@ -653,26 +655,24 @@ void UIDrawTriangle(UIPainter* painter, int x0, int y0, int x1, int y1, int x2, 
       y0 = y1, y1 = yt;
    }
    if (y2 == y0)
-      return;
+      return *this;
 
    // Step 2: Clip the triangle.
-   if (x0 < painter->_clip.l && x1 < painter->_clip.l && x2 < painter->_clip.l)
-      return;
-   if (x0 >= painter->_clip.r && x1 >= painter->_clip.r && x2 >= painter->_clip.r)
-      return;
-   if (y2 < painter->_clip.t || y0 >= painter->_clip.b)
-      return;
-   bool needsXClip = x0 < painter->_clip.l + 1 || x0 >= painter->_clip.r - 1 || x1 < painter->_clip.l + 1 ||
-                     x1 >= painter->_clip.r - 1 || x2 < painter->_clip.l + 1 || x2 >= painter->_clip.r - 1;
-   bool needsYClip = y0 < painter->_clip.t + 1 || y2 >= painter->_clip.b - 1;
+   if ((x0 < _clip.l && x1 < _clip.l && x2 < _clip.l) || (x0 >= _clip.r && x1 >= _clip.r && x2 >= _clip.r) ||
+       (y2 < _clip.t || y0 >= _clip.b))
+      return *this;
+   
+   bool needsXClip = x0 < _clip.l + 1 || x0 >= _clip.r - 1 || x1 < _clip.l + 1 ||
+                     x1 >= _clip.r - 1 || x2 < _clip.l + 1 || x2 >= _clip.r - 1;
+   bool needsYClip = y0 < _clip.t + 1 || y2 >= _clip.b - 1;
 
 #define _UI_DRAW_TRIANGLE_APPLY_CLIP(xo, yo)                                      \
-   if (needsYClip && (yi + yo < painter->_clip.t || yi + yo >= painter->_clip.b)) \
+   if (needsYClip && (yi + yo < _clip.t || yi + yo >= _clip.b)) \
       continue;                                                                   \
-   if (needsXClip && xf + xo < painter->_clip.l)                                  \
-      xf = painter->_clip.l - xo;                                                 \
-   if (needsXClip && xt + xo > painter->_clip.r)                                  \
-      xt = painter->_clip.r - xo;
+   if (needsXClip && xf + xo < _clip.l)                                  \
+      xf = _clip.l - xo;                                                 \
+   if (needsXClip && xt + xo > _clip.r)                                  \
+      xt = _clip.r - xo;
 
    // Step 3: Split into 2 triangles with bases aligned with the x-axis.
    float xm0 = (x2 - x0) * (y1 - y0) / (y2 - y0), xm1 = x1 - x0;
@@ -688,7 +688,7 @@ void UIDrawTriangle(UIPainter* painter, int x0, int y0, int x1, int y1, int x2, 
    for (float y = 0; y < ym; y++) {
       int xf = xm0 * y * ymr, xt = xm1 * y * ymr, yi = (int)y;
       _UI_DRAW_TRIANGLE_APPLY_CLIP(x0, y0);
-      uint32_t* b = &painter->_bits[(yi + y0) * painter->_width + x0];
+      uint32_t* b = &_bits[(yi + y0) * _width + x0];
       for (int x = xf; x < xt; x++)
          b[x] = color;
    }
@@ -697,35 +697,36 @@ void UIDrawTriangle(UIPainter* painter, int x0, int y0, int x1, int y1, int x2, 
    for (float y = 0; y < ye; y++) {
       int xf = xe0 * (ye - y) * yer, xt = xe1 * (ye - y) * yer, yi = (int)y;
       _UI_DRAW_TRIANGLE_APPLY_CLIP(x2, y1);
-      uint32_t* b = &painter->_bits[(yi + y1) * painter->_width + x2];
+      uint32_t* b = &_bits[(yi + y1) * _width + x2];
       for (int x = xf; x < xt; x++)
          b[x] = color;
    }
+   return *this;
 }
 
-void UIDrawTriangleOutline(UIPainter* painter, int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color) {
-   UIDrawLine(painter, x0, y0, x1, y1, color);
-   UIDrawLine(painter, x1, y1, x2, y2, color);
-   UIDrawLine(painter, x2, y2, x0, y0, color);
+UIPainter& UIPainter::draw_triangle_outline(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color) {
+   draw_line(x0, y0, x1, y1, color);
+   draw_line(x1, y1, x2, y2, color);
+   draw_line(x2, y2, x0, y0, color);
+   return *this;
 }
 
-void UIDrawInvert(UIPainter* painter, UIRectangle rectangle) {
-   rectangle = intersection(painter->_clip, rectangle);
+UIPainter& UIPainter::draw_invert(UIRectangle rectangle) {
+   rectangle = intersection(_clip, rectangle);
 
-   if (!rectangle.valid()) {
-      return;
-   }
+   if (rectangle.valid()) {
+      for (int line = rectangle.t; line < rectangle.b; line++) {
+         uint32_t* bits  = _bits + line * _width + rectangle.l;
+         int       count = rectangle.width();
 
-   for (int line = rectangle.t; line < rectangle.b; line++) {
-      uint32_t* bits  = painter->_bits + line * painter->_width + rectangle.l;
-      int       count = rectangle.width();
-
-      while (count--) {
-         uint32_t in = *bits;
-         *bits       = in ^ 0xFFFFFF;
-         bits++;
+         while (count--) {
+            uint32_t in = *bits;
+            *bits       = in ^ 0xFFFFFF;
+            bits++;
+         }
       }
    }
+   return *this;
 }
 
 int UI::string_width(std::string_view string) const {
@@ -736,20 +737,20 @@ int UI::string_width(std::string_view string) const {
 #endif
 }
 
-void UIDrawString(UIPainter* painter, UIRectangle r, std::string_view string, uint32_t color, UIAlign align,
-                  UIStringSelection* selection) {
+UIPainter& UIPainter::draw_string(UIRectangle r, std::string_view string, uint32_t color, UIAlign align,
+                                  UIStringSelection* selection) {
    if (string.empty() || !string[0])
-      return;
+      return *this;
 
-   UIRectangle oldClip = painter->_clip;
-   painter->_clip      = intersection(r, oldClip);
+   UIRectangle oldClip = _clip;
+   _clip      = intersection(r, oldClip);
 
-   if (!painter->_clip.valid()) {
-      painter->_clip = oldClip;
-      return;
+   if (!_clip.valid()) {
+      _clip = oldClip;
+      return *this;
    }
 
-   UI* ui               = painter->ui();
+   UI* ui               = this->ui();
    auto [width, height] = ui->string_dims(string);
    int    x = align == UIAlign::center ? ((r.l + r.r - width) / 2) : align == UIAlign::right ? (r.r - width) : r.l;
    int    y = (r.t + r.b - height) / 2;
@@ -789,16 +790,16 @@ void UIDrawString(UIPainter* painter, UIRectangle r, std::string_view string, ui
             while (++ii & 3)
                w += active_font->_glyph_width;
          }
-         UIDrawBlock(painter, UIRectangle(x, x + w, y, y + height), selection->colorBackground);
+         draw_block(UIRectangle(x, x + w, y, y + height), selection->colorBackground);
          colorText = selection->colorText;
       }
 
       if (c != '\t') {
-         painter->draw_glyph(x, y, c, colorText);
+         draw_glyph(x, y, c, colorText);
       }
 
       if (selection && selection->carets[0] == i) {
-         UIDrawInvert(painter, UIRectangle(x, x + 1, y, y + height));
+         draw_invert(UIRectangle(x, x + 1, y, y + height));
       }
 
       x += active_font->_glyph_width, i++;
@@ -812,22 +813,25 @@ void UIDrawString(UIPainter* painter, UIRectangle r, std::string_view string, ui
    }
 
    if (selection && selection->carets[0] == i) {
-      UIDrawInvert(painter, UIRectangle(x, x + 1, y, y + height));
+      draw_invert(UIRectangle(x, x + 1, y, y + height));
    }
 
-   painter->_clip = oldClip;
+   _clip = oldClip;
+
+   return *this;
 }
 
-void UIDrawBorder(UIPainter* painter, UIRectangle r, uint32_t borderColor, UIRectangle borderSize) {
+UIPainter& UIPainter::draw_border(UIRectangle r, uint32_t borderColor, UIRectangle borderSize) {
    auto border_rects = r.border(borderSize);
    for (const auto& br : border_rects)
-      UIDrawBlock(painter, br, borderColor);
+      draw_block(br, borderColor);
+   return *this;
 }
 
-void UIDrawRectangle(UIPainter* painter, UIRectangle r, uint32_t mainColor, uint32_t borderColor,
-                     UIRectangle borderSize) {
-   UIDrawBorder(painter, r, borderColor, borderSize);
-   UIDrawBlock(painter, r.shrink(borderSize), mainColor);
+UIPainter& UIPainter::draw_rectangle(UIRectangle r, uint32_t mainColor, uint32_t borderColor, UIRectangle borderSize) {
+   draw_border(r, borderColor, borderSize);
+   draw_block(r.shrink(borderSize), mainColor);
+   return *this;
 }
 
 auto ui_mdi_child_calculate_layout(const UIRectangle& bounds, float scale) {
@@ -840,9 +844,9 @@ auto ui_mdi_child_calculate_layout(const UIRectangle& bounds, float scale) {
    return std::tuple{titleSize, borderSize, titleRect, contentRect};
 }
 
-void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode, std::string_view label,
-                          double position, float scale) {
-   UI*      ui            = painter->ui();
+UIPainter& UIPainter::draw_control_default(UIRectangle bounds, uint32_t mode, std::string_view label,
+                                           double position, float scale) {
+   UI*      ui            = this->ui();
    bool     checked       = mode & UIControl::state_checked;
    bool     disabled      = mode & UIControl::state_disabled;
    bool     focused       = mode & UIControl::state_focused;
@@ -868,21 +872,21 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
       int         midY      = (bounds.t + bounds.b) / 2;
       UIRectangle boxBounds = UIRectangle(bounds.l, bounds.l + ui_size::checkbox_box, midY - ui_size::checkbox_box / 2,
                                           midY + ui_size::checkbox_box / 2);
-      UIDrawRectangle(painter, boxBounds, color, theme.border, UIRectangle(1));
-      UIDrawString(painter, boxBounds + UIRectangle(1, 0, 0, 0),
+      draw_rectangle(boxBounds, color, theme.border, UIRectangle(1));
+      draw_string(boxBounds + UIRectangle(1, 0, 0, 0),
                    checked         ? "*"
                    : indeterminate ? "-"
                                    : " ",
                    textColor, UIAlign::center, NULL);
-      UIDrawString(painter, bounds + UIRectangle(ui_size::checkbox_box + ui_size::checkbox_gap, 0, 0, 0), label,
+      draw_string(bounds + UIRectangle(ui_size::checkbox_box + ui_size::checkbox_gap, 0, 0, 0), label,
                    disabled ? theme.textDisabled : theme.text, UIAlign::left, NULL);
    } else if (which == UIControl::menu_item || which == UIControl::drop_down || which == UIControl::push_button) {
       uint32_t color = buttonColor, textColor = buttonTextColor;
       int      borderSize = which == UIControl::menu_item ? 0 : scale;
-      UIDrawRectangle(painter, bounds, color, theme.border, UIRectangle(borderSize));
+      draw_rectangle(bounds, color, theme.border, UIRectangle(borderSize));
 
       if (checked && !focused) {
-         UIDrawBlock(painter, bounds + ui_rect_1i((int)(ui_size::button_checked_area * scale)), theme.buttonPressed);
+         draw_block(bounds + ui_rect_1i((int)(ui_size::button_checked_area * scale)), theme.buttonPressed);
       }
 
       UIRectangle innerBounds = bounds + ui_rect_2i((int)(ui_size::menu_item_margin * scale), 0);
@@ -893,52 +897,52 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
          for (; tab < labelBytes && label[tab] != '\t'; tab++)
             ;
 
-         UIDrawString(painter, innerBounds, label.substr(0, tab), textColor, UIAlign::left, NULL);
+         draw_string(innerBounds, label.substr(0, tab), textColor, UIAlign::left, NULL);
 
          if (labelBytes > tab) {
-            UIDrawString(painter, innerBounds, {label.data() + tab + 1, static_cast<size_t>(labelBytes - tab - 1)},
+            draw_string(innerBounds, {label.data() + tab + 1, static_cast<size_t>(labelBytes - tab - 1)},
                          textColor, UIAlign::right, NULL);
          }
       } else if (which == UIControl::drop_down) {
-         UIDrawString(painter, innerBounds, label, textColor, UIAlign::left, NULL);
-         UIDrawString(painter, innerBounds, "\x19", textColor, UIAlign::right, NULL);
+         draw_string(innerBounds, label, textColor, UIAlign::left, NULL);
+         draw_string(innerBounds, "\x19", textColor, UIAlign::right, NULL);
       } else {
-         UIDrawString(painter, bounds, label, textColor, UIAlign::center, NULL);
+         draw_string(bounds, label, textColor, UIAlign::center, NULL);
       }
    } else if (which == UIControl::label) {
-      UIDrawString(painter, bounds, label, theme.text, UIAlign::left, NULL);
+      draw_string(bounds, label, theme.text, UIAlign::left, NULL);
    } else if (which == UIControl::splitter) {
       UIRectangle borders = (mode & UIControl::state_vertical) ? UIRectangle(0, 1) : UIRectangle(1, 0);
-      UIDrawRectangle(painter, bounds, theme.buttonNormal, theme.border, borders);
+      draw_rectangle(bounds, theme.buttonNormal, theme.border, borders);
    } else if (which == UIControl::scroll_track) {
       if (disabled)
-         UIDrawBlock(painter, bounds, theme.panel1);
+         draw_block(bounds, theme.panel1);
    } else if (which == UIControl::scroll_down || which == UIControl::scroll_up) {
       bool     isDown = which == UIControl::scroll_down;
       uint32_t color  = pressed ? theme.buttonPressed : hovered ? theme.buttonHovered : theme.panel2;
-      UIDrawRectangle(painter, bounds, color, theme.border, UIRectangle(0));
+      draw_rectangle(bounds, color, theme.border, UIRectangle(0));
       UIFont *active_font = ui->active_font();
 
       if (mode & UIControl::state_vertical) {
-         painter->draw_glyph((bounds.l + bounds.r - active_font->_glyph_width) / 2 + 1,
+         draw_glyph((bounds.l + bounds.r - active_font->_glyph_width) / 2 + 1,
                              isDown ? (bounds.b - active_font->_glyph_height - 2 * scale) : (bounds.t + 2 * scale),
                              isDown ? 25 : 24, theme.text);
       } else {
-         painter->draw_glyph(isDown ? (bounds.r - active_font->_glyph_width - 2 * scale) : (bounds.l + 2 * scale),
+         draw_glyph(isDown ? (bounds.r - active_font->_glyph_width - 2 * scale) : (bounds.l + 2 * scale),
                              (bounds.t + bounds.b - active_font->_glyph_height) / 2, isDown ? 26 : 27, theme.text);
       }
    } else if (which == UIControl::scroll_thumb) {
       uint32_t color = pressed ? theme.buttonPressed : hovered ? theme.buttonHovered : theme.buttonNormal;
-      UIDrawRectangle(painter, bounds, color, theme.border, UIRectangle(2));
+      draw_rectangle(bounds, color, theme.border, UIRectangle(2));
    } else if (which == UIControl::gauge) {
-      UIDrawRectangle(painter, bounds, theme.buttonNormal, theme.border, UIRectangle(1));
+      draw_rectangle(bounds, theme.buttonNormal, theme.border, UIRectangle(1));
       UIRectangle filled = bounds + ui_rect_1i(1);
       if (mode & UIControl::state_vertical) {
          filled.t = filled.b - filled.height() * position;
       } else {
          filled.r = filled.l + filled.width() * position;
       }
-      UIDrawBlock(painter, filled, theme.selected);
+      draw_block(filled, theme.selected);
    } else if (which == UIControl::slider) {
       bool vertical     = mode & UIControl::state_vertical;
       int  center       = vertical ? (bounds.l + bounds.r) / 2 : (bounds.t + bounds.b) / 2;
@@ -949,7 +953,7 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
                              ? UIRectangle(center - (trackSize + 1) / 2, center + trackSize / 2, bounds.t, bounds.b)
                              : UIRectangle(bounds.l, bounds.r, center - (trackSize + 1) / 2, center + trackSize / 2);
 
-      UIDrawRectangle(painter, track, disabled ? theme.buttonDisabled : theme.buttonNormal, theme.border,
+      draw_rectangle(track, disabled ? theme.buttonDisabled : theme.buttonNormal, theme.border,
                       UIRectangle(1));
       uint32_t    color = disabled  ? theme.buttonDisabled
                           : pressed ? theme.buttonPressed
@@ -959,43 +963,43 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
                                                  bounds.b - thumbPosition - thumbSize, bounds.b - thumbPosition)
                                    : UIRectangle(bounds.l + thumbPosition, bounds.l + thumbPosition + thumbSize,
                                                  center - (thumbSize + 1) / 2, center + thumbSize / 2);
-      UIDrawRectangle(painter, thumb, color, theme.border, UIRectangle(1));
+      draw_rectangle(thumb, color, theme.border, UIRectangle(1));
    } else if (which == UIControl::textbox) {
-      UIDrawRectangle(painter, bounds,
+      draw_rectangle(bounds,
                       disabled  ? theme.buttonDisabled
                       : focused ? theme.textboxFocused
                                 : theme.textboxNormal,
                       theme.border, UIRectangle(1));
    } else if (which == UIControl::modal_popup) {
       UIRectangle bounds2 = bounds + ui_rect_1i(-1);
-      UIDrawBorder(painter, bounds2, theme.border, UIRectangle(1));
-      UIDrawBorder(painter, bounds2 + UIRectangle(1), theme.border, UIRectangle(1));
+      draw_border(bounds2, theme.border, UIRectangle(1));
+      draw_border(bounds2 + UIRectangle(1), theme.border, UIRectangle(1));
    } else if (which == UIControl::menu) {
-      UIDrawBlock(painter, bounds, theme.border);
+      draw_block(bounds, theme.border);
    } else if (which == UIControl::table_row) {
       if (selected)
-         UIDrawBlock(painter, bounds, theme.selected);
+         draw_block(bounds, theme.selected);
       else if (hovered)
-         UIDrawBlock(painter, bounds, theme.buttonHovered);
+         draw_block(bounds, theme.buttonHovered);
    } else if (which == UIControl::table_cell) {
       uint32_t textColor = selected ? theme.textSelected : theme.text;
-      UIDrawString(painter, bounds, label, textColor, UIAlign::left, NULL);
+      draw_string(bounds, label, textColor, UIAlign::left, NULL);
    } else if (which == UIControl::table_background) {
-      UIDrawBlock(painter, bounds, theme.panel2);
-      UIDrawRectangle(painter,
+      draw_block(bounds, theme.panel2);
+      draw_rectangle(
                       UIRectangle(bounds.l, bounds.r, bounds.t, bounds.t + (int)(ui_size::table_header * scale)),
                       theme.panel1, theme.border, UIRectangle(0, 0, 0, 1));
    } else if (which == UIControl::table_header) {
-      UIDrawString(painter, bounds, label, theme.text, UIAlign::left, NULL);
+      draw_string(bounds, label, theme.text, UIAlign::left, NULL);
       if (selected)
-         UIDrawInvert(painter, bounds);
+         draw_invert(bounds);
    } else if (which == UIControl::mdi_child) {
       auto [titleSize, borderSize, titleRect, contentRect] = ui_mdi_child_calculate_layout(bounds, scale);
       UIRectangle borders                                  = UIRectangle(borderSize, borderSize, titleSize, borderSize);
-      UIDrawBorder(painter, bounds, theme.buttonNormal, borders);
-      UIDrawBorder(painter, bounds, theme.border, UIRectangle((int)scale));
-      UIDrawBorder(painter, contentRect + ui_rect_1i(-1), theme.border, UIRectangle((int)scale));
-      UIDrawString(painter, titleRect, label, theme.text, UIAlign::left, NULL);
+      draw_border(bounds, theme.buttonNormal, borders);
+      draw_border(bounds, theme.border, UIRectangle((int)scale));
+      draw_border(contentRect + ui_rect_1i(-1), theme.border, UIRectangle((int)scale));
+      draw_string(titleRect, label, theme.text, UIAlign::left, NULL);
    } else if (which == UIControl::tab) {
       uint32_t    color = selected ? theme.buttonPressed : theme.buttonNormal;
       UIRectangle t     = bounds;
@@ -1003,11 +1007,12 @@ void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode,
          t.b++, t.t--;
       else
          t.t++;
-      UIDrawRectangle(painter, t, color, theme.border, UIRectangle(1));
-      UIDrawString(painter, bounds, label, theme.text, UIAlign::center, NULL);
+      draw_rectangle(t, color, theme.border, UIRectangle(1));
+      draw_string(bounds, label, theme.text, UIAlign::center, NULL);
    } else if (which == UIControl::tab_band) {
-      UIDrawRectangle(painter, bounds, theme.panel1, theme.border, UIRectangle(0, 0, 0, 1));
+      draw_rectangle(bounds, theme.panel1, theme.border, UIRectangle(0, 0, 0, 1));
    }
+   return *this;
 }
 
 // --------------------------------------------------
@@ -1094,7 +1099,7 @@ int _UIDialogWrapperMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       el->_children[0]->move(bounds, false);
       el->repaint(nullptr);
    } else if (msg == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, el->_children[0]->_bounds, UIControl::modal_popup, {}, 0, el->_window->scale());
+      static_cast<UIPainter*>(dp)->draw_control(el->_children[0]->_bounds, UIControl::modal_popup, {}, 0, el->_window->scale());
    } else if (msg == UIMessage::KEY_TYPED) {
       UI*         ui    = el->ui();
       UIKeyTyped* typed = (UIKeyTyped*)dp;
@@ -1591,7 +1596,7 @@ void UIElement::paint(UIPainter* painter) {
    message(UIMessage::PAINT_FOREGROUND, 0, painter);
 
    if (_flags & border_flag) {
-      UIDrawBorder(painter, _bounds, ui()->theme().border, UIRectangle((int)_window->scale()));
+      painter->draw_border(_bounds, ui()->theme().border, UIRectangle((int)_window->scale()));
    }
 }
 
@@ -1816,9 +1821,9 @@ int UIPanel::_class_message_proc(UIMessage msg, int di, void* dp) {
       auto& theme = ui()->theme();
 
       if (_flags & UIPanel::COLOR_1) {
-         UIDrawBlock((UIPainter*)dp, _bounds, theme.panel1);
+         static_cast<UIPainter*>(dp)->draw_block(_bounds, theme.panel1);
       } else if (_flags & UIPanel::COLOR_2) {
-         UIDrawBlock((UIPainter*)dp, _bounds, theme.panel2);
+         static_cast<UIPainter*>(dp)->draw_block(_bounds, theme.panel2);
       }
    } else if (msg == UIMessage::MOUSE_WHEEL && _scrollBar) {
       return _scrollBar->message(msg, di, dp);
@@ -1970,7 +1975,7 @@ int UIButton::_class_message_proc(UIMessage msg, int di, void* dp) {
                                                          : ui_size::button_minimum_width);
       return paddedSize > minimumSize ? paddedSize : minimumSize;
    } else if (msg == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, _bounds,
+      static_cast<UIPainter*>(dp)->draw_control(_bounds,
                     (isMenuItem   ? UIControl::menu_item
                      : isDropDown ? UIControl::drop_down
                                   : UIControl::push_button) |
@@ -2020,7 +2025,7 @@ int UICheckbox::_class_message_proc(UIMessage msg, int di, void* dp) {
       int labelSize = ui()->string_width(_label);
       return scale(labelSize + ui_size::checkbox_box + ui_size::checkbox_gap);
    } else if (msg == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, _bounds, UIControl::checkbox | (checked() ? UIControl::state_checked : 0) | state(),
+      static_cast<UIPainter*>(dp)->draw_control(_bounds, UIControl::checkbox | (checked() ? UIControl::state_checked : 0) | state(),
                     _label, 0, _window->scale());
    } else if (msg == UIMessage::UPDATE) {
       repaint(nullptr);
@@ -2066,7 +2071,7 @@ int UILabel::_class_message_proc(UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::GET_WIDTH) {
       return ui()->string_width(_label);
    } else if (msg == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, _bounds, UIControl::label | state(), _label, 0, _window->scale());
+      static_cast<UIPainter*>(dp)->draw_control(_bounds, UIControl::label | state(), _label, 0, _window->scale());
    } else if (msg == UIMessage::DEALLOCATE) {
    }
 
@@ -2093,7 +2098,7 @@ int UISplitter::_class_message_proc(UIMessage msg, int di, void* dp) {
    bool         vertical  = splitPane->_flags & UIElement::vertical_flag;
 
    if (msg == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, _bounds, UIControl::splitter | (vertical ? UIControl::state_vertical : 0) | state(),
+      static_cast<UIPainter*>(dp)->draw_control(_bounds, UIControl::splitter | (vertical ? UIControl::state_vertical : 0) | state(),
                     {}, 0, _window->scale());
    } else if (msg == UIMessage::GET_CURSOR) {
       return vertical ? (uint32_t)UICursor::split_v : (uint32_t)UICursor::split_h;
@@ -2171,7 +2176,7 @@ int UITabPane::_class_message_proc(UIMessage msg, int di, void* dp) {
       UIPainter*  painter = (UIPainter*)dp;
       UIRectangle top     = _bounds;
       top.b               = top.t + scale(ui_size::button_height);
-      UIDrawControl(painter, top, UIControl::tab_band, {}, 0, _window->scale());
+      painter->draw_control(top, UIControl::tab_band, {}, 0, _window->scale());
 
       UIRectangle tab = top;
       tab.l += scale(ui_size::tab_pane_space_left);
@@ -2179,7 +2184,7 @@ int UITabPane::_class_message_proc(UIMessage msg, int di, void* dp) {
 
       for_each_tab([&](std::string_view tab_text, uint32_t index, bool active) {
          tab.r = tab.l + ui()->string_width(tab_text) + ui_size::button_padding;
-         UIDrawControl(painter, tab, UIControl::tab | (active ? UIControl::state_selected : 0), tab_text, 0,
+         painter->draw_control(tab, UIControl::tab | (active ? UIControl::state_selected : 0), tab_text, 0,
                        _window->scale());
          tab.l = tab.r - 1;
          return true;
@@ -2319,7 +2324,7 @@ int UIScrollBar::_class_message_proc(UIMessage msg, int di, void* dp) {
          }
       }
    } else if (msg == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, _bounds,
+      static_cast<UIPainter*>(dp)->draw_control(_bounds,
                     UIControl::scroll_track |
                        ((page() >= maximum() || maximum() <= 0 || page() <= 0) ? UIControl::state_disabled : 0),
                     {}, 0, _window->scale());
@@ -2338,7 +2343,7 @@ int _UIScrollUpDownMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
    bool         isDown    = el->_cp;
 
    if (msg == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, el->_bounds,
+      static_cast<UIPainter*>(dp)->draw_control(el->_bounds,
                     (isDown ? UIControl::scroll_down : UIControl::scroll_up) |
                        (scrollBar->_horizontal ? 0 : UIControl::state_vertical) | el->state(),
                     {}, 0, el->_window->scale());
@@ -2373,7 +2378,7 @@ int _UIScrollThumbMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
    UIScrollBar* scrollBar = (UIScrollBar*)el->_parent;
 
    if (msg == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, el->_bounds,
+      static_cast<UIPainter*>(dp)->draw_control(el->_bounds,
                     UIControl::scroll_thumb | (scrollBar->_horizontal ? 0 : UIControl::state_vertical) | el->state(),
                     {}, 0, el->_window->scale());
    } else if (msg == UIMessage::UPDATE) {
@@ -2526,9 +2531,9 @@ int UICode::hittest(int x, int y) {
    return inMargin ? -line : line;
 }
 
-int UIDrawStringHighlighted(UIPainter* painter, UIRectangle lineBounds, std::string_view string, int tabSize,
-                            UIStringSelection* selection) {
-   UI* ui = painter->ui();
+int UIPainter::draw_string_highlighted(UIRectangle lineBounds, std::string_view string, int tabSize,
+                                              UIStringSelection* selection) {
+   UI* ui = this->ui();
    if (string.size() > 10000)
       string = string.substr(0, 10000);
 
@@ -2547,7 +2552,7 @@ int UIDrawStringHighlighted(UIPainter* painter, UIRectangle lineBounds, std::str
       theme.codeNumber,  theme.codeOperator, theme.codePreprocessor,
    };
 
-   int              lineHeight = painter->ui()->string_height();
+   int              lineHeight = ui->string_height();
    int              x          = lineBounds.l;
    int              y          = (lineBounds.t + lineBounds.b - lineHeight) / 2;
    int              ti         = 0;
@@ -2635,25 +2640,25 @@ int UIDrawStringHighlighted(UIPainter* painter, UIRectangle lineBounds, std::str
          while (ti % tabSize)
             x += active_font->_glyph_width, ti++, j++;
       } else {
-         painter->draw_glyph(x, y, c, colors[tokenType]);
+         draw_glyph(x, y, c, colors[tokenType]);
          x += active_font->_glyph_width, ti++;
       }
 
       if (selection && j >= selection->carets[0] && j < selection->carets[1]) {
-         UIDrawBlock(painter, UIRectangle(oldX, x, y, y + lineHeight), selection->colorBackground);
+         draw_block(UIRectangle(oldX, x, y, y + lineHeight), selection->colorBackground);
          if (c != '\t')
-            painter->draw_glyph(oldX, y, c, selection->colorText);
+            draw_glyph(oldX, y, c, selection->colorText);
       }
 
       if (selection && selection->carets[0] == j) {
-         UIDrawInvert(painter, UIRectangle(oldX, oldX + 1, y, y + lineHeight));
+         draw_invert(UIRectangle(oldX, oldX + 1, y, y + lineHeight));
       }
 
       j++;
    }
 
    if (selection && selection->carets[0] == j) {
-      UIDrawInvert(painter, UIRectangle(x, x + 1, y, y + lineHeight));
+      draw_invert(UIRectangle(x, x + 1, y, y + lineHeight));
    }
 
    return x;
@@ -2740,7 +2745,7 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
       lineBounds.t -= (int64_t)_vscroll->position() % lineHeight;
 
       auto& theme = ui->theme();
-      UIDrawBlock(painter, _bounds, theme.codeBackground);
+      painter->draw_block(_bounds, theme.codeBackground);
 
       UIStringSelection selection = {};
       selection.colorBackground   = theme.selected;
@@ -2770,15 +2775,15 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
             uint32_t marginColor = message(UIMessage::CODE_GET_MARGIN_COLOR, (uint32_t)(i + 1), 0);
 
             if (marginColor) {
-               UIDrawBlock(painter, marginBounds, marginColor);
+               painter->draw_block(marginBounds, marginColor);
             }
 
-            UIDrawString(painter, marginBounds, {string + p, static_cast<size_t>(16 - p)},
+            painter->draw_string(marginBounds, {string + p, static_cast<size_t>(16 - p)},
                          marginColor ? theme.codeDefault : theme.codeComment, UIAlign::right, NULL);
          }
 
          if (focus_line() == i) {
-            UIDrawBlock(painter, lineBounds, theme.codeFocused);
+            painter->draw_block(lineBounds, theme.codeFocused);
          }
 
          UIRectangle oldClip = painter->_clip;
@@ -2789,11 +2794,11 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
          selection.carets[1] = i == _selection[1].line ? byte_to_column(i, _selection[1].offset) : (int)line(i).size();
 
          bool selected = is_focused() && i >= _selection[0].line && i <= _selection[1].line;
-         int  x = UIDrawStringHighlighted(painter, lineBounds, line(i), tab_columns(), selected ? &selection : nullptr);
+         int  x = painter->draw_string_highlighted(lineBounds, line(i), tab_columns(), selected ? &selection : nullptr);
          int  y = (lineBounds.t + lineBounds.b - ui->string_height()) / 2;
 
          if (is_focused() && i >= _selection[0].line && i < _selection[1].line) {
-            UIDrawBlock(painter, ui_rect_4pd(x, y, font()->_glyph_width, font()->_glyph_height),
+            painter->draw_block(ui_rect_4pd(x, y, font()->_glyph_width, font()->_glyph_height),
                         selection.colorBackground);
          }
 
@@ -3083,7 +3088,7 @@ int UIGauge::_class_message_proc(UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::GET_WIDTH) {
       return scale(_vertical ? ui_size::gauge_height : ui_size::gauge_width);
    } else if (msg == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, _bounds, UIControl::gauge | state() | (_vertical ? UIControl::state_vertical : 0),
+      static_cast<UIPainter*>(dp)->draw_control(_bounds, UIControl::gauge | state() | (_vertical ? UIControl::state_vertical : 0),
                     {}, _position, _window->scale());
    }
 
@@ -3113,7 +3118,7 @@ int UISlider::_class_message_proc(UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::GET_WIDTH) {
       return scale(_vertical ? ui_size::slider_height : ui_size::slider_width);
    } else if (msg == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, _bounds, UIControl::slider | state() | (_vertical ? UIControl::state_vertical : 0),
+      static_cast<UIPainter*>(dp)->draw_control(_bounds, UIControl::slider | state() | (_vertical ? UIControl::state_vertical : 0),
                     {}, _position, _window->scale());
    } else if (msg == UIMessage::LEFT_DOWN || (msg == UIMessage::MOUSE_DRAG && _window->pressed_button() == 1)) {
       UIRectangle bounds    = _bounds;
@@ -3271,7 +3276,7 @@ int UITable::_class_message_proc(UIMessage msg, int di, void* dp) {
       UIPainter*  painter = (UIPainter*)dp;
       UIRectangle bounds  = _bounds;
       bounds.r            = _vscroll->_bounds.l;
-      UIDrawControl(painter, _bounds, UIControl::table_background | state(), {}, 0, _window->scale());
+      painter->draw_control(_bounds, UIControl::table_background | state(), {}, 0, _window->scale());
       UIRectangle    row       = bounds;
       int            rowHeight = scale(ui_size::table_row);
       UITableGetItem m(256);
@@ -3296,7 +3301,7 @@ int UITable::_class_message_proc(UIMessage msg, int di, void* dp) {
 
          uint32_t rowFlags =
             (m._is_selected ? UIControl::state_selected : 0) | (hovered == i ? UIControl::state_hovered : 0);
-         UIDrawControl(painter, row, UIControl::table_row | rowFlags, {}, 0, _window->scale());
+         painter->draw_control(row, UIControl::table_row | rowFlags, {}, 0, _window->scale());
 
          UIRectangle cell = row;
          cell.l += scale(ui_size::table_column_gap) - (int64_t)_hscroll->position();
@@ -3311,7 +3316,7 @@ int UITable::_class_message_proc(UIMessage msg, int di, void* dp) {
             if ((size_t)bytes > m.buff_size() && bytes > 0)
                bytes = m.buff_size();
             if (bytes > 0)
-               UIDrawControl(painter, cell, UIControl::table_cell | rowFlags, m.buff(bytes), 0, _window->scale());
+               painter->draw_control(cell, UIControl::table_cell | rowFlags, m.buff(bytes), 0, _window->scale());
             cell.l += _column_widths[j] + scale(ui_size::table_column_gap);
          }
 
@@ -3335,7 +3340,7 @@ int UITable::_class_message_proc(UIMessage msg, int di, void* dp) {
             size_t end = column_end(position);
 
             header.r = header.l + _column_widths[index];
-            UIDrawControl(painter, header,
+            painter->draw_control(header,
                           UIControl::table_header | (index == _column_highlight ? UIControl::state_selected : 0),
                           column(position, end), 0, _window->scale());
             header.l += _column_widths[index] + scale(ui_size::table_column_gap);
@@ -3505,7 +3510,7 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::GET_WIDTH) {
       return scale(ui_size::textbox_width);
    } else if (msg == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, _bounds, UIControl::textbox | state(), {}, 0, _window->scale());
+      static_cast<UIPainter*>(dp)->draw_control(_bounds, UIControl::textbox | state(), {}, 0, _window->scale());
 
       int         scaledMargin = scale(ui_size::textbox_margin);
       int         totalWidth   = ui->string_width(text()) + scaledMargin * 2;
@@ -3537,7 +3542,7 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
 
       auto cur_text = text();
       if (!cur_text.empty()) {
-         UIDrawString((UIPainter*)dp, textBounds, cur_text, is_disabled() ? theme.textDisabled : theme.text,
+         static_cast<UIPainter*>(dp)->draw_string(textBounds, cur_text, is_disabled() ? theme.textDisabled : theme.text,
                       UIAlign::left, is_focused() ? &selection : NULL);
       }
    } else if (msg == UIMessage::GET_CURSOR) {
@@ -3707,7 +3712,7 @@ int UIMDIChild::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp
    UIMDIChild* mdiChild = (UIMDIChild*)el;
 
    if (msg == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, el->_bounds, UIControl::mdi_child, mdiChild->_title, 0, el->_window->scale());
+      static_cast<UIPainter*>(dp)->draw_control(el->_bounds, UIControl::mdi_child, mdiChild->_title, 0, el->_window->scale());
    } else if (msg == UIMessage::GET_WIDTH) {
       UIElement* child = el->_children.empty() ? nullptr : el->_children.back();
       int        width = 2 * ui_size::mdi_child_border;
@@ -3803,7 +3808,7 @@ int UIMDIClient::_class_message_proc(UIMessage msg, int di, void* dp) {
 
    if (msg == UIMessage::PAINT) {
       if (~_flags & UIMDIClient::_TRANSPARENT) {
-         UIDrawBlock((UIPainter*)dp, _bounds, theme.panel2);
+         static_cast<UIPainter*>(dp)->draw_block(_bounds, theme.panel2);
       }
    } else if (msg == UIMessage::LAYOUT) {
       for (auto child : _children) {
@@ -4081,7 +4086,7 @@ int UIMenu::_class_message_proc(UIMessage msg, int di, void* dp) {
 
       return height + 4;
    } else if (msg == UIMessage::PAINT) {
-      UIDrawControl((UIPainter*)dp, _bounds, UIControl::menu, {}, 0, _window->scale());
+      static_cast<UIPainter*>(dp)->draw_control(_bounds, UIControl::menu, {}, 0, _window->scale());
    } else if (msg == UIMessage::LAYOUT) {
       int position      = _bounds.t + 2 - _vscroll->position();
       int totalHeight   = 0;
@@ -4748,8 +4753,8 @@ int _UIInspectorTableMessage(UIElement* table, UIMessage msg, int di, void* dp) 
       painter._clip = ui_rect_2s(window->width(), window->height());
 
       if (el) {
-         UIDrawInvert(&painter, el->_bounds);
-         UIDrawInvert(&painter, el->_bounds + ui_rect_1i(4));
+         painter.draw_invert(el->_bounds);
+         painter.draw_invert(el->_bounds + ui_rect_1i(4));
       }
 
       window->endpaint(&painter);

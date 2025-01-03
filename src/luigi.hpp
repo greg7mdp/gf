@@ -532,7 +532,7 @@ inline uint32_t ui_color_from_rgba(float r, float g, float b, float a) {
 
 
 #ifndef UI_DRAW_CONTROL_CUSTOM
-   #define UIDrawControl UIDrawControlDefault
+   #define draw_control draw_control_default
 #endif
 
 
@@ -1664,8 +1664,22 @@ struct UIPainter {
    UI*        ui() const { return _ui; }
    UITheme&   theme() const { return ui()->theme(); }              // indirect access to `UI`
    UIFont*    active_font() const { return ui()->active_font(); }  // indirect access to `UI`
-   
+
    UIPainter& draw_glyph(int x0, int y0, int c, uint32_t color);
+   UIPainter& draw_block(UIRectangle rectangle, uint32_t color);
+   UIPainter& draw_line(int x0, int y0, int x1, int y1, uint32_t color);
+   UIPainter& draw_circle(int cx, int cy, int radius, uint32_t fillColor, uint32_t outlineColor, bool hollow);
+   UIPainter& draw_triangle(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color);
+   UIPainter& draw_triangle_outline(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color);
+   UIPainter& draw_invert(UIRectangle rectangle);
+   UIPainter& draw_string(UIRectangle r, std::string_view string, uint32_t color, UIAlign align,
+                          UIStringSelection* selection);
+   UIPainter& draw_border(UIRectangle r, uint32_t borderColor, UIRectangle borderSize);
+   UIPainter& draw_rectangle(UIRectangle r, uint32_t mainColor, uint32_t borderColor, UIRectangle borderSize);
+   UIPainter& draw_control_default(UIRectangle bounds, uint32_t mode, std::string_view label, double position,
+                                   float scale);
+   int        draw_string_highlighted(UIRectangle lineBounds, std::string_view string, int tabSize,
+                                      UIStringSelection* selection);
 };
 
 // ------------------------------------------------------------------------------------------
@@ -1685,27 +1699,6 @@ inline UIFont*  UIElement::active_font() const { return ui()->active_font(); }
 /**/ void        UISwitcherSwitchTo(UISwitcher* switcher, UIElement* child);
 
 typedef void (*UIDialogUserCallback)(UIElement*);
-
-void UIDrawBlock(UIPainter* painter, UIRectangle rectangle, uint32_t color);
-void UIDrawCircle(UIPainter* painter, int centerX, int centerY, int radius, uint32_t fillColor, uint32_t outlineColor,
-                  bool hollow);
-void UIDrawControl(UIPainter* painter, UIRectangle bounds, uint32_t mode /* UI_DRAW_CONTROL_* */,
-                   std::string_view label, double position, float scale);
-void UIDrawControlDefault(UIPainter* painter, UIRectangle bounds, uint32_t mode, std::string_view label,
-                          double position, float scale);
-void UIDrawInvert(UIPainter* painter, UIRectangle rectangle);
-bool UIDrawLine(UIPainter* painter, int x0, int y0, int x1, int y1,
-                uint32_t color); // Returns false if the line was not visible.
-void UIDrawTriangle(UIPainter* painter, int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color);
-void UIDrawTriangleOutline(UIPainter* painter, int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color);
-void UIDrawGlyph(UIPainter* painter, int x, int y, int c, uint32_t color);
-void UIDrawRectangle(UIPainter* painter, UIRectangle r, uint32_t mainColor, uint32_t borderColor,
-                     UIRectangle borderSize);
-void UIDrawBorder(UIPainter* painter, UIRectangle r, uint32_t borderColor, UIRectangle borderSize);
-void UIDrawString(UIPainter* painter, UIRectangle r, std::string_view string, uint32_t color, UIAlign align,
-                  UIStringSelection* selection);
-int  UIDrawStringHighlighted(UIPainter* painter, UIRectangle r, std::string_view string, int tabSize,
-                             UIStringSelection* selection); // Returns final x position.
 
 uint64_t UIAnimateClock(); // In ms.
 

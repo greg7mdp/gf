@@ -570,7 +570,7 @@ bool INIParse(INIState* s) {
 
 int ModifiedRowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::PAINT) {
-      UIDrawBorder((UIPainter*)dp, el->_bounds, el->theme().selected, UIRectangle(2));
+      static_cast<UIPainter*>(dp)->draw_border(el->_bounds, el->theme().selected, UIRectangle(2));
    }
 
    return 0;
@@ -578,8 +578,9 @@ int ModifiedRowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
 int TrafficLightMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::PAINT) {
-      UIDrawRectangle((UIPainter*)dp, el->_bounds, ctx.programRunning ? el->theme().accent1 : el->theme().accent2,
-                      el->theme().border, UIRectangle(1));
+      static_cast<UIPainter*>(dp)->draw_rectangle(el->_bounds,
+                                                  ctx.programRunning ? el->theme().accent1 : el->theme().accent2,
+                                                  el->theme().border, UIRectangle(1));
    }
 
    return 0;
@@ -1864,8 +1865,8 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
    UIRectangle bounds =
       displayCurrentLineBounds + UIRectangle(xOffset, 0, lineHeight, 8 + lineHeight * (inspectResults.size() / 2 + 1));
    bounds.r = bounds.l + width;
-   UIDrawBlock(painter, bounds + UIRectangle(3), theme.border);
-   UIDrawRectangle(painter, bounds, theme.codeBackground, theme.border, UIRectangle(2));
+   painter->draw_block(bounds + UIRectangle(3), theme.border);
+   painter->draw_rectangle(bounds, theme.codeBackground, theme.border, UIRectangle(2));
    UIRectangle line = bounds + UIRectangle(4, -4, 4, 0);
    line.b           = line.t + lineHeight;
    std::string buffer;
@@ -1880,13 +1881,13 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
          buffer = std::format("    {} {}", ir.expression, ir.value);
       }
 
-      UIDrawString(painter, line, buffer, noInspectResults ? theme.codeOperator : theme.codeString, UIAlign::left,
+      painter->draw_string(line, buffer, noInspectResults ? theme.codeOperator : theme.codeString, UIAlign::left,
                    NULL);
       line = line + UIRectangle(0, lineHeight);
       ++index;
    }
 
-   UIDrawString(painter, line, instructions, theme.codeNumber, UIAlign::right, NULL);
+   painter->draw_string(line, instructions, theme.codeNumber, UIAlign::right, NULL);
 }
 
 template <class F>
@@ -1993,22 +1994,22 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       if (m->index == autoPrintResultLine) {
          UIRectangle rectangle =
             UIRectangle(m->x + active_font->_glyph_width, m->bounds.r, m->y, m->y + el->ui()->string_height());
-         UIDrawString(m->painter, rectangle, autoPrintResult, theme.codeComment, UIAlign::left, NULL);
+         m->painter->draw_string(rectangle, autoPrintResult, theme.codeComment, UIAlign::left, NULL);
       }
 
       if (code->hittest(el->cursor_pos()) == m->index && el->is_hovered() &&
           (el->_window->_ctrl || el->_window->_alt || el->_window->_shift) && !el->_window->textbox_modified_flag()) {
-         UIDrawBorder(m->painter, m->bounds, el->_window->_ctrl ? theme.selected : theme.codeOperator, UIRectangle(2));
-         UIDrawString(m->painter, m->bounds, el->_window->_ctrl ? "=> run until " : "=> skip to ", theme.text,
+         m->painter->draw_border(m->bounds, el->_window->_ctrl ? theme.selected : theme.codeOperator, UIRectangle(2));
+         m->painter->draw_string(m->bounds, el->_window->_ctrl ? "=> run until " : "=> skip to ", theme.text,
                       UIAlign::right, NULL);
       } else if (m->index == currentEndOfBlock) {
-         UIDrawString(m->painter, m->bounds, "[Shift+F10]", theme.codeComment, UIAlign::right, NULL);
+         m->painter->draw_string(m->bounds, "[Shift+F10]", theme.codeComment, UIAlign::right, NULL);
       }
 
       if (m->index == ifConditionLine && ifConditionEvaluation) {
          int columnFrom = code->byte_to_column(ifConditionLine, ifConditionFrom);
          int columnTo   = code->byte_to_column(ifConditionLine, ifConditionTo);
-         UIDrawBlock(m->painter,
+         m->painter->draw_block(
                      UIRectangle(m->bounds.l + columnFrom * active_font->_glyph_width,
                                  m->bounds.l + columnTo * active_font->_glyph_width, m->bounds.b - 2, m->bounds.b),
                      ifConditionEvaluation == 2 ? theme.accent2 : theme.accent1);
@@ -3495,8 +3496,8 @@ int WatchWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          bool focused = i == w->selectedRow && el->is_focused();
 
          if (focused)
-            UIDrawBlock(painter, row, theme.selected);
-         UIDrawBorder(painter, row, theme.border, UIRectangle(0, 1, 0, 1));
+            painter->draw_block(row, theme.selected);
+         painter->draw_border(row, theme.border, UIRectangle(0, 1, 0, 1));
 
          row.l += ui_size::textbox_margin;
          row.r -= ui_size::textbox_margin;
@@ -3535,9 +3536,9 @@ int WatchWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
             }
 
             if (focused) {
-               UIDrawString(painter, row, buffer, theme.textSelected, UIAlign::left, nullptr);
+               painter->draw_string(row, buffer, theme.textSelected, UIAlign::left, nullptr);
             } else {
-               UIDrawStringHighlighted(painter, row, buffer, 1, NULL);
+               painter->draw_string_highlighted(row, buffer, 1, NULL);
             }
          }
       }
@@ -4266,8 +4267,8 @@ int FilesButtonMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       int        i       = el->is_pressed() + el->is_hovered();
       auto&      theme   = el->theme();
       if (i)
-         UIDrawBlock(painter, el->_bounds, i == 2 ? theme.buttonPressed : theme.buttonHovered);
-      UIDrawString(painter, el->_bounds + UIRectangle(ui_size::button_padding, 0, 0, 0), button->label(),
+         painter->draw_block(el->_bounds, i == 2 ? theme.buttonPressed : theme.buttonHovered);
+      painter->draw_string(el->_bounds + UIRectangle(ui_size::button_padding, 0, 0, 0), button->label(),
                    button->_flags & UIButton::CHECKED ? theme.codeNumber : theme.codeDefault, UIAlign::left, NULL);
       return 1;
    }
@@ -5118,19 +5119,19 @@ void* ProfFlameGraphRenderThread(void* _unused) {
             r.t = rt < report->client.t ? report->client.t : rt;
             r.b = rb > report->client.b ? report->client.b : rb;
 
-            UIDrawBlock(painter, UIRectangle(r.r - 1, r.r, r.t, r.b - 1), profBorderDarkColor);
-            UIDrawBlock(painter, UIRectangle(r.l, r.r, r.b - 1, r.b), profBorderDarkColor);
-            UIDrawBlock(painter, UIRectangle(r.l, r.r - 1, r.t, r.t + 1), profBorderLightColor);
-            UIDrawBlock(painter, UIRectangle(r.l, r.l + 1, r.t + 1, r.b - 1), profBorderLightColor);
+            painter->draw_block(UIRectangle(r.r - 1, r.r, r.t, r.b - 1), profBorderDarkColor);
+            painter->draw_block(UIRectangle(r.l, r.r, r.b - 1, r.b), profBorderDarkColor);
+            painter->draw_block(UIRectangle(r.l, r.r - 1, r.t, r.t + 1), profBorderLightColor);
+            painter->draw_block(UIRectangle(r.l, r.l + 1, r.t + 1, r.b - 1), profBorderLightColor);
 
             bool     hovered = report->hover && report->hover->thisFunction == entry->thisFunction && !report->dragMode;
             uint32_t color   = hovered ? profHoverColor : profEntryColorPalette[entry->colorIndex];
             /// uint32_t color = hovered ? profHoverColor : profMainColor;
-            UIDrawBlock(painter, UIRectangle(r.l + 1, r.r - 1, r.t + 1, r.b - 1), color);
+            painter->draw_block(UIRectangle(r.l + 1, r.r - 1, r.t + 1, r.b - 1), color);
 
             if (r.width() > 40) {
                auto string = std::format("{} {:f}ms", entry->cName, entry->endTime - entry->startTime);
-               UIDrawString(painter, UIRectangle(r.l + 2, r.r, r.t, r.b), string, profTextColor, UIAlign::left, NULL);
+               painter->draw_string(UIRectangle(r.l + 2, r.r, r.t, r.b), string, profTextColor, UIAlign::left, NULL);
             }
          }
 
@@ -5183,7 +5184,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       }
 
       UIPainter* painter = (UIPainter*)dp;
-      UIDrawBlock(painter, report->client, profBackgroundColor);
+      painter->draw_block(report->client, profBackgroundColor);
 
       profRenderReport        = report;
       profRenderPainter       = painter;
@@ -5198,7 +5199,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       {
          UIRectangle r =
             UIRectangle(report->client.l, report->client.r, report->client.t, report->client.t + profScaleHeight);
-         UIDrawRectangle(painter, r, profMainColor, profBorderDarkColor, UIRectangle(0, 0, 0, 1));
+         painter->draw_rectangle(r, profMainColor, profBorderDarkColor, UIRectangle(0, 0, 0, 1));
 
          double increment = 1000.0;
          while (increment > 1e-6 && increment * zoomX > 600.0)
@@ -5216,8 +5217,8 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
             if (r.l > painter->_clip.r)
                break;
             auto string = std::format("{:.4f}ms", i);
-            UIDrawBlock(painter, UIRectangle(r.l, r.l + 1, r.t, r.b), profBorderLightColor);
-            UIDrawString(painter, r, string, profTextColor, UIAlign::left, NULL);
+            painter->draw_block(UIRectangle(r.l, r.l + 1, r.t, r.b), profBorderLightColor);
+            painter->draw_string(r, string, profTextColor, UIAlign::left, NULL);
          }
       }
 
@@ -5226,7 +5227,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          r.l = report->dragInitialPoint, r.r = report->dragCurrentPoint;
          if (r.l > r.r)
             r.r = report->dragInitialPoint, r.l = report->dragCurrentPoint;
-         UIDrawInvert(painter, r);
+         painter->draw_invert(r);
       }
 
       if (report->thumbnail) {
@@ -5248,8 +5249,8 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
             }
          }
 
-         UIDrawBorder(painter, zoomBar, profBorderDarkColor, UIRectangle(2));
-         UIDrawBorder(painter, zoomBarThumb, profBorderLightColor, UIRectangle(4));
+         painter->draw_border(zoomBar, profBorderDarkColor, UIRectangle(2));
+         painter->draw_border(zoomBarThumb, profBorderLightColor, UIRectangle(4));
       }
 
       if (report->hover && !report->dragMode) {
@@ -5290,11 +5291,11 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          UIRectangle rectangle = UIRectangle(x, x + width, y, y + height);
 
          ProfDrawTransparentOverlay(painter, rectangle + ui_rect_1i(-5), 0xFF000000);
-         UIDrawString(painter, UIRectangle(x, x + width, y + lineHeight * 0, y + lineHeight * 1), line1, 0xFFFFFFFF,
+         painter->draw_string(UIRectangle(x, x + width, y + lineHeight * 0, y + lineHeight * 1), line1, 0xFFFFFFFF,
                       UIAlign::left, 0);
-         UIDrawString(painter, UIRectangle(x, x + width, y + lineHeight * 1, y + lineHeight * 2), line2, 0xFFFFFFFF,
+         painter->draw_string(UIRectangle(x, x + width, y + lineHeight * 1, y + lineHeight * 2), line2, 0xFFFFFFFF,
                       UIAlign::left, 0);
-         UIDrawString(painter, UIRectangle(x, x + width, y + lineHeight * 2, y + lineHeight * 3), line3, 0xFFFFFFFF,
+         painter->draw_string(UIRectangle(x, x + width, y + lineHeight * 2, y + lineHeight * 3), line3, 0xFFFFFFFF,
                       UIAlign::left, 0);
       }
 
@@ -5607,8 +5608,8 @@ void ProfLoadProfileData(void* _window) {
       char      string[256];
       std_format_to_n(string, sizeof(string), "Loading data... (estimated time: {} seconds)",
                       rawEntryCount / 5000000 + 1);
-      UIDrawBlock(&painter, painter._clip, painter.theme().panel1);
-      UIDrawString(&painter, painter._clip, string, painter.theme().text, UIAlign::center, 0);
+      painter.draw_block(painter._clip, painter.theme().panel1);
+      painter.draw_string(painter._clip, string, painter.theme().text, UIAlign::center, 0);
       window->set_update_region(ui_rect_2s(window->width(), window->height()));
       window->endpaint(nullptr);
       window->set_update_region(painter._clip);
@@ -5930,7 +5931,7 @@ int MemoryWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::PAINT) {
       auto&      theme   = el->theme();
       UIPainter* painter = (UIPainter*)dp;
-      UIDrawBlock(painter, el->_bounds, theme.panel1);
+      painter->draw_block(el->_bounds, theme.panel1);
 
       char        buffer[64];
       uint64_t    address   = window->offset;
@@ -5941,11 +5942,11 @@ int MemoryWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
       {
          std_format_to_n(buffer, sizeof(buffer), "Inspecting memory @{:p}", (void*)window->offset);
-         UIDrawString(painter, row, buffer, theme.codeString, UIAlign::left, 0);
+         painter->draw_string(row, buffer, theme.codeString, UIAlign::left, 0);
          row.t += rowHeight;
          row.b += rowHeight;
          const char* header = "         0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F   0123456789ABCDEF";
-         UIDrawString(painter, row, header, theme.codeComment, UIAlign::left, 0);
+         painter->draw_string(row, header, theme.codeComment, UIAlign::left, 0);
          row.t += rowHeight;
          row.b += rowHeight;
       }
@@ -5987,7 +5988,7 @@ int MemoryWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          UI*   ui    = el->ui();
          auto& theme = el->theme();
          std_format_to_n(buffer, sizeof(buffer), "{:8X} ", (uint32_t)(address & 0xFFFFFFFF));
-         UIDrawString(painter, row, buffer, theme.codeComment, UIAlign::left, 0);
+         painter->draw_string(row, buffer, theme.codeComment, UIAlign::left, 0);
          UIRectangle r          = row + UIRectangle(ui->string_width(buffer), 0, 0, 0);
          int         glyphWidth = ui->string_width("a");
 
@@ -6172,11 +6173,11 @@ int ViewWindowColorSwatchMessage(UIElement* el, UIMessage msg, int di, void* dp)
       UIPainter*  painter = (UIPainter*)dp;
       const char* message = "Col: ";
 
-      UIDrawString(painter, el->_bounds, message, theme.text, UIAlign::left, nullptr);
+      painter->draw_string(el->_bounds, message, theme.text, UIAlign::left, nullptr);
       UIRectangle swatch =
          UIRectangle(el->_bounds.l + el->ui()->string_width(message), 0, el->_bounds.t + 2, el->_bounds.b - 2);
       swatch.r = swatch.l + 50;
-      UIDrawRectangle(painter, swatch, color, 0xFF000000, UIRectangle(1));
+      painter->draw_rectangle(swatch, color, 0xFF000000, UIRectangle(1));
    }
 
    return 0;
@@ -6239,14 +6240,13 @@ int ViewWindowMatrixGridMessage(UIElement* el, UIMessage msg, int di, void* dp) 
                   UIRectangle(j * glyphWidth * 14, (j + 1) * glyphWidth * 14, i * glyphHeight, (i + 1) * glyphHeight);
                UIRectangle offset = UIRectangle(el->_bounds.l - (int)grid->hScroll->position(),
                                                 el->_bounds.t - (int)grid->vScroll->position());
-               UIDrawString(painter, rectangle + offset, buffer, theme.text, UIAlign::right, nullptr);
+               painter->draw_string(rectangle + offset, buffer, theme.text, UIAlign::right, nullptr);
             }
          }
       }
 
       int scrollBarSize = ui_size::scroll_bar * el->_window->scale();
-      UIDrawBlock(
-         painter,
+      painter->draw_block(
          UIRectangle(el->_bounds.r - scrollBarSize, el->_bounds.r, el->_bounds.b - scrollBarSize, el->_bounds.b),
          theme.panel1);
    } else if (msg == UIMessage::LAYOUT) {
@@ -6340,7 +6340,7 @@ int ViewWindowStringMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       display->vScroll->move(scrollBarBounds, true);
    } else if (msg == UIMessage::PAINT) {
       auto& theme = el->theme();
-      UIDrawBlock((UIPainter*)dp, el->_bounds, theme.codeBackground);
+      static_cast<UIPainter*>(dp)->draw_block(el->_bounds, theme.codeBackground);
       ViewWindowStringLayout(display, (UIPainter*)dp, display->vScroll->position());
    } else if (msg == UIMessage::MOUSE_WHEEL) {
       return display->vScroll->message(msg, di, dp);
@@ -6718,8 +6718,8 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       int ym              = (client.t + client.b) / 2;
       int h2              = (client.b - client.t) / 2;
       int yp              = ym;
-      UIDrawBlock(painter, painter->_clip, theme.panel1);
-      UIDrawBlock(painter, UIRectangle(client.l, client.r, ym, ym + 1), 0x707070);
+      painter->draw_block(painter->_clip, theme.panel1);
+      painter->draw_block(UIRectangle(client.l, client.r, ym, ym + 1), 0x707070);
 
       float yScale =
          (display->normalize->_flags & UIButton::CHECKED) && display->peak > 0.00001f ? 1.0f / display->peak : 1.0f;
@@ -6764,7 +6764,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
                int32_t x0 = (int)((float)i / sampleCount * client.width()) + client.l;
                int32_t x1 = (int)((float)(i + 1) / sampleCount * client.width()) + client.l;
                int32_t y  = ym + h2 * yScale * samples[channel + display->channels * (int)i];
-               UIDrawLine(painter, x0, yp, x1, y, theme.text);
+               painter->draw_line(x0, yp, x1, y, theme.text);
                yp = y;
             }
          }
@@ -6774,7 +6774,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
                for (int32_t i = 0; i < sampleCount; i++) {
                   int32_t x1 = (int)((float)(i + 1) / sampleCount * client.width()) + client.l;
                   int32_t y  = ym + h2 * yScale * samples[channel + display->channels * (int)i];
-                  UIDrawBlock(painter, UIRectangle(x1 - 2, x1 + 2, y - 2, y + 2),
+                  painter->draw_block(UIRectangle(x1 - 2, x1 + 2, y - 2, y + 2),
                               channel % 2 ? 0xFFFF00FF : 0xFF00FFFF);
                }
             }
@@ -6801,7 +6801,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
                strcat(buffer, buffer2);
             }
 
-            UIDrawString(painter, stringRectangle, buffer, theme.text, UIAlign::right, NULL);
+            painter->draw_string(stringRectangle, buffer, theme.text, UIAlign::right, NULL);
 
             int32_t x1 = (int)((float)(mouseXSample + 1) / sampleCount * client.width()) + client.l;
             WaveformDisplayDrawVerticalLineWithTranslucency(painter, UIRectangle(x1, x1 + 1, client.t, client.b),
@@ -6811,7 +6811,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
       if (el->_window->pressed_button() == 2 && el->_window->pressed()) {
          int l = pos.x, r = display->dragLastX;
-         UIDrawInvert(painter, UIRectangle(l > r ? r : l, l > r ? l : r, el->_bounds.t, el->_bounds.r));
+         painter->draw_invert(UIRectangle(l > r ? r : l, l > r ? l : r, el->_bounds.t, el->_bounds.r));
       }
 
       painter->_clip = oldClip;
