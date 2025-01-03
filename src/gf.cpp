@@ -212,16 +212,16 @@ struct INIState {
       free(value);
    }
 
-   INIState(INIState&& o) : INIState() {
-      std::swap(buffer , o.buffer);
-      std::swap(section , o.section);
-      std::swap(key , o.key);
-      std::swap(value , o.value);
-      std::swap(bytes , o.bytes);
-      std::swap(sectionBytes , o.sectionBytes);
-      std::swap(keyBytes , o.keyBytes);
-      std::swap(valueBytes , o.valueBytes);
-
+   INIState(INIState&& o)
+      : INIState() {
+      std::swap(buffer, o.buffer);
+      std::swap(section, o.section);
+      std::swap(key, o.key);
+      std::swap(value, o.value);
+      std::swap(bytes, o.bytes);
+      std::swap(sectionBytes, o.sectionBytes);
+      std::swap(keyBytes, o.keyBytes);
+      std::swap(valueBytes, o.valueBytes);
    }
 
    // this because INIState is filled with pointers to strings hacked from the result of `LoadFile(configFile)`,
@@ -229,16 +229,18 @@ struct INIState {
    // Hard to not leak memory with these shenanigans.
    INIState clone() {
       INIState s = *this;
-      if (buffer)  s.buffer = strdup(buffer);
-      if (section) s.section = strdup(section);
-      if (key)     s.key = strdup(key);
-      if (value)   s.value = strdup(value);
+      if (buffer)
+         s.buffer = strdup(buffer);
+      if (section)
+         s.section = strdup(section);
+      if (key)
+         s.key = strdup(key);
+      if (value)
+         s.value = strdup(value);
       return s;
    }
 
-   void clear() {
-      buffer = section = key = value = nullptr;
-   }
+   void clear() { buffer = section = key = value = nullptr; }
 
 private:
    INIState(const INIState&) = default;
@@ -321,16 +323,15 @@ Context ctx;
 
 // --------------------------------------------------------------------------------------------
 struct GF_Config {
-   const char* layout_string = "v(75,h(80,Source,v(50,t(Exe,Breakpoints,Commands,Struct),t(Stack,Files,Thread,CmdSearch)))"
+   const char* layout_string =
+      "v(75,h(80,Source,v(50,t(Exe,Breakpoints,Commands,Struct),t(Stack,Files,Thread,CmdSearch)))"
       ",h(65,Console,t(Watch,Locals,Registers,Data)))";
-   
+
    // executable window
    // -----------------
    std::string exe_path;
    std::string exe_args;
    bool        exe_ask_dir = true;
-
-   
 };
 
 GF_Config gfc;
@@ -345,18 +346,18 @@ char                       globalConfigPath[PATH_MAX];
 char                       localConfigDirectory[PATH_MAX];
 char                       localConfigPath[PATH_MAX];
 vector<ReceiveMessageType> receiveMessageTypes;
-int          code_font_size      = 13;
-int          interface_font_size = 11;
-int          window_width        = 800;
-int          window_height       = 600;
-float        ui_scale            = 1;
-bool         selectableSource    = true;
-bool         restoreWatchWindow;
-WatchWindow* firstWatchWindow = nullptr;
-bool         maximize;
-bool         confirmCommandConnect = true, confirmCommandKill = true;
-int          backtraceCountLimit = 50;
-UIMessage    msgReceivedData, msgReceivedLog, msgReceivedControl, msgReceivedNext = (UIMessage)(UIMessage::USER_PLUS_1);
+int                        code_font_size      = 13;
+int                        interface_font_size = 11;
+int                        window_width        = 800;
+int                        window_height       = 600;
+float                      ui_scale            = 1;
+bool                       selectableSource    = true;
+bool                       restoreWatchWindow;
+WatchWindow*               firstWatchWindow = nullptr;
+bool                       maximize;
+bool                       confirmCommandConnect = true, confirmCommandKill = true;
+int                        backtraceCountLimit = 50;
+UIMessage msgReceivedData, msgReceivedLog, msgReceivedControl, msgReceivedNext = (UIMessage)(UIMessage::USER_PLUS_1);
 
 // Current file and line:
 
@@ -1396,7 +1397,7 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
       INIState state;
       auto     config = LoadFile(i ? localConfigPath : globalConfigPath);
       state.bytes     = config.size();
-      state.buffer    = config[0] ? (char *)config.c_str() : nullptr;
+      state.buffer    = config[0] ? (char*)config.c_str() : nullptr;
 
       if (earlyPass && i && !currentFolderIsTrusted && state.buffer) {
          print(std::cerr, "Would you like to load the config file .project.gf from your current directory?\n");
@@ -1531,13 +1532,13 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
                   std_format_to_n(buffer, sizeof(buffer), "{}",
                                   std::string_view{&state.value[argumentStart], (size_t)(argumentEnd - argumentStart)});
 
-                  ctx.gdbArgc++;    // 0 is for the program name
+                  ctx.gdbArgc++; // 0 is for the program name
                   ctx.gdbArgv                  = (char**)realloc(ctx.gdbArgv, sizeof(char*) * (ctx.gdbArgc + 1));
                   ctx.gdbArgv[ctx.gdbArgc - 1] = strdup(buffer);
                   ctx.gdbArgv[ctx.gdbArgc]     = nullptr;
                }
             } else if (0 == strcmp(state.key, "path")) {
-               char *path = strdup(state.value);
+               char* path     = strdup(state.value);
                ctx.gdbPath    = path;
                ctx.gdbArgv[0] = path;
             } else if (0 == strcmp(state.key, "log_all_output") && sv_atoi(state.value)) {
@@ -1881,8 +1882,7 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
          buffer = std::format("    {} {}", ir.expression, ir.value);
       }
 
-      painter->draw_string(line, buffer, noInspectResults ? theme.codeOperator : theme.codeString, UIAlign::left,
-                   NULL);
+      painter->draw_string(line, buffer, noInspectResults ? theme.codeOperator : theme.codeString, UIAlign::left, NULL);
       line = line + UIRectangle(0, lineHeight);
       ++index;
    }
@@ -2001,7 +2001,7 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
           (el->_window->_ctrl || el->_window->_alt || el->_window->_shift) && !el->_window->textbox_modified_flag()) {
          m->painter->draw_border(m->bounds, el->_window->_ctrl ? theme.selected : theme.codeOperator, UIRectangle(2));
          m->painter->draw_string(m->bounds, el->_window->_ctrl ? "=> run until " : "=> skip to ", theme.text,
-                      UIAlign::right, NULL);
+                                 UIAlign::right, NULL);
       } else if (m->index == currentEndOfBlock) {
          m->painter->draw_string(m->bounds, "[Shift+F10]", theme.codeComment, UIAlign::right, NULL);
       }
@@ -2009,10 +2009,10 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       if (m->index == ifConditionLine && ifConditionEvaluation) {
          int columnFrom = code->byte_to_column(ifConditionLine, ifConditionFrom);
          int columnTo   = code->byte_to_column(ifConditionLine, ifConditionTo);
-         m->painter->draw_block(
-                     UIRectangle(m->bounds.l + columnFrom * active_font->_glyph_width,
-                                 m->bounds.l + columnTo * active_font->_glyph_width, m->bounds.b - 2, m->bounds.b),
-                     ifConditionEvaluation == 2 ? theme.accent2 : theme.accent1);
+         m->painter->draw_block(UIRectangle(m->bounds.l + columnFrom * active_font->_glyph_width,
+                                            m->bounds.l + columnTo * active_font->_glyph_width, m->bounds.b - 2,
+                                            m->bounds.b),
+                                ifConditionEvaluation == 2 ? theme.accent2 : theme.accent1);
       }
    } else if (msg == UIMessage::MOUSE_MOVE || msg == UIMessage::UPDATE) {
       auto pos = el->cursor_pos();
@@ -2564,11 +2564,10 @@ void BitmapViewerUpdate(std::string pointerString, std::string widthString, std:
 void BitmapAddDialog() {
    static char *pointer = nullptr, *width = nullptr, *height = nullptr, *stride = nullptr;
 
-   auto result =
-      windowMain->show_dialog(0,
-                              "Add bitmap\n\n%l\n\nPointer to bits: (32bpp, RR GG BB "
-                              "AA)\n%t\nWidth:\n%t\nHeight:\n%t\nStride: (optional)\n%t\n\n%l\n\n%f%B%C",
-                              &pointer, &width, &height, &stride, "Add", "Cancel");
+   auto result = windowMain->show_dialog(0,
+                                         "Add bitmap\n\n%l\n\nPointer to bits: (32bpp, RR GG BB "
+                                         "AA)\n%t\nWidth:\n%t\nHeight:\n%t\nStride: (optional)\n%t\n\n%l\n\n%f%B%C",
+                                         &pointer, &width, &height, &stride, "Add", "Cancel");
 
    if (result == "Add") {
       BitmapViewerUpdate(pointer ?: "", width ?: "", height ?: "", (stride && stride[0]) ? stride : "");
@@ -4269,7 +4268,8 @@ int FilesButtonMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       if (i)
          painter->draw_block(el->_bounds, i == 2 ? theme.buttonPressed : theme.buttonHovered);
       painter->draw_string(el->_bounds + UIRectangle(ui_size::button_padding, 0, 0, 0), button->label(),
-                   button->_flags & UIButton::CHECKED ? theme.codeNumber : theme.codeDefault, UIAlign::left, NULL);
+                           button->_flags & UIButton::CHECKED ? theme.codeNumber : theme.codeDefault, UIAlign::left,
+                           NULL);
       return 1;
    }
 
@@ -4613,9 +4613,9 @@ void ThreadWindowUpdate(const char*, UIElement* _table) {
 // ---------------------------------------------------/
 
 struct ExecutableWindow {
-   UITextbox*  path         = nullptr;
-   UITextbox*  arguments    = nullptr;
-   bool        should_ask;
+   UITextbox* path      = nullptr;
+   UITextbox* arguments = nullptr;
+   bool       should_ask;
 
    void start_or_run(bool pause) {
       auto res = EvaluateCommand(std::format("file \"{}\"", path->text()));
@@ -5292,11 +5292,11 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
          ProfDrawTransparentOverlay(painter, rectangle + ui_rect_1i(-5), 0xFF000000);
          painter->draw_string(UIRectangle(x, x + width, y + lineHeight * 0, y + lineHeight * 1), line1, 0xFFFFFFFF,
-                      UIAlign::left, 0);
+                              UIAlign::left, 0);
          painter->draw_string(UIRectangle(x, x + width, y + lineHeight * 1, y + lineHeight * 2), line2, 0xFFFFFFFF,
-                      UIAlign::left, 0);
+                              UIAlign::left, 0);
          painter->draw_string(UIRectangle(x, x + width, y + lineHeight * 2, y + lineHeight * 3), line3, 0xFFFFFFFF,
-                      UIAlign::left, 0);
+                              UIAlign::left, 0);
       }
 
       previousFont->activate();
@@ -6774,8 +6774,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
                for (int32_t i = 0; i < sampleCount; i++) {
                   int32_t x1 = (int)((float)(i + 1) / sampleCount * client.width()) + client.l;
                   int32_t y  = ym + h2 * yScale * samples[channel + display->channels * (int)i];
-                  painter->draw_block(UIRectangle(x1 - 2, x1 + 2, y - 2, y + 2),
-                              channel % 2 ? 0xFFFF00FF : 0xFF00FFFF);
+                  painter->draw_block(UIRectangle(x1 - 2, x1 + 2, y - 2, y + 2), channel % 2 ? 0xFFFF00FF : 0xFF00FFFF);
                }
             }
          }
@@ -6976,7 +6975,7 @@ int WaveformViewerRefreshMessage(UIElement* el, UIMessage msg, int di, void* dp)
 
 void WaveformViewerSaveToFile(WaveformDisplay* display) {
    static char* path = NULL;
-   auto result =
+   auto         result =
       windowMain->show_dialog(0, "Save to file       \nPath:\n%t\n%f%b%b%b", &path, "Save", "Save and open", "Cancel");
    if (result == "Cancel")
       return;
