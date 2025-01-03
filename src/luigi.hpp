@@ -170,14 +170,13 @@ std::string LoadFile(const char* path); // load whole file into string
 // ---------------------------------------------------------------------------
 // assigns val to var, and returns true if the value changed
 // ---------------------------------------------------------------------------
-template<class T, class V>
-bool ui_change(T& var, V&& val) noexcept(std::is_nothrow_move_assignable_v<T> &&
-                                         std::is_nothrow_copy_assignable_v<T>) {
-    if (var != val) {
-        var = std::forward<V>(val);
-        return true;
-    }
-    return false;
+template <class T, class V>
+bool ui_set(T& var, V&& val) noexcept(std::is_nothrow_move_assignable_v<T> && std::is_nothrow_copy_assignable_v<T>) {
+   if (var != val) {
+      var = std::forward<V>(val);
+      return true;
+   }
+   return false;
 }
 
 // --------------------------------------------------
@@ -707,6 +706,7 @@ public:
    UISlider&       add_slider(uint32_t flags);
    UISpacer&       add_spacer(uint32_t flags, int width, int height);
    UISplitPane&    add_splitpane(uint32_t flags, float weight);
+   UISplitter&     add_splitter(uint32_t flags);
    UISwitcher&     add_switcher(uint32_t flags);
    UITabPane&      add_tabpane(uint32_t flags, const char* tabs);  // tabs: separate with \t, terminate with \0 
    UITable&        add_table(uint32_t flags, const char* columns); // tabs: separate with \t, terminate with \0 
@@ -978,7 +978,7 @@ public:
    UICheckbox&      set_label(std::string_view label);
    std::string_view label() const     { return _label; }
 
-   UICheckbox&      set_checked(bool b) { if (ui_change(*_checked_ptr,  b)) repaint(nullptr); return *this; }
+   UICheckbox&      set_checked(bool b) { if (ui_set(*_checked_ptr,  b)) repaint(nullptr); return *this; }
    bool             checked() const     { return *_checked_ptr; }
 
    UICheckbox&      track(bool* val_ptr) {
@@ -1054,6 +1054,9 @@ struct UISplitter : public UIElementCast<UISplitter> {
 
 private:
    int _class_message_proc(UIMessage msg, int di, void* dp);
+
+public:
+   UISplitter(UIElement* parent, uint32_t flags);
 };
 
 // ------------------------------------------------------------------------------------------

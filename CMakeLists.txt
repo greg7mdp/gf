@@ -73,13 +73,15 @@ endif ()
 ## ------------------------------------------------------------------------------------
 ##                                    Sanitizers
 ## ------------------------------------------------------------------------------------
-option(ENABLE_SANITIZERS         "Build with sanitizers enabled")
-option(ENABLE_ADDRESS_SANITIZER  "Build with address sanitizers enabled")
+option(ENABLE_SANITIZERS         "Build with sanitizers enabled" OFF)
+option(ENABLE_ADDRESS_SANITIZER  "Build with address sanitizers enabled" OFF)
 
 if (ENABLE_SANITIZERS OR ENABLE_ADDRESS_SANITIZER)
     if (ENABLE_ADDRESS_SANITIZER)
+        message( STATUS "Configuring address sanitizer" )
         set(clang_san_options -g -fsanitize=address -fno-omit-frame-pointer)
     else()
+        message( STATUS "Configuring other sanitizers" )
         set(clang_san_options -g -fsanitize=undefined -fno-sanitize-recover=all -fsanitize=float-divide-by-zero
                                  -fsanitize=float-cast-overflow -fno-sanitize=null -fno-sanitize=alignment -fPIE
                                  -fno-omit-frame-pointer -fsanitize-ignorelist=${CMAKE_SOURCE_DIR}/san_ignore_list.txt)

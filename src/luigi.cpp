@@ -1267,6 +1267,10 @@ UISplitPane& UIElement::add_splitpane(uint32_t flags, float weight) {
    return *new UISplitPane(this, flags, weight);
 }
 
+UISplitter& UIElement::add_splitter(uint32_t flags) {
+   return *new UISplitter(this, flags);
+}
+
 UITabPane& UIElement::add_tabpane(uint32_t flags, const char* tabs) {
    return *new UITabPane(this, flags, tabs);
 }
@@ -1997,8 +2001,7 @@ int UIButton::_class_message_proc(UIMessage msg, int di, void* dp) {
 }
 
 UIButton& UIButton::set_label(std::string_view new_label) {
-   if (_label != new_label) {
-      _label = new_label;
+   if (ui_set(_label, new_label)) {
       measurements_changed(1);
       repaint(nullptr);
    }
@@ -2039,8 +2042,7 @@ int UICheckbox::_class_message_proc(UIMessage msg, int di, void* dp) {
 }
 
 UICheckbox& UICheckbox::set_label(std::string_view new_label) {
-   if (_label != new_label) {
-      _label = new_label;
+   if (ui_set(_label, new_label)) {
       this->measurements_changed(1);
       repaint(nullptr);
    }
@@ -2072,8 +2074,7 @@ int UILabel::_class_message_proc(UIMessage msg, int di, void* dp) {
 }
 
 UILabel& UILabel::set_label(std::string_view new_label) {
-   if (_label != new_label) {
-      _label = new_label;
+   if (ui_set(_label, new_label)) {
       measurements_changed(1);
       repaint(nullptr);
    }
@@ -2154,7 +2155,11 @@ int UISplitPane::_class_message_proc(UIMessage msg, int di, void* dp) {
 UISplitPane::UISplitPane(UIElement* parent, uint32_t flags, float weight)
    : UIElementCast<UISplitPane>(parent, flags, UISplitPane::_ClassMessageProc, "Split Pane")
    , _weight(weight) {
-   add_element(0, UISplitter::_ClassMessageProc, "Splitter");
+   add_splitter(0);
+}
+
+UISplitter::UISplitter(UIElement* parent, uint32_t flags)
+   : UIElementCast<UISplitter>(parent, flags, UISplitter::_ClassMessageProc, "Splitter") {
 }
 
 // --------------------------------------------------
@@ -3087,8 +3092,7 @@ int UIGauge::_class_message_proc(UIMessage msg, int di, void* dp) {
 
 UIGauge& UIGauge::set_position(double new_pos) {
    new_pos = std::clamp(new_pos, 0., 1.);
-   if (new_pos != _position) {
-      _position = new_pos;
+   if (ui_set(_position, new_pos)) {
       repaint(nullptr);
    }
    return *this;
@@ -3138,7 +3142,7 @@ int UISlider::_class_message_proc(UIMessage msg, int di, void* dp) {
 
 UISlider& UISlider::set_position(double new_pos) {
    new_pos = std::clamp(new_pos, 0., 1.);
-   if (new_pos != _position) {
+   if (ui_set(_position, new_pos)) {
       if (_steps > 1)
          _position = (int)(_position * (_steps - 1) + 0.5f) / (float)(_steps - 1);
       message(UIMessage::VALUE_CHANGED, 0, 0);
@@ -4193,12 +4197,11 @@ void UI::update() {
 
             window->paint(&painter);
             window->endpaint(&painter);
-            window->_update_region = UIRectangle(0);
-
 #ifdef UI_DEBUG
             window->_last_full_fill_count =
                (float)painter._fill_count / (window->_update_region.width() * window->_update_region.height());
 #endif
+            window->_update_region = UIRectangle(0);
          }
 
          window->message(UIMessage::WINDOW_UPDATE_END, 0, 0);
