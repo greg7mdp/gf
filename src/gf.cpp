@@ -524,6 +524,7 @@ inline uint64_t Hash(const uint8_t* key, size_t keyBytes) {
    return hash;
 }
 
+// reads into `destination` until character `c1` found (or we reach the end of `s->buffer`)
 #define INI_READ(destination, counter, c1, c2)              \
    s->destination = s->buffer, s->counter = 0;              \
    while (s->bytes && *s->buffer != c1 && *s->buffer != c2) \
@@ -554,10 +555,12 @@ bool INIParse(INIState* s) {
          s->section[s->sectionBytes] = 0;
       else
          s->section = &emptyString;
+
       if (s->keyBytes)
          s->key[s->keyBytes] = 0;
       else
          s->key = &emptyString;
+
       if (s->valueBytes)
          s->value[s->valueBytes] = 0;
       else

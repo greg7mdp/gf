@@ -24,10 +24,10 @@
 #include <format>
 #include <unordered_map>
 
-using std::unique_ptr;
-using std::shared_ptr;
-using std::make_unique;
 using std::make_shared;
+using std::make_unique;
+using std::shared_ptr;
+using std::unique_ptr;
 
 #define UI_DEBUG 0
 #define UI_AUTOMATION_TESTS 1
@@ -45,11 +45,11 @@ using std::make_shared;
    #define UI_CLOCKS_PER_SECOND 1000
    #define UI_CLOCK_T clock_t
 
-   inline UI_CLOCK_T _UIClock() {
-      struct timespec spec;
-      clock_gettime(CLOCK_REALTIME, &spec);
-      return spec.tv_sec * 1000 + spec.tv_nsec / 1000000;
-   }
+inline UI_CLOCK_T _UIClock() {
+   struct timespec spec;
+   clock_gettime(CLOCK_REALTIME, &spec);
+   return spec.tv_sec * 1000 + spec.tv_nsec / 1000000;
+}
 #endif
 
 #ifdef UI_WINDOWS
@@ -76,63 +76,59 @@ using std::make_shared;
    #include <freetype/ftbitmap.h>
 
    #ifdef UI_FREETYPE_SUBPIXEL
-      inline constexpr auto ft_render_mode = FT_RENDER_MODE_LCD;
+inline constexpr auto ft_render_mode = FT_RENDER_MODE_LCD;
    #else
-      inline constexpr auto ft_render_mode = FT_RENDER_MODE_NORMAL;
+inline constexpr auto ft_render_mode = FT_RENDER_MODE_NORMAL;
    #endif
 #endif
 
 #ifdef UI_LINUX
 enum class UIKeycode : int {
-    A         = XK_A,
-    ZERO      = XK_0,
-    BACKSPACE = XK_BackSpace,
-    DEL       = XK_Delete,
-    DOWN      = XK_Down,
-    END       = XK_End,
-    ENTER     = XK_Return,
-    ESCAPE    = XK_Escape,
-    F1        = XK_F1,
-    HOME      = XK_Home,
-    LEFT      = XK_Left,
-    RIGHT     = XK_Right,
-    SPACE     = XK_space,
-    TAB       = XK_Tab,
-    UP        = XK_Up,
-    INSERT    = XK_Insert,
-    BACKTICK  = XK_grave,
-    PAGE_UP   = XK_Page_Up,
-    PAGE_DOWN = XK_Page_Down,
+   A         = XK_A,
+   ZERO      = XK_0,
+   BACKSPACE = XK_BackSpace,
+   DEL       = XK_Delete,
+   DOWN      = XK_Down,
+   END       = XK_End,
+   ENTER     = XK_Return,
+   ESCAPE    = XK_Escape,
+   F1        = XK_F1,
+   HOME      = XK_Home,
+   LEFT      = XK_Left,
+   RIGHT     = XK_Right,
+   SPACE     = XK_space,
+   TAB       = XK_Tab,
+   UP        = XK_Up,
+   INSERT    = XK_Insert,
+   BACKTICK  = XK_grave,
+   PAGE_UP   = XK_Page_Up,
+   PAGE_DOWN = XK_Page_Down,
 };
 #endif
 
 #ifdef UI_WINDOWS
 enum class UIKeycode : int {
-    A         = 'A',
-    ZERO      = '0',
-    BACKSPACE = VK_BACK,
-    DEL       = VK_DELETE,
-    DOWN      = VK_DOWN,
-    END       = VK_END,
-    ENTER     = VK_RETURN,
-    ESCAPE    = VK_ESCAPE,
-    F1        = VK_F1,
-    HOME      = VK_HOME,
-    LEFT      = VK_LEFT,
-    RIGHT     = VK_RIGHT,
-    SPACE     = VK_SPACE,
-    TAB       = VK_TAB,
-    UP        = VK_UP,
-    INSERT    = VK_INSERT,
-    BACKTICK  = VK_OEM_3,
-    PAGE_UP   = VK_PRIOR,
-    PAGE_DOWN = VK_NEXT,
+   A         = 'A',
+   ZERO      = '0',
+   BACKSPACE = VK_BACK,
+   DEL       = VK_DELETE,
+   DOWN      = VK_DOWN,
+   END       = VK_END,
+   ENTER     = VK_RETURN,
+   ESCAPE    = VK_ESCAPE,
+   F1        = VK_F1,
+   HOME      = VK_HOME,
+   LEFT      = VK_LEFT,
+   RIGHT     = VK_RIGHT,
+   SPACE     = VK_SPACE,
+   TAB       = VK_TAB,
+   UP        = VK_UP,
+   INSERT    = VK_INSERT,
+   BACKTICK  = VK_OEM_3,
+   PAGE_UP   = VK_PRIOR,
+   PAGE_DOWN = VK_NEXT,
 };
 #endif
-
-inline UIKeycode UI_KEYCODE_LETTER(char x) { return (UIKeycode)((int)UIKeycode::A + (x - 'A')); }
-inline UIKeycode UI_KEYCODE_DIGIT(char x)  { return (UIKeycode)((int)UIKeycode::ZERO + (x - '0')); }
-inline UIKeycode UI_KEYCODE_FKEY(char x)   { return (UIKeycode)((int)UIKeycode::F1 + (x - 1)); }
 
 // ---------------------------------------------------------------------------------------------
 //                              Utilities
@@ -148,8 +144,8 @@ int std_format_to_n(OutputIt buffer, std::iter_difference_t<OutputIt> n, std::fo
    return (int)written;
 }
 
-template< class... Args >
-void std_print(std::format_string<Args...> fmt, Args&&... args ) {
+template <class... Args>
+void std_print(std::format_string<Args...> fmt, Args&&... args) {
    std::ostreambuf_iterator<char> out(std::cout);
    std::format_to(out, fmt, std::forward<Args>(args)...);
 }
@@ -242,15 +238,6 @@ inline constexpr int mdi_cascade              = 30;
 
 // forward declarations
 // --------------------
-namespace UIUpdate {
-   enum {
-      hovered  = 1,
-      pressed  = 2,
-      focused  = 3,
-      disabled = 4
-   };
-}
-
 struct UI;
 struct UIButton;
 struct UICheckbox;
@@ -277,37 +264,48 @@ struct UITextbox;
 struct UIWindow;
 struct UIWrapPanel;
 
+// clang-format off
+
+namespace UIUpdate {
+   enum {
+      hovered  = 1,
+      pressed  = 2,
+      focused  = 3,
+      disabled = 4
+   };
+}
+
 // ------------------------------------------------------------------------------------------
 enum class UIMessage : uint32_t {
    // General messages.
-   PAINT,               // dp = pointer to UIPainter
-   PAINT_FOREGROUND,    // after children have painted
+   PAINT,                 // dp = pointer to UIPainter
+   PAINT_FOREGROUND,      // after children have painted
    LAYOUT,
    DESTROY,
    DEALLOCATE,
-   UPDATE,              // di = UI_UPDATE_... constant
+   UPDATE,                // di = UI_UPDATE_... constant
    ANIMATE,
    SCROLLED,
-   GET_WIDTH,           // di = height (if known); return width
-   GET_HEIGHT,          // di = width (if known); return height
-   GET_CHILD_STABILITY, // dp = child element; return stable axes, 1 (width) | 2 (height)
+   GET_WIDTH,             // di = height (if known); return width
+   GET_HEIGHT,            // di = width (if known); return height
+   GET_CHILD_STABILITY,   // dp = child element; return stable axes, 1 (width) | 2 (height)
 
    // Input events.
-   INPUT_EVENTS_START,  // not sent to disabled elements
+   INPUT_EVENTS_START,    // not sent to disabled elements
    LEFT_DOWN,
    LEFT_UP,
    MIDDLE_DOWN,
    MIDDLE_UP,
    RIGHT_DOWN,
    RIGHT_UP,
-   KEY_TYPED,           // dp = pointer to UIKeyTyped; return 1 if handled
-   KEY_RELEASED,        // dp = pointer to UIKeyTyped; return 1 if handled
+   KEY_TYPED,             // dp = pointer to UIKeyTyped; return 1 if handled
+   KEY_RELEASED,          // dp = pointer to UIKeyTyped; return 1 if handled
    MOUSE_MOVE,
    MOUSE_DRAG,
-   MOUSE_WHEEL,         // di = delta; return 1 if handled
+   MOUSE_WHEEL,           // di = delta; return 1 if handled
    CLICKED,
-   GET_CURSOR,          // return cursor code
-   PRESSED_DESCENDENT,  // dp = pointer to child that is/contains pressed element
+   GET_CURSOR,            // return cursor code
+   PRESSED_DESCENDENT,    // dp = pointer to child that is/contains pressed element
    INPUT_EVENTS_END,
 
    // Specific elements.
@@ -431,13 +429,11 @@ struct UIFontSpec {
 
 // ------------------------------------------------------------------------------------------
 template<>
-struct std::hash<UIFontSpec>
-{
-    std::size_t operator()(const UIFontSpec& spec) const noexcept
-    {
-        std::size_t h1 = std::hash<std::string>{}(spec._path);
-        return h1 ^ (spec._size << 1);
-    }
+struct std::hash<UIFontSpec> {
+   std::size_t operator()(const UIFontSpec& spec) const noexcept {
+       std::size_t h1 = std::hash<std::string>{}(spec._path);
+       return h1 ^ (spec._size << 1);
+   }
 };
 
 // ------------------------------------------------------------------------------------------
@@ -477,6 +473,11 @@ struct UIStringSelection {
    uint32_t colorText       = 0;
    uint32_t colorBackground = 0;
 };
+
+// ------------------------------------------------------------------------------------------
+inline UIKeycode UI_KEYCODE_LETTER(char x) { return (UIKeycode)((int)UIKeycode::A + (x - 'A')); }
+inline UIKeycode UI_KEYCODE_DIGIT(char x)  { return (UIKeycode)((int)UIKeycode::ZERO + (x - '0')); }
+inline UIKeycode UI_KEYCODE_FKEY(char x)   { return (UIKeycode)((int)UIKeycode::F1 + (x - 1)); }
 
 // ------------------------------------------------------------------------------------------
 struct UIKeyTyped {
@@ -772,8 +773,8 @@ private:
    UIRectangle             _update_region;
    UI*                     _ui;
 
-   int _class_message_proc_common(UIMessage msg, int di, void* dp);
-   void _init_toplevel();
+   void       _init_toplevel();
+   int        _class_message_proc_common(UIMessage msg, int di, void* dp);
 
    static int _ClassMessageProcCommon(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<UIWindow*>(el)->_class_message_proc_common(msg, di, dp);
@@ -896,7 +897,7 @@ private:
    UIRectangle  _border;
    int          _gap;
 
-   int _class_message_proc(UIMessage msg, int di, void* dp);
+   int        _class_message_proc(UIMessage msg, int di, void* dp);
    
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<UIPanel*>(el)->_class_message_proc(msg, di, dp);
@@ -935,7 +936,7 @@ private:
    std::string                    _label;
    std::function<void(UIButton&)> _on_click;
 
-   int _class_message_proc(UIMessage msg, int di, void* dp);
+   int        _class_message_proc(UIMessage msg, int di, void* dp);
 
 public:
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
@@ -966,7 +967,7 @@ private:
    std::string                      _label;
    std::function<void(UICheckbox&)> _on_click;
 
-   int _class_message_proc(UIMessage msg, int di, void* dp);
+   int        _class_message_proc(UIMessage msg, int di, void* dp);
    
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<UICheckbox*>(el)->_class_message_proc(msg, di, dp);
@@ -996,7 +997,7 @@ struct UILabel : public UIElementCast<UILabel> {
 private:
    std::string _label;
 
-   int _class_message_proc(UIMessage msg, int di, void* dp);
+   int        _class_message_proc(UIMessage msg, int di, void* dp);
    
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<UILabel*>(el)->_class_message_proc(msg, di, dp);
@@ -1015,7 +1016,7 @@ private:
    size_t   _width;
    size_t   _height;
 
-   int _class_message_proc(UIMessage msg, int di, void* dp);
+   int        _class_message_proc(UIMessage msg, int di, void* dp);
 
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<UISpacer*>(el)->_class_message_proc(msg, di, dp);
@@ -1031,9 +1032,9 @@ public:
 // ------------------------------------------------------------------------------------------
 struct UISplitPane : public UIElementCast<UISplitPane> {
 private:
-   int _class_message_proc(UIMessage msg, int di, void* dp);
-
    float _weight;
+
+   int        _class_message_proc(UIMessage msg, int di, void* dp);
 
 public:
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
@@ -1053,7 +1054,7 @@ struct UISplitter : public UIElementCast<UISplitter> {
    }
 
 private:
-   int _class_message_proc(UIMessage msg, int di, void* dp);
+   int        _class_message_proc(UIMessage msg, int di, void* dp);
 
 public:
    UISplitter(UIElement* parent, uint32_t flags);
@@ -1065,7 +1066,7 @@ private:
    std::string _tabs;
    uint32_t    _active;
 
-   int _class_message_proc(UIMessage msg, int di, void* dp);
+   int        _class_message_proc(UIMessage msg, int di, void* dp);
    
 public:
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
@@ -1102,7 +1103,7 @@ private:
    int64_t    _drag_offset;
    int64_t    _position;
 
-   int _class_message_proc(UIMessage msg, int di, void* dp);
+   int        _class_message_proc(UIMessage msg, int di, void* dp);
 
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<UIScrollBar*>(el)->_class_message_proc(msg, di, dp);
@@ -1177,7 +1178,7 @@ private:
    UICode& _set_vertical_motion_column(bool restore);
    UICode& _update_selection();
 
-   int _class_message_proc(UIMessage msg, int di, void* dp);
+   int        _class_message_proc(UIMessage msg, int di, void* dp);
    
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<UICode*>(el)->_class_message_proc(msg, di, dp);
@@ -1259,7 +1260,7 @@ private:
    double _position;
    bool   _vertical;
 
-   int _class_message_proc(UIMessage msg, int di, void* dp);
+   int        _class_message_proc(UIMessage msg, int di, void* dp);
 
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<UIGauge*>(el)->_class_message_proc(msg, di, dp);
@@ -1282,7 +1283,7 @@ private:
    bool                           _vertical;
    std::function<void(UISlider&)> _on_value_changed;
 
-   int _class_message_proc(UIMessage msg, int di, void* dp);
+   int        _class_message_proc(UIMessage msg, int di, void* dp);
 
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<UISlider*>(el)->_class_message_proc(msg, di, dp);
@@ -1302,7 +1303,7 @@ public:
    UISlider& on_value_changed(std::function<void(UISlider&)> f) { _on_value_changed = std::move(f); return *this; }
 };
 
-// ------------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------------------
 struct UITable : public UIElementCast<UITable>, public UIScrollbarPair {
    using on_getitem_t = std::function<int(UITable&, UITableGetItem&)>;
    using on_click_t   = std::function<void(UITable&)>;
@@ -1315,7 +1316,7 @@ private:
    on_getitem_t        _on_getitem;
    on_click_t          _on_click;
 
-   int _class_message_proc(UIMessage msg, int di, void* dp);
+   int        _class_message_proc(UIMessage msg, int di, void* dp);
 
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<UITable*>(el)->_class_message_proc(msg, di, dp);
@@ -1352,7 +1353,7 @@ public:
    UITable& on_click(on_click_t f)     { _on_click = std::move(f); return *this; }
 };
 
-// ------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 struct UITextbox : public UIElementCast<UITextbox> {
    static int _DialogTextboxMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
 
@@ -1362,7 +1363,7 @@ private:
    int                   _scroll;
    bool                  _reject_next_key;
 
-   int _class_message_proc(UIMessage msg, int di, void* dp);
+   int        _class_message_proc(UIMessage msg, int di, void* dp);
 
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<UITextbox*>(el)->_class_message_proc(msg, di, dp);
@@ -1428,7 +1429,7 @@ private:
    UIMDIChild* _active;
    int         _cascade;
    
-   int _class_message_proc(UIMessage msg, int di, void* dp);
+   int        _class_message_proc(UIMessage msg, int di, void* dp);
 
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<UIMDIClient*>(el)->_class_message_proc(msg, di, dp);
@@ -1467,7 +1468,7 @@ private:
    int _previousPanPointX;
    int _previousPanPointY;
 
-   int _class_message_proc(UIMessage msg, int di, void* dp);
+   int        _class_message_proc(UIMessage msg, int di, void* dp);
 
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<UIImageDisplay*>(el)->_class_message_proc(msg, di, dp);
@@ -1524,6 +1525,7 @@ public:
    UIInspector(UI* ui);
 
    static constexpr bool enabled() { return _enabled; }
+   
    void set_focused_window(UIWindow* window);
    void notify_destroyed_window(UIWindow* window);
    void refresh();
@@ -1653,7 +1655,7 @@ struct UIPainter {
    uint32_t        _width;  // full drawable width (_width * _height * sizeof(uint32_t) == sizeof _bits buffer)
    uint32_t        _height; // full drawable height
 #ifdef UI_DEBUG
-   int             _fill_count = 0;
+   int             _fill_count = 0; 
 #endif
 
    UIPainter(UI* ui, uint32_t width, uint32_t height, uint32_t* bits)
@@ -1681,6 +1683,7 @@ struct UIPainter {
    int        draw_string_highlighted(UIRectangle lineBounds, std::string_view string, int tabSize,
                                       UIStringSelection* selection);
 };
+// clang-format on
 
 // ------------------------------------------------------------------------------------------
 struct UICodeDecorateLine {
@@ -1696,7 +1699,7 @@ inline UIFont*  UIElement::active_font() const { return ui()->active_font(); }
 
 // ------------------------------------------------------------------------------------------
 
-/**/ void        UISwitcherSwitchTo(UISwitcher* switcher, UIElement* child);
+/**/ void UISwitcherSwitchTo(UISwitcher* switcher, UIElement* child);
 
 typedef void (*UIDialogUserCallback)(UIElement*);
 
@@ -1707,8 +1710,8 @@ void UIColorToRGB(float hue, float saturation, float value, uint32_t* rgb);
 
 // ----------------------------------------
 #ifdef UI_DEBUG
-template< class... Args >
-void UIInspectorLog(UI* ui, std::format_string<Args...> fmt, Args&&... args ) {
+template <class... Args>
+void UIInspectorLog(UI* ui, std::format_string<Args...> fmt, Args&&... args) {
    char buffer[4096];
    std_format_to_n(buffer, sizeof(buffer), fmt, std::forward<Args>(args)...);
    ui->_inspector->_log->insert_content(buffer, false);
