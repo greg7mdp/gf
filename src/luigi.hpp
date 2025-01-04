@@ -809,6 +809,8 @@ public:
 #elif defined(UI_WINDOWS)
    HWND _hwnd           = 0;
    bool _tracking_leave = false;
+
+   static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 #endif
 
    UIWindow(UI* ui, UIElement* parent, uint32_t flags, message_proc_t message_proc, const char* cClassName);
@@ -1451,8 +1453,16 @@ private:
    int         _drag_hit_test;
    UIRectangle _drag_offset;
 
-   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
+   int        _class_message_proc(UIMessage msg, int di, void* dp);
+   
+   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<UIMDIChild*>(el)->_class_message_proc(msg, di, dp);
+   }
+
+
    friend struct UIMDIClient;
+
+   int hittest(UIPoint pt);
    
 public:
    enum { CLOSE_BUTTON = 1 << 0 };

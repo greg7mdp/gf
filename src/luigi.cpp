@@ -3668,28 +3668,27 @@ void UITextbox::_select_all() {
 // --------------------------------------------------
 // MDI clients.
 // --------------------------------------------------
-int _UIMDIChildHitTest(UIMDIChild* mdiChild, UIPoint pt) {
-   UIElement* el = mdiChild;
+int UIMDIChild::hittest(UIPoint pt) {
    auto [titleSize, borderSize, titleRect, contentRect] =
-      ui_mdi_child_calculate_layout(el->_bounds, el->_window->scale());
-   int cornerSize = el->scale(ui_size::mdi_child_corner);
-   if (!el->_bounds.contains(pt.x, pt.y) || contentRect.contains(pt.x, pt.y))
+      ui_mdi_child_calculate_layout(_bounds, _window->scale());
+   int cornerSize = scale(ui_size::mdi_child_corner);
+   if (!_bounds.contains(pt.x, pt.y) || contentRect.contains(pt.x, pt.y))
       return -1;
-   else if (pt.x < el->_bounds.l + cornerSize && pt.y < el->_bounds.t + cornerSize)
+   else if (pt.x < _bounds.l + cornerSize && pt.y < _bounds.t + cornerSize)
       return 0b1010;
-   else if (pt.x > el->_bounds.r - cornerSize && pt.y < el->_bounds.t + cornerSize)
+   else if (pt.x > _bounds.r - cornerSize && pt.y < _bounds.t + cornerSize)
       return 0b0110;
-   else if (pt.x < el->_bounds.l + cornerSize && pt.y > el->_bounds.b - cornerSize)
+   else if (pt.x < _bounds.l + cornerSize && pt.y > _bounds.b - cornerSize)
       return 0b1001;
-   else if (pt.x > el->_bounds.r - cornerSize && pt.y > el->_bounds.b - cornerSize)
+   else if (pt.x > _bounds.r - cornerSize && pt.y > _bounds.b - cornerSize)
       return 0b0101;
-   else if (pt.x < el->_bounds.l + borderSize)
+   else if (pt.x < _bounds.l + borderSize)
       return 0b1000;
-   else if (pt.x > el->_bounds.r - borderSize)
+   else if (pt.x > _bounds.r - borderSize)
       return 0b0100;
-   else if (pt.y < el->_bounds.t + borderSize)
+   else if (pt.y < _bounds.t + borderSize)
       return 0b0010;
-   else if (pt.y > el->_bounds.b - borderSize)
+   else if (pt.y > _bounds.b - borderSize)
       return 0b0001;
    else if (titleRect.contains(pt.x, pt.y))
       return 0b1111;
@@ -3706,14 +3705,12 @@ void _UIMDIChildCloseButton(void* _child) {
    }
 }
 
-int UIMDIChild::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-   UIMDIChild* mdiChild = (UIMDIChild*)el;
-
+int UIMDIChild::_class_message_proc(UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::PAINT) {
-      static_cast<UIPainter*>(dp)->draw_control(el->_bounds, UIControl::mdi_child, mdiChild->_title, 0,
-                                                el->_window->scale());
+      static_cast<UIPainter*>(dp)->draw_control(_bounds, UIControl::mdi_child, _title, 0,
+                                                _window->scale());
    } else if (msg == UIMessage::GET_WIDTH) {
-      UIElement* child = el->_children.empty() ? nullptr : el->_children.back();
+      UIElement* child = _children.empty() ? nullptr : _children.back();
       int        width = 2 * ui_size::mdi_child_border;
       width +=
          (child ? child->message(msg, di ? (di - ui_size::mdi_child_title + ui_size::mdi_child_border) : 0, dp) : 0);
@@ -3721,7 +3718,7 @@ int UIMDIChild::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp
          width = ui_size::mdi_child_minimum_width;
       return width;
    } else if (msg == UIMessage::GET_HEIGHT) {
-      UIElement* child  = el->_children.empty() ? nullptr : el->_children.back();
+      UIElement* child  = _children.empty() ? nullptr : _children.back();
       int        height = ui_size::mdi_child_title + ui_size::mdi_child_border;
       height += (child ? child->message(msg, di ? (di - 2 * ui_size::mdi_child_border) : 0, dp) : 0);
       if (height < ui_size::mdi_child_minimum_height)
@@ -3729,23 +3726,23 @@ int UIMDIChild::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp
       return height;
    } else if (msg == UIMessage::LAYOUT) {
       auto [titleSize, borderSize, titleRect, contentRect] =
-         ui_mdi_child_calculate_layout(el->_bounds, el->_window->scale());
+         ui_mdi_child_calculate_layout(_bounds, _window->scale());
 
       int position = titleRect.r;
 
-      for (auto child : el->_children) {
+      for (auto child : _children) {
          int width = child->message(UIMessage::GET_WIDTH, 0, 0);
          child->move(UIRectangle(position - width, position, titleRect.t, titleRect.b), false);
          position -= width;
       }
 
-      UIElement* child = el->_children.empty() ? nullptr : el->_children.back();
+      UIElement* child = _children.empty() ? nullptr : _children.back();
 
       if (child) {
          child->move(contentRect, false);
       }
    } else if (msg == UIMessage::GET_CURSOR) {
-      int hitTest = _UIMDIChildHitTest(mdiChild, el->cursor_pos());
+      int hitTest = hittest(cursor_pos());
       if (hitTest == 0b1000)
          return (int)UICursor::resize_left;
       if (hitTest == 0b0010)
@@ -3764,33 +3761,33 @@ int UIMDIChild::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp
          return (int)UICursor::resize_down_right;
       return (int)UICursor::arrow;
    } else if (msg == UIMessage::LEFT_DOWN) {
-      mdiChild->_drag_hit_test = _UIMDIChildHitTest(mdiChild, el->cursor_pos());
-      mdiChild->_drag_offset   = el->_bounds + UIRectangle(-el->cursor_pos().x, -el->cursor_pos().y);
+      _drag_hit_test = hittest(cursor_pos());
+      _drag_offset   = _bounds + UIRectangle(-cursor_pos().x, -cursor_pos().y);
    } else if (msg == UIMessage::LEFT_UP) {
-      if (mdiChild->_mdi_bounds.l < 0)
-         mdiChild->_mdi_bounds.r -= mdiChild->_mdi_bounds.l, mdiChild->_mdi_bounds.l = 0;
-      if (mdiChild->_mdi_bounds.t < 0)
-         mdiChild->_mdi_bounds.b -= mdiChild->_mdi_bounds.t, mdiChild->_mdi_bounds.t = 0;
-      el->_parent->refresh();
+      if (_mdi_bounds.l < 0)
+         _mdi_bounds.r -= _mdi_bounds.l, _mdi_bounds.l = 0;
+      if (_mdi_bounds.t < 0)
+         _mdi_bounds.b -= _mdi_bounds.t, _mdi_bounds.t = 0;
+      _parent->refresh();
    } else if (msg == UIMessage::MOUSE_DRAG) {
-      if (mdiChild->_drag_hit_test > 0) {
+      if (_drag_hit_test > 0) {
 
-#define _UI_MDI_CHILD_MOVE_EDGE(bit, edge, cursor, size, opposite, negate, minimum, offset)                \
-   if (mdiChild->_drag_hit_test & bit)                                                                     \
-      mdiChild->_mdi_bounds.edge = mdiChild->_drag_offset.edge + pos.cursor - el->_parent->_bounds.offset; \
-   if ((mdiChild->_drag_hit_test & bit) && mdiChild->_mdi_bounds.size() < minimum)                         \
-      mdiChild->_mdi_bounds.edge = mdiChild->_mdi_bounds.opposite negate minimum;
+#define _UI_MDI_CHILD_MOVE_EDGE(bit, edge, cursor, size, opposite, negate, minimum, offset) \
+   if (_drag_hit_test & bit)                                                                \
+      _mdi_bounds.edge = _drag_offset.edge + pos.cursor - _parent->_bounds.offset;          \
+   if ((_drag_hit_test & bit) && _mdi_bounds.size() < minimum)                              \
+      _mdi_bounds.edge = _mdi_bounds.opposite negate minimum;
 
-         auto pos = el->cursor_pos();
+         auto pos = cursor_pos();
          _UI_MDI_CHILD_MOVE_EDGE(0b1000, l, x, width, r, -, ui_size::mdi_child_minimum_width, l);
          _UI_MDI_CHILD_MOVE_EDGE(0b0100, r, x, width, l, +, ui_size::mdi_child_minimum_width, l);
          _UI_MDI_CHILD_MOVE_EDGE(0b0010, t, y, height, b, -, ui_size::mdi_child_minimum_height, t);
          _UI_MDI_CHILD_MOVE_EDGE(0b0001, b, y, height, t, +, ui_size::mdi_child_minimum_height, t);
-         el->_parent->refresh();
+         _parent->refresh();
       }
    } else if (msg == UIMessage::DESTROY) {
-      UIMDIClient* client = (UIMDIClient*)el->_parent;
-      if (client->_active == mdiChild) {
+      UIMDIClient* client = (UIMDIClient*)_parent;
+      if (client->_active == this) {
          client->_active = (UIMDIChild*)(client->_children.size() == 1
                                             ? NULL
                                             : client->_children[client->_children.size() - 2]); // todo: seems wrong
@@ -5805,7 +5802,7 @@ int UI::_platform_message_proc(UIElement* el, UIMessage msg, int di, void* dp) {
    return UIWindow::_ClassMessageProcCommon(el, msg, di, dp);
 }
 
-LRESULT CALLBACK _UIWindowProcedure(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+LRESULT CALLBACK UIWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
    UIWindow* window = (UIWindow*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
 
    if (!window) {
@@ -5974,7 +5971,7 @@ unique_ptr<UI> UI::initialise(const UIConfig& cfg) {
    cursors[(uint32_t)UICursor::resize_down_right] = LoadCursor(NULL, IDC_SIZENWSE);
 
    WNDCLASS windowClass      = {0};
-   windowClass.lpfnWndProc   = _UIWindowProcedure;
+   windowClass.lpfnWndProc   = UIWindow::WndProc;
    windowClass.lpszClassName = "normal";
    RegisterClass(&windowClass);
    windowClass.style |= CS_DROPSHADOW;
