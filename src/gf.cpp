@@ -141,6 +141,15 @@ T sv_atoi_impl(string_view str, size_t offset = 0) {
    return negative ? result : -result;
 }
 
+char *mk_cstring(std::string_view sv) {
+   auto sz = sv.size();
+   auto s = (char*)malloc(sz + 1);
+   for (size_t i=0; i<sz; ++i)
+      s[i] = sv[i];
+   s[sz] = 0;
+   return s;
+}
+
 static inline int sv_atoi(string_view str, size_t offset = 0) {
    return sv_atoi_impl<int>(str, offset);
 }
@@ -190,61 +199,42 @@ struct InterfaceDataViewer {
    void (*addButtonCallback)();
 };
 
-struct INIState {
-   char*  buffer       = nullptr;
-   char*  section      = nullptr;
-   char*  key          = nullptr;
-   char*  value        = nullptr;
-   size_t bytes        = 0;
+// --------------------------------------------------------------------------------------------
+struct Command {
+   std::string _key;
+   std::string _value;
+};
+
+// --------------------------------------------------------------------------------------------
+struct INI_Parser {
+private:
+   // current state of our parsing the ini file buffer
+   // ------------------------------------------------
+   const char* buffer;                       // non-owning ptr
+   size_t      remaining_bytes;
+
+   // last key/value parsed
+   // ---------------------
+   const char*  section      = nullptr;      // non-owning ptr
+   const char*  key          = nullptr;      // non-owning ptr
+   const char*  value        = nullptr;      // non-owning ptr
    size_t sectionBytes = 0;
    size_t keyBytes     = 0;
    size_t valueBytes   = 0;
 
-   INIState& operator=(const INIState&) = delete;
+public:
+   struct parse_result_t {
+      string_view section;
+      string_view key;
+      string_view value;
+   };
+   
+   INI_Parser(std::string_view buff) :
+      buffer(buff.data()),
+      remaining_bytes(buff.size())
+   {}
 
-   INIState& operator=(INIState&&) = default;
-
-   INIState() = default;
-
-   ~INIState() {
-      free(buffer);
-      free(section);
-      free(key);
-      free(value);
-   }
-
-   INIState(INIState&& o)
-      : INIState() {
-      std::swap(buffer, o.buffer);
-      std::swap(section, o.section);
-      std::swap(key, o.key);
-      std::swap(value, o.value);
-      std::swap(bytes, o.bytes);
-      std::swap(sectionBytes, o.sectionBytes);
-      std::swap(keyBytes, o.keyBytes);
-      std::swap(valueBytes, o.valueBytes);
-   }
-
-   // this because INIState is filled with pointers to strings hacked from the result of `LoadFile(configFile)`,
-   // and then inserted into a vector (see `presetCommands.push_back(state.clone())`
-   // Hard to not leak memory with these shenanigans.
-   INIState clone() {
-      INIState s = *this;
-      if (buffer)
-         s.buffer = strdup(buffer);
-      if (section)
-         s.section = strdup(section);
-      if (key)
-         s.key = strdup(key);
-      if (value)
-         s.value = strdup(value);
-      return s;
-   }
-
-   void clear() { buffer = section = key = value = nullptr; }
-
-private:
-   INIState(const INIState&) = default;
+   parse_result_t parse_next();
 };
 
 struct ReceiveMessageType {
@@ -315,7 +305,7 @@ struct Context {
    void           InterfaceAddBuiltinWindowsAndCommands();
    void           RegisterExtensions();
    void           InterfaceShowMenu(UIButton* self);
-   void           InterfaceLayoutCreate(UIElement* parent);
+   void           InterfaceLayoutCreate(UIElement* parent, const char*& current);
    UIElement*     InterfaceWindowSwitchToAndFocus(string_view name);
    unique_ptr<UI> GfMain(int argc, char** argv);
 };
@@ -324,7 +314,7 @@ Context ctx;
 
 // --------------------------------------------------------------------------------------------
 struct GF_Config {
-   const char* layout_string =
+   std::string layout_string =
       "v(75,h(80,Source,v(50,t(Exe,Breakpoints,Commands,Struct),t(Stack,Files,Thread,CmdSearch)))"
       ",h(65,Console,t(Watch,Locals,Registers,Data)))";
 
@@ -335,6 +325,7 @@ struct GF_Config {
    bool        exe_ask_dir = true;
 };
 
+
 GF_Config gfc;
 
 FILE*                      commandLog      = nullptr;
@@ -342,7 +333,7 @@ char                       emptyString     = 0;
 const char*                vimServerName   = "GVIM";
 const char*                logPipePath     = nullptr;
 const char*                controlPipePath = nullptr;
-vector<INIState>           presetCommands;
+vector<Command>            presetCommands;
 char                       globalConfigPath[PATH_MAX];
 char                       localConfigDirectory[PATH_MAX];
 char                       localConfigPath[PATH_MAX];
@@ -526,51 +517,40 @@ inline uint64_t Hash(const uint8_t* key, size_t keyBytes) {
 }
 
 // reads into `destination` until character `c1` found (or we reach the end of `s->buffer`)
-#define INI_READ(destination, counter, c1, c2)              \
-   s->destination = s->buffer, s->counter = 0;              \
-   while (s->bytes && *s->buffer != c1 && *s->buffer != c2) \
-      s->counter++, s->buffer++, s->bytes--;                \
-   if (s->bytes && *s->buffer == c1)                        \
-      s->buffer++, s->bytes--;
+#define INI_READ(destination, counter, c1, c2)               \
+   destination = buffer, counter = 0;                        \
+   while (remaining_bytes && *buffer != c1 && *buffer != c2) \
+      counter++, buffer++, remaining_bytes--;                \
+   if (remaining_bytes && *buffer == c1)                     \
+      buffer++, remaining_bytes--;
 
-bool INIParse(INIState* s) {
-   while (s->bytes) {
-      char c = *s->buffer;
+INI_Parser::parse_result_t INI_Parser::parse_next() {
+   while (remaining_bytes) {
+      char c = *buffer;
 
       if (c == ' ' || c == '\n' || c == '\r') {
-         s->buffer++, s->bytes--;
+         buffer++, remaining_bytes--;
          continue;
       } else if (c == ';') {
-         s->valueBytes = 0;
+         valueBytes = 0;
          INI_READ(key, keyBytes, '\n', 0);
       } else if (c == '[') {
-         s->keyBytes = s->valueBytes = 0;
-         s->buffer++, s->bytes--;
+         keyBytes = valueBytes = 0;
+         buffer++, remaining_bytes--;
          INI_READ(section, sectionBytes, ']', 0);
       } else {
          INI_READ(key, keyBytes, '=', '\n');
          INI_READ(value, valueBytes, '\n', 0);
       }
 
-      if (s->sectionBytes)
-         s->section[s->sectionBytes] = 0;
-      else
-         s->section = &emptyString;
-
-      if (s->keyBytes)
-         s->key[s->keyBytes] = 0;
-      else
-         s->key = &emptyString;
-
-      if (s->valueBytes)
-         s->value[s->valueBytes] = 0;
-      else
-         s->value = &emptyString;
-
-      return true;
+      return parse_result_t{
+         .section = {section, sectionBytes},
+           .key = {key,     keyBytes    },
+           .value = {value,   valueBytes  }
+      };
    }
 
-   return false;
+   return {};
 }
 
 int ModifiedRowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
@@ -1174,9 +1154,9 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
       ctx.InterfaceWindowSwitchToAndFocus(command.substr(13));
    } else if (command.starts_with("gf-command ")) {
       for (const auto& cmd : presetCommands) {
-         if (command.substr(11) == cmd.key)
+         if (!cmd._key.starts_with(command.substr(11)))
             continue;
-         char* copy     = strdup(cmd.value);
+         char* copy     = strdup(cmd._value.c_str());
          char* position = copy;
 
          while (true) {
@@ -1401,12 +1381,10 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
 
    // load global config first (from ~/.config/gf2_config.ini), and then local config
    for (int i = 0; i < 2; i++) {
-      INIState state;
       auto     config = LoadFile(i ? localConfigPath : globalConfigPath);
-      state.bytes     = config.size();
-      state.buffer    = config[0] ? (char*)config.c_str() : nullptr;
+      INI_Parser state(config);
 
-      if (earlyPass && i && !currentFolderIsTrusted && state.buffer) {
+      if (earlyPass && i && !currentFolderIsTrusted && !config.empty()) {
          print(std::cerr, "Would you like to load the config file .project.gf from your current directory?\n");
          print(std::cerr, "You have not loaded this config file before.\n");
          print(std::cerr, "(Y) - Yes, and add it to the list of trusted files\n");
@@ -1424,28 +1402,31 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
          break;
       }
 
-      while (INIParse(&state)) {
-         if (0 == strcmp(state.section, "shortcuts") && *state.key && !earlyPass) {
+      while (true) {
+         auto [section, key, value] = state.parse_next();
+         if (section.empty())
+            break;
+
+         if (section == "shortcuts" && !key.empty() && !earlyPass) {
             UIShortcut shortcut;
 
-            for (int i = 0; state.key[i]; i++) {
-               state.key[i] = tolower(state.key[i]);
-            }
+            std::string k(key);
+            std::transform(k.begin(), k.end(), k.begin(),
+                           [](unsigned char c){ return std::tolower(c); });
 
-            shortcut.ctrl   = strstr(state.key, "ctrl+");
-            shortcut.shift  = strstr(state.key, "shift+");
-            shortcut.alt    = strstr(state.key, "alt+");
-            shortcut.invoke = [cmd = state.value]() {
+            shortcut.ctrl   = k.contains("ctrl+");
+            shortcut.shift  = k.contains("shift+");
+            shortcut.alt    = k.contains("alt+");
+            shortcut.invoke = [cmd = std::string(value)]() {
                CommandCustom(cmd);
                return true;
             };
 
-            const char* codeStart = state.key;
+            const char* codeStart = k.c_str();
 
-            for (int i = 0; state.key[i]; i++) {
-               if (state.key[i] == '+') {
-                  codeStart = state.key + i + 1;
-               }
+            for (int i = 0; k[i]; i++) {
+               if (k[i] == '+')
+                  codeStart = k.c_str() + i + 1;
             }
 
             for (int i = 0; i < 26; i++) {
@@ -1467,88 +1448,90 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
             }
 
             if ((int)shortcut.code == 0) {
-               print(std::cerr, "Warning: Could not register shortcut for '{}'.\n", state.key);
+               print(std::cerr, "Warning: Could not register shortcut for '{}'.\n", key);
             } else {
                windowMain->register_shortcut(std::move(shortcut));
             }
-         } else if (0 == strcmp(state.section, "ui") && earlyPass) {
-            if (0 == strcmp(state.key, "font_path")) {
-               ui_config.font_path = state.value;
-            } else if (0 == strcmp(state.key, "font_size")) {
-               interface_font_size = code_font_size = sv_atoi(state.value);
-            } else if (0 == strcmp(state.key, "font_size_code")) {
-               code_font_size = sv_atoi(state.value);
-            } else if (0 == strcmp(state.key, "font_size_interface")) {
-               interface_font_size = sv_atoi(state.value);
-            } else if (0 == strcmp(state.key, "scale")) {
-               ui_scale = atof(state.value);
-            } else if (0 == strcmp(state.key, "layout")) {
-               gfc.layout_string = strdup(state.value);
-            } else if (0 == strcmp(state.key, "maximize")) {
-               maximize = sv_atoi(state.value);
-            } else if (0 == strcmp(state.key, "restore_watch_window")) {
-               restoreWatchWindow = sv_atoi(state.value);
-            } else if (0 == strcmp(state.key, "selectable_source")) {
-               selectableSource = sv_atoi(state.value);
-            } else if (0 == strcmp(state.key, "window_width")) {
-               window_width = sv_atoi(state.value);
-            } else if (0 == strcmp(state.key, "window_height")) {
-               window_height = sv_atoi(state.value);
+         } else if (section == "ui" && earlyPass) {
+            if (key == "font_path") {
+               ui_config.font_path = value;
+            } else if (key == "font_size") {
+               interface_font_size = code_font_size = sv_atoi(value);
+            } else if (key == "font_size_code") {
+               code_font_size = sv_atoi(value);
+            } else if (key == "font_size_interface") {
+               interface_font_size = sv_atoi(value);
+            } else if (key == "scale") {
+               std::from_chars(value.data(), value.data() + value.size(), ui_scale);
+            } else if (key == "layout") {
+               gfc.layout_string = value;
+            } else if (key == "maximize") {
+               maximize = sv_atoi(value);
+            } else if (key == "restore_watch_window") {
+               restoreWatchWindow = sv_atoi(value);
+            } else if (key == "selectable_source") {
+               selectableSource = sv_atoi(value);
+            } else if (key == "window_width") {
+               window_width = sv_atoi(value);
+            } else if (key == "window_height") {
+               window_height = sv_atoi(value);
             }
-         } else if (0 == strcmp(state.section, "gdb") && !earlyPass) {
-            if (0 == strcmp(state.key, "argument")) {
+         } else if (section == "gdb" && !earlyPass) {
+            if (key == "argument") {
                ctx.gdbArgc++;
                ctx.gdbArgv                  = (char**)realloc(ctx.gdbArgv, sizeof(char*) * (ctx.gdbArgc + 1));
-               ctx.gdbArgv[ctx.gdbArgc - 1] = strdup(state.value);
+               ctx.gdbArgv[ctx.gdbArgc - 1] = mk_cstring(value);
                ctx.gdbArgv[ctx.gdbArgc]     = nullptr;
-            } else if (0 == strcmp(state.key, "arguments")) {
+            } else if (key == "arguments") {
                char buffer[2048];
+               auto sz = value.size();
+               auto val = value.data();
 
-               for (size_t i = 0; i < state.valueBytes; i++) {
-                  if (isspace(state.value[i])) {
+               for (size_t i = 0; i < sz; i++) {
+                  if (isspace(val[i])) {
                      continue;
                   }
 
                   size_t argumentStart = 0;
                   size_t argumentEnd   = 0;
 
-                  if (state.value[i] == '\"') {
+                  if (val[i] == '\"') {
                      i++;
                      argumentStart = i;
-                     for (; i < state.valueBytes && state.value[i] != '\"'; i++)
+                     for (; i < sz && val[i] != '\"'; i++)
                         ;
                      argumentEnd = i;
                      i++;
-                  } else if (state.value[i] == '\'') {
+                  } else if (val[i] == '\'') {
                      i++;
                      argumentStart = i;
-                     for (; i < state.valueBytes && state.value[i] != '\''; i++)
+                     for (; i < sz && val[i] != '\''; i++)
                         ;
                      argumentEnd = i;
                      i++;
                   } else {
                      argumentStart = i;
                      i++;
-                     for (; i < state.valueBytes &&
-                            (state.value[i] != '\'' && state.value[i] != '\"' && !isspace(state.value[i]));
+                     for (; i < sz &&
+                            (val[i] != '\'' && val[i] != '\"' && !isspace(val[i]));
                           i++)
                         ;
                      argumentEnd = i;
                   }
 
                   std_format_to_n(buffer, sizeof(buffer), "{}",
-                                  std::string_view{&state.value[argumentStart], (size_t)(argumentEnd - argumentStart)});
+                                  std::string_view{&val[argumentStart], (size_t)(argumentEnd - argumentStart)});
 
                   ctx.gdbArgc++; // 0 is for the program name
                   ctx.gdbArgv                  = (char**)realloc(ctx.gdbArgv, sizeof(char*) * (ctx.gdbArgc + 1));
                   ctx.gdbArgv[ctx.gdbArgc - 1] = strdup(buffer);
                   ctx.gdbArgv[ctx.gdbArgc]     = nullptr;
                }
-            } else if (0 == strcmp(state.key, "path")) {
-               char* path     = strdup(state.value);
+            } else if (key == "path") {
+               char* path     = mk_cstring(value);
                ctx.gdbPath    = path;
                ctx.gdbArgv[0] = path;
-            } else if (0 == strcmp(state.key, "log_all_output") && sv_atoi(state.value)) {
+            } else if (key == "log_all_output" && sv_atoi(value)) {
                if (auto it = interfaceWindows.find("Log"); it != interfaceWindows.end()) {
                   const auto& [name, window] = *it;
                   ctx.logWindow              = static_cast<UICode*>(window.el);
@@ -1557,53 +1540,52 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
                   print(std::cerr, "Warning: gdb.log_all_output was enabled, "
                                    "but your layout does not have a 'Log' window.\n");
                }
-            } else if (0 == strcmp(state.key, "confirm_command_kill")) {
-               confirmCommandKill = sv_atoi(state.value);
-            } else if (0 == strcmp(state.key, "confirm_command_connect")) {
-               confirmCommandConnect = sv_atoi(state.value);
-            } else if (0 == strcmp(state.key, "backtrace_count_limit")) {
-               backtraceCountLimit = sv_atoi(state.value);
+            } else if (key == "confirm_command_kill") {
+               confirmCommandKill = sv_atoi(value);
+            } else if (key == "confirm_command_connect") {
+               confirmCommandConnect = sv_atoi(value);
+            } else if (key == "backtrace_count_limit") {
+               backtraceCountLimit = sv_atoi(value);
             }
-         } else if (0 == strcmp(state.section, "commands") && earlyPass && state.keyBytes && state.valueBytes) {
-            presetCommands.push_back(state.clone());
-         } else if (0 == strcmp(state.section, "trusted_folders") && earlyPass && state.keyBytes) {
-            if (0 == strcmp(localConfigDirectory, state.key))
+         } else if (section == "commands" && earlyPass && !key.empty() && !value.empty()) {
+            presetCommands.push_back(Command{._key = std::string(key), ._value = std::string(value) });
+         } else if (section == "trusted_folders" && earlyPass && !key.empty()) {
+            if (key == localConfigDirectory)
                currentFolderIsTrusted = true;
-         } else if (0 == strcmp(state.section, "theme") && !earlyPass && state.keyBytes && state.valueBytes) {
+         } else if (section == "theme" && !earlyPass &&  !key.empty() && !value.empty()) {
             for (uintptr_t i = 0; i < sizeof(themeItems) / sizeof(themeItems[0]); i++) {
-               if (strcmp(state.key, themeItems[i]))
+               if (key != themeItems[i])
                   continue;
-               ((uint32_t*)&ui_config._theme)[i] = strtoul(state.value, nullptr, 16);
-               ui_config._has_theme              = true;
+               std::from_chars(value.data(), value.data() + value.size(), ((uint32_t*)&ui_config._theme)[i], 16);
+               ui_config._has_theme = true;
             }
-         } else if (0 == strcmp(state.section, "vim") && earlyPass && 0 == strcmp(state.key, "server_name")) {
-            vimServerName = strdup(state.value);
-         } else if (0 == strcmp(state.section, "pipe") && earlyPass && 0 == strcmp(state.key, "log")) {
-            logPipePath = strdup(state.value);
+         } else if (section == "vim" && earlyPass && key == "server_name") {
+            vimServerName = mk_cstring(value);
+         } else if (section == "pipe" && earlyPass && key == "log") {
+            logPipePath = mk_cstring(value);
             mkfifo(logPipePath, 6 + 6 * 8 + 6 * 64);
-         } else if (0 == strcmp(state.section, "pipe") && earlyPass && 0 == strcmp(state.key, "control")) {
-            controlPipePath = strdup(state.value);
+         } else if (section == "pipe" && earlyPass && key == "control") {
+            controlPipePath = mk_cstring(value);
             mkfifo(controlPipePath, 6 + 6 * 8 + 6 * 64);
             pthread_t thread;
             pthread_create(&thread, nullptr, ControlPipeThread, nullptr);
-         } else if (0 == strcmp(state.section, "executable") && earlyPass) {
-            if (0 == strcmp(state.key, "path")) {
-               gfc.exe_path = state.value;
-            } else if (0 == strcmp(state.key, "arguments")) {
-               gfc.exe_args = state.value;
-            } else if (0 == strcmp(state.key, "ask_directory")) {
-               gfc.exe_ask_dir = sv_atoi(state.value);
+         } else if (section == "executable" && earlyPass) {
+            if (key == "path") {
+               gfc.exe_path = value;
+            } else if (key == "arguments") {
+               gfc.exe_args = value;
+            } else if (key == "ask_directory") {
+               gfc.exe_ask_dir = sv_atoi(value);
             }
-         } else if (earlyPass && *state.section && *state.key && *state.value) {
-            if (auto it = interfaceWindows.find(state.section); it != interfaceWindows.end()) {
+         } else if (earlyPass && !section.empty() && !key.empty() && !value.empty()) {
+            if (auto it = interfaceWindows.find(std::string(section)); it != interfaceWindows.end()) {
                const auto& [name, window] = *it;
                if (window.config) {
-                  window.config(state.key, state.value);
+                  window.config(key, value);
                }
             }
          }
       }
-      state.clear(); // get rid of the pointers into the readfile buffer
    }
    return ui_config;
 }
@@ -4465,7 +4447,7 @@ UIElement* CommandsWindowCreate(UIElement* parent) {
       panel->add_label(0, "No preset commands found in config file!");
 
    for (const auto& cmd : presetCommands) {
-      panel->add_button(0, cmd.key).on_click([command = std::format("gf-command {}", cmd.key)](UIButton&) {
+      panel->add_button(0, cmd._key).on_click([command = std::format("gf-command {}", cmd._key)](UIButton&) {
          CommandSendToGDB(command);
       });
    }
@@ -7438,28 +7420,28 @@ int InterfaceTabPaneMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    return 0;
 }
 
-// !!! Oh no! this actually advances the global pointer `gfc.layout_string`
+// `current` is the current position when parsing GF_Config::layout_string
 // ------------------------------------------------------------------------
-const char* InterfaceLayoutNextToken(const char* expected = nullptr) {
+const char* InterfaceLayoutNextToken(const char*& current, const char* expected = nullptr) {
    static char buffer[32];
    char*       out = buffer;
 
-   while (isspace(*gfc.layout_string)) {
-      gfc.layout_string++;
+   while (isspace(*current)) {
+      ++current;
    }
 
-   char first = *gfc.layout_string;
+   char first = *current;
 
    if (first == 0) {
       *out = 0;
    } else if (first == ',' || first == '(' || first == ')') {
       out[0] = first;
       out[1] = 0;
-      gfc.layout_string++;
+      current++;
    } else if (isalnum(first)) {
       for (uintptr_t i = 0; i < sizeof(buffer) - 1; i++) {
-         if (isalnum(*gfc.layout_string)) {
-            *out++ = *gfc.layout_string++;
+         if (isalnum(*current)) {
+            *out++ = *current++;
          } else {
             break;
          }
@@ -7493,23 +7475,24 @@ const char* InterfaceLayoutNextToken(const char* expected = nullptr) {
    return buffer;
 }
 
-void Context::InterfaceLayoutCreate(UIElement* parent) {
-   const char* token = InterfaceLayoutNextToken();
+void Context::InterfaceLayoutCreate(UIElement* parent, const char*& layout_string_current) {
+   const char* token = InterfaceLayoutNextToken(layout_string_current);
 
    if (0 == strcmp("h", token) || 0 == strcmp("v", token)) {
       uint32_t flags = UIElement::v_fill | UIElement::h_fill;
       if (*token == 'v')
          flags |= UIElement::vertical_flag;
-      InterfaceLayoutNextToken("(");
-      UIElement* container = &parent->add_splitpane(flags, sv_atoi(InterfaceLayoutNextToken("#")) * 0.01f);
-      InterfaceLayoutNextToken(",");
-      InterfaceLayoutCreate(container);
-      InterfaceLayoutNextToken(",");
-      InterfaceLayoutCreate(container);
-      InterfaceLayoutNextToken(")");
+      InterfaceLayoutNextToken(layout_string_current, "(");
+      UIElement* container =
+         &parent->add_splitpane(flags, sv_atoi(InterfaceLayoutNextToken(layout_string_current, "#")) * 0.01f);
+      InterfaceLayoutNextToken(layout_string_current, ",");
+      InterfaceLayoutCreate(container, layout_string_current);
+      InterfaceLayoutNextToken(layout_string_current, ",");
+      InterfaceLayoutCreate(container, layout_string_current);
+      InterfaceLayoutNextToken(layout_string_current, ")");
    } else if (0 == strcmp("t", token)) {
-      InterfaceLayoutNextToken("(");
-      char* copy = strdup(gfc.layout_string); // watch out, gfc.layout_string is modified by InterfaceLayoutNextToken
+      InterfaceLayoutNextToken(layout_string_current, "(");
+      char* copy = strdup(layout_string_current);
       for (uintptr_t i = 0; copy[i]; i++)
          if (copy[i] == ',')
             copy[i] = '\t';
@@ -7518,13 +7501,13 @@ void Context::InterfaceLayoutCreate(UIElement* parent) {
       UIElement* container =
          &parent->add_tabpane(UIElement::v_fill | UIElement::h_fill, copy).set_user_proc(InterfaceTabPaneMessage);
       free(copy);
-      InterfaceLayoutCreate(container);
+      InterfaceLayoutCreate(container, layout_string_current);
 
       while (true) {
-         token = InterfaceLayoutNextToken();
+         token = InterfaceLayoutNextToken(layout_string_current);
 
          if (0 == strcmp(token, ",")) {
-            InterfaceLayoutCreate(container);
+            InterfaceLayoutCreate(container, layout_string_current);
          } else if (0 == strcmp(token, ")")) {
             break;
          } else {
@@ -7606,10 +7589,11 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
    }
 
    switcherMain = &windowMain->add_switcher(0);
-   InterfaceLayoutCreate(&switcherMain->add_panel(UIPanel::EXPAND));
+   const char* layout_string_current = gfc.layout_string.c_str();
+   InterfaceLayoutCreate(&switcherMain->add_panel(UIPanel::EXPAND), layout_string_current);
    switcherMain->switch_to(switcherMain->_children[0]);
 
-   if (*InterfaceLayoutNextToken()) {
+   if (*InterfaceLayoutNextToken(layout_string_current)) {
       print(std::cerr, "Warning: Layout string has additional text after the end of the top-level entry.\n");
    }
 
