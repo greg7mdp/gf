@@ -22,6 +22,7 @@
 #include <ctype.h>
 #include <dirent.h>
 #include <fcntl.h>
+#include <fstream>
 #include <memory>
 #include <mutex>
 #include <poll.h>
@@ -1356,38 +1357,24 @@ const char* themeItems[] = {
 };
 
 void SettingsAddTrustedFolder() {
-   std::string config        = LoadFile(globalConfigPath);
-   size_t      length        = strlen(config.c_str()); // should be equal to config.size() if file doesn't contain zeros
-   size_t      insert        = 0;
-   const char* sectionString = "\n[trusted_folders]\n";
-   bool        addSectionString = true;
+   std::string config         = LoadFile(globalConfigPath);
+   const char* section_string = "\n[trusted_folders]\n";
+   auto        insert_pos     = config.find(section_string);
 
-   if (length) {
-      char* section = strstr(config.data(), sectionString);
-
-      if (section) {
-         insert           = section - config.data() + strlen(sectionString);
-         addSectionString = false;
-      } else {
-         insert = length;
-      }
+   if (insert_pos == std::string::npos) {
+      config += section_string;
+      insert_pos = config.size();
+   } else {
+      insert_pos += strlen(section_string);
    }
 
-   FILE* f = fopen(globalConfigPath, "wb");
-
-   if (!f) {
+   std::ofstream ofs(globalConfigPath, std::ofstream::out | std::ofstream::binary);
+   if (!ofs)
       print(std::cerr, "Error: Could not modify the global config file!\n");
-   } else {
-      if (insert)
-         fwrite(config.data(), 1, insert, f);
-      if (addSectionString)
-         fwrite(sectionString, 1, strlen(sectionString), f);
-      fwrite(localConfigDirectory, 1, strlen(localConfigDirectory), f);
-      char newline = '\n';
-      fwrite(&newline, 1, 1, f);
-      if (length - insert)
-         fwrite(config.data() + insert, 1, length - insert, f);
-      fclose(f);
+   else {
+      ofs << config.substr(0, insert_pos);
+      ofs << localConfigDirectory << '\n';
+      ofs << config.substr(insert_pos, config.size());
    }
 }
 
