@@ -1858,35 +1858,33 @@ UIPanel::UIPanel(UIElement* parent, uint32_t flags)
    }
 }
 
-void _UIWrapPanelLayoutRow(UIWrapPanel* panel, uint32_t rowStart, uint32_t rowEnd, int rowY, int rowHeight) {
+void UIWrapPanel::_layout_row(uint32_t rowStart, uint32_t rowEnd, int rowY, int rowHeight) {
    int rowPosition = 0;
 
    for (uint32_t i = rowStart; i < rowEnd; i++) {
-      UIElement* child = panel->_children[i];
+      UIElement* child = _children[i];
       if (child->_flags & UIElement::hide_flag)
          continue;
       int         height   = child->message(UIMessage::GET_HEIGHT, 0, 0);
       int         width    = child->message(UIMessage::GET_WIDTH, 0, 0);
       UIRectangle relative = UIRectangle(rowPosition, rowPosition + width, rowY + rowHeight / 2 - height / 2,
                                          rowY + rowHeight / 2 + height / 2);
-      child->move(translate(relative, panel->_bounds), false);
+      child->move(translate(relative, _bounds), false);
       rowPosition += width;
    }
 }
 
-int UIWrapPanel::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-   UIWrapPanel* panel = (UIWrapPanel*)el;
-
+int UIWrapPanel::_class_message_proc(UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::LAYOUT || msg == UIMessage::GET_HEIGHT) {
       int totalHeight = 0;
       int rowPosition = 0;
       int rowHeight   = 0;
-      int rowLimit    = msg == UIMessage::LAYOUT ? el->_bounds.width() : di;
+      int rowLimit    = msg == UIMessage::LAYOUT ? _bounds.width() : di;
 
       uint32_t rowStart = 0;
 
-      for (uint32_t i = 0; i < panel->_children.size(); i++) {
-         UIElement* child = panel->_children[i];
+      for (uint32_t i = 0; i < _children.size(); i++) {
+         UIElement* child = _children[i];
          if (child->_flags & hide_flag)
             continue;
 
@@ -1894,7 +1892,7 @@ int UIWrapPanel::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* d
          int width  = child->message(UIMessage::GET_WIDTH, 0, 0);
 
          if (rowLimit && rowPosition + width > rowLimit) {
-            _UIWrapPanelLayoutRow(panel, rowStart, i, totalHeight, rowHeight);
+            _layout_row(rowStart, i, totalHeight, rowHeight);
             totalHeight += rowHeight;
             rowPosition = 0;
             rowHeight   = 0;
@@ -1911,7 +1909,7 @@ int UIWrapPanel::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* d
       if (msg == UIMessage::GET_HEIGHT) {
          return totalHeight + rowHeight;
       } else {
-         _UIWrapPanelLayoutRow(panel, rowStart, (uint32_t)panel->_children.size(), totalHeight, rowHeight);
+         _layout_row(rowStart, (uint32_t)_children.size(), totalHeight, rowHeight);
       }
    }
 
@@ -1921,28 +1919,26 @@ int UIWrapPanel::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* d
 UIWrapPanel::UIWrapPanel(UIElement* parent, uint32_t flags)
    : UIElementCast<UIWrapPanel>(parent, flags, UIWrapPanel::_ClassMessageProc, "Wrap Panel") {}
 
-int UISwitcher::_ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-   UISwitcher* switcher = (UISwitcher*)el;
-
-   if (!switcher->_active) {
+int UISwitcher::_class_message_proc(UIMessage msg, int di, void* dp) {
+   if (!_active) {
    } else if (msg == UIMessage::GET_WIDTH || msg == UIMessage::GET_HEIGHT) {
-      return switcher->_active->message(msg, di, dp);
+      return _active->message(msg, di, dp);
    } else if (msg == UIMessage::LAYOUT) {
-      switcher->_active->move(el->_bounds, false);
+      _active->move(_bounds, false);
    }
 
    return 0;
 }
 
-void UISwitcherSwitchTo(UISwitcher* switcher, UIElement* child) {
-   for (auto sw_child : switcher->_children)
+void UISwitcher::switch_to(UIElement* child) {
+   for (auto sw_child : _children)
       sw_child->_flags |= UIElement::hide_flag;
 
-   UI_ASSERT(child->_parent == switcher);
+   UI_ASSERT(child->_parent == this);
    child->_flags &= ~UIElement::hide_flag;
-   switcher->_active = child;
-   switcher->measurements_changed(3);
-   switcher->refresh();
+   _active = child;
+   measurements_changed(3);
+   refresh();
 }
 
 UISwitcher::UISwitcher(UIElement* parent, uint32_t flags)

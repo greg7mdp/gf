@@ -4158,13 +4158,13 @@ bool CommandToggleFillDataTab() {
    buttonFillWindow->_flags ^= UIButton::CHECKED;
 
    if (switcherMain->_active == dataTab) {
-      UISwitcherSwitchTo(switcherMain, switcherMain->_children[0]);
+      switcherMain->switch_to(switcherMain->_children[0]);
       dataTab->change_parent(oldParent, oldBefore);
    } else {
       dataTab->message(UIMessage::TAB_SELECTED, 0, 0);
       oldParent = dataTab->_parent;
       oldBefore = dataTab->change_parent(switcherMain, NULL);
-      UISwitcherSwitchTo(switcherMain, dataTab);
+      switcherMain->switch_to(dataTab);
    }
    return true;
 }
@@ -7603,7 +7603,7 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
 
    switcherMain = &windowMain->add_switcher(0);
    InterfaceLayoutCreate(&switcherMain->add_panel(UIPanel::EXPAND));
-   UISwitcherSwitchTo(switcherMain, switcherMain->_children[0]);
+   switcherMain->switch_to(switcherMain->_children[0]);
 
    if (*InterfaceLayoutNextToken()) {
       print(std::cerr, "Warning: Layout string has additional text after the end of the top-level entry.\n");

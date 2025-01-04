@@ -1494,7 +1494,12 @@ public:
 // ------------------------------------------------------------------------------------------
 struct UIWrapPanel : public UIElementCast<UIWrapPanel> {
 private:
-   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
+   void       _layout_row(uint32_t rowStart, uint32_t rowEnd, int rowY, int rowHeight);
+   int        _class_message_proc(UIMessage msg, int di, void* dp);
+   
+   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<UIWrapPanel*>(el)->_class_message_proc(msg, di, dp);
+   }
 
 public:
    UIWrapPanel(UIElement* parent, uint32_t flags);
@@ -1503,12 +1508,18 @@ public:
 // ------------------------------------------------------------------------------------------
 struct UISwitcher : public UIElementCast<UISwitcher> {
 private:
-   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
+   int        _class_message_proc(UIMessage msg, int di, void* dp);
+   
+   static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<UISwitcher*>(el)->_class_message_proc(msg, di, dp);
+   }
 
 public:
    UIElement* _active = nullptr;
 
    UISwitcher(UIElement* parent, uint32_t flags);
+
+   void switch_to(UIElement* child);
 };
 
 // ------------------------------------------------------------------------------------------
