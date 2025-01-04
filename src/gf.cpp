@@ -1378,11 +1378,28 @@ void SettingsAddTrustedFolder() {
    }
 }
 
+// ------------------------------------------------------------------------------
+// load settings (from both global and local config files) in two passes:
+//
+// earlypass:
+//   +  "ui"
+//   +  "commands"
+//   +  "trusted_folders"
+//   +  "vim"
+//   +  "pipe"
+//   +  "executable"
+//
+// !earlypass:
+//   + "shortcuts"
+//   +  "gdb"
+//   +  "theme"
+// ------------------------------------------------------------------------------
 UIConfig Context::SettingsLoad(bool earlyPass) {
    bool        currentFolderIsTrusted = false;
    static bool cwdConfigNotTrusted    = false;
    UIConfig    ui_config;
 
+   // load global config first (from ~/.config/gf2_config.ini), and then local config
    for (int i = 0; i < 2; i++) {
       INIState state;
       auto     config = LoadFile(i ? localConfigPath : globalConfigPath);
