@@ -206,37 +206,6 @@ struct Command {
 };
 
 // --------------------------------------------------------------------------------------------
-struct INI_Parser {
-private:
-   // current state of our parsing the ini file buffer
-   // ------------------------------------------------
-   const char* buffer;                       // non-owning ptr
-   size_t      remaining_bytes;
-
-   // last key/value parsed
-   // ---------------------
-   const char*  section      = nullptr;      // non-owning ptr
-   const char*  key          = nullptr;      // non-owning ptr
-   const char*  value        = nullptr;      // non-owning ptr
-   size_t sectionBytes = 0;
-   size_t keyBytes     = 0;
-   size_t valueBytes   = 0;
-
-public:
-   struct parse_result_t {
-      string_view section;
-      string_view key;
-      string_view value;
-   };
-   
-   INI_Parser(std::string_view buff) :
-      buffer(buff.data()),
-      remaining_bytes(buff.size())
-   {}
-
-   parse_result_t parse_next();
-};
-
 struct ReceiveMessageType {
    UIMessage                                         msg;
    std::function<void(std::unique_ptr<std::string>)> callback;
@@ -514,43 +483,6 @@ inline uint64_t Hash(const uint8_t* key, size_t keyBytes) {
    for (uintptr_t i = 0; i < keyBytes; i++)
       hash = (hash ^ key[i]) * 0x100000001B3;
    return hash;
-}
-
-// reads into `destination` until character `c1` found (or we reach the end of `s->buffer`)
-#define INI_READ(destination, counter, c1, c2)               \
-   destination = buffer, counter = 0;                        \
-   while (remaining_bytes && *buffer != c1 && *buffer != c2) \
-      counter++, buffer++, remaining_bytes--;                \
-   if (remaining_bytes && *buffer == c1)                     \
-      buffer++, remaining_bytes--;
-
-INI_Parser::parse_result_t INI_Parser::parse_next() {
-   while (remaining_bytes) {
-      char c = *buffer;
-
-      if (c == ' ' || c == '\n' || c == '\r') {
-         buffer++, remaining_bytes--;
-         continue;
-      } else if (c == ';') {
-         valueBytes = 0;
-         INI_READ(key, keyBytes, '\n', 0);
-      } else if (c == '[') {
-         keyBytes = valueBytes = 0;
-         buffer++, remaining_bytes--;
-         INI_READ(section, sectionBytes, ']', 0);
-      } else {
-         INI_READ(key, keyBytes, '=', '\n');
-         INI_READ(value, valueBytes, '\n', 0);
-      }
-
-      return parse_result_t{
-         .section = {section, sectionBytes},
-           .key = {key,     keyBytes    },
-           .value = {value,   valueBytes  }
-      };
-   }
-
-   return {};
 }
 
 int ModifiedRowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
@@ -1381,8 +1313,7 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
 
    // load global config first (from ~/.config/gf2_config.ini), and then local config
    for (int i = 0; i < 2; i++) {
-      auto     config = LoadFile(i ? localConfigPath : globalConfigPath);
-      INI_Parser state(config);
+      const auto config = LoadFile(i ? localConfigPath : globalConfigPath);
 
       if (earlyPass && i && !currentFolderIsTrusted && !config.empty()) {
          print(std::cerr, "Would you like to load the config file .project.gf from your current directory?\n");
@@ -1402,8 +1333,9 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
          break;
       }
 
-      while (true) {
-         auto [section, key, value] = state.parse_next();
+      INIFile config_view(config);
+      
+      for (auto [section, key, value] : config_view) {
          if (section.empty())
             break;
 

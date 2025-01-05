@@ -434,6 +434,51 @@ int UI::column_to_byte(std::string_view string, const size_t column, const size_
 }
 
 // --------------------------------------------------
+// INI File reader
+// --------------------------------------------------
+// reads into `destination` until character `c1` found (or we reach the end of `_curr_pos`)
+#define INI_READ(destination, counter, c1, c2)                \
+   destination = _curr_pos, counter = 0;                      \
+   while (_remaining && *_curr_pos != c1 && *_curr_pos != c2) \
+      counter++, _curr_pos++, _remaining--;                   \
+   if (_remaining && *_curr_pos == c1)                        \
+      _curr_pos++, _remaining--;
+
+INIFile::iterator& INIFile::iterator::operator++() {
+   while (_remaining) {
+      char c = *_curr_pos;
+
+      if (c == ' ' || c == '\n' || c == '\r') {
+         _curr_pos++, _remaining--;
+         continue;
+      } else if (c == ';') {
+         _value_bytes = 0;
+         INI_READ(_key, _key_bytes, '\n', 0);
+      } else if (c == '[') {
+         _key_bytes = _value_bytes = 0;
+         _curr_pos++, _remaining--;
+         INI_READ(_section, _section_bytes, ']', 0);
+      } else {
+         INI_READ(_key, _key_bytes, '=', '\n');
+         INI_READ(_value, _value_bytes, '\n', 0);
+      }
+
+      _parse_result = parse_result_t{
+         ._section = {_section, _section_bytes},
+           ._key = {_key,     _key_bytes    },
+           ._value = {_value,   _value_bytes  }
+      };
+      // on the last [s, k, v], _curr_pos points to the terminating zero character, and iterator still not end()
+      return *this;
+   }
+
+   // advance `_curr_pos` by 1 so we will match the end() iterator, which points right after the terminating zero
+   if (_remaining == 0 && *(_curr_pos - 1) != 0)
+      ++_curr_pos;
+   return *this;
+}
+
+// --------------------------------------------------
 // Animations.
 // --------------------------------------------------
 

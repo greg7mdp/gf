@@ -1741,6 +1741,81 @@ void UIInspectorLog(UI* ui, std::format_string<Args...> fmt, Args&&... args) {
 #endif
 
 
+// ------------------------------------------------------------------------------------------
+// example of use:
+//    const std::string config = LoadFile("config.ini");
+//    INIFile config_view(config);
+//    for (auto [section, key, value] : config_view) {
+//        ...                                     // iterate over `std::string_view` triplets
+//    }
+// ------------------------------------------------------------------------------------------
+struct INIFile {
+   struct parse_result_t {
+      std::string_view _section;
+      std::string_view _key;
+      std::string_view _value;
+   };
+
+   struct iterator {
+      using iterator_category = std::input_iterator_tag;
+      using value_type        = parse_result_t;
+      using pointer           = parse_result_t*;
+      using reference         = parse_result_t&;
+
+      iterator(const char* start, size_t bytes)
+         : _curr_pos(start)
+         , _remaining(bytes) {}
+
+      friend bool operator==(const iterator& a, const iterator& b) { return a._curr_pos == b._curr_pos; }
+      friend auto operator<=>(const iterator& a, const iterator& b) { return a._curr_pos <=> b._curr_pos; }
+
+      reference operator*() {
+         assert(_parse_result._section.size());
+         return _parse_result;
+      }
+      pointer operator->() { return &_parse_result; }
+
+      iterator& operator++();
+
+   private:
+      const char* _curr_pos;
+      size_t      _remaining;
+
+      parse_result_t _parse_result;
+
+      // last key/value parsed
+      // ---------------------
+      const char* _section       = nullptr; // non-owning ptr
+      const char* _key           = nullptr; // non-owning ptr
+      const char* _value         = nullptr; // non-owning ptr
+      size_t      _section_bytes = 0;
+      size_t      _key_bytes     = 0;
+      size_t      _value_bytes   = 0;
+   };
+
+   // `buff` *must* be null-terminated, even though it is a `std::string_view`
+   INIFile(std::string_view buff)
+      : _buff(buff) {}
+
+   iterator begin() {
+      if (_buff.empty())
+         return end();
+      iterator res(_buff.data(), _buff.size());
+      ++res; // populate first _parse_result so we are at the beginning
+      return res;
+   }
+
+   iterator end() {
+      const char* past_end = _buff.data() + _buff.size() + 1;
+      return iterator(past_end, 0);
+   }
+
+   parse_result_t parse_next();
+
+private:
+   std::string_view _buff;
+};
+
 // ----------------------------------------
 //      Variables
 // ----------------------------------------
