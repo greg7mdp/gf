@@ -1333,7 +1333,7 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
          break;
       }
 
-      INIFile config_view(config);
+      INI_Parser config_view(config);
       
       for (auto [section, key, value] : config_view) {
          if (section.empty())
@@ -1384,7 +1384,7 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
             } else {
                windowMain->register_shortcut(std::move(shortcut));
             }
-         } else if (section == "ui" && earlyPass) {
+         } else if (section == "ui" && !key.empty() && earlyPass) {
             if (key == "font_path") {
                ui_config.font_path = value;
             } else if (key == "font_size") {
@@ -1408,7 +1408,7 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
             } else if (key == "window_height") {
                window_height = sv_atoi(value);
             }
-         } else if (section == "gdb" && !earlyPass) {
+         } else if (section == "gdb" && !key.empty() && !earlyPass) {
             if (key == "argument") {
                ctx.gdbArgc++;
                ctx.gdbArgv                  = (char**)realloc(ctx.gdbArgv, sizeof(char*) * (ctx.gdbArgc + 1));
@@ -1501,7 +1501,7 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
             mkfifo(controlPipePath, 6 + 6 * 8 + 6 * 64);
             pthread_t thread;
             pthread_create(&thread, nullptr, ControlPipeThread, nullptr);
-         } else if (section == "executable" && earlyPass) {
+         } else if (section == "executable" && !key.empty() && earlyPass) {
             if (key == "path") {
                gfc.exe_path = value;
             } else if (key == "arguments") {

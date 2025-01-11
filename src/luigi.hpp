@@ -1749,18 +1749,26 @@ void UIInspectorLog(UI* ui, std::format_string<Args...> fmt, Args&&... args) {
 //        ...                                     // iterate over `std::string_view` triplets
 //    }
 // ------------------------------------------------------------------------------------------
-struct INIFile {
+struct INI_Parser {
    struct parse_result_t {
       std::string_view _section;
       std::string_view _key;
       std::string_view _value;
+
+      bool operator==(const parse_result_t&) const = default;
+      auto  operator<=>(const parse_result_t&) const = default;
    };
 
    struct iterator {
       using iterator_category = std::input_iterator_tag;
-      using value_type        = parse_result_t;
-      using pointer           = parse_result_t*;
-      using reference         = parse_result_t&;
+      using value_type        = const parse_result_t;
+      using pointer           = value_type*;
+      using reference         = value_type&;
+      using difference_type   = std::ptrdiff_t;
+
+      iterator()
+         : _curr_pos(nullptr)
+         , _remaining(0) {}
 
       iterator(const char* start, size_t bytes)
          : _curr_pos(start)
@@ -1769,13 +1777,14 @@ struct INIFile {
       friend bool operator==(const iterator& a, const iterator& b) { return a._curr_pos == b._curr_pos; }
       friend auto operator<=>(const iterator& a, const iterator& b) { return a._curr_pos <=> b._curr_pos; }
 
-      reference operator*() {
+      reference operator*() const {
          assert(_parse_result._section.size());
          return _parse_result;
       }
       pointer operator->() { return &_parse_result; }
 
       iterator& operator++();
+      iterator operator ++ (int) { iterator temp = *this; ++*this; return temp; }
 
    private:
       const char* _curr_pos;
@@ -1793,28 +1802,43 @@ struct INIFile {
       size_t      _value_bytes   = 0;
    };
 
+   // first four are required for `iterator` to be a valid `std::input_iterator`
+   static_assert(std::weakly_incrementable<iterator>);
+   static_assert(std::movable<iterator>);
+   static_assert(std::default_initializable<iterator>);
+   static_assert(std::indirectly_readable<iterator>);
+   static_assert(std::input_iterator<iterator>);
+
+   using const_iterator = iterator;
+
    // `buff` *must* be null-terminated, even though it is a `std::string_view`
-   INIFile(std::string_view buff)
+   INI_Parser(std::string_view buff)
       : _buff(buff) {}
 
-   iterator begin() {
+   const_iterator cbegin() const {
       if (_buff.empty())
-         return end();
+         return cend();
       iterator res(_buff.data(), _buff.size());
       ++res; // populate first _parse_result so we are at the beginning
       return res;
    }
 
-   iterator end() {
-      const char* past_end = _buff.data() + _buff.size() + 1;
-      return iterator(past_end, 0);
+   const_iterator cend() const {
+      return iterator();
    }
+
+   iterator begin() { return cbegin(); }
+   iterator end()   { return cend(); }
 
    parse_result_t parse_next();
 
 private:
    std::string_view _buff;
 };
+
+
+
+static_assert(std::ranges::input_range<INI_Parser>);
 
 // ----------------------------------------
 //      Variables

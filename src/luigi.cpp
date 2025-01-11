@@ -444,7 +444,7 @@ int UI::column_to_byte(std::string_view string, const size_t column, const size_
    if (_remaining && *_curr_pos == c1)                        \
       _curr_pos++, _remaining--;
 
-INIFile::iterator& INIFile::iterator::operator++() {
+INI_Parser::iterator& INI_Parser::iterator::operator++() {
    while (_remaining) {
       char c = *_curr_pos;
 
@@ -472,9 +472,9 @@ INIFile::iterator& INIFile::iterator::operator++() {
       return *this;
    }
 
-   // advance `_curr_pos` by 1 so we will match the end() iterator, which points right after the terminating zero
-   if (_remaining == 0 && *(_curr_pos - 1) != 0)
-      ++_curr_pos;
+   // null _curr_pos is end iterator
+   if (_remaining == 0 && _curr_pos)
+      *this = iterator();
    return *this;
 }
 
