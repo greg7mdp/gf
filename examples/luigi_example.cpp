@@ -3,7 +3,7 @@
    #pragma warning(disable : 4996) // This function or variable may be unsafe. Consider using ... instead.
 #endif
 
-#include "../src/luigi.hpp"
+#include <luigi.hpp>
 
 UILabel* label = nullptr;
 

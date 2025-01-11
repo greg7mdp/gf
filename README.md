@@ -36,7 +36,9 @@ cmake -Bbuild -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=clang++-18 -DCMAKE_E
 
 Install a newer version of `gdb` (I'm using `gdb 15.2`) and make sure it is found first in your `PATH`. Old versions sometimes crash when evaluating C++ expressions. 
 
-The gdb prompt including the version can be found on the top of the `Log` window.
+> Note: when building and using a new version of `gdb`, it is likely that the auto-load allowing pretty printing of STL containers will not be found. This can be fixed with a symbolic link. So for example if your new gdb was installed in `/usr/local/bin`, do: `sudo ln -s /usr/share/gdb/auto-load /usr/local/share/gdb`.
+
+> Note: The gdb prompt including the version can be found on the top of the `Log` window.
 
 ## Run
 
