@@ -334,9 +334,7 @@ float _UIFloorFloat(float x) {
    return convert.f;
 }
 
-float inverse_lerp(float a, float b, float v) {
-   return (v - a) / (b - a);
-}
+float inverse_lerp(float a, float b, float v) { return (v - a) / (b - a); }
 
 float _UILinearMap(float value, float inFrom, float inTo, float outFrom, float outTo) {
    float normalisedValue = inverse_lerp(inFrom, inTo, value);
@@ -482,9 +480,7 @@ INI_Parser::iterator& INI_Parser::iterator::operator++() {
 // Animations.
 // --------------------------------------------------
 
-bool UIElement::animate(bool stop) {
-   return ui()->animate(this, stop);
-}
+bool UIElement::animate(bool stop) { return ui()->animate(this, stop); }
 
 bool UI::animate(UIElement* el, bool stop) {
    if (stop) {
@@ -503,9 +499,7 @@ bool UI::animate(UIElement* el, bool stop) {
    }
 }
 
-uint64_t UIAnimateClock() {
-   return (uint64_t)UI_CLOCK() * 1000 / UI_CLOCKS_PER_SECOND;
-}
+uint64_t UIAnimateClock() { return (uint64_t)UI_CLOCK() * 1000 / UI_CLOCKS_PER_SECOND; }
 
 void UI::process_animations() {
    bool do_update = !_animating.empty();
@@ -518,13 +512,9 @@ void UI::process_animations() {
    }
 }
 
-void UIWindow::write_clipboard_text(std::string_view text, sel_target_t t) {
-   _ui->write_clipboard_text(text, this, t);
-}
+void UIWindow::write_clipboard_text(std::string_view text, sel_target_t t) { _ui->write_clipboard_text(text, this, t); }
 
-std::string UIWindow::read_clipboard_text(sel_target_t t) {
-   return _ui->read_clipboard_text(this, t);
-}
+std::string UIWindow::read_clipboard_text(sel_target_t t) { return _ui->read_clipboard_text(this, t); }
 
 
 // --------------------------------------------------
@@ -1071,9 +1061,7 @@ void UIElement::_destroy_descendents(bool topLevel) {
       ui()->inspector_refresh();
 }
 
-void UIElement::destroy_descendents() {
-   _destroy_descendents(true);
-}
+void UIElement::destroy_descendents() { _destroy_descendents(true); }
 
 void UIElement::destroy() {
    if (_flags & destroy_flag) {
@@ -1275,21 +1263,13 @@ UIMDIChild& UIElement::add_mdichild(uint32_t flags, UIRectangle initialBounds, s
    return *new UIMDIChild(this, flags, initialBounds, title);
 }
 
-UIMDIClient& UIElement::add_mdiclient(uint32_t flags) {
-   return *new UIMDIClient(this, flags);
-}
+UIMDIClient& UIElement::add_mdiclient(uint32_t flags) { return *new UIMDIClient(this, flags); }
 
-UIPanel& UIElement::add_panel(uint32_t flags) {
-   return *new UIPanel(this, flags);
-}
+UIPanel& UIElement::add_panel(uint32_t flags) { return *new UIPanel(this, flags); }
 
-UILabel& UIElement::add_label(uint32_t flags, std::string_view label) {
-   return *new UILabel(this, flags, label);
-}
+UILabel& UIElement::add_label(uint32_t flags, std::string_view label) { return *new UILabel(this, flags, label); }
 
-UIButton& UIElement::add_button(uint32_t flags, std::string_view label) {
-   return *new UIButton(this, flags, label);
-}
+UIButton& UIElement::add_button(uint32_t flags, std::string_view label) { return *new UIButton(this, flags, label); }
 
 UIElement& UIElement::add_element(uint32_t flags, message_proc_t message_proc, const char* cClassName) {
    return *new UIElement(this, flags, message_proc, cClassName);
@@ -1299,62 +1279,38 @@ UICheckbox& UIElement::add_checkbox(uint32_t flags, std::string_view label) {
    return *new UICheckbox(this, flags, label);
 }
 
-UIScrollBar& UIElement::add_scrollbar(uint32_t flags) {
-   return *new UIScrollBar(this, flags);
-}
+UIScrollBar& UIElement::add_scrollbar(uint32_t flags) { return *new UIScrollBar(this, flags); }
 
-UISlider& UIElement::add_slider(uint32_t flags) {
-   return *new UISlider(this, flags);
-}
+UISlider& UIElement::add_slider(uint32_t flags) { return *new UISlider(this, flags); }
 
 UISpacer& UIElement::add_spacer(uint32_t flags, int width, int height) {
    return *new UISpacer(this, flags, width, height);
 }
 
-UISplitPane& UIElement::add_splitpane(uint32_t flags, float weight) {
-   return *new UISplitPane(this, flags, weight);
-}
+UISplitPane& UIElement::add_splitpane(uint32_t flags, float weight) { return *new UISplitPane(this, flags, weight); }
 
-UISplitter& UIElement::add_splitter(uint32_t flags) {
-   return *new UISplitter(this, flags);
-}
+UISplitter& UIElement::add_splitter(uint32_t flags) { return *new UISplitter(this, flags); }
 
-UITabPane& UIElement::add_tabpane(uint32_t flags, const char* tabs) {
-   return *new UITabPane(this, flags, tabs);
-}
+UITabPane& UIElement::add_tabpane(uint32_t flags, const char* tabs) { return *new UITabPane(this, flags, tabs); }
 
-UIWrapPanel& UIElement::add_wrappanel(uint32_t flags) {
-   return *new UIWrapPanel(this, flags);
-}
+UIWrapPanel& UIElement::add_wrappanel(uint32_t flags) { return *new UIWrapPanel(this, flags); }
 
-UIGauge& UIElement::add_gauge(uint32_t flags) {
-   return *new UIGauge(this, flags);
-}
+UIGauge& UIElement::add_gauge(uint32_t flags) { return *new UIGauge(this, flags); }
 
 UIImageDisplay& UIElement::add_imagedisplay(uint32_t flags, uint32_t* bits, size_t width, size_t height,
                                             size_t stride) {
    return *new UIImageDisplay(this, flags, bits, width, height, stride);
 }
 
-UISwitcher& UIElement::add_switcher(uint32_t flags) {
-   return *new UISwitcher(this, flags);
-}
+UISwitcher& UIElement::add_switcher(uint32_t flags) { return *new UISwitcher(this, flags); }
 
-UIMenu& UIElement::add_menu(uint32_t flags) {
-   return *new UIMenu(_window->ui(), this, flags);
-}
+UIMenu& UIElement::add_menu(uint32_t flags) { return *new UIMenu(_window->ui(), this, flags); }
 
-UITextbox& UIElement::add_textbox(uint32_t flags) {
-   return *new UITextbox(this, flags);
-}
+UITextbox& UIElement::add_textbox(uint32_t flags) { return *new UITextbox(this, flags); }
 
-UITable& UIElement::add_table(uint32_t flags, const char* columns) {
-   return *new UITable(this, flags, columns);
-}
+UITable& UIElement::add_table(uint32_t flags, const char* columns) { return *new UITable(this, flags, columns); }
 
-UICode& UIElement::add_code(uint32_t flags) {
-   return *new UICode(this, flags);
-}
+UICode& UIElement::add_code(uint32_t flags) { return *new UICode(this, flags); }
 
 UIWindow& UI::create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height) {
    return _platform_create_window(owner, flags, cTitle, width, height);
@@ -1775,9 +1731,8 @@ int UIPanel::_measure(int di) {
    for (auto child : _children) {
       if (child->_flags & (hide_flag | non_client_flag))
          continue;
-      int childSize =
-         child->message(horizontal ? UIMessage::GET_HEIGHT : UIMessage::GET_WIDTH,
-                        (child->_flags & (horizontal ? h_fill : v_fill)) ? perFill : 0, 0);
+      int childSize = child->message(horizontal ? UIMessage::GET_HEIGHT : UIMessage::GET_WIDTH,
+                                     (child->_flags & (horizontal ? h_fill : v_fill)) ? perFill : 0, 0);
       if (childSize > size)
          size = childSize;
    }
@@ -1805,20 +1760,20 @@ int UIPanel::_layout(UIRectangle bounds, bool measure) {
       }
 
       if (horizontal) {
-         int height = ((child->_flags & v_fill) || expand)
-                         ? vSpace
-                         : child->message(UIMessage::GET_HEIGHT, (child->_flags & h_fill) ? perFill : 0, 0);
-         int width  = (child->_flags & h_fill) ? perFill : child->message(UIMessage::GET_WIDTH, height, 0);
+         int         height   = ((child->_flags & v_fill) || expand)
+                                   ? vSpace
+                                   : child->message(UIMessage::GET_HEIGHT, (child->_flags & h_fill) ? perFill : 0, 0);
+         int         width    = (child->_flags & h_fill) ? perFill : child->message(UIMessage::GET_WIDTH, height, 0);
          UIRectangle relative = UIRectangle(position, position + width, scaledBorder2 + (vSpace - height) / 2,
                                             scaledBorder2 + (vSpace + height) / 2);
          if (!measure)
             child->move(translate(relative, bounds), false);
          position += width + scale(_gap);
       } else {
-         int width  = ((child->_flags & h_fill) || expand)
-                         ? hSpace
-                         : child->message(UIMessage::GET_WIDTH, (child->_flags & v_fill) ? perFill : 0, 0);
-         int height = (child->_flags & v_fill) ? perFill : child->message(UIMessage::GET_HEIGHT, width, 0);
+         int         width    = ((child->_flags & h_fill) || expand)
+                                   ? hSpace
+                                   : child->message(UIMessage::GET_WIDTH, (child->_flags & v_fill) ? perFill : 0, 0);
+         int         height   = (child->_flags & v_fill) ? perFill : child->message(UIMessage::GET_HEIGHT, width, 0);
          UIRectangle relative = UIRectangle(scaledBorder2 + (hSpace - width) / 2, scaledBorder2 + (hSpace + width) / 2,
                                             position, position + height);
          if (!measure)
@@ -2153,8 +2108,7 @@ int UISplitter::_class_message_proc(UIMessage msg, int di, void* dp) {
       splitPane->set_weight(std::clamp(splitPane->weight(), 0.05f, 0.95f));
 
       if (splitPane->_children[2]->_class_proc == UISplitPane::_ClassMessageProc &&
-          (splitPane->_children[2]->_flags & vertical_flag) ==
-             (splitPane->_flags & vertical_flag)) {
+          (splitPane->_children[2]->_flags & vertical_flag) == (splitPane->_flags & vertical_flag)) {
          UISplitPane* subSplitPane = (UISplitPane*)splitPane->_children[2];
          subSplitPane->set_weight(
             (splitPane->weight() - oldWeight - subSplitPane->weight() + oldWeight * subSplitPane->weight()) /
@@ -2511,9 +2465,7 @@ int UICode::column_to_byte(size_t ln, size_t column) const {
    return UI::column_to_byte(line(ln), column, tab_columns());
 }
 
-int UICode::byte_to_column(size_t ln, size_t byte) const {
-   return UI::byte_to_column(line(ln), byte, tab_columns());
-}
+int UICode::byte_to_column(size_t ln, size_t byte) const { return UI::byte_to_column(line(ln), byte, tab_columns()); }
 
 UICode& UICode::clear() {
    _content.clear();
@@ -3459,13 +3411,9 @@ UITable::UITable(UIElement* parent, uint32_t flags, const char* columns)
 // Textboxes.
 // --------------------------------------------------
 
-int UITextbox::_byte_to_column(std::string_view string, int byte) {
-   return UI::byte_to_column(string, byte, 4);
-}
+int UITextbox::_byte_to_column(std::string_view string, int byte) { return UI::byte_to_column(string, byte, 4); }
 
-int UITextbox::_column_to_byte(std::string_view string, int column) {
-   return UI::column_to_byte(string, column, 4);
-}
+int UITextbox::_column_to_byte(std::string_view string, int column) { return UI::column_to_byte(string, column, 4); }
 
 UITextbox& UITextbox::replace_text(std::string_view text, bool sendChangedMessage) {
    auto   sz         = _buffer.size();
@@ -3714,9 +3662,8 @@ void UITextbox::_select_all() {
 // MDI clients.
 // --------------------------------------------------
 int UIMDIChild::hittest(UIPoint pt) {
-   auto [titleSize, borderSize, titleRect, contentRect] =
-      ui_mdi_child_calculate_layout(_bounds, _window->scale());
-   int cornerSize = scale(ui_size::mdi_child_corner);
+   auto [titleSize, borderSize, titleRect, contentRect] = ui_mdi_child_calculate_layout(_bounds, _window->scale());
+   int cornerSize                                       = scale(ui_size::mdi_child_corner);
    if (!_bounds.contains(pt.x, pt.y) || contentRect.contains(pt.x, pt.y))
       return -1;
    else if (pt.x < _bounds.l + cornerSize && pt.y < _bounds.t + cornerSize)
@@ -3752,8 +3699,7 @@ void _UIMDIChildCloseButton(void* _child) {
 
 int UIMDIChild::_class_message_proc(UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::PAINT) {
-      static_cast<UIPainter*>(dp)->draw_control(_bounds, UIControl::mdi_child, _title, 0,
-                                                _window->scale());
+      static_cast<UIPainter*>(dp)->draw_control(_bounds, UIControl::mdi_child, _title, 0, _window->scale());
    } else if (msg == UIMessage::GET_WIDTH) {
       UIElement* child = _children.empty() ? nullptr : _children.back();
       int        width = 2 * ui_size::mdi_child_border;
@@ -3770,8 +3716,7 @@ int UIMDIChild::_class_message_proc(UIMessage msg, int di, void* dp) {
          height = ui_size::mdi_child_minimum_height;
       return height;
    } else if (msg == UIMessage::LAYOUT) {
-      auto [titleSize, borderSize, titleRect, contentRect] =
-         ui_mdi_child_calculate_layout(_bounds, _window->scale());
+      auto [titleSize, borderSize, titleRect, contentRect] = ui_mdi_child_calculate_layout(_bounds, _window->scale());
 
       int position = titleRect.r;
 
@@ -4197,9 +4142,7 @@ UIMenu::UIMenu(UI* ui, UIElement* parent, uint32_t flags)
    }
 }
 
-UIMenu& UI::create_menu(UIElement* parent, uint32_t flags) {
-   return *new UIMenu(this, parent, flags);
-}
+UIMenu& UI::create_menu(UIElement* parent, uint32_t flags) { return *new UIMenu(this, parent, flags); }
 
 // --------------------------------------------------
 // Miscellaneous core functions.
@@ -4455,8 +4398,7 @@ bool UIWindow::input_event(UIMessage msg, int di, void* dp) {
                   if (!el) {
                      el = _window;
                   }
-               } while (el != start && ((~el->_flags & tab_stop_flag) ||
-                                        (el->_flags & (hide_flag | disabled_flag))));
+               } while (el != start && ((~el->_flags & tab_stop_flag) || (el->_flags & (hide_flag | disabled_flag))));
 
                if (~el->_flags & window_flag) {
                   el->focus();
@@ -4864,9 +4806,7 @@ void UIInspector::notify_destroyed_window(UIWindow* window) {
 
 #ifdef UI_AUTOMATION_TESTS
 
-int UI::automation_run_tests() {
-   return 1;
-}
+int UI::automation_run_tests() { return 1; }
 
 void UI::automation_process_message() {
    int result;
@@ -5058,48 +4998,77 @@ UIWindow& UI::_platform_create_window(UIWindow* owner, uint32_t flags, const cha
    if (owner)
       window->set_scale(owner->_scale);
 
-   int width  = (flags & UIWindow::MENU) ? 1 : _width ? _width : 800;
-   int height = (flags & UIWindow::MENU) ? 1 : _height ? _height : 600;
+   bool is_menu = !!(flags & UIWindow::MENU);
 
-   XSetWindowAttributes attributes = {};
-   attributes.override_redirect    = flags & UIWindow::MENU;
+   int width  = is_menu ? 1 : (_width ? _width : 800);
+   int height = is_menu ? 1 : (_height ? _height : 600);
 
-   window->_xwindow = XCreateWindow(ui->native_display(), DefaultRootWindow(ui->native_display()), 0, 0, width, height,
-                                    0, 0, InputOutput, CopyFromParent, CWOverrideRedirect, &attributes);
+   Display* dpy = ui->native_display();
+
+   if (1) {
+      XSetWindowAttributes attributes = {};
+
+      unsigned long mask = CWOverrideRedirect;
+      attributes.override_redirect = is_menu;
+
+#if 0
+      // causes window resizing to flicker on ubuntu/gnome/xwaylamd
+      mask |= CWBorderPixel | CWBackPixel;
+      attributes.border_pixel      = 0;
+      attributes.background_pixel  = 0;
+#endif
+
+#if 0
+      // doesn't seem to make a difference on my system ubuntu/gnome/xwaylamd
+      if (is_menu) {
+         mask |= CWSaveUnder;
+         attributes.save_under = True;      // default is False
+      } else {
+         mask |= CWBackingStore;
+         attributes.backing_store = Always; // default is NotUseful
+      }
+#endif
+      window->_xwindow = XCreateWindow(dpy, DefaultRootWindow(dpy), 0, 0, width, height, 0, CopyFromParent, InputOutput,
+                                       CopyFromParent, mask, &attributes);
+   } else {
+      window->_xwindow = XCreateSimpleWindow(dpy, DefaultRootWindow(dpy), 0, 0, width, height, 0, 0, 0);
+   }
+
    if (cTitle)
-      XStoreName(ui->native_display(), window->_xwindow, cTitle);
-   XSelectInput(ui->native_display(), window->_xwindow,
+      XStoreName(dpy, window->_xwindow, cTitle);
+   
+   XSelectInput(dpy, window->_xwindow,
                 SubstructureNotifyMask | ExposureMask | PointerMotionMask | ButtonPressMask | ButtonReleaseMask |
                    KeyPressMask | KeyReleaseMask | StructureNotifyMask | EnterWindowMask | LeaveWindowMask |
                    ButtonMotionMask | KeymapStateMask | FocusChangeMask | PropertyChangeMask);
 
    if (flags & UIWindow::MAXIMIZE) {
-      Atom atoms[2] = {XInternAtom(ui->native_display(), "_NET_WM_STATE_MAXIMIZED_HORZ", 0),
-                       XInternAtom(ui->native_display(), "_NET_WM_STATE_MAXIMIZED_VERT", 0)};
-      XChangeProperty(ui->native_display(), window->_xwindow, XInternAtom(ui->native_display(), "_NET_WM_STATE", 0),
-                      XA_ATOM, 32, PropModeReplace, (unsigned char*)atoms, 2);
+      Atom atoms[2] = {XInternAtom(dpy, "_NET_WM_STATE_MAXIMIZED_HORZ", 0),
+                       XInternAtom(dpy, "_NET_WM_STATE_MAXIMIZED_VERT", 0)};
+      XChangeProperty(dpy, window->_xwindow, XInternAtom(dpy, "_NET_WM_STATE", 0), XA_ATOM, 32, PropModeReplace,
+                      (unsigned char*)atoms, 2);
    }
 
    if (~flags & UIWindow::MENU) {
-      XMapRaised(ui->native_display(), window->_xwindow);
+      XMapRaised(dpy, window->_xwindow);
    }
 
    if (flags & UIWindow::CENTER_IN_OWNER) {
       int x = 0, y = 0;
       owner->get_screen_position(&x, &y);
-      XMoveResizeWindow(ui->native_display(), window->_xwindow, x + owner->width() / 2 - width / 2,
-                        y + owner->height() / 2 - height / 2, width, height);
+      XMoveResizeWindow(dpy, window->_xwindow, x + owner->width() / 2 - width / 2, y + owner->height() / 2 - height / 2,
+                        width, height);
    }
 
-   XSetWMProtocols(ui->native_display(), window->_xwindow, &ui->_atoms[windowClosedID], 1);
-   window->_image = XCreateImage(ui->native_display(), ui->_visual, 24, ZPixmap, 0, NULL, 10, 10, 32, 0);
+   XSetWMProtocols(dpy, window->_xwindow, &ui->_atoms[windowClosedID], 1);
+   window->_image = XCreateImage(dpy, ui->_visual, 24, ZPixmap, 0, NULL, 10, 10, 32, 0);
 
    window->_xic = XCreateIC(ui->_xim, XNInputStyle, XIMPreeditNothing | XIMStatusNothing, XNClientWindow,
                             window->_xwindow, XNFocusWindow, window->_xwindow, nullptr);
 
    int dndVersion = 4;
-   XChangeProperty(ui->native_display(), window->_xwindow, ui->_atoms[dndAwareID], XA_ATOM, 32 /* bits */,
-                   PropModeReplace, (uint8_t*)&dndVersion, 1);
+   XChangeProperty(dpy, window->_xwindow, ui->_atoms[dndAwareID], XA_ATOM, 32 /* bits */, PropModeReplace,
+                   (uint8_t*)&dndVersion, 1);
 
    return *window;
 }
@@ -5243,51 +5212,51 @@ unique_ptr<UI> UI::initialise(const UIConfig& cfg) {
 
    XInitThreads();
 
-   ui->_display = XOpenDisplay(NULL);
-   ui->_visual  = XDefaultVisual(ui->native_display(), 0);
+   Display* dpy = XOpenDisplay(NULL);
+   ui->_display = dpy;
+   ui->_visual  = XDefaultVisual(dpy, 0);
 
-   ui->_atoms[windowClosedID]   = XInternAtom(ui->native_display(), "WM_DELETE_WINDOW", 0);
-   ui->_atoms[primaryID]        = XInternAtom(ui->native_display(), "PRIMARY", 0);
-   ui->_atoms[dndEnterID]       = XInternAtom(ui->native_display(), "XdndEnter", 0);
-   ui->_atoms[dndPositionID]    = XInternAtom(ui->native_display(), "XdndPosition", 0);
-   ui->_atoms[dndStatusID]      = XInternAtom(ui->native_display(), "XdndStatus", 0);
-   ui->_atoms[dndActionCopyID]  = XInternAtom(ui->native_display(), "XdndActionCopy", 0);
-   ui->_atoms[dndDropID]        = XInternAtom(ui->native_display(), "XdndDrop", 0);
-   ui->_atoms[dndSelectionID]   = XInternAtom(ui->native_display(), "XdndSelection", 0);
-   ui->_atoms[dndFinishedID]    = XInternAtom(ui->native_display(), "XdndFinished", 0);
-   ui->_atoms[dndAwareID]       = XInternAtom(ui->native_display(), "XdndAware", 0);
-   ui->_atoms[uriListID]        = XInternAtom(ui->native_display(), "text/uri-list", 0);
-   ui->_atoms[plainTextID]      = XInternAtom(ui->native_display(), "text/plain", 0);
-   ui->_atoms[clipboardID]      = XInternAtom(ui->native_display(), "CLIPBOARD", 0);
-   ui->_atoms[xSelectionDataID] = XInternAtom(ui->native_display(), "XSEL_DATA", 0);
-   ui->_atoms[textID]           = XInternAtom(ui->native_display(), "TEXT", 0);
-   ui->_atoms[targetID]         = XInternAtom(ui->native_display(), "TARGETS", 0);
-   ui->_atoms[incrID]           = XInternAtom(ui->native_display(), "INCR", 0);
+   ui->_atoms[windowClosedID]   = XInternAtom(dpy, "WM_DELETE_WINDOW", 0);
+   ui->_atoms[primaryID]        = XInternAtom(dpy, "PRIMARY", 0);
+   ui->_atoms[dndEnterID]       = XInternAtom(dpy, "XdndEnter", 0);
+   ui->_atoms[dndPositionID]    = XInternAtom(dpy, "XdndPosition", 0);
+   ui->_atoms[dndStatusID]      = XInternAtom(dpy, "XdndStatus", 0);
+   ui->_atoms[dndActionCopyID]  = XInternAtom(dpy, "XdndActionCopy", 0);
+   ui->_atoms[dndDropID]        = XInternAtom(dpy, "XdndDrop", 0);
+   ui->_atoms[dndSelectionID]   = XInternAtom(dpy, "XdndSelection", 0);
+   ui->_atoms[dndFinishedID]    = XInternAtom(dpy, "XdndFinished", 0);
+   ui->_atoms[dndAwareID]       = XInternAtom(dpy, "XdndAware", 0);
+   ui->_atoms[uriListID]        = XInternAtom(dpy, "text/uri-list", 0);
+   ui->_atoms[plainTextID]      = XInternAtom(dpy, "text/plain", 0);
+   ui->_atoms[clipboardID]      = XInternAtom(dpy, "CLIPBOARD", 0);
+   ui->_atoms[xSelectionDataID] = XInternAtom(dpy, "XSEL_DATA", 0);
+   ui->_atoms[textID]           = XInternAtom(dpy, "TEXT", 0);
+   ui->_atoms[targetID]         = XInternAtom(dpy, "TARGETS", 0);
+   ui->_atoms[incrID]           = XInternAtom(dpy, "INCR", 0);
 
-   ui->_cursors[(uint32_t)UICursor::arrow]            = XCreateFontCursor(ui->native_display(), XC_left_ptr);
-   ui->_cursors[(uint32_t)UICursor::text]             = XCreateFontCursor(ui->native_display(), XC_xterm);
-   ui->_cursors[(uint32_t)UICursor::split_v]          = XCreateFontCursor(ui->native_display(), XC_sb_v_double_arrow);
-   ui->_cursors[(uint32_t)UICursor::split_h]          = XCreateFontCursor(ui->native_display(), XC_sb_h_double_arrow);
-   ui->_cursors[(uint32_t)UICursor::flipped_arrow]    = XCreateFontCursor(ui->native_display(), XC_right_ptr);
-   ui->_cursors[(uint32_t)UICursor::cross_hair]       = XCreateFontCursor(ui->native_display(), XC_crosshair);
-   ui->_cursors[(uint32_t)UICursor::hand]             = XCreateFontCursor(ui->native_display(), XC_hand1);
-   ui->_cursors[(uint32_t)UICursor::resize_up]        = XCreateFontCursor(ui->native_display(), XC_top_side);
-   ui->_cursors[(uint32_t)UICursor::resize_left]      = XCreateFontCursor(ui->native_display(), XC_left_side);
-   ui->_cursors[(uint32_t)UICursor::resize_up_right]  = XCreateFontCursor(ui->native_display(), XC_top_right_corner);
-   ui->_cursors[(uint32_t)UICursor::resize_up_left]   = XCreateFontCursor(ui->native_display(), XC_top_left_corner);
-   ui->_cursors[(uint32_t)UICursor::resize_down]      = XCreateFontCursor(ui->native_display(), XC_bottom_side);
-   ui->_cursors[(uint32_t)UICursor::resize_right]     = XCreateFontCursor(ui->native_display(), XC_right_side);
-   ui->_cursors[(uint32_t)UICursor::resize_down_left] = XCreateFontCursor(ui->native_display(), XC_bottom_left_corner);
-   ui->_cursors[(uint32_t)UICursor::resize_down_right] =
-      XCreateFontCursor(ui->native_display(), XC_bottom_right_corner);
+   ui->_cursors[(uint32_t)UICursor::arrow]             = XCreateFontCursor(dpy, XC_left_ptr);
+   ui->_cursors[(uint32_t)UICursor::text]              = XCreateFontCursor(dpy, XC_xterm);
+   ui->_cursors[(uint32_t)UICursor::split_v]           = XCreateFontCursor(dpy, XC_sb_v_double_arrow);
+   ui->_cursors[(uint32_t)UICursor::split_h]           = XCreateFontCursor(dpy, XC_sb_h_double_arrow);
+   ui->_cursors[(uint32_t)UICursor::flipped_arrow]     = XCreateFontCursor(dpy, XC_right_ptr);
+   ui->_cursors[(uint32_t)UICursor::cross_hair]        = XCreateFontCursor(dpy, XC_crosshair);
+   ui->_cursors[(uint32_t)UICursor::hand]              = XCreateFontCursor(dpy, XC_hand1);
+   ui->_cursors[(uint32_t)UICursor::resize_up]         = XCreateFontCursor(dpy, XC_top_side);
+   ui->_cursors[(uint32_t)UICursor::resize_left]       = XCreateFontCursor(dpy, XC_left_side);
+   ui->_cursors[(uint32_t)UICursor::resize_up_right]   = XCreateFontCursor(dpy, XC_top_right_corner);
+   ui->_cursors[(uint32_t)UICursor::resize_up_left]    = XCreateFontCursor(dpy, XC_top_left_corner);
+   ui->_cursors[(uint32_t)UICursor::resize_down]       = XCreateFontCursor(dpy, XC_bottom_side);
+   ui->_cursors[(uint32_t)UICursor::resize_right]      = XCreateFontCursor(dpy, XC_right_side);
+   ui->_cursors[(uint32_t)UICursor::resize_down_left]  = XCreateFontCursor(dpy, XC_bottom_left_corner);
+   ui->_cursors[(uint32_t)UICursor::resize_down_right] = XCreateFontCursor(dpy, XC_bottom_right_corner);
 
    XSetLocaleModifiers("");
 
-   ui->_xim = XOpenIM(ui->native_display(), 0, 0, 0);
+   ui->_xim = XOpenIM(dpy, 0, 0, 0);
 
    if (!ui->_xim) {
       XSetLocaleModifiers("@im=none");
-      ui->_xim = XOpenIM(ui->native_display(), 0, 0, 0);
+      ui->_xim = XOpenIM(dpy, 0, 0, 0);
    }
 
    if constexpr (UIInspector::enabled())
@@ -5320,30 +5289,31 @@ void UIWindowPack(UIWindow* window, int _width) {
 
 void UIWindow::endpaint(UIPainter* painter) const {
    (void)painter;
-   const auto& ur = _window->_update_region;
-   XPutImage(_ui->native_display(), _window->_xwindow, DefaultGC(_ui->native_display(), 0), _window->_image, ur.l, ur.t,
-             ur.l, ur.t, UI_RECT_SIZE(_window->_update_region));
+   Display*    dpy = _ui->native_display();
+   const auto& ur  = _window->_update_region;
+   XPutImage(dpy, _window->_xwindow, DefaultGC(dpy, 0), _window->_image, ur.l, ur.t, ur.l, ur.t,
+             UI_RECT_SIZE(_window->_update_region));
 }
 
 void UIWindow::get_screen_position(int* _x, int* _y) const {
-   Window child;
-   XTranslateCoordinates(_ui->native_display(), _window->_xwindow, DefaultRootWindow(_ui->native_display()), 0, 0, _x,
-                         _y, &child);
+   Display* dpy = _ui->native_display();
+   Window   child;
+   XTranslateCoordinates(dpy, _window->_xwindow, DefaultRootWindow(dpy), 0, 0, _x, _y, &child);
 }
 
 UIMenu& UIMenu::show() {
-   UI*    ui = this->ui();
-   Window child;
+   UI*      ui  = this->ui();
+   Display* dpy = ui->native_display();
+   Window   child;
 
    // Find the screen that contains the point the menu was created at.
    Screen* menuScreen = NULL;
    int     screenX, screenY;
 
-   for (int i = 0; i < ScreenCount(ui->native_display()); i++) {
-      Screen* screen = ScreenOfDisplay(ui->native_display(), i);
+   for (int i = 0; i < ScreenCount(dpy); i++) {
+      Screen* screen = ScreenOfDisplay(dpy, i);
       int     x, y;
-      XTranslateCoordinates(ui->native_display(), screen->root, DefaultRootWindow(ui->native_display()), 0, 0, &x, &y,
-                            &child);
+      XTranslateCoordinates(dpy, screen->root, DefaultRootWindow(dpy), 0, 0, &x, &y, &child);
 
       if (_point.x >= x && _point.x < x + screen->width && _point.y >= y && _point.y < y + screen->height) {
          menuScreen = screen;
@@ -5361,8 +5331,7 @@ UIMenu& UIMenu::show() {
       // report screen sizes incorrectly.
       int       wx, wy;
       UIWindow* parentWindow = this->_parent_window;
-      XTranslateCoordinates(ui->native_display(), parentWindow->_xwindow, DefaultRootWindow(ui->native_display()), 0, 0,
-                            &wx, &wy, &child);
+      XTranslateCoordinates(dpy, parentWindow->_xwindow, DefaultRootWindow(dpy), 0, 0, &wx, &wy, &child);
       if (_point.x + width > wx + (int)parentWindow->width())
          _point.x = wx + parentWindow->width() - width;
       if (_point.y + height > wy + (int)parentWindow->height())
@@ -5390,14 +5359,13 @@ UIMenu& UIMenu::show() {
    }
 
    Atom properties[] = {
-      XInternAtom(ui->native_display(), "_NET_WM_WINDOW_TYPE", true),
-      XInternAtom(ui->native_display(), "_NET_WM_WINDOW_TYPE_DROPDOWN_MENU", true),
-      XInternAtom(ui->native_display(), "_MOTIF_WM_HINTS", true),
+      XInternAtom(dpy, "_NET_WM_WINDOW_TYPE", true),
+      XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_DROPDOWN_MENU", true),
+      XInternAtom(dpy, "_MOTIF_WM_HINTS", true),
    };
 
-   XChangeProperty(ui->native_display(), _window->_xwindow, properties[0], XA_ATOM, 32, PropModeReplace,
-                   (uint8_t*)properties, 2);
-   XSetTransientForHint(ui->native_display(), _window->_xwindow, DefaultRootWindow(ui->native_display()));
+   XChangeProperty(dpy, _window->_xwindow, properties[0], XA_ATOM, 32, PropModeReplace, (uint8_t*)properties, 2);
+   XSetTransientForHint(dpy, _window->_xwindow, DefaultRootWindow(dpy));
 
    struct Hints {
       int flags;
@@ -5409,17 +5377,16 @@ UIMenu& UIMenu::show() {
 
    struct Hints hints = {0};
    hints.flags        = 2;
-   XChangeProperty(ui->native_display(), _window->_xwindow, properties[2], properties[2], 32, PropModeReplace,
-                   (uint8_t*)&hints, 5);
+   XChangeProperty(dpy, _window->_xwindow, properties[2], properties[2], 32, PropModeReplace, (uint8_t*)&hints, 5);
 
-   XMapWindow(ui->native_display(), _window->_xwindow);
-   XMoveResizeWindow(ui->native_display(), _window->_xwindow, _point.x, _point.y, width, height);
+   XMapWindow(dpy, _window->_xwindow);
+   XMoveResizeWindow(dpy, _window->_xwindow, _point.x, _point.y, width, height);
    return *this;
 }
 
 // return true if we should exit, normally return false
 // ----------------------------------------------------
-bool UI::_process_x11_event(XEvent* event) {
+bool UI::_process_x11_event(Display *dpy, XEvent* event) {
    if (event->type == ClientMessage && (Atom)event->xclient.data.l[0] == _atoms[windowClosedID]) {
       UIWindow* window = _find_x11_window(event->xclient.window);
       if (!window)
@@ -5431,11 +5398,14 @@ bool UI::_process_x11_event(XEvent* event) {
       return false;
    } else if (event->type == Expose) {
       UIWindow* window = _find_x11_window(event->xexpose.window);
-      if (!window)
+      if (!window || event->xexpose.count > 0)
          return false;
       XPutImage(_display, window->_xwindow, DefaultGC(_display, 0), window->_image, 0, 0, 0, 0, window->width(),
                 window->height());
    } else if (event->type == ConfigureNotify) {
+      // remove any all the ConfigureNotify events for this window from the queue, leaving the last one found in event
+      while (XCheckTypedWindowEvent(dpy, event->xconfigure.window, ConfigureNotify, event) == True);
+
       UIWindow* window = _find_x11_window(event->xconfigure.window);
       if (!window)
          return false;
@@ -5459,6 +5429,9 @@ bool UI::_process_x11_event(XEvent* event) {
          update();
       }
    } else if (event->type == MotionNotify) {
+      // remove any all the MotionNotify events for this window from the queue, leaving the last one found in event
+      while (XCheckTypedWindowEvent(dpy, event->xmotion.window, MotionNotify, event) == True);
+
       UIWindow* window = _find_x11_window(event->xmotion.window);
       if (!window)
          return false;
@@ -5752,52 +5725,20 @@ bool UI::_process_x11_event(XEvent* event) {
 // return true if events processed without problem, false otherwise
 // ----------------------------------------------------------------
 bool UI::platform_message_loop_single(int* result) {
-   XEvent events[64];
+   XEvent event;
 
    if (!_animating.empty()) {
       if (XPending(_display)) {
-         XNextEvent(_display, events + 0);
+         XNextEvent(_display, &event);
       } else {
          process_animations();
          return true;
       }
    } else {
-      XNextEvent(_display, events + 0);
+      XNextEvent(_display, &event);
    }
 
-   int cur_idx = 1;
-
-   auto merge_events = [&](int a, int last_seen_idx) {
-      if (events[cur_idx].type == a) {
-         if (last_seen_idx != -1)
-            events[last_seen_idx].type = 0;
-         last_seen_idx = cur_idx;
-      }
-   };
-
-   int configureIndex = -1, motionIndex = -1, exposeIndex = -1;
-
-   while (cur_idx < 64 && XPending(_display)) {
-      XNextEvent(_display, events + cur_idx);
-
-      merge_events(ConfigureNotify, configureIndex);
-      merge_events(MotionNotify, motionIndex);
-      merge_events(Expose, exposeIndex);
-
-      ++cur_idx;
-   }
-
-   for (int i = 0; i < cur_idx; i++) {
-      if (!events[i].type) {
-         continue;
-      }
-
-      if (_process_x11_event(events + i)) {
-         return false;
-      }
-   }
-
-   return true;
+   return !_process_x11_event(_display, &event);
 }
 
 void UIWindow::post_message(UIMessage msg, void* _dp) const {

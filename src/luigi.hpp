@@ -1654,7 +1654,7 @@ private:
    XEvent                  _copy_event;
 
    UIWindow*   _find_x11_window(Window window) const;
-   bool        _process_x11_event(XEvent* x_event);
+   bool        _process_x11_event(Display* dpy, XEvent* x_event);
 public:
    Display*    native_display() const { return _display; }
    cursors_t&  native_cursors() { return _cursors; }
