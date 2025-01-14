@@ -5023,13 +5023,10 @@ UIWindow& UI::_platform_create_window(UIWindow* owner, uint32_t flags, const cha
       if (is_menu) {
          mask |= CWSaveUnder;
          attributes.save_under = True;      // default is False
-      } else {
-         mask |= CWBackingStore;
-         attributes.backing_store = Always; // default is NotUseful
       }
 #endif
-      window->_xwindow = XCreateWindow(dpy, DefaultRootWindow(dpy), 0, 0, width, height, 0, CopyFromParent, InputOutput,
-                                       CopyFromParent, mask, &attributes);
+      window->_xwindow = XCreateWindow(dpy, DefaultRootWindow(dpy), 0, 0, width, height, 0, CopyFromParent,
+                                       CopyFromParent, CopyFromParent, mask, &attributes);
    } else {
       window->_xwindow = XCreateSimpleWindow(dpy, DefaultRootWindow(dpy), 0, 0, width, height, 0, 0, 0);
    }
