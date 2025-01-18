@@ -1185,7 +1185,7 @@ private:
    bool                    _left_down_in_margin{false};
    int                     _vertical_motion_column{0};
    bool                    _use_vertical_motion_column{false};
-   std::array<code_pos, 4> _selection{}; // start, end, anchor, caret
+   std::array<code_pos, 4> _selection{}; // start, end (ordered), anchor, caret (unordered)
 
    UICode& _set_vertical_motion_column(bool restore);
    UICode& _update_selection();

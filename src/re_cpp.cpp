@@ -1,17 +1,13 @@
-#include "regex.hpp"
+#include "re.hpp"
 
 #include <algorithm>
 #include <iostream>
 
 #include <ctre.hpp>
+using namespace ctre::literals;
 
 template <size_t N>
 using fs_t = ctll::fixed_string<N>; // we can use `fs_t` instead of `ctll::fixed_string` only with clang++-19 or g++-11
-
-// --------------------------------------------------------------------------------
-bool regex::match_stack_or_breakpoint_output(std::string_view s) {
-   return static_cast<bool>(ctre::starts_with<"(Num|#[0-9]+)[ ]+">(s));
-}
 
 // --------------------------------------------------------------------------------
 template <ctll::fixed_string... Strings>
@@ -43,7 +39,7 @@ void collect_matches(std::vector<std::string_view>& expressions, const std::stri
 }
 
 // --------------------------------------------------------------------------------
-std::vector<std::string_view> regex::extract_debuggable_expressions(std::string_view code) {
+std::vector<std::string_view> regexp::cpp::extract_debuggable_expressions(std::string_view code) {
     std::vector<std::string_view> expressions;
     expressions.reserve(32);
 

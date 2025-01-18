@@ -48,7 +48,7 @@ using namespace std;
 using namespace ctre::literals;
 
 #include "luigi.hpp"
-#include "regex.hpp"
+#include "re.hpp"
 
 // ---------------------------------------------------------------------------------------------
 //                              Generic Data structures
@@ -223,6 +223,9 @@ struct Context {
    std::string initialGDBCommand = "set prompt (gdb) ";
    bool        firstUpdate       = true;
    UICode*     logWindow         = nullptr; // if sent, log all debugger output there
+   
+   unique_ptr<regexp::debugger_base> dbg_re;
+   unique_ptr<regexp::language_base> lang_re;
 
    // ========== Debugger interaction ======================
    int               pipeToGDB     = 0;
@@ -2168,7 +2171,7 @@ void InspectCurrentLine() {
 
    auto code = displayCode->line(*currentLine);
 
-   auto expressions = regex::extract_debuggable_expressions(code);
+   auto expressions = ctx.lang_re->extract_debuggable_expressions(code);
    for (auto e : expressions) {
       auto res = EvaluateExpression(e);
       // std::cout << "eval(\"" << e << "\") -> " << res << '\n';
@@ -7085,7 +7088,7 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
    if (showingDisassembly)
       DisassemblyUpdateLine();
 
-   if (!regex::match_stack_or_breakpoint_output(*input)) {
+   if (!ctx.dbg_re->match_stack_or_breakpoint_output(*input)) {
       // we don't want to call `DebuggerGetBreakpoints()` upon receiving the result of `DebuggerGetBreakpoints()`,
       // causing an infinite loop!!!
       DebuggerGetStack();
@@ -7538,6 +7541,9 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
 }
 
 Context::Context() {
+   dbg_re  = std::make_unique<regexp::gdb>();
+   lang_re = std::make_unique<regexp::cpp>();
+
    InterfaceAddBuiltinWindowsAndCommands();
    RegisterExtensions();
 }
