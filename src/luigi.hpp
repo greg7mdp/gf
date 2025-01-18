@@ -298,6 +298,12 @@ enum class UIMessage : uint32_t {
    MIDDLE_UP,
    RIGHT_DOWN,
    RIGHT_UP,
+   LEFT_DBLCLICK,
+   MIDDLE_DBLCLICK,
+   RIGHT_DBLCLICK,
+   LEFT_TRIPLECLICK,
+   MIDDLE_TRIPLECLICK,
+   RIGHT_TRIPLECLICK,
    KEY_TYPED,             // dp = pointer to UIKeyTyped; return 1 if handled
    KEY_RELEASED,          // dp = pointer to UIKeyTyped; return 1 if handled
    MOUSE_MOVE,
@@ -334,6 +340,10 @@ enum class UIMessage : uint32_t {
 struct UIPoint {
    int x = 0;
    int y = 0;
+
+   bool approx_equal(const UIPoint&o, int diff = 6) const {
+      return std::abs(x - o.x) <= diff && std::abs(y - o.y) <= diff;
+   }
 };
 
 // ------------------------------------------------------------------------------------------
@@ -1203,6 +1213,7 @@ public:
    
    size_t    num_lines() const { return _lines.size(); }
    size_t    size() const { return _content.size(); }
+   bool      empty() const { return _lines.empty(); }
 
    code_pos  selection(size_t idx) const { assert(idx < _selection.size()); return _selection[idx]; }
    
@@ -1213,8 +1224,7 @@ public:
    }
 
    UICode&    move_caret(bool backward, bool word);
-   UICode&    position_to_byte(int x, int y, size_t* line, size_t* byte);
-   UICode&    position_to_byte(UIPoint pt, size_t* line, size_t* byte) { return position_to_byte(pt.x, pt.y, line, byte); }
+   UICode&    position_to_byte(UIPoint pt, code_pos& pos);
 
    int        hittest(int x, int y);
    int        hittest(UIPoint p) { return hittest(p.x, p.y); }

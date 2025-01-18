@@ -2485,19 +2485,19 @@ UICode& UICode::load_file(const char* path, std::optional<std::string_view> err 
    return *this;
 }
 
-UICode& UICode::position_to_byte(int x, int y, size_t* line, size_t* byte) {
+UICode& UICode::position_to_byte(UIPoint pt, UICode::code_pos& pos) { // size_t* line, size_t* byte) {
    UI*     ui           = this->ui();
    UIFont* previousFont = _font->activate();
    int     lineHeight   = ui->string_height();
    UIFont* active_font  = ui->active_font();
-   *line                = std::max((int64_t)0, (y - _bounds.t + _vscroll->position()) / lineHeight);
-   if (*line >= num_lines())
-      *line = num_lines() - 1;
-   int column = (x - _bounds.l + _hscroll->position() + active_font->_glyph_width / 2) / active_font->_glyph_width;
+   pos.line             = std::max((int64_t)0, (pt.y - _bounds.t + _vscroll->position()) / lineHeight);
+   if (pos.line >= num_lines())
+      pos.line = num_lines() - 1;
+   int column = (pt.x - _bounds.l + _hscroll->position() + active_font->_glyph_width / 2) / active_font->_glyph_width;
    if (~_flags & UICode::NO_MARGIN)
       column -= (ui->code_margin() + ui->code_margin_gap()) / active_font->_glyph_width;
    previousFont->activate();
-   *byte = column_to_byte(*line, column);
+   pos.offset = column_to_byte(pos.line, column);
    return *this;
 }
 
@@ -2822,19 +2822,19 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
       }
    } else if (msg == UIMessage::LEFT_UP) {
       animate(true);
-   } else if (msg == UIMessage::LEFT_DOWN && num_lines()) {
+   } else if (msg == UIMessage::LEFT_DOWN && !empty()) {
       int hitTest          = hittest(cursor_pos());
       _left_down_in_margin = hitTest < 0;
 
       if (hitTest > 0 && (_flags & UICode::SELECTABLE)) {
-         position_to_byte(cursor_pos(), &_selection[2].line, &_selection[2].offset);
+         position_to_byte(cursor_pos(), _selection[2]);
          _class_message_proc(UIMessage::MOUSE_DRAG, di, dp);
          focus();
          animate(false);
          set_last_animate_time(UI_CLOCK());
       }
    } else if (msg == UIMessage::ANIMATE) {
-      if (is_pressed() && _window->pressed_button() == 1 && num_lines() && !_left_down_in_margin) {
+      if (is_pressed() && _window->pressed_button() == 1 && !empty() && !_left_down_in_margin) {
          UI_CLOCK_T previous     = last_animate_time();
          UI_CLOCK_T current      = UI_CLOCK();
          UI_CLOCK_T deltaTicks   = current - previous;
@@ -2867,13 +2867,13 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
          UICode::_ClassMessageProc(this, UIMessage::MOUSE_DRAG, di, dp);
          refresh();
       }
-   } else if (msg == UIMessage::MOUSE_DRAG && _window->pressed_button() == 1 && num_lines() && !_left_down_in_margin) {
+   } else if (msg == UIMessage::MOUSE_DRAG && _window->pressed_button() == 1 && !empty() && !_left_down_in_margin) {
       // TODO Double-click and triple-click dragging for word and line granularity respectively.
-      position_to_byte(cursor_pos(), &_selection[3].line, &_selection[3].offset);
+      position_to_byte(cursor_pos(), _selection[3]);
       _update_selection();
       _move_scroll_to_focus_next_layout = _move_scroll_to_caret_next_layout = false;
       _use_vertical_motion_column                                           = false;
-   } else if (msg == UIMessage::KEY_TYPED && num_lines()) {
+   } else if (msg == UIMessage::KEY_TYPED && !empty()) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
       if ((m->code == UI_KEYCODE_LETTER('C') || m->code == UI_KEYCODE_LETTER('X') || m->code == UIKeycode::INSERT) &&
@@ -4998,38 +4998,38 @@ UIWindow& UI::_platform_create_window(UIWindow* owner, uint32_t flags, const cha
    if (owner)
       window->set_scale(owner->_scale);
 
-   bool is_menu = !!(flags & UIWindow::MENU);
+   bool is_popup_menu = !!(flags & UIWindow::MENU);
 
-   int width  = is_menu ? 1 : (_width ? _width : 800);
-   int height = is_menu ? 1 : (_height ? _height : 600);
+   int width  = is_popup_menu ? 1 : (_width ? _width : 800);
+   int height = is_popup_menu ? 1 : (_height ? _height : 600);
 
    Display* dpy = ui->native_display();
 
-   if (1) {
-      XSetWindowAttributes attributes = {};
+   XSetWindowAttributes attributes = {};
+   unsigned long        mask       = 0;
 
-      unsigned long mask = CWOverrideRedirect;
-      attributes.override_redirect = is_menu;
+   if (is_popup_menu) {
+      mask |= CWOverrideRedirect;
+      attributes.override_redirect = is_popup_menu;
+   }
 
-#if 0
+   #if 0
       // causes window resizing to flicker on ubuntu/gnome/xwaylamd
       mask |= CWBorderPixel | CWBackPixel;
       attributes.border_pixel      = 0;
       attributes.background_pixel  = 0;
-#endif
+   #endif
 
-#if 0
+   #if 0
       // doesn't seem to make a difference on my system ubuntu/gnome/xwaylamd
       if (is_menu) {
          mask |= CWSaveUnder;
          attributes.save_under = True;      // default is False
       }
-#endif
-      window->_xwindow = XCreateWindow(dpy, DefaultRootWindow(dpy), 0, 0, width, height, 0, CopyFromParent,
-                                       CopyFromParent, CopyFromParent, mask, &attributes);
-   } else {
-      window->_xwindow = XCreateSimpleWindow(dpy, DefaultRootWindow(dpy), 0, 0, width, height, 0, 0, 0);
-   }
+   #endif
+   // weird `hyprland` issue the border_width should not be 0
+   window->_xwindow = XCreateWindow(dpy, DefaultRootWindow(dpy), 0, 0, width, height, 1, CopyFromParent, InputOutput,
+                                    CopyFromParent, mask, &attributes);
 
    if (cTitle)
       XStoreName(dpy, window->_xwindow, cTitle);
@@ -5450,14 +5450,42 @@ bool UI::_process_x11_event(Display *dpy, XEvent* event) {
          return false;
       window->set_cursor_pos({event->xbutton.x, event->xbutton.y});
 
+      // Button1 == 1 ...  Button3 == 3
       if (event->xbutton.button >= 1 && event->xbutton.button <= 3) {
          window->input_event(
             (UIMessage)((uint32_t)(event->type == ButtonPress ? UIMessage::LEFT_DOWN : UIMessage::LEFT_UP) +
                         event->xbutton.button * 2 - 2),
             0, 0);
-      } else if (event->xbutton.button == 4) {
+
+         // check for double and triple clicks
+         // ----------------------------------
+         struct last_click_t {
+            UIPoint   pos;
+            Time      t   = 0;    // milliseconds
+            UIWindow* win = nullptr;
+
+            bool closely_follows(const last_click_t& o) const {
+               return win == o.win && t < (o.t + 1500) && pos.approx_equal(o.pos, 8);
+            }
+         };
+
+         static std::array<last_click_t, 2> last_clicks;
+         last_click_t        click{
+                   .pos = {event->xbutton.x, event->xbutton.y},
+                     .t = event->xbutton.time, .win = window
+         };
+
+         if (event->type == ButtonPress && click.closely_follows(last_clicks[1])) {
+            uint32_t ev = (uint32_t)UIMessage::LEFT_DBLCLICK;
+            if (last_clicks[1].closely_follows(last_clicks[0]))
+               ev = (uint32_t)UIMessage::LEFT_TRIPLECLICK;
+            window->input_event((UIMessage)((uint32_t)(ev + event->xbutton.button - 1)), 0, 0);
+         }
+         last_clicks[0] = last_clicks[1];
+         last_clicks[1] = click;
+      } else if (event->xbutton.button == Button4) {
          window->input_event(UIMessage::MOUSE_WHEEL, -72, 0);
-      } else if (event->xbutton.button == 5) {
+      } else if (event->xbutton.button == Button5) {
          window->input_event(UIMessage::MOUSE_WHEEL, 72, 0);
       }
 
