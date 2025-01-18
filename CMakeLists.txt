@@ -61,11 +61,11 @@ endif()
 ##                                    gf
 ## ------------------------------------------------------------------------------------
 if (NOT MSVC)
-    add_executable(${PROJECT_NAME} WIN32 src/gf.cpp src/re_cpp.cpp src/re_gdb.cpp)
+    add_executable(${PROJECT_NAME} WIN32 src/gf.cpp src/re/cpp.cpp src/re/gdb.cpp)
 
     ## dmalloc: link with `-ldmalloc` and run command: `dmalloc -l logfile -i 100 high`
     
-    target_include_directories(${PROJECT_NAME} PRIVATE deps/include )
+    target_include_directories(${PROJECT_NAME} PRIVATE src deps/include )
     target_link_libraries(${PROJECT_NAME} luigi Threads::Threads)
 endif ()
 

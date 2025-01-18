@@ -1,4 +1,4 @@
-#include "re.hpp"
+#include <re/re.hpp>
 
 #include <algorithm>
 #include <iostream>
@@ -39,7 +39,7 @@ void collect_matches(std::vector<std::string_view>& expressions, const std::stri
 }
 
 // --------------------------------------------------------------------------------
-std::vector<std::string_view> regexp::cpp::extract_debuggable_expressions(std::string_view code) {
+std::vector<std::string_view> regexp::cpp::extract_debuggable_expressions(std::string_view code) const {
     std::vector<std::string_view> expressions;
     expressions.reserve(32);
 

@@ -48,7 +48,7 @@ using namespace std;
 using namespace ctre::literals;
 
 #include "luigi.hpp"
-#include "re.hpp"
+#include <re/re.hpp>
 
 // ---------------------------------------------------------------------------------------------
 //                              Generic Data structures
@@ -2176,7 +2176,7 @@ void InspectCurrentLine() {
       auto res = EvaluateExpression(e);
       // std::cout << "eval(\"" << e << "\") -> " << res << '\n';
 
-      if (ctre::starts_with<"(A syntax error|No symbol|Attempt to|cannot resolve)">(res))
+      if (ctx.dbg_re->evaluation_error(res))
          continue;
 
       if (0 == memcmp(res.c_str(), "= {", 3) && !strchr(res.c_str() + 3, '='))
