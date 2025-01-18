@@ -2783,14 +2783,18 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
          painter->_clip      = intersection(oldClip, lineBounds);
          if (_hscroll)
             lineBounds.l -= (int64_t)_hscroll->position();
-         selection.carets[0] = i == _selection[0].line ? byte_to_column(i, _selection[0].offset) : 0;
-         selection.carets[1] = i == _selection[1].line ? byte_to_column(i, _selection[1].offset) : (int)line(i).size();
 
          bool selected = is_focused() && i >= _selection[0].line && i <= _selection[1].line;
+         if (selected) {
+            selection.carets[0] = (i == _selection[0].line) ? byte_to_column(i, _selection[0].offset) : 0;
+            selection.carets[1] =
+               (i == _selection[1].line) ? byte_to_column(i, _selection[1].offset) : (int)line(i).size();
+         }
+
          int  x = painter->draw_string_highlighted(lineBounds, line(i), tab_columns(), selected ? &selection : nullptr);
          int  y = (lineBounds.t + lineBounds.b - ui->string_height()) / 2;
 
-         if (is_focused() && i >= _selection[0].line && i < _selection[1].line) {
+         if (selected && i < _selection[1].line) {
             painter->draw_block(ui_rect_4pd(x, y, font()->_glyph_width, font()->_glyph_height),
                                 selection.colorBackground);
          }
