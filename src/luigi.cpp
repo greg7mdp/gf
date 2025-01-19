@@ -2837,6 +2837,20 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
          animate(false);
          set_last_animate_time(UI_CLOCK());
       }
+   } else if (msg == UIMessage::LEFT_DBLCLICK && !empty()) {
+      std_print("got doubleclick\n");
+      int hitTest          = hittest(cursor_pos());
+      _left_down_in_margin = hitTest < 0;
+
+      if (hitTest > 0 && (_flags & UICode::SELECTABLE)) {
+         position_to_byte(cursor_pos(), _selection[2]);
+         position_to_byte(cursor_pos(), _selection[3]);
+         _selection[2].offset = 0;
+         _class_message_proc(UIMessage::MOUSE_DRAG, di, dp);
+         focus();
+         animate(false);
+         set_last_animate_time(UI_CLOCK());
+      }
    } else if (msg == UIMessage::ANIMATE) {
       if (is_pressed() && _window->pressed_button() == 1 && !empty() && !_left_down_in_margin) {
          UI_CLOCK_T previous     = last_animate_time();
@@ -4275,6 +4289,7 @@ UIElement* UIElement::next_or_previous_sibling(bool previous) {
 bool UIWindow::input_event(UIMessage msg, int di, void* dp) {
    bool handled = true;
    UI*  ui      = this->ui();
+   bool multi_click = msg >= UIMessage::LEFT_DBLCLICK && msg <= UIMessage::RIGHT_TRIPLECLICK;
 
    if (_pressed) {
       if (msg == UIMessage::MOUSE_MOVE) {
@@ -4320,7 +4335,7 @@ bool UIWindow::input_event(UIMessage msg, int di, void* dp) {
          goto end;
    }
 
-   if (!_pressed) {
+   if (!_pressed || multi_click) {
       UIElement* loc = _window->find_by_point(_cursor.x, _cursor.y);
 
       if (msg == UIMessage::MOUSE_MOVE) {
@@ -4332,20 +4347,17 @@ bool UIWindow::input_event(UIMessage msg, int di, void* dp) {
             _cursor_style = cursor;
             set_cursor(cursor);
          }
-      } else if (msg == UIMessage::LEFT_DOWN) {
+      } else if (msg >= UIMessage::LEFT_DOWN && msg <= UIMessage::RIGHT_DOWN) {
          if ((_flags & UIWindow::MENU) || !ui->close_menus()) {
-            set_pressed(loc, 1);
-            loc->message(UIMessage::LEFT_DOWN, di, dp);
+            int button = (int)msg - (int)UIMessage::LEFT_DOWN + 1;
+            set_pressed(loc, button);
+            loc->message(msg, di, dp);
          }
-      } else if (msg == UIMessage::MIDDLE_DOWN) {
+      } else if (multi_click) {
          if ((_flags & UIWindow::MENU) || !ui->close_menus()) {
-            set_pressed(loc, 2);
-            loc->message(UIMessage::MIDDLE_DOWN, di, dp);
-         }
-      } else if (msg == UIMessage::RIGHT_DOWN) {
-         if ((_flags & UIWindow::MENU) || !ui->close_menus()) {
-            set_pressed(loc, 3);
-            loc->message(UIMessage::RIGHT_DOWN, di, dp);
+            int button = (int)msg - (int)UIMessage::LEFT_DBLCLICK + 1;
+            set_pressed(loc, button);
+            loc->message(msg, di, dp);
          }
       } else if (msg == UIMessage::MOUSE_WHEEL) {
          UIElement* el = loc;
@@ -5456,10 +5468,10 @@ bool UI::_process_x11_event(Display *dpy, XEvent* event) {
 
       // Button1 == 1 ...  Button3 == 3
       if (event->xbutton.button >= 1 && event->xbutton.button <= 3) {
-         window->input_event(
-            (UIMessage)((uint32_t)(event->type == ButtonPress ? UIMessage::LEFT_DOWN : UIMessage::LEFT_UP) +
-                        event->xbutton.button * 2 - 2),
-            0, 0);
+         uint32_t ev = (uint32_t)UIMessage::LEFT_UP + event->xbutton.button - 1;
+         if (event->type == ButtonPress)
+            ev += 3;
+         window->input_event((UIMessage)ev, 0, 0);
 
          // check for double and triple clicks
          // ----------------------------------
@@ -5469,7 +5481,11 @@ bool UI::_process_x11_event(Display *dpy, XEvent* event) {
             UIWindow* win = nullptr;
 
             bool closely_follows(const last_click_t& o) const {
-               return win == o.win && t < (o.t + 1500) && pos.approx_equal(o.pos, 8);
+               return win == o.win && t < (o.t + 500) && pos.approx_equal(o.pos, 8);
+            }
+
+            void print(std::string_view sv) {
+               std_print("{} -> ({}, {}), t={}, win={}\n", sv, pos.x, pos.y, t, (void*)win);
             }
          };
 
@@ -5479,14 +5495,20 @@ bool UI::_process_x11_event(Display *dpy, XEvent* event) {
                      .t = event->xbutton.time, .win = window
          };
 
-         if (event->type == ButtonPress && click.closely_follows(last_clicks[1])) {
-            uint32_t ev = (uint32_t)UIMessage::LEFT_DBLCLICK;
-            if (last_clicks[1].closely_follows(last_clicks[0]))
-               ev = (uint32_t)UIMessage::LEFT_TRIPLECLICK;
-            window->input_event((UIMessage)((uint32_t)(ev + event->xbutton.button - 1)), 0, 0);
+         if (event->type == ButtonPress) {
+            click.print("click");
+            last_clicks[1].print("last_clicks[1]");
+
+            if (click.closely_follows(last_clicks[1])) {
+               uint32_t ev = (uint32_t)UIMessage::LEFT_DBLCLICK;
+               if (last_clicks[1].closely_follows(last_clicks[0]))
+                  ev = (uint32_t)UIMessage::LEFT_TRIPLECLICK;
+               std_print("sending {}\n", ev);
+               window->input_event((UIMessage)((uint32_t)(ev + event->xbutton.button - 1)), 0, 0);
+            }
+            last_clicks[0] = last_clicks[1];
+            last_clicks[1] = click;
          }
-         last_clicks[0] = last_clicks[1];
-         last_clicks[1] = click;
       } else if (event->xbutton.button == Button4) {
          window->input_event(UIMessage::MOUSE_WHEEL, -72, 0);
       } else if (event->xbutton.button == Button5) {

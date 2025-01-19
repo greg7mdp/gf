@@ -7,7 +7,7 @@
 using namespace ctre::literals;
 
 // --------------------------------------------------------------------------------
-bool regexp::gdb::match_stack_or_breakpoint_output(std::string_view s) constc {
+bool regexp::gdb::match_stack_or_breakpoint_output(std::string_view s) const {
    return static_cast<bool>(ctre::starts_with<"(Num|#[0-9]+)[ ]+">(s));
 }
 

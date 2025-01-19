@@ -292,13 +292,13 @@ enum class UIMessage : uint32_t {
 
    // Input events.
    INPUT_EVENTS_START,    // not sent to disabled elements
-   LEFT_DOWN,
    LEFT_UP,
-   MIDDLE_DOWN,
    MIDDLE_UP,
-   RIGHT_DOWN,
    RIGHT_UP,
-   LEFT_DBLCLICK,
+   LEFT_DOWN,
+   MIDDLE_DOWN,
+   RIGHT_DOWN,
+   LEFT_DBLCLICK,         // this one and the following 5 have to stay in order
    MIDDLE_DBLCLICK,
    RIGHT_DBLCLICK,
    LEFT_TRIPLECLICK,
