@@ -484,11 +484,7 @@ bool UIElement::animate(bool stop) { return ui()->animate(this, stop); }
 
 bool UI::animate(UIElement* el, bool stop) {
    if (stop) {
-      if (auto it = std::ranges::find(_animating, el); it != _animating.end()) {
-         _animating.erase(it);
-         return true;
-      }
-      return false;
+      return !!std::erase(_animating, el);
    } else {
       if (auto it = std::ranges::find(_animating, el); it != _animating.end())
          return true;
@@ -2471,7 +2467,7 @@ UICode& UICode::clear() {
    _content.clear();
    _lines.clear();
    _max_columns = 0;
-   _selection   = {};
+   _sel   = {};
    return *this;
 }
 
@@ -2485,7 +2481,7 @@ UICode& UICode::load_file(const char* path, std::optional<std::string_view> err 
    return *this;
 }
 
-UICode& UICode::position_to_byte(UIPoint pt, UICode::code_pos& pos) { // size_t* line, size_t* byte) {
+UICode& UICode::point_to_code_pos(UIPoint pt, UICode::code_pos& pos) { // size_t* line, size_t* byte) {
    UI*     ui           = this->ui();
    UIFont* previousFont = _font->activate();
    int     lineHeight   = ui->string_height();
@@ -2668,10 +2664,10 @@ UICode& UICode::copy(sel_target_t t) {
 }
 
 UICode& UICode::_update_selection() {
-   bool swap = _selection[3].line < _selection[2].line ||
-               (_selection[3].line == _selection[2].line && _selection[3].offset < _selection[2].offset);
-   _selection[1 - swap] = _selection[3];
-   _selection[0 + swap] = _selection[2];
+   bool swap = _sel[3].line < _sel[2].line ||
+               (_sel[3].line == _sel[2].line && _sel[3].offset < _sel[2].offset);
+   _sel[1 - swap] = _sel[3];
+   _sel[0 + swap] = _sel[2];
    copy(sel_target_t::primary);
    _move_scroll_to_caret_next_layout = true;
    refresh();
@@ -2680,11 +2676,18 @@ UICode& UICode::_update_selection() {
 
 UICode& UICode::_set_vertical_motion_column(bool restore) {
    if (restore) {
-      _selection[3].offset = column_to_byte(_selection[3].line, _vertical_motion_column);
+      _sel[3].offset = column_to_byte(_sel[3].line, _vertical_motion_column);
    } else if (!_use_vertical_motion_column) {
       _use_vertical_motion_column = true;
-      _vertical_motion_column     = byte_to_column(_selection[3].line, _selection[3].offset);
+      _vertical_motion_column     = byte_to_column(_sel[3].line, _sel[3].offset);
    }
+   return *this;
+}
+
+UICode& UICode::process_new_selection() {
+   focus();
+   animate(false);
+   set_last_animate_time(UI_CLOCK());
    return *this;
 }
 
@@ -2704,7 +2707,7 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
       _hscroll->set_page(hSpace);
 
       if (_move_scroll_to_caret_next_layout) {
-         size_t top     = _selection[3].line * str_height;
+         size_t top     = _sel[3].line * str_height;
          size_t bottom  = top + str_height;
          size_t context = str_height * 2;
          if (bottom > _vscroll->position() + vSpace - context)
@@ -2784,17 +2787,17 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
          if (_hscroll)
             lineBounds.l -= (int64_t)_hscroll->position();
 
-         bool selected = is_focused() && i >= _selection[0].line && i <= _selection[1].line;
+         bool selected = is_focused() && i >= _sel[0].line && i <= _sel[1].line;
          if (selected) {
-            selection.carets[0] = (i == _selection[0].line) ? byte_to_column(i, _selection[0].offset) : 0;
+            selection.carets[0] = (i == _sel[0].line) ? byte_to_column(i, _sel[0].offset) : 0;
             selection.carets[1] =
-               (i == _selection[1].line) ? byte_to_column(i, _selection[1].offset) : (int)line(i).size();
+               (i == _sel[1].line) ? byte_to_column(i, _sel[1].offset) : (int)line(i).size();
          }
 
          int  x = painter->draw_string_highlighted(lineBounds, line(i), tab_columns(), selected ? &selection : nullptr);
          int  y = (lineBounds.t + lineBounds.b - ui->string_height()) / 2;
 
-         if (selected && i < _selection[1].line) {
+         if (selected && i < _sel[1].line) {
             painter->draw_block(ui_rect_4pd(x, y, font()->_glyph_width, font()->_glyph_height),
                                 selection.colorBackground);
          }
@@ -2831,24 +2834,9 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
       _left_down_in_margin = hitTest < 0;
 
       if (hitTest > 0 && (_flags & UICode::SELECTABLE)) {
-         position_to_byte(cursor_pos(), _selection[2]);
-         _class_message_proc(UIMessage::MOUSE_DRAG, di, dp);
-         focus();
-         animate(false);
-         set_last_animate_time(UI_CLOCK());
-      }
-   } else if (msg == UIMessage::LEFT_DBLCLICK && !empty()) {
-      int hitTest          = hittest(cursor_pos());
-      _left_down_in_margin = hitTest < 0;
-
-      if (hitTest > 0 && (_flags & UICode::SELECTABLE)) {
-         position_to_byte(cursor_pos(), _selection[2]);
-         position_to_byte(cursor_pos(), _selection[3]);
-         _selection[2].offset = 0;
-         _class_message_proc(UIMessage::MOUSE_DRAG, di, dp);
-         focus();
-         animate(false);
-         set_last_animate_time(UI_CLOCK());
+         point_to_code_pos(cursor_pos(), _sel[2]);
+         _class_message_proc(UIMessage::MOUSE_DRAG, 0, nullptr);  // updates `_sel[3]` with last mouse position
+         process_new_selection(); 
       }
    } else if (msg == UIMessage::ANIMATE) {
       if (is_pressed() && _window->pressed_button() == 1 && !empty() && !_left_down_in_margin) {
@@ -2886,7 +2874,7 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
       }
    } else if (msg == UIMessage::MOUSE_DRAG && _window->pressed_button() == 1 && !empty() && !_left_down_in_margin) {
       // TODO Double-click and triple-click dragging for word and line granularity respectively.
-      position_to_byte(cursor_pos(), _selection[3]);
+      point_to_code_pos(cursor_pos(), _sel[3]);
       _update_selection();
       _move_scroll_to_focus_next_layout = _move_scroll_to_caret_next_layout = false;
       _use_vertical_motion_column                                           = false;
@@ -2904,25 +2892,25 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
 
          if (_window->_shift) {
             if (m->code == UIKeycode::UP) {
-               if ((int)_selection[3].line - 1 >= 0) {
+               if ((int)_sel[3].line - 1 >= 0) {
                   _set_vertical_motion_column(false);
-                  _selection[3].line--;
+                  _sel[3].line--;
                   _set_vertical_motion_column(true);
                }
             } else if (m->code == UIKeycode::DOWN) {
-               if (_selection[3].line + 1 < num_lines()) {
+               if (_sel[3].line + 1 < num_lines()) {
                   _set_vertical_motion_column(false);
-                  _selection[3].line++;
+                  _sel[3].line++;
                   _set_vertical_motion_column(true);
                }
             } else if (m->code == UIKeycode::PAGE_UP || m->code == UIKeycode::PAGE_DOWN) {
                _set_vertical_motion_column(false);
                int pageHeight = (_bounds.t - _hscroll->_bounds.t) / lineHeight * 4 / 5;
-               _selection[3].line += m->code == UIKeycode::PAGE_UP ? pageHeight : -pageHeight;
+               _sel[3].line += m->code == UIKeycode::PAGE_UP ? pageHeight : -pageHeight;
                // if (selection[3].line < 0)
                //    selection[3].line = 0;
-               if (_selection[3].line >= num_lines())
-                  _selection[3].line = num_lines() - 1;
+               if (_sel[3].line >= num_lines())
+                  _sel[3].line = num_lines() - 1;
                _set_vertical_motion_column(true);
             }
 
@@ -2938,13 +2926,13 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
          if (_window->_shift) {
             if (m->code == UIKeycode::HOME) {
                if (_window->_ctrl)
-                  _selection[3].line = 0;
-               _selection[3].offset        = 0;
+                  _sel[3].line = 0;
+               _sel[3].offset        = 0;
                _use_vertical_motion_column = false;
             } else {
                if (_window->_ctrl)
-                  _selection[3].line = num_lines() - 1;
-               _selection[3].offset        = line(_selection[3].line).size();
+                  _sel[3].line = num_lines() - 1;
+               _sel[3].offset        = line(_sel[3].line).size();
                _use_vertical_motion_column = false;
             }
 
@@ -2975,7 +2963,7 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
       if (hitTest > 0 && (_flags & UICode::SELECTABLE)) {
          focus();
          ui->create_menu(_window, UIMenu::NO_SCROLL)
-            .add_item((_selection[0].line == _selection[1].line && _selection[0].offset == _selection[1].offset)
+            .add_item((_sel[0].line == _sel[1].line && _sel[0].offset == _sel[1].offset)
                          ? disabled_flag
                          : 0,
                       "Copy", [this](UIButton&) { copy(sel_target_t::clipboard); })
@@ -2993,31 +2981,31 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
 UICode& UICode::move_caret(bool backward, bool word) {
    while (true) {
       if (backward) {
-         if ((int)_selection[3].offset - 1 < 0) {
-            if (_selection[3].line > 0) {
-               _selection[3].line--;
-               _selection[3].offset = _lines[_selection[3].line].bytes;
+         if ((int)_sel[3].offset - 1 < 0) {
+            if (_sel[3].line > 0) {
+               _sel[3].line--;
+               _sel[3].offset = _lines[_sel[3].line].bytes;
             } else
                break;
          } else
-            _ui_move_caret_backwards(_selection[3].offset, &_content[0], offset(_selection[3]),
-                                     _lines[_selection[3].line].offset);
+            _ui_move_caret_backwards(_sel[3].offset, &_content[0], offset(_sel[3]),
+                                     _lines[_sel[3].line].offset);
       } else {
-         if (_selection[3].offset + 1 > _lines[_selection[3].line].bytes) {
-            if (_selection[3].line + 1 < num_lines()) {
-               _selection[3].line++;
-               _selection[3].offset = 0;
+         if (_sel[3].offset + 1 > _lines[_sel[3].line].bytes) {
+            if (_sel[3].line + 1 < num_lines()) {
+               _sel[3].line++;
+               _sel[3].offset = 0;
             } else
                break;
          } else
-            _ui_move_caret_forward(_selection[3].offset, std::string_view(&_content[0], size()), offset(_selection[3]));
+            _ui_move_caret_forward(_sel[3].offset, std::string_view(&_content[0], size()), offset(_sel[3]));
       }
 
       if (!word)
          break;
 
-      if (_selection[3].offset != 0 && _selection[3].offset != _lines[_selection[3].line].bytes) {
-         if (_ui_move_caret_by_word(std::string_view{&_content[0], size()}, offset(_selection[3])))
+      if (_sel[3].offset != 0 && _sel[3].offset != _lines[_sel[3].line].bytes) {
+         if (_ui_move_caret_by_word(std::string_view{&_content[0], size()}, offset(_sel[3])))
             break;
       }
    }

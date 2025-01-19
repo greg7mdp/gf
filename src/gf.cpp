@@ -1854,6 +1854,17 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
             (void)DebuggerSend(std::format("jump {}", line), true, false);
          }
       }
+   } else if (msg == UIMessage::LEFT_DBLCLICK && !code->empty()) {
+      int hitTest          = code->hittest(code->cursor_pos());
+
+      if (hitTest > 0) {
+         auto& anchor = code->selection(2);
+         auto& caret = code->selection(3);
+         code->point_to_code_pos(code->cursor_pos(), anchor);
+         code->point_to_code_pos(code->cursor_pos(), caret);
+         anchor.offset = 0;
+         code->process_new_selection();
+      }
    } else if (msg == UIMessage::RIGHT_DOWN && !showingDisassembly) {
       int result = code->hittest(el->cursor_pos());
 

@@ -1185,10 +1185,10 @@ private:
    bool                    _left_down_in_margin{false};
    int                     _vertical_motion_column{0};
    bool                    _use_vertical_motion_column{false};
-   std::array<code_pos, 4> _selection{}; // start, end (ordered), anchor, caret (unordered)
+   std::array<code_pos, 4> _sel{};                            // start, end (ordered), anchor, caret (unordered)
 
-   UICode& _set_vertical_motion_column(bool restore);
-   UICode& _update_selection();
+   UICode&    _set_vertical_motion_column(bool restore);
+   UICode&    _update_selection();
 
    int        _class_message_proc(UIMessage msg, int di, void* dp);
    
@@ -1201,30 +1201,33 @@ public:
 
    UICode(UIElement* parent, uint32_t flags);
 
-   UICode&   clear();
-   UICode&   insert_content(std::string_view new_content, bool replace);
-   UICode&   load_file(const char* path, std::optional<std::string_view> err = {});
+   UICode&    clear();
+   UICode&    insert_content(std::string_view new_content, bool replace);
+   UICode&    load_file(const char* path, std::optional<std::string_view> err = {});
 
    std::string_view line(size_t line) const {
       const auto& l = _lines[line];
       return std::string_view{&_content[l.offset], l.bytes};
    }
-   size_t    line_offset(size_t line) const { return _lines[line].offset; }
+   size_t     line_offset(size_t line) const { return _lines[line].offset; }
    
-   size_t    num_lines() const { return _lines.size(); }
-   size_t    size() const { return _content.size(); }
-   bool      empty() const { return _lines.empty(); }
+   size_t     num_lines() const { return _lines.size(); }
+   size_t     size() const { return _content.size(); }
+   bool       empty() const { return _lines.empty(); }
 
-   code_pos  selection(size_t idx) const { assert(idx < _selection.size()); return _selection[idx]; }
+   code_pos   selection(size_t idx) const { assert(idx < _sel.size()); return _sel[idx]; }
+   code_pos&  selection(size_t idx) { assert(idx < _sel.size()); return _sel[idx]; }
    
-   void      emplace_back_line(size_t offset, size_t bytes) {
+   UICode&    process_new_selection();
+   
+   void       emplace_back_line(size_t offset, size_t bytes) {
       if (bytes > _max_columns)
          _max_columns = bytes;
       _lines.emplace_back(offset, bytes);
    }
 
    UICode&    move_caret(bool backward, bool word);
-   UICode&    position_to_byte(UIPoint pt, code_pos& pos);
+   UICode&    point_to_code_pos(UIPoint pt, code_pos& pos);
 
    int        hittest(int x, int y);
    int        hittest(UIPoint p) { return hittest(p.x, p.y); }
