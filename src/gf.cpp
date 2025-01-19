@@ -3142,12 +3142,9 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
    logger->trace                 = trace;
    logger->selectedEntry         = -1;
    logger->expressionsToEvaluate = expressionsToEvaluate;
-   child->_cp                    = logger;
-   table->_cp                    = logger;
-   trace->_cp                    = logger;
-   child->_user_proc             = WatchLoggerWindowMessage;
-   table->_user_proc             = WatchLoggerTableMessage;
-   trace->_user_proc             = WatchLoggerTraceMessage;
+   child->set_user_proc(WatchLoggerWindowMessage).set_cp(logger);
+   table->set_user_proc(WatchLoggerTableMessage).set_cp(logger);
+   trace->set_user_proc(WatchLoggerTraceMessage).set_cp(logger);
    watchLoggers.push_back(logger);
    dataWindow->refresh();
    WatchLoggerResizeColumns(logger);
@@ -3673,8 +3670,7 @@ WatchWindow::WatchWindow(UIElement* parent, uint32_t flags, const char* name)
 UIElement* WatchWindowCreate(UIElement* parent) {
    UIPanel*     panel = &parent->add_panel(UIPanel::SCROLL | UIPanel::COLOR_1);
    WatchWindow* w     = new WatchWindow(panel, UIElement::h_fill | UIElement::tab_stop_flag, "Watch");
-   panel->_user_proc  = WatchPanelMessage;
-   panel->_cp         = w;
+   panel->set_user_proc(WatchPanelMessage).set_cp(w);
 
    w->mode      = WATCH_NORMAL;
    w->extraRows = 1;
@@ -3686,8 +3682,7 @@ UIElement* WatchWindowCreate(UIElement* parent) {
 UIElement* LocalsWindowCreate(UIElement* parent) {
    UIPanel*     panel = &parent->add_panel(UIPanel::SCROLL | UIPanel::COLOR_1);
    WatchWindow* w     = new WatchWindow(panel, UIElement::h_fill | UIElement::tab_stop_flag, "Locals");
-   panel->_user_proc  = WatchPanelMessage;
-   panel->_cp         = w;
+   panel->set_user_proc(WatchPanelMessage).set_cp(w);
    w->mode            = WATCH_LOCALS;
    return panel;
 }
@@ -6517,9 +6512,9 @@ struct WaveformDisplay : public UIElement {
       , dragLastX(0)
       , dragLastModification(0)
       , peak(0) {
-      zoomOut->_user_proc   = WaveformDisplayZoomButtonMessage;
-      zoomIn->_user_proc    = WaveformDisplayZoomButtonMessage;
-      normalize->_user_proc = WaveformDisplayNormalizeButtonMessage;
+      zoomOut->set_user_proc(WaveformDisplayZoomButtonMessage);
+      zoomIn->set_user_proc(WaveformDisplayZoomButtonMessage);
+      normalize->set_user_proc(WaveformDisplayNormalizeButtonMessage);
    }
 };
 
@@ -6984,7 +6979,7 @@ void WaveformViewerUpdate(const char* pointerString, const char* sampleCountStri
       viewer->labelPanel          = &panel->add_panel(UIPanel::COLOR_1 | UIElement::v_fill);
       viewer->label               = &viewer->labelPanel->add_label(UIElement::h_fill, {});
       viewer->display             = WaveformDisplayCreate(panel, UIElement::v_fill);
-      viewer->display->_user_proc = WaveformViewerDisplayMessage;
+      viewer->display->set_user_proc(WaveformViewerDisplayMessage);
    }
 
    WaveformViewer* viewer    = (WaveformViewer*)owner->_cp;
@@ -7513,9 +7508,9 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
    code_font             = ui->create_font(font_path, code_font_size);
    ui->create_font(font_path, interface_font_size)->activate();
 
-   windowMain = &ui->create_window(0, maximize ? UIWindow::MAXIMIZE : 0, "gf", window_width, window_height);
-   windowMain->set_scale(ui_scale);
-   windowMain->_user_proc = MainWindowMessageProc;
+   windowMain = &(ui->create_window(0, maximize ? UIWindow::MAXIMIZE : 0, "gf", window_width, window_height)
+                     .set_scale(ui_scale)
+                     .set_user_proc(MainWindowMessageProc));
 
    for (const auto& ic : interfaceCommands) {
       if (!(int)ic.shortcut.code)

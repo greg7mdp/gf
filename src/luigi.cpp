@@ -1394,7 +1394,7 @@ std::string_view UIWindow::show_dialog(uint32_t flags, const char* format, ...) 
             buttonCount++;
             button->on_click([&, label = label](UIButton&) { ui()->_dialog_result = label; });
             if (format[i] == 'B')
-               button->_user_proc = _UIDialogDefaultButtonMessage;
+               button->set_user_proc(_UIDialogDefaultButtonMessage);
          } else if (format[i] == 's') { // --> label from string
             const char* label = va_arg(arguments, const char*);
             row->add_label(0, label);
@@ -2838,7 +2838,6 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
          set_last_animate_time(UI_CLOCK());
       }
    } else if (msg == UIMessage::LEFT_DBLCLICK && !empty()) {
-      std_print("got doubleclick\n");
       int hitTest          = hittest(cursor_pos());
       _left_down_in_margin = hitTest < 0;
 
@@ -5496,14 +5495,10 @@ bool UI::_process_x11_event(Display *dpy, XEvent* event) {
          };
 
          if (event->type == ButtonPress) {
-            click.print("click");
-            last_clicks[1].print("last_clicks[1]");
-
             if (click.closely_follows(last_clicks[1])) {
                uint32_t ev = (uint32_t)UIMessage::LEFT_DBLCLICK;
                if (last_clicks[1].closely_follows(last_clicks[0]))
                   ev = (uint32_t)UIMessage::LEFT_TRIPLECLICK;
-               std_print("sending {}\n", ev);
                window->input_event((UIMessage)((uint32_t)(ev + event->xbutton.button - 1)), 0, 0);
             }
             last_clicks[0] = last_clicks[1];
