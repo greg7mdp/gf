@@ -76,7 +76,6 @@ std::vector<std::string_view> regexp::cpp::extract_debuggable_expressions(std::s
    std::vector<std::string_view> expressions;
    expressions.reserve(32);
 
-
    // Find all matches for each pattern
    // ---------------------------------
    // collect_matches<function_call, 0>(expressions, code); // don't execute function calls which may have side effects
@@ -97,6 +96,19 @@ std::vector<std::string_view> regexp::cpp::extract_debuggable_expressions(std::s
                     [](std::string_view a, std::string_view b) { return a.size() < b.size(); });
 
    return expressions;
+}
+
+// --------------------------------------------------------------------------------
+std::optional<regexp::bounds> regexp::cpp::find_symbol_at_pos(std::string_view code, size_t pos) const {
+   std::vector<std::string_view> vars;
+   vars.reserve(4);
+   collect_matches<variables, 0>(vars, code);
+   for (const auto& v : vars) {
+      size_t start = v.data() - code.data();
+      if (start <= pos && start + v.length() >= pos)
+         return regexp::bounds{ start, start + v.length() };
+   }
+   return {};
 }
 
 #if 0

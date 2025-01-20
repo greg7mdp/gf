@@ -2481,11 +2481,11 @@ UICode& UICode::load_file(const char* path, std::optional<std::string_view> err 
    return *this;
 }
 
-UICode& UICode::point_to_code_pos(UIPoint pt, UICode::code_pos& pos) { // size_t* line, size_t* byte) {
-   UI*     ui           = this->ui();
+ UICode::code_pos UICode::code_pos_from_point(UIPoint pt) {   UI*     ui           = this->ui();
    UIFont* previousFont = _font->activate();
    int     lineHeight   = ui->string_height();
    UIFont* active_font  = ui->active_font();
+   code_pos pos;
    pos.line             = std::max((int64_t)0, (pt.y - _bounds.t + _vscroll->position()) / lineHeight);
    if (pos.line >= num_lines())
       pos.line = num_lines() - 1;
@@ -2494,7 +2494,7 @@ UICode& UICode::point_to_code_pos(UIPoint pt, UICode::code_pos& pos) { // size_t
       column -= (ui->code_margin() + ui->code_margin_gap()) / active_font->_glyph_width;
    previousFont->activate();
    pos.offset = column_to_byte(pos.line, column);
-   return *this;
+   return pos;
 }
 
 int UICode::hittest(int x, int y) {
@@ -2663,7 +2663,7 @@ UICode& UICode::copy(sel_target_t t) {
    return *this;
 }
 
-UICode& UICode::_update_selection() {
+UICode& UICode::update_selection() {
    bool swap = _sel[3].line < _sel[2].line ||
                (_sel[3].line == _sel[2].line && _sel[3].offset < _sel[2].offset);
    _sel[1 - swap] = _sel[3];
@@ -2681,13 +2681,6 @@ UICode& UICode::_set_vertical_motion_column(bool restore) {
       _use_vertical_motion_column = true;
       _vertical_motion_column     = byte_to_column(_sel[3].line, _sel[3].offset);
    }
-   return *this;
-}
-
-UICode& UICode::process_new_selection() {
-   focus();
-   animate(false);
-   set_last_animate_time(UI_CLOCK());
    return *this;
 }
 
@@ -2834,9 +2827,11 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
       _left_down_in_margin = hitTest < 0;
 
       if (hitTest > 0 && (_flags & UICode::SELECTABLE)) {
-         point_to_code_pos(cursor_pos(), _sel[2]);
+         _sel[2] = code_pos_from_point(cursor_pos());
          _class_message_proc(UIMessage::MOUSE_DRAG, 0, nullptr);  // updates `_sel[3]` with last mouse position
-         process_new_selection(); 
+         focus();
+         animate(false);
+         set_last_animate_time(UI_CLOCK());
       }
    } else if (msg == UIMessage::ANIMATE) {
       if (is_pressed() && _window->pressed_button() == 1 && !empty() && !_left_down_in_margin) {
@@ -2874,8 +2869,8 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
       }
    } else if (msg == UIMessage::MOUSE_DRAG && _window->pressed_button() == 1 && !empty() && !_left_down_in_margin) {
       // TODO Double-click and triple-click dragging for word and line granularity respectively.
-      point_to_code_pos(cursor_pos(), _sel[3]);
-      _update_selection();
+      _sel[3] = code_pos_from_point(cursor_pos());
+      update_selection();
       _move_scroll_to_focus_next_layout = _move_scroll_to_caret_next_layout = false;
       _use_vertical_motion_column                                           = false;
    } else if (msg == UIMessage::KEY_TYPED && !empty()) {
@@ -2914,7 +2909,7 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
                _set_vertical_motion_column(true);
             }
 
-            _update_selection();
+            update_selection();
          } else {
             _move_scroll_to_focus_next_layout = false;
             key_input_vscroll(m, lineHeight,
@@ -2936,7 +2931,7 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
                _use_vertical_motion_column = false;
             }
 
-            _update_selection();
+            update_selection();
          } else {
             _vscroll->position()              = m->code == UIKeycode::HOME ? 0 : _vscroll->maximum();
             _move_scroll_to_focus_next_layout = false;
@@ -3011,7 +3006,7 @@ UICode& UICode::move_caret(bool backward, bool word) {
    }
 
    _use_vertical_motion_column = false;
-   _update_selection();
+   update_selection();
    return *this;
 }
 
@@ -4322,7 +4317,7 @@ bool UIWindow::input_event(UIMessage msg, int di, void* dp) {
          goto end;
    }
 
-   if (!_pressed || multi_click) {
+   if (!_pressed) {
       UIElement* loc = _window->find_by_point(_cursor.x, _cursor.y);
 
       if (msg == UIMessage::MOUSE_MOVE) {
@@ -4345,6 +4340,10 @@ bool UIWindow::input_event(UIMessage msg, int di, void* dp) {
             int button = (int)msg - (int)UIMessage::LEFT_DBLCLICK + 1;
             set_pressed(loc, button);
             loc->message(msg, di, dp);
+            
+            // Clear the `pressed` status as the window proc waits for and removes the ButtonRelease
+            // necessary otherwise we can get `pressed` mousemoves before the release which change the selection
+            set_pressed(nullptr, button);
          }
       } else if (msg == UIMessage::MOUSE_WHEEL) {
          UIElement* el = loc;
@@ -5445,7 +5444,6 @@ bool UI::_process_x11_event(Display *dpy, XEvent* event) {
       if (!window->pressed()) {
          window->set_cursor_pos({-1, -1});
       }
-
       window->input_event(UIMessage::MOUSE_MOVE, 0, 0);
    } else if (event->type == ButtonPress || event->type == ButtonRelease) {
       UIWindow* window = _find_x11_window(event->xbutton.window);
@@ -5455,10 +5453,7 @@ bool UI::_process_x11_event(Display *dpy, XEvent* event) {
 
       // Button1 == 1 ...  Button3 == 3
       if (event->xbutton.button >= 1 && event->xbutton.button <= 3) {
-         uint32_t ev = (uint32_t)UIMessage::LEFT_UP + event->xbutton.button - 1;
-         if (event->type == ButtonPress)
-            ev += 3;
-         window->input_event((UIMessage)ev, 0, 0);
+         bool sent_multi_click = false;
 
          // check for double and triple clicks
          // ----------------------------------
@@ -5488,9 +5483,21 @@ bool UI::_process_x11_event(Display *dpy, XEvent* event) {
                if (last_clicks[1].closely_follows(last_clicks[0]))
                   ev = (uint32_t)UIMessage::LEFT_TRIPLECLICK;
                window->input_event((UIMessage)((uint32_t)(ev + event->xbutton.button - 1)), 0, 0);
+               sent_multi_click = true;
+               // wait for ButtonRelease so we don't get MotionNotify in between
+               while (!XCheckTypedWindowEvent(dpy, event->xbutton.window, ButtonRelease, event));
             }
             last_clicks[0] = last_clicks[1];
             last_clicks[1] = click;
+         }
+
+         if (!sent_multi_click) {
+            // if we didn't send a DBLCLICK or TRIPLECLICK, send normal message
+            uint32_t ev = (uint32_t)UIMessage::LEFT_UP + event->xbutton.button - 1;
+            if (event->type == ButtonPress) {
+               ev += 3;
+            }
+            window->input_event((UIMessage)ev, 0, 0);
          }
       } else if (event->xbutton.button == Button4) {
          window->input_event(UIMessage::MOUSE_WHEEL, -72, 0);

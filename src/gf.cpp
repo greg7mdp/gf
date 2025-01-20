@@ -1855,15 +1855,23 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          }
       }
    } else if (msg == UIMessage::LEFT_DBLCLICK && !code->empty()) {
-      int hitTest          = code->hittest(code->cursor_pos());
+      int hitTest = code->hittest(code->cursor_pos());
 
       if (hitTest > 0) {
-         auto& anchor = code->selection(2);
-         auto& caret = code->selection(3);
-         code->point_to_code_pos(code->cursor_pos(), anchor);
-         code->point_to_code_pos(code->cursor_pos(), caret);
-         anchor.offset = 0;
-         code->process_new_selection();
+         auto cursor_pt = code->cursor_pos();
+         auto pos       = code->code_pos_from_point(cursor_pt);
+         auto line      = code->line(pos.line);
+
+         auto bounds = ctx.lang_re->find_symbol_at_pos(line, pos.offset);
+         if (bounds) {
+            auto [start, end] = *bounds;
+            code->set_selection(2, pos.line, start); // anchor
+            code->set_selection(3, pos.line, end);   // caret
+            code->update_selection();
+            code->refresh();
+            return 1;
+         }
+         return 0;
       }
    } else if (msg == UIMessage::RIGHT_DOWN && !showingDisassembly) {
       int result = code->hittest(el->cursor_pos());

@@ -1188,7 +1188,6 @@ private:
    std::array<code_pos, 4> _sel{};                            // start, end (ordered), anchor, caret (unordered)
 
    UICode&    _set_vertical_motion_column(bool restore);
-   UICode&    _update_selection();
 
    int        _class_message_proc(UIMessage msg, int di, void* dp);
    
@@ -1216,9 +1215,9 @@ public:
    bool       empty() const { return _lines.empty(); }
 
    code_pos   selection(size_t idx) const { assert(idx < _sel.size()); return _sel[idx]; }
-   code_pos&  selection(size_t idx) { assert(idx < _sel.size()); return _sel[idx]; }
-   
-   UICode&    process_new_selection();
+   UICode&    set_selection(size_t idx, size_t line, size_t offset) {
+                            assert(idx < _sel.size());  _sel[idx] = {line, offset}; return *this; }
+   UICode&    update_selection();
    
    void       emplace_back_line(size_t offset, size_t bytes) {
       if (bytes > _max_columns)
@@ -1227,7 +1226,7 @@ public:
    }
 
    UICode&    move_caret(bool backward, bool word);
-   UICode&    point_to_code_pos(UIPoint pt, code_pos& pos);
+   code_pos   code_pos_from_point(UIPoint pt);
 
    int        hittest(int x, int y);
    int        hittest(UIPoint p) { return hittest(p.x, p.y); }
