@@ -286,9 +286,8 @@ Context ctx;
 
 // --------------------------------------------------------------------------------------------
 struct GF_Config {
-   std::string layout_string =
-      "v(75,h(80,Source,v(50,t(Exe,Breakpoints,Commands,Struct),t(Stack,Files,Thread,CmdSearch)))"
-      ",h(65,Console,t(Watch,Locals,Registers,Data)))";
+   std::string layout_string = "v(75,h(50,Source,v(50,t(Exe,Breakpoints,Commands,Struct),t(Stack,Files,Thread,"
+                               "CmdSearch))),h(40,Console,t(Watch,Locals,Registers,Data,Log,Prof,Memory,View)))";
 
    // executable window
    // -----------------
@@ -7550,7 +7549,8 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
    }
 
    ui_config   = ctx.SettingsLoad(false);
-   ui->theme() = ui_config._theme;
+   if (ui_config._has_theme)
+      ui->theme() = ui_config._theme;
 
    DebuggerStartThread();
    CommandSyncWithGvim();
