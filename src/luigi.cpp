@@ -91,6 +91,86 @@ UITheme uiThemeDark = {
    .accent2 = 0x45F94E,
 };
 
+UITheme uiThemeIce = {
+   .panel1           = 0xF1F4FF,
+   .panel2           = 0xFFFFFF,
+   .selected         = 0xB5D0FE,
+   .border           = 0x000000,
+   .text             = 0x000000,
+   .textDisabled     = 0x787D81,
+   .textSelected     = 0x000000,
+   .buttonNormal     = 0xEAEDFF,
+   .buttonHovered    = 0xF0F8FF,
+   .buttonPressed    = 0xB6C5FB,
+   .buttonDisabled   = 0x1B1F23,
+   .textboxNormal    = 0xFFFFFF,
+   .textboxFocused   = 0xFFFFFF,
+   .codeFocused      = 0x9CD6FF,
+   .codeBackground   = 0xE8F2FF,
+   .codeDefault      = 0x000000,
+   .codeComment      = 0x7B6F81,
+   .codeString       = 0x0F7D32,
+   .codeNumber       = 0x0058F5,
+   .codeOperator     = 0x720EE7,
+   .codePreprocessor = 0x900092,
+   .accent1          = 0xFF0000,
+   .accent2          = 0x00FF00,
+};
+
+UITheme uiThemeLotus = {
+   .panel1           = 0xFFF1F4,
+   .panel2           = 0xFFFFFF,
+   .selected         = 0xFEB5D0,
+   .border           = 0x000000,
+   .text             = 0x000000,
+   .textDisabled     = 0x81787D,
+   .textSelected     = 0x000000,
+   .buttonNormal     = 0xFFEAED,
+   .buttonHovered    = 0xFFF0F8,
+   .buttonPressed    = 0xFBB6C5,
+   .buttonDisabled   = 0x231B1F,
+   .textboxNormal    = 0xFFFFFF,
+   .textboxFocused   = 0xFFFFFF,
+   .codeFocused      = 0xFCBAFF,
+   .codeBackground   = 0xFFE8F2,
+   .codeDefault      = 0x000000,
+   .codeComment      = 0x817B6F,
+   .codeString       = 0x704697,
+   .codeNumber       = 0xC21140,
+   .codeOperator     = 0xC76716,
+   .codePreprocessor = 0x7A7092,
+   .accent1          = 0xFF0000,
+   .accent2          = 0x00FF00,
+};
+
+UITheme uiThemeHero = {
+   .panel1           = 0x202020,
+   .panel2           = 0x202020,
+   .selected         = 0x3C3836,
+   .border           = 0x404040,
+   .text             = 0xDDDDDD,
+   .textDisabled     = 0x787D81,
+   .textSelected     = 0xFFFFFF,
+   .buttonNormal     = 0x202020,
+   .buttonHovered    = 0x4B5874,
+   .buttonPressed    = 0x0D0D0F,
+   .buttonDisabled   = 0x1B1F23,
+   .textboxNormal    = 0x202020,
+   // .textboxText      = 0xFFFFFF,
+   .textboxFocused   = 0x3C3836,
+   .codeFocused      = 0x3C3836,
+   .codeBackground   = 0x202020,
+   .codeDefault      = 0xBDA175,
+   .codeComment      = 0xA8A5A2,
+   .codeString       = 0xB3B54A,
+   .codeNumber       = 0xD3869B,
+   .codeOperator     = 0xBDA175,
+   .codePreprocessor = 0xA0B8A0,
+   // .gaugeFilled      = 0x2CE342,
+   .accent1          = 0xFF0000,
+   .accent2          = 0x00FF00,
+};
+
 // ---------------------------------------------------------------------------------------------
 //                              Utilities
 // ---------------------------------------------------------------------------------------------
@@ -4881,7 +4961,7 @@ bool UI::automation_check_table_item_matches(UITable* table, size_t row, size_t 
 // --------------------------------------------------
 
 void UI::_initialize_common(const UIConfig& cfg, const std::string& default_font_path) {
-   _theme = uiThemeClassic;
+   _theme = uiThemeIce;
 
 #ifdef UI_FREETYPE
    FT_Init_FreeType(&_ft);
