@@ -380,6 +380,8 @@ bool               stackChanged;
 
 const char* pythonCode = R"(py
 
+import gdb.types
+
 def _gf_hook_string(basic_type):
     hook_string = str(basic_type)
     template_start = hook_string.find('<')
