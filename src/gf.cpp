@@ -4115,7 +4115,8 @@ UIElement* DataWindowCreate(UIElement* parent) {
       panel5->add_button(UIButton::SMALL, idw.addButtonLabel).on_click([&](UIButton&) { idw.addButtonCallback(); });
    }
 
-   dataTab->add_mdiclient(UIElement::v_fill).set_user_proc(DataTabMessage);
+   dataWindow = &dataTab->add_mdiclient(UIElement::v_fill);
+   dataTab->set_user_proc(DataTabMessage);
    return dataTab;
 }
 
