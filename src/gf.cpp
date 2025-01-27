@@ -311,8 +311,8 @@ char                       localConfigPath[PATH_MAX];
 vector<ReceiveMessageType> receiveMessageTypes;
 int                        code_font_size      = 13;
 int                        interface_font_size = 11;
-int                        window_width        = 800;
-int                        window_height       = 600;
+int                        window_width        = -1;
+int                        window_height       = -1;
 float                      ui_scale            = 1;
 bool                       selectableSource    = true;
 bool                       restoreWatchWindow;
@@ -7529,6 +7529,14 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
    code_font             = ui->create_font(font_path, code_font_size);
    ui->create_font(font_path, interface_font_size)->activate();
 
+   if (window_width == -1 || window_height == -1) {
+      auto dims = ui->screen_size();
+      auto ratio = (float)dims.x / dims.y;
+      if (ratio > 2.5f) 
+         dims.x /= 2;  // superwide or two screens
+      window_width  = (int)((float)dims.x * 0.78f);
+      window_height = (int)((float)dims.y * 0.78f);
+   }
    windowMain = &(ui->create_window(0, maximize ? UIWindow::MAXIMIZE : 0, "gf", window_width, window_height)
                      .set_scale(ui_scale)
                      .set_user_proc(MainWindowMessageProc));

@@ -6058,7 +6058,6 @@ unique_ptr<UI> UI::initialise(const UIConfig& cfg) {
    std::unique_ptr<UI> ui(new UI);
 
    ui->_screen_size = { GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN) };
-   std_print("{}, {}\n", ui->_screen_size.x, ui->_screen_size.y);
 
    std::string font_path = cfg.font_path;
    if (font_path.empty())

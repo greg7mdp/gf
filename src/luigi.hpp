@@ -1609,6 +1609,8 @@ public:
    UIFont*      default_font() const { return _default_font; }
    void         set_active_font(UIFont *font) { _active_font = font; }
 
+   UIPoint      screen_size() const { return _screen_size; }
+
    const std::string& default_font_path() const { return _default_font_path; }
 
    UIWindow**   toplevel_windows_head() { return &_toplevel_windows; }
