@@ -1575,6 +1575,7 @@ private:
    std::string             _default_font_path;
    UIFont*                 _active_font  = nullptr;
    UIFont*                 _default_font = nullptr;
+   UIPoint                 _screen_size;
 
 public:
    bool                    _quit             = false;
