@@ -1327,7 +1327,7 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
          char c = 'n';
          fread(&c, 1, 1, stdin);
 
-         if (c != 'y') {
+         if (c != 'y' && c != 'Y') {
             cwdConfigNotTrusted = true;
             break;
          } else {
