@@ -8,6 +8,11 @@ namespace regexp {
 
 struct bounds { size_t start, end; };
 
+enum expr_flags {
+   expr_flags_none = 0,
+   allow_function_calls = 1
+};
+
 // debugger
 // --------
 struct debugger_base {
@@ -25,14 +30,14 @@ struct gdb : public debugger_base {
 // --------
 struct language_base {
    virtual ~language_base() {}
-   virtual std::vector<std::string_view> extract_debuggable_expressions(std::string_view code) const = 0;
+   virtual std::vector<std::string_view> extract_debuggable_expressions(std::string_view code,
+                                                                        expr_flags       e = expr_flags_none) const = 0;
    virtual std::optional<bounds>         find_symbol_at_pos(std::string_view code, size_t pos) const = 0;
 };
 
-// specific support
-// ----------------
 struct cpp : public language_base {
-   std::vector<std::string_view> extract_debuggable_expressions(std::string_view code) const final;
+   std::vector<std::string_view> extract_debuggable_expressions(std::string_view code,
+                                                                expr_flags       e = expr_flags_none) const final;
    std::optional<bounds>         find_symbol_at_pos(std::string_view code, size_t pos) const final;
 };
 

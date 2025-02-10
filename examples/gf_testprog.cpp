@@ -28,8 +28,9 @@ int main(int argc, char **argv)
    C c;
    const char* s = "hello";
    printf("%s fib(3)=%d\n", s, fib(3));
+   i = (i + 1);
 
-   int res = a.x + c.x - fib(1);
+   int res = a.x + c.y[1] - fib(1);
 
    return std::clamp(res, 0, 0);
 }

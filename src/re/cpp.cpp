@@ -56,12 +56,16 @@ static constexpr auto variables = fs_concat<namespaced_id, dereference>();
 
 // Array access: arr[idx] or ns::arr[idx]
 // --------------------------------------
-static constexpr auto array_access = fs_concat<namespaced_id, bracket_op>();
+static constexpr auto array_access = fs_concat<variables, bracket_op>();
 
 // Basic binary expressions: a + b, x * y, ns::x + y etc.
 // ------------------------------------------------------
 static constexpr auto oper        = ctll::fixed_string{R"(\s*[+\-*/%&|^]\s*)"};
 static constexpr auto binary_expr = fs_concat<namespaced_id, oper, namespaced_id>();
+
+// Spaces and open parenthesis
+// ---------------------------
+static constexpr auto spaces_par = ctll::fixed_string{R"(\s*\()"};
 
 // --------------------------------------------------------------------------------
 template <ctll::fixed_string pattern, size_t capture_index>
@@ -72,13 +76,14 @@ void collect_matches(std::vector<std::string_view>& expressions, const std::stri
 }
 
 // --------------------------------------------------------------------------------
-std::vector<std::string_view> regexp::cpp::extract_debuggable_expressions(std::string_view code) const {
+std::vector<std::string_view> regexp::cpp::extract_debuggable_expressions(std::string_view code, expr_flags e) const {
    std::vector<std::string_view> expressions;
    expressions.reserve(32);
 
    // Find all matches for each pattern
    // ---------------------------------
-   // collect_matches<function_call, 0>(expressions, code); // don't execute function calls which may have side effects
+   if (e & allow_function_calls)
+      collect_matches<function_call, 0>(expressions, code); // don't execute function calls which may have side effects
    collect_matches<parenthesized, 1>(expressions, code);
    collect_matches<variables, 0>(expressions, code);
    collect_matches<array_access, 0>(expressions, code);
@@ -100,13 +105,30 @@ std::vector<std::string_view> regexp::cpp::extract_debuggable_expressions(std::s
 
 // --------------------------------------------------------------------------------
 std::optional<regexp::bounds> regexp::cpp::find_symbol_at_pos(std::string_view code, size_t pos) const {
-   std::vector<std::string_view> vars;
-   vars.reserve(4);
-   collect_matches<variables, 0>(vars, code);
-   for (const auto& v : vars) {
+   bool match_ident = false;
+   std::vector<std::string_view> matches;
+   matches.reserve(4);
+   auto c = code[pos];
+   if (c == '(' || c == ')') {
+      collect_matches<function_call, 0>(matches, code);
+      collect_matches<parenthesized, 0>(matches, code);
+   } else  if (c == '[' || c == ']') {
+      collect_matches<array_access, 0>(matches, code);
+   } else {
+      match_ident = true;
+      collect_matches<variables, 0>(matches, code);
+   }
+   for (const auto& v : matches) {
       size_t start = v.data() - code.data();
-      if (start <= pos && start + v.length() >= pos)
+      if (start <= pos && start + v.length() >= pos) {
+         auto rest = code.substr(start + v.length());
+         if (match_ident && static_cast<bool>(ctre::starts_with<spaces_par>(rest))) {
+            // if we parsed an variable reference followed by an open parenthesis, it is likely a function call
+            auto par = ctre::match<spaces_par>(rest);
+            return find_symbol_at_pos(code, start + v.length() + par.get<0>().size()); // will parse function calls
+         }
          return regexp::bounds{ start, start + v.length() };
+      }
    }
    return {};
 }
