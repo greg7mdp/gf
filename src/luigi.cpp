@@ -3037,12 +3037,18 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
 
       if (hitTest > 0 && (_flags & UICode::SELECTABLE)) {
          focus();
-         ui->create_menu(_window, UIMenu::NO_SCROLL)
-            .add_item((_sel[0].line == _sel[1].line && _sel[0].offset == _sel[1].offset)
-                         ? disabled_flag
-                         : 0,
-                      "Copy", [this](UIButton&) { copy(sel_target_t::clipboard); })
-            .show();
+         size_t from = offset(selection(0));
+         size_t to   = offset(selection(1));
+         int disabled = from != to ? 0 : disabled_flag;
+         std::string_view sel{&(*this)[from], to - from};
+
+         auto& menu = ui->create_menu(_window, UIMenu::NO_SCROLL).add_item(disabled, "Copy", [this, sel](UIButton&) {
+            _window->write_clipboard_text(sel, sel_target_t::clipboard);
+         });
+         for (const auto& mi : _menu_items) {
+            menu.add_item(disabled, mi.label, [&invoke = mi.invoke, sel](UIButton&) { invoke(sel); });
+         }
+         menu.show();
       }
    } else if (msg == UIMessage::UPDATE) {
       repaint(nullptr);
