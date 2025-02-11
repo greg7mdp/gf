@@ -278,6 +278,7 @@ struct Context {
    void           RegisterExtensions();
    void           InterfaceShowMenu(UIButton* self);
    void           InterfaceLayoutCreate(UIElement* parent, const char*& current);
+   void           InterfaceAdditionalSetup();
    UIElement*     InterfaceWindowSwitchToAndFocus(string_view name);
    unique_ptr<UI> GfMain(int argc, char** argv);
 };
@@ -7426,6 +7427,14 @@ const char* InterfaceLayoutNextToken(const char*& current, const char* expected 
    return buffer;
 }
 
+void Context::InterfaceAdditionalSetup() {
+   if (displayCode && firstWatchWindow) {
+      displayCode->add_selection_menu_item("Add watch", [&](std::string_view sel) {
+         WatchAddExpression2(sel);
+      });
+   }
+}
+
 void Context::InterfaceLayoutCreate(UIElement* parent, const char*& layout_string_current) {
    const char* token = InterfaceLayoutNextToken(layout_string_current);
 
@@ -7555,6 +7564,8 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
    if (*InterfaceLayoutNextToken(layout_string_current)) {
       print(std::cerr, "Warning: Layout string has additional text after the end of the top-level entry.\n");
    }
+
+   InterfaceAdditionalSetup();
 
    ui_config   = ctx.SettingsLoad(false);
    if (ui_config._has_theme)

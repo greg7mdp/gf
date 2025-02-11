@@ -1179,7 +1179,7 @@ private:
 
    std::vector<char>       _content;
    std::vector<code_line>  _lines;
-   std::optional<size_t>   _current_line{0}; // if set, 0 <= currentLine < lines.size()
+   std::optional<size_t>   _current_line{0};                   // if set, 0 <= currentLine < lines.size()
    size_t                  _focus_line{0};
    UIFont*                 _font;
    bool                    _move_scroll_to_focus_next_layout{false};
@@ -1191,7 +1191,7 @@ private:
    int                     _vertical_motion_column{0};
    bool                    _use_vertical_motion_column{false};
    std::array<code_pos, 4> _sel{};                            // start, end (ordered), anchor, caret (unordered)
-   std::vector<menu_item>  _menu_items;
+   std::vector<menu_item>  _menu_items;                       // added to right click menu on selection
 
    UICode&    _set_vertical_motion_column(bool restore);
 
@@ -1273,8 +1273,8 @@ public:
    int        column_to_byte(size_t ln, size_t column) const;
    int        byte_to_column(size_t ln, size_t byte) const;
 
-   void       add_selection_menu_item(std::string_view label, std::function<void(std::string_view)> invoke) {
-      _menu_items.emplace_back(std::string{label}, std::move(invoke));
+   UICode&    add_selection_menu_item(std::string_view label, std::function<void(std::string_view)> invoke) {
+      _menu_items.emplace_back(std::string{label}, std::move(invoke)); return *this;
    }
 };
 
