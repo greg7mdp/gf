@@ -2734,11 +2734,9 @@ int UIPainter::draw_string_highlighted(UIRectangle lineBounds, std::string_view 
 }
 
 UICode& UICode::copy(sel_target_t t) {
-   size_t from = offset(selection(0));
-   size_t to   = offset(selection(1));
-
-   if (from != to)
-      _window->write_clipboard_text(std::string_view{&(*this)[from], to - from}, t);
+   auto sel = selection();
+   if (sel.size())
+      _window->write_clipboard_text(sel, t);
 
    return *this;
 }
@@ -4426,7 +4424,7 @@ bool UIWindow::input_event(UIMessage msg, int di, void* dp) {
             int button = (int)msg - (int)UIMessage::LEFT_DBLCLICK + 1;
             set_pressed(loc, button);
             loc->message(msg, di, dp);
-            
+
             // Clear the `pressed` status as the window proc waits for and removes the ButtonRelease
             // necessary otherwise we can get `pressed` mousemoves before the release which change the selection
             set_pressed(nullptr, button);
@@ -5121,7 +5119,7 @@ UIWindow& UI::_platform_create_window(UIWindow* owner, uint32_t flags, const cha
 
    if (cTitle)
       XStoreName(dpy, window->_xwindow, cTitle);
-   
+
    XSelectInput(dpy, window->_xwindow,
                 SubstructureNotifyMask | ExposureMask | PointerMotionMask | ButtonPressMask | ButtonReleaseMask |
                    KeyPressMask | KeyReleaseMask | StructureNotifyMask | EnterWindowMask | LeaveWindowMask |
@@ -5170,77 +5168,83 @@ UIWindow* UI::_find_x11_window(Window window) const {
 }
 
 void UI::write_clipboard_text(std::string_view text, UIWindow* w, sel_target_t t) {
-   _paste_text = text;
-   Atom atom   = (t == sel_target_t::clipboard) ? _atoms[clipboardID] : _atoms[primaryID];
-   XSetSelectionOwner(native_display(), atom, w->native_window(), 0);
+   _sel[static_cast<int>(t)].write_clipboard_text(*this, text, w);
 }
 
 std::string UI::read_clipboard_text(UIWindow* w, sel_target_t t) {
-   Atom atom = (t == sel_target_t::clipboard) ? _atoms[clipboardID] : _atoms[primaryID];
+   return _sel[static_cast<int>(t)].read_clipboard_text(*this, w);
+}
 
-   Window clipboardOwner = XGetSelectionOwner(native_display(), atom);
+void UI::selection::write_clipboard_text(UI& ui, std::string_view text, UIWindow* w) {
+   _paste_text = text;
+   XSetSelectionOwner(ui.native_display(), _atom, w->native_window(), 0);
+}
+
+std::string UI::selection::read_clipboard_text(UI& ui, UIWindow* w) {
+   auto dpy = ui.native_display();
+   Window clipboardOwner = XGetSelectionOwner(dpy, _atom);
 
    if (clipboardOwner == None) {
       return {};
    }
 
-   if (_find_x11_window(clipboardOwner)) {
+   if (ui._find_x11_window(clipboardOwner)) {
+       // one of our windows owns the selection
       return _paste_text;
    }
 
-   XConvertSelection(native_display(), atom, XA_STRING, _atoms[xSelectionDataID], w->native_window(), CurrentTime);
-   XSync(native_display(), 0);
-   XNextEvent(native_display(), &_copy_event);
+   XEvent event;
+   XConvertSelection(dpy, _atom, XA_STRING, ui._atoms[xSelectionDataID], w->native_window(), CurrentTime);
+   XSync(dpy, 0);
+   XNextEvent(dpy, &event);
 
    // Hack to get around the fact that PropertyNotify arrives before SelectionNotify.
    // We need PropertyNotify for incremental transfers.
-   while (_copy_event.type == PropertyNotify) {
-      XNextEvent(native_display(), &_copy_event);
+   while (event.type == PropertyNotify) {
+      XNextEvent(dpy, &event);
    }
 
-   if (_copy_event.type == SelectionNotify && _copy_event.xselection.selection == atom &&
-       _copy_event.xselection.property) {
+   if (event.type == SelectionNotify && event.xselection.selection == _atom && event.xselection.property) {
       Atom target;
       // This `itemAmount` is actually `bytes_after_return`
       unsigned long size, itemAmount;
       char*         data;
       int           format;
-      XGetWindowProperty(_copy_event.xselection.display, _copy_event.xselection.requestor,
-                         _copy_event.xselection.property, 0L, ~0L, 0, AnyPropertyType, &target, &format, &size,
-                         &itemAmount, (unsigned char**)&data);
+      const auto& sel_event = event.xselection;
+      XGetWindowProperty(sel_event.display, sel_event.requestor, sel_event.property, 0L, ~0L, 0, AnyPropertyType,
+                         &target, &format, &size, &itemAmount, (unsigned char**)&data);
 
       // non incremental transfer
       // ------------------------
-      if (target != _atoms[incrID]) {
+      if (target != ui._atoms[incrID]) {
          std::string res;
          res.resize(size);
          memcpy(res.data(), data, size);
          XFree(data);
-         XDeleteProperty(_copy_event.xselection.display, _copy_event.xselection.requestor,
-                         _copy_event.xselection.property);
+         XDeleteProperty(sel_event.display, sel_event.requestor, sel_event.property);
          return res;
       }
 
       // incremental transfer
       // --------------------
       XFree(data);
-      XDeleteProperty(native_display(), _copy_event.xselection.requestor, _copy_event.xselection.property);
-      XSync(native_display(), 0);
+      XDeleteProperty(dpy, sel_event.requestor, sel_event.property);
+      XSync(dpy, 0);
 
       size = 0;
       std::string res;
 
       while (true) {
          // TODO Timeout.
-         XNextEvent(native_display(), &_copy_event);
+         XNextEvent(dpy, &event);
 
-         if (_copy_event.type == PropertyNotify) {
+         if (event.type == PropertyNotify) {
             // The other case - PropertyDelete would be caused by us and can be ignored
-            if (_copy_event.xproperty.state == PropertyNewValue) {
+            if (event.xproperty.state == PropertyNewValue) {
                unsigned long chunkSize;
 
                // Note that this call deletes the property.
-               XGetWindowProperty(native_display(), _copy_event.xproperty.window, _copy_event.xproperty.atom, 0L, ~0L,
+               XGetWindowProperty(dpy, event.xproperty.window, event.xproperty.atom, 0L, ~0L,
                                   True, AnyPropertyType, &target, &format, &chunkSize, &itemAmount,
                                   (unsigned char**)&data);
 
@@ -5259,6 +5263,43 @@ std::string UI::read_clipboard_text(UIWindow* w, sel_target_t t) {
    } else {
       // TODO What should happen in this case? Is the next event always going to be the selection event?
       return {};
+   }
+}
+
+void UI::selection::process_selection_request(UI& ui, UIWindow* w, XSelectionRequestEvent& ev) {
+   auto dpy = ui.native_display();
+
+   if (XGetSelectionOwner(dpy, _atom) == w->_xwindow) {
+      Atom                   utf8ID       = XInternAtom(dpy, "UTF8_STRING", 1);
+      if (utf8ID == None)
+         utf8ID = XA_STRING;
+
+      Atom type                = ev.target;
+      type                     = (type == ui._atoms[textID]) ? XA_STRING : type;
+      int changePropertyResult = 0;
+
+      if (ev.target == XA_STRING || ev.target == ui._atoms[textID] || ev.target == utf8ID) {
+         changePropertyResult =
+            XChangeProperty(ev.display, ev.requestor, ev.property, type, 8,
+                            PropModeReplace, (const unsigned char*)_paste_text.c_str(), _paste_text.size());
+      } else if (ev.target == ui._atoms[targetID]) {
+         changePropertyResult = XChangeProperty(ev.display, ev.requestor, ev.property,
+                                                XA_ATOM, 32, PropModeReplace, (unsigned char*)&utf8ID, 1);
+      }
+
+      if (changePropertyResult == 0 || changePropertyResult == 1) {
+         XSelectionEvent sendEvent = {.type       = SelectionNotify,
+                                      .serial     = ev.serial,
+                                      .send_event = ev.send_event,
+                                      .display    = ev.display,
+                                      .requestor  = ev.requestor,
+                                      .selection  = ev.selection,
+                                      .target     = ev.target,
+                                      .property   = ev.property,
+                                      .time       = ev.time};
+
+         XSendEvent(dpy, ev.requestor, 0, 0, (XEvent*)&sendEvent);
+      }
    }
 }
 
@@ -5322,6 +5363,9 @@ unique_ptr<UI> UI::initialise(const UIConfig& cfg) {
    ui->_atoms[textID]           = XInternAtom(dpy, "TEXT", 0);
    ui->_atoms[targetID]         = XInternAtom(dpy, "TARGETS", 0);
    ui->_atoms[incrID]           = XInternAtom(dpy, "INCR", 0);
+
+   ui->_sel[0]._atom = ui->_atoms[primaryID];
+   ui->_sel[1]._atom = ui->_atoms[clipboardID];
 
    ui->_cursors[(uint32_t)UICursor::arrow]             = XCreateFontCursor(dpy, XC_left_ptr);
    ui->_cursors[(uint32_t)UICursor::text]              = XCreateFontCursor(dpy, XC_xterm);
@@ -5783,6 +5827,8 @@ bool UI::_process_x11_event(Display *dpy, XEvent* event) {
                }
             }
 
+            // works! Can drop files from the file manager and this sends a list of full paths to the
+            // main application window (`windowMain` ib gf).
             window->message(UIMessage::WINDOW_DROP_FILES, fileCount, files);
 
             free(files);
@@ -5813,40 +5859,10 @@ bool UI::_process_x11_event(Display *dpy, XEvent* event) {
       if (!window)
          return false;
 
-      if ((XGetSelectionOwner(_display, _atoms[clipboardID]) == window->_xwindow) &&
-          (event->xselectionrequest.selection == _atoms[clipboardID])) {
-         XSelectionRequestEvent requestEvent = event->xselectionrequest;
-         Atom                   utf8ID       = XInternAtom(_display, "UTF8_STRING", 1);
-         if (utf8ID == None)
-            utf8ID = XA_STRING;
-
-         Atom type                = requestEvent.target;
-         type                     = (type == _atoms[textID]) ? XA_STRING : type;
-         int changePropertyResult = 0;
-
-         if (requestEvent.target == XA_STRING || requestEvent.target == _atoms[textID] ||
-             requestEvent.target == utf8ID) {
-            changePropertyResult =
-               XChangeProperty(requestEvent.display, requestEvent.requestor, requestEvent.property, type, 8,
-                               PropModeReplace, (const unsigned char*)_paste_text.c_str(), _paste_text.size());
-         } else if (requestEvent.target == _atoms[targetID]) {
-            changePropertyResult = XChangeProperty(requestEvent.display, requestEvent.requestor, requestEvent.property,
-                                                   XA_ATOM, 32, PropModeReplace, (unsigned char*)&utf8ID, 1);
-         }
-
-         if (changePropertyResult == 0 || changePropertyResult == 1) {
-            XSelectionEvent sendEvent = {.type       = SelectionNotify,
-                                         .serial     = requestEvent.serial,
-                                         .send_event = requestEvent.send_event,
-                                         .display    = requestEvent.display,
-                                         .requestor  = requestEvent.requestor,
-                                         .selection  = requestEvent.selection,
-                                         .target     = requestEvent.target,
-                                         .property   = requestEvent.property,
-                                         .time       = requestEvent.time};
-
-            XSendEvent(_display, requestEvent.requestor, 0, 0, (XEvent*)&sendEvent);
-         }
+      if (event->xselectionrequest.selection == _atoms[primaryID]) {
+         _sel[0].process_selection_request(*this, window, event->xselectionrequest);
+      } else if  (event->xselectionrequest.selection == _atoms[clipboardID]) {
+         _sel[1].process_selection_request(*this, window, event->xselectionrequest);
       }
    }
 

@@ -758,7 +758,7 @@ struct UIConfig {
    bool        rfu = false;
 };
 
-enum class sel_target_t { primary, clipboard };
+enum class sel_target_t : int { primary = 0, clipboard = 1 };
 
 // ------------------------------------------------------------------------------------------
 struct UIWindow : public UIElementCast<UIWindow> {
@@ -1220,6 +1220,12 @@ public:
    size_t     size() const { return _content.size(); }
    bool       empty() const { return _lines.empty(); }
 
+   std::string_view selection() const {
+      size_t from = offset(selection(0));
+      size_t to   = offset(selection(1));
+      return from >= to ?  std::string_view{} : std::string_view{&(*this)[from], to - from};
+   }
+
    code_pos   selection(size_t idx) const { assert(idx < _sel.size()); return _sel[idx]; }
    UICode&    set_selection(size_t idx, size_t line, size_t offset) {
                             assert(idx < _sel.size());  _sel[idx] = {line, offset}; return *this; }
@@ -1263,7 +1269,7 @@ public:
 
    const char& operator[](size_t idx) const { return _content[idx]; }
 
-   size_t     offset(const code_pos& pos) { return _lines[pos.line].offset + pos.offset; }
+   size_t     offset(const code_pos& pos) const { return _lines[pos.line].offset + pos.offset; }
 
    UICode&    set_font(UIFont* font) { _font = font; return *this; }
    UIFont*    font() const { return _font; }
@@ -1669,14 +1675,23 @@ private:
    // platform dependent stuff
 #if defined(UI_LINUX)
 private:
+   
+   struct selection {
+      Atom        _atom;
+      std::string _paste_text;
+
+      std::string read_clipboard_text(UI& ui, UIWindow* w);
+      void        write_clipboard_text(UI& ui, std::string_view text, UIWindow* w);
+      void        process_selection_request(UI& ui, UIWindow* w, XSelectionRequestEvent& event);
+   };
+
    using cursors_t = std::array<Cursor, (uint32_t)UICursor::count>;
-   Display*                _display = nullptr;
-   Visual*                 _visual  = nullptr;
-   XIM                     _xim     = nullptr;
-   std::array<Atom, 17>    _atoms;
-   cursors_t               _cursors{};
-   std::string             _paste_text;
-   XEvent                  _copy_event;
+   Display*                 _display = nullptr;
+   Visual*                  _visual  = nullptr;
+   XIM                      _xim     = nullptr;
+   std::array<Atom, 17>     _atoms;
+   cursors_t                _cursors{};
+   std::array<selection, 2> _sel;
 
    UIWindow*   _find_x11_window(Window window) const;
    bool        _process_x11_event(Display* dpy, XEvent* x_event);
