@@ -1403,7 +1403,10 @@ int _UIDialogDefaultButtonMessage(UIElement* el, UIMessage msg, int di, void* dp
    return 0;
 }
 
-int UITextbox::_DialogTextboxMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
+// --------------------------------------------------
+// UIWindow
+// --------------------------------------------------
+static int _DialogTextboxMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
    UITextbox*       textbox = (UITextbox*)el;
    std::string_view text    = textbox->text();
 
@@ -1411,22 +1414,15 @@ int UITextbox::_DialogTextboxMessageProc(UIElement* el, UIMessage msg, int di, v
       auto   sz     = text.size();
       char** buffer = (char**)el->_cp;
       *buffer       = (char*)realloc(*buffer, sz + 1); // update user pointer to hold the textbox text
-
-      for (size_t i = 0; i < sz; i++)
-         (*buffer)[i] = text[i];
+      std::memcpy(*buffer, text.data(), sz);
       (*buffer)[sz] = 0;
    } else if (msg == UIMessage::UPDATE && di == UIUpdate::focused && el->is_focused()) {
-      textbox->_carets[1] = 0;
-      textbox->_carets[0] = text.size();
+      textbox->select_all();
       el->repaint(nullptr);
    }
 
    return 0;
 }
-
-// --------------------------------------------------
-// UIWindow
-// --------------------------------------------------
 
 std::string_view UIWindow::show_dialog(uint32_t flags, const char* format, ...) {
    // Create the dialog wrapper and panel.
@@ -1482,7 +1478,7 @@ std::string_view UIWindow::show_dialog(uint32_t flags, const char* format, ...) 
             if (*buffer)
                textbox->replace_text(*buffer, false);
             textbox->set_cp(buffer); // when the textbox text is updated, `*buffer` will contain a `char*` to the string
-            textbox->set_user_proc(UITextbox::_DialogTextboxMessageProc);
+            textbox->set_user_proc(_DialogTextboxMessageProc);
          } else if (format[i] == 'f') { // --> horizontal fill
             row->add_spacer(h_fill, 0, 0);
          } else if (format[i] == 'l') { // --> horizontal line
@@ -3521,6 +3517,7 @@ UITextbox& UITextbox::replace_text(std::string_view text, bool sendChangedMessag
    if (sendChangedMessage)
       message(UIMessage::VALUE_CHANGED, 0, 0);
    _window->set_textbox_modified_flag(true);
+   _save_state();
    repaint(nullptr);
    return *this;
 }
@@ -3532,6 +3529,8 @@ UITextbox& UITextbox::clear(bool sendChangedMessage) {
 }
 
 UITextbox& UITextbox::move_caret(bool backward, bool word) {
+   scoped_guard _([this]() { _save_state(); }); // save undo state if needed
+                  
    while (true) {
       std::string_view cur_text = text();
       if (_carets[0] > 0 && backward) {
@@ -3623,6 +3622,7 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::GET_CURSOR) {
       return (int)UICursor::text;
    } else if (msg == UIMessage::LEFT_DOWN) {
+      scoped_guard _([this]() { _save_state(); }); // save undo state if needed
       UIFont* active_font = ui->active_font();
       int     column      = (_window->cursor_pos().x - _bounds.l + _scroll - scale(ui_size::textbox_margin) +
                     active_font->_glyph_width / 2) /
@@ -3634,6 +3634,8 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::DEALLOCATE) {
       ;
    } else if (msg == UIMessage::KEY_TYPED) {
+      scoped_guard _([this]() { _save_state(); }); // save undo state if needed
+
       UIKeyTyped* m         = (UIKeyTyped*)dp;
       bool        handled   = true;
       bool        shift     = !!_window->_shift;
@@ -3676,7 +3678,14 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
                _carets[0] = m->is('u') ? 0 : text().size();
             replace_text("", true); // if there is selected text, just delete it
          } else {
-            handled = false;
+            // undo/redo
+            // ---------
+            if (ctrl && m->is('_')) {
+               undo();
+            } else {
+               handled = false;
+            }
+            _.dismiss();
          }
       }
 
@@ -3691,6 +3700,7 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
       if (c0 < c1 ? (_carets[0] >= c0 && _carets[0] < c1) : (_carets[0] >= c1 && _carets[0] < c0)) {
          _carets[0] = c0,
          _carets[1] = c1; // Only move caret if clicking outside the existing selection.
+         _save_state();
       }
 
       std::string paste_str = _window->read_clipboard_text(sel_target_t::clipboard);
@@ -3710,11 +3720,10 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
 
 UITextbox::UITextbox(UIElement* parent, uint32_t flags)
    : UIElementCast<UITextbox>(parent, flags | tab_stop_flag, UITextbox::_ClassMessageProc, "Textbox")
-   , _carets({0, 0})
-   , _scroll(0)
-   , _reject_next_key(false) {}
+   {}
 
 void UITextbox::_delete_one(bool backwards, bool by_word) {
+   scoped_guard _([this]() { _save_state(); }); // save undo state if needed
    if (_carets[0] == _carets[1]) {
       move_caret(backwards, by_word);
    }
@@ -3722,6 +3731,7 @@ void UITextbox::_delete_one(bool backwards, bool by_word) {
 }
 
 void UITextbox::_move_one(bool backwards, bool select, bool by_word) {
+   scoped_guard _([this]() { _save_state(); }); // save undo state if needed
    if (_carets[0] == _carets[1] || select) {
       move_caret(backwards, by_word);
       if (!select)
@@ -3732,14 +3742,48 @@ void UITextbox::_move_one(bool backwards, bool select, bool by_word) {
 }
 
 void UITextbox::_move_to_end(bool backwards, bool select) {
+   scoped_guard _([this]() { _save_state(); }); // save undo state if needed
    _carets[0] = (backwards ? 0ull : text().size());
    if (!select)
       _carets[1] = _carets[0];
 }
 
-void UITextbox::_select_all() {
+UITextbox& UITextbox::select_all() {
+   scoped_guard _([this]() { _save_state(); }); // save undo state if needed
    _carets[1] = 0;
    _carets[0] = text().size();
+   return *this;
+}
+
+void UITextbox::_update_state(const textbox_state_t& s) {
+   *static_cast<textbox_state_t*>(this) = s;
+   _undo_states.push_back(s);
+}
+
+void UITextbox::_save_state() {
+   assert(_undo_idx <= _undo_states.size());
+   const auto& s = *static_cast<textbox_state_t*>(this);
+   if (_undo_states.empty() || s != _undo_states.back()) {
+      _undo_states.push_back(s);
+      _undo_idx = _undo_states.size() - 1;
+   }
+}
+
+UITextbox& UITextbox::undo() {
+   if (_undo_idx > 0) {
+      assert(_undo_idx < _undo_states.size());
+      --_undo_idx;
+      _update_state(_undo_states[_undo_idx]);
+   }
+   return *this;
+}
+
+UITextbox& UITextbox::redo() {
+   if (_undo_idx + 1 < _undo_states.size()) {
+      ++_undo_idx;
+      _update_state(_undo_states[_undo_idx]);
+   }
+   return *this;
 }
 
 // --------------------------------------------------
@@ -5696,6 +5740,8 @@ bool UI::_process_x11_event(Display *dpy, XEvent* event) {
             m.code = UIKeycode::UP;
          } else if (symbol == XK_KP_Page_Down) {
             m.code = UIKeycode::DOWN;
+         } else if (symbol == XK_underscore) {
+            m.code = UIKeycode::UNDERSCORE;
          }
 
          window->input_event(UIMessage::KEY_TYPED, 0, &m);

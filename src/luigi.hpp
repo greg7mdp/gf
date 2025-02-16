@@ -84,49 +84,51 @@ inline constexpr auto ft_render_mode = FT_RENDER_MODE_NORMAL;
 
 #ifdef UI_LINUX
 enum class UIKeycode : int {
-   A         = XK_A,
-   ZERO      = XK_0,
-   BACKSPACE = XK_BackSpace,
-   DEL       = XK_Delete,
-   DOWN      = XK_Down,
-   END       = XK_End,
-   ENTER     = XK_Return,
-   ESCAPE    = XK_Escape,
-   F1        = XK_F1,
-   HOME      = XK_Home,
-   LEFT      = XK_Left,
-   RIGHT     = XK_Right,
-   SPACE     = XK_space,
-   TAB       = XK_Tab,
-   UP        = XK_Up,
-   INSERT    = XK_Insert,
-   BACKTICK  = XK_grave,
-   PAGE_UP   = XK_Page_Up,
-   PAGE_DOWN = XK_Page_Down,
+   A          = XK_A,
+   ZERO       = XK_0,
+   BACKSPACE  = XK_BackSpace,
+   DEL        = XK_Delete,
+   DOWN       = XK_Down,
+   END        = XK_End,
+   ENTER      = XK_Return,
+   ESCAPE     = XK_Escape,
+   F1         = XK_F1,
+   HOME       = XK_Home,
+   LEFT       = XK_Left,
+   RIGHT      = XK_Right,
+   SPACE      = XK_space,
+   TAB        = XK_Tab,
+   UP         = XK_Up,
+   INSERT     = XK_Insert,
+   BACKTICK   = XK_grave,
+   PAGE_UP    = XK_Page_Up,
+   PAGE_DOWN  = XK_Page_Down,
+   UNDERSCORE = XK_underscore
 };
 #endif
 
 #ifdef UI_WINDOWS
 enum class UIKeycode : int {
-   A         = 'A',
-   ZERO      = '0',
-   BACKSPACE = VK_BACK,
-   DEL       = VK_DELETE,
-   DOWN      = VK_DOWN,
-   END       = VK_END,
-   ENTER     = VK_RETURN,
-   ESCAPE    = VK_ESCAPE,
-   F1        = VK_F1,
-   HOME      = VK_HOME,
-   LEFT      = VK_LEFT,
-   RIGHT     = VK_RIGHT,
-   SPACE     = VK_SPACE,
-   TAB       = VK_TAB,
-   UP        = VK_UP,
-   INSERT    = VK_INSERT,
-   BACKTICK  = VK_OEM_3,
-   PAGE_UP   = VK_PRIOR,
-   PAGE_DOWN = VK_NEXT,
+   A          = 'A',
+   ZERO       = '0',
+   BACKSPACE  = VK_BACK,
+   DEL        = VK_DELETE,
+   DOWN       = VK_DOWN,
+   END        = VK_END,
+   ENTER      = VK_RETURN,
+   ESCAPE     = VK_ESCAPE,
+   F1         = VK_F1,
+   HOME       = VK_HOME,
+   LEFT       = VK_LEFT,
+   RIGHT      = VK_RIGHT,
+   SPACE      = VK_SPACE,
+   TAB        = VK_TAB,
+   UP         = VK_UP,
+   INSERT     = VK_INSERT,
+   BACKTICK   = VK_OEM_3,
+   PAGE_UP    = VK_PRIOR,
+   PAGE_DOWN  = VK_NEXT,
+   UNDERSCORE = 0x5f
 };
 #endif
 
@@ -174,6 +176,38 @@ bool ui_set(T& var, V&& val) noexcept(std::is_nothrow_move_assignable_v<T> && st
    }
    return false;
 }
+
+// ---------------------------------------------------------------------------
+// An object which calls a lambda in its  destructor
+//
+// This object must be captured in a local variable, Otherwise, since it is a
+// temporary, it will be destroyed immediately, thus calling the function.
+//
+//          scoped_guard rollback(...); // good
+// ---------------------------------------------------------------------------
+template <class F>
+class scoped_guard {
+public:
+   [[nodiscard]] scoped_guard(F&& unset, bool do_it = true) noexcept(std::is_nothrow_move_constructible_v<F>)
+      : do_it_(do_it)
+      , unset_(std::move(unset)) {}
+
+   ~scoped_guard() {
+      if (do_it_)
+         unset_();
+   }
+
+   void dismiss() noexcept { do_it_ = false; }
+
+   scoped_guard(scoped_guard&&)                 = delete;
+   scoped_guard(const scoped_guard&)            = delete;
+   scoped_guard& operator=(const scoped_guard&) = delete;
+   void*         operator new(std::size_t)      = delete;
+
+private:
+   bool do_it_;
+   F    unset_;
+};
 
 // --------------------------------------------------
 // Definitions.
@@ -494,7 +528,7 @@ struct UIKeyTyped {
    std::string_view text;
    UIKeycode        code = static_cast<UIKeycode>(0);
 
-   bool is(char c) { assert(std::islower(c)); return code == UI_KEYCODE_LETTER(c) || code == UI_KEYCODE_LETTER(c - ('a' - 'A')); }
+   bool is(char c) { /*assert(std::islower(c));*/ return code == UI_KEYCODE_LETTER(c) || code == UI_KEYCODE_LETTER(c - ('a' - 'A')); }
 };
 
 // ------------------------------------------------------------------------------------------
@@ -1384,16 +1418,29 @@ public:
 };
 
 // ------------------------------------------------------------------------------------------------
-struct UITextbox : public UIElementCast<UITextbox> {
-   static int _DialogTextboxMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
+struct textbox_state_t {
+   std::string             _buffer;
+   std::array<uint32_t, 2> _carets{0, 0}; // carets[0] is the cursor position, carets[1] end of selection
+   int                     _scroll{0};
 
+   bool operator==(const textbox_state_t& o) const {
+      if (_buffer != o._buffer)
+         return false;
+      if (_scroll != o._scroll)
+         return false;
+      if (_carets != o._carets && (_carets[0] != _carets[1] || o._carets[0] != o._carets[1]))
+         return false; // just moving the caret does not make the state different
+      return true;
+   }
+};
+
+struct UITextbox : public UIElementCast<UITextbox>, public textbox_state_t  {
 private:
-   std::string           _buffer;
-   std::array<size_t, 2> _carets{}; // carets[0] is the cursor position, carets[1] end of selection
-   int                   _scroll;
-   bool                  _reject_next_key;
-
-   int        _class_message_proc(UIMessage msg, int di, void* dp);
+   bool                         _reject_next_key{false};
+   std::vector<textbox_state_t> _undo_states;
+   size_t                       _undo_idx{0};
+   
+   int     _class_message_proc(UIMessage msg, int di, void* dp);
 
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<UITextbox*>(el)->_class_message_proc(msg, di, dp);
@@ -1406,6 +1453,8 @@ private:
    void _move_one(bool backwards, bool select, bool by_word);
    void _move_to_end(bool backwards, bool select);
    void _select_all();
+   void _save_state();
+   void _update_state(const textbox_state_t& s);
 
 public:
    UITextbox(UIElement* parent, uint32_t flags);
@@ -1416,9 +1465,11 @@ public:
    UITextbox& clear(bool sendChangedMessage);
 
    UITextbox& move_caret(bool backward, bool word);
+   UITextbox& select_all();
    UITextbox& copy();
    UITextbox& paste(sel_target_t t);
    UITextbox& undo();
+   UITextbox& redo();
 
    UITextbox& set_reject_next_key(bool v) { _reject_next_key = v; return *this; }
 };
