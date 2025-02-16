@@ -2568,7 +2568,7 @@ int TextboxInputMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       std::string_view text = textbox->text();
       auto             sz   = text.size();
 
-      if (m->text.size() && !el->_window->_ctrl && !el->_window->_alt && m->text[0] == '`' && !sz) {
+      if (!m->text.empty() && !el->_window->_ctrl && !el->_window->_alt && m->text[0] == '`' && !sz) {
          textbox->set_reject_next_key(true);
       } else if (m->code == UIKeycode::ENTER && !el->_window->_shift) {
          if (!sz) {
@@ -3976,27 +3976,33 @@ int TableBreakpointsMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
          if (data->selected.size() > 1) {
             bool atLeastOneBreakpointDisabled = false;
+            bool atLeastOneBreakpointEnabled  = false;
+
 
             for (auto selected : data->selected) {
                for (const auto& breakpoint : breakpoints) {
-                  if (breakpoint.number == selected && !breakpoint.enabled) {
-                     atLeastOneBreakpointDisabled = true;
-                     goto addMenuItems;
+                  if (breakpoint.number == selected) {
+                     if (breakpoint.enabled)
+                        atLeastOneBreakpointEnabled  = true;
+                     else
+                        atLeastOneBreakpointDisabled = true;
                   }
                }
             }
 
-         addMenuItems:
             menu.add_item(0, "Delete", [data](UIButton&) { CommandDeleteSelectedBreakpoints(data); });
 
             if (atLeastOneBreakpointDisabled)
                menu.add_item(0, "Enable", [data](UIButton&) { CommandEnableSelectedBreakpoints(data); });
-            else
+            
+            if (atLeastOneBreakpointEnabled)
                menu.add_item(0, "Disable", [data](UIButton&) { CommandDisableSelectedBreakpoints(data); });
          } else {
             menu.add_item(0, "Delete", [index](UIButton&) { CommandDeleteBreakpoint(index); });
 
             if (breakpoints[index].enabled)
+               menu.add_item(0, "Disable", [index](UIButton&) { CommandDisableBreakpoint(index); });
+            else
                menu.add_item(0, "Enable", [index](UIButton&) { CommandEnableBreakpoint(index); });
          }
 
