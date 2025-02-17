@@ -3764,6 +3764,9 @@ void UITextbox::_save_state() {
    assert(_undo_idx <= _undo_states.size());
    const auto& s = *static_cast<textbox_state_t*>(this);
    if (_undo_states.empty() || s != _undo_states.back()) {
+      constexpr size_t max_size = 4096;
+      if (_undo_states.size() > max_size)
+         _undo_states.erase(_undo_states.cbegin(), _undo_states.cbegin() + (max_size / 2));
       _undo_states.push_back(s);
       _undo_idx = _undo_states.size() - 1;
    }
