@@ -7116,6 +7116,9 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
       // causing an infinite loop!!!
       DebuggerGetStack();
       DebuggerGetBreakpoints();
+
+      if (textboxInput->_window)
+         textboxInput->_window->grab_focus(); // grab focus when breakpoint is hit!
    }
 
    for (auto& [name, iw] : ctx.interfaceWindows) {

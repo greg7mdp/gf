@@ -814,6 +814,7 @@ private:
    // Set when a textbox is modified.
    // Useful for tracking whether changes to the loaded document have been saved.
    bool                    _textbox_modified_flag;
+   bool                    _urgent;
    UIRectangle             _update_region;
    UI*                     _ui;
 
@@ -915,6 +916,9 @@ public:
    UIWindow&   set_name(std::string_view name);
    
    UI*         ui() const { assert(_ui == _window->_ui); return _window->_ui; }
+
+   UIWindow&   set_urgent(bool urgent);
+   UIWindow&   grab_focus();                // when a breakpoint is hit for example
 
    // ------ delete functions from UIElement we shouldn't use on a UIWindow --------------
    bool        is_hovered() const = delete; // do not call on UIWindow. only on UIElement

@@ -5969,6 +5969,27 @@ UIWindow& UIWindow::set_name(std::string_view name) {
    return *this;
 }
 
+UIWindow& UIWindow::set_urgent(bool urgent) {
+   if (_urgent == urgent)
+      return *this;
+
+   _urgent = urgent;
+   Display* dpy = ui()->native_display();
+
+   if (XWMHints *wmh = XGetWMHints(dpy, _xwindow)) {
+      wmh->flags = urgent ? (wmh->flags | XUrgencyHint) : (wmh->flags & ~XUrgencyHint);
+      XSetWMHints(dpy, _xwindow, wmh);
+      XFree(wmh);
+   }
+   return *this;
+}
+
+UIWindow& UIWindow::grab_focus() {
+   Display*  dpy = ui()->native_display();
+   XSetInputFocus(dpy, _xwindow, RevertToParent, CurrentTime);
+   return *this;
+}
+
 #endif // UI_LINUX
 
 #ifdef UI_WINDOWS
@@ -6265,6 +6286,11 @@ void UIWindow::post_message(UIMessage msg, void* _dp) const {
 
 UIWindow& UIWindow::set_name(std::string_view name) {
    SetWindowText(_hwnd, name.data());
+   return *this;
+}
+
+UIWindow& UIWindow::grab_focus() {
+   SetFocus(_hwnd);
    return *this;
 }
 
