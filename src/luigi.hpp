@@ -216,6 +216,8 @@ private:
 #define _UI_TO_STRING_1(x) #x
 #define _UI_TO_STRING_2(x) _UI_TO_STRING_1(x)
 
+using ui_handle = uintptr_t;
+
 namespace ui_size {
 
 inline constexpr int button_minimum_width = 100;
@@ -926,9 +928,9 @@ public:
    bool        is_pressed() const = delete; // do not call on UIWindow. only on UIElement
 
 #if defined(UI_LINUX)
-   Window native_window() const { return _xwindow; }
+   ui_handle native_window() const { return _xwindow; }
 #elif defined(UI_WINDOWS)
-   HWND native_window() const { return _hwnd; }
+   ui_handle native_window() const { return _hwnd; }
 #endif
 };
 
@@ -1681,6 +1683,9 @@ public:
    void         set_active_font(UIFont *font) { _active_font = font; }
 
    UIPoint      screen_size() const { return _screen_size; }
+
+   ui_handle    get_focus() const;
+   void         set_focus(ui_handle window) const;
 
    const std::string& default_font_path() const { return _default_font_path; }
 

@@ -5060,6 +5060,11 @@ int UI::message_loop() {
 #endif
 }
 
+UIWindow& UIWindow::grab_focus() {
+   ui()->set_focus(native_window());
+   return *this;
+}
+
 UIWindow::UIWindow(UI* ui, UIElement* parent, uint32_t flags, message_proc_t message_proc, const char* cClassName)
    : UIElementCast<UIWindow>(parent, flags, message_proc, cClassName)
    , _dialog(nullptr)
@@ -5224,7 +5229,7 @@ std::string UI::read_clipboard_text(UIWindow* w, sel_target_t t) {
 
 void UI::selection::write_clipboard_text(UI& ui, std::string_view text, UIWindow* w) {
    _paste_text = text;
-   XSetSelectionOwner(ui.native_display(), _atom, w->native_window(), 0);
+   XSetSelectionOwner(ui.native_display(), _atom, static_cast<Window>(w->native_window()), 0);
 }
 
 std::string UI::selection::read_clipboard_text(UI& ui, UIWindow* w) {
@@ -5241,7 +5246,8 @@ std::string UI::selection::read_clipboard_text(UI& ui, UIWindow* w) {
    }
 
    XEvent event;
-   XConvertSelection(dpy, _atom, XA_STRING, ui._atoms[xSelectionDataID], w->native_window(), CurrentTime);
+   XConvertSelection(dpy, _atom, XA_STRING, ui._atoms[xSelectionDataID], static_cast<Window>(w->native_window()),
+                     CurrentTime);
    XSync(dpy, 0);
    XNextEvent(dpy, &event);
 
@@ -5984,10 +5990,16 @@ UIWindow& UIWindow::set_urgent(bool urgent) {
    return *this;
 }
 
-UIWindow& UIWindow::grab_focus() {
-   Display*  dpy = ui()->native_display();
-   XSetInputFocus(dpy, _xwindow, RevertToParent, CurrentTime);
-   return *this;
+void UI::set_focus(ui_handle window) const {
+   Display*  dpy = native_display();
+   XSetInputFocus(dpy, static_cast<Window>(window), RevertToParent, CurrentTime);
+}
+
+ui_handle UI::get_focus() const {
+   Window win;
+   int revert_to_return;
+   XGetInputFocus(native_display(), &win, &revert_to_return);
+   return static_cast<ui_handle>(win);
 }
 
 #endif // UI_LINUX
@@ -6289,13 +6301,16 @@ UIWindow& UIWindow::set_name(std::string_view name) {
    return *this;
 }
 
-UIWindow& UIWindow::grab_focus() {
-   SetFocus(_hwnd);
-   return *this;
+void UI::set_focus(ui_handle window) const {
+   SetFocus(static_cast<HWND>(window));
+}
+
+ui_handle UI::get_focus() const {
+   return static_cast<ui_handle>(GetFocus());
 }
 
 void UI::write_clipboard_text(std::string_view text, UIWindow* w, sel_target_t) {
-   HWND hwnd = w->native_window();
+   HWND hwnd = static_cast<HWND>(w->native_window());
    if (OpenClipboard(hwnd)) {
       EmptyClipboard();
       HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, text.size() + 1);
@@ -6308,7 +6323,7 @@ void UI::write_clipboard_text(std::string_view text, UIWindow* w, sel_target_t) 
 }
 
 std::string UI::read_clipboard_text(UIWindow* w, sel_target_t) {
-   HWND        hwnd = w->native_window();
+   HWND        hwnd = static_cast<HWND>(w->native_window());
    std::string res;
 
    if (!OpenClipboard(hwnd)) {
