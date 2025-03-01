@@ -223,7 +223,9 @@ struct Context {
    std::string initialGDBCommand = "set prompt (gdb) ";
    bool        firstUpdate       = true;
    UICode*     logWindow         = nullptr; // if sent, log all debugger output there
-   
+   ui_handle   prev_focus_win    = 0;
+   UI*         ui;                          // non-owning pointer
+
    unique_ptr<regexp::debugger_base> dbg_re;
    unique_ptr<regexp::language_base> lang_re;
 
@@ -270,6 +272,20 @@ struct Context {
       KillGdbThread();
       print(std::cerr, "killing gdb process {}.\n", gdbPID);
       kill(gdbPID, SIGKILL);
+   }
+
+   void restore_focus() {
+      if (prev_focus_win) {
+         ui->set_focus(prev_focus_win);
+         prev_focus_win = 0;
+      }
+   }
+
+   void grab_focus(UIWindow *win) {
+      if (win) {
+         prev_focus_win = ui->get_focus();
+         win->grab_focus(); // grab focus when breakpoint is hit!
+      }
    }
 
    void           DebuggerThread();
@@ -7117,8 +7133,7 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
       DebuggerGetStack();
       DebuggerGetBreakpoints();
 
-      if (textboxInput->_window)
-         textboxInput->_window->grab_focus(); // grab focus when breakpoint is hit!
+      ctx.grab_focus(textboxInput->_window);  // grab focus when breakpoint is hit!
    }
 
    for (auto& [name, iw] : ctx.interfaceWindows) {
@@ -7157,9 +7172,15 @@ void MsgReceivedControl(std::unique_ptr<std::string> input) {
    }
 }
 
-auto gdb_invoker(string_view cmd) {
-   return [cmd]() {
+enum invoker_flags {
+   invoker_restore_focus = 1 << 0
+};
+
+auto gdb_invoker(string_view cmd, int flags = 0) {
+   return [cmd, flags]() {
       CommandSendToGDB(cmd);
+      if (flags & invoker_restore_focus)
+         ctx.restore_focus();            // restore input focus to the window that had it before `gf` grabbed it
       return true;
    };
 }
@@ -7201,7 +7222,7 @@ void Context::InterfaceAddBuiltinWindowsAndCommands() {
       .label = "Connect\tF4", .shortcut{.code = UI_KEYCODE_FKEY(4), .invoke = gdb_invoker("target remote :1234")}
    });
    interfaceCommands.push_back({
-      .label = "Continue\tF5", .shortcut{.code = UI_KEYCODE_FKEY(5), .invoke = gdb_invoker("c")}
+         .label = "Continue\tF5", .shortcut{.code = UI_KEYCODE_FKEY(5), .invoke = gdb_invoker("c", invoker_restore_focus)}
    });
    interfaceCommands.push_back({
       .label = "Step over\tF10", .shortcut{.code = UI_KEYCODE_FKEY(10), .invoke = gdb_invoker("gf-next")}
@@ -7538,6 +7559,7 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
    ui_config.default_font_size = interface_font_size;
 
    auto ui = UI::initialise(ui_config); // sets `ui.default_font_path`
+   ctx.ui = ui.get();
 
    // ui->_theme = uiThemeDark; // force it for now, overriding `gf2_config.ini` - should remove though!
 
