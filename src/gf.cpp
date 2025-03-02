@@ -295,6 +295,8 @@ struct Context {
    void           RegisterExtensions();
    void           InterfaceShowMenu(UIButton* self);
    void           InterfaceLayoutCreate(UIElement* parent, const char*& current);
+   void           GenerateLayoutString(UIElement *e, std::string &sb);
+   bool           CopyLayoutToClipboard();
    void           InterfaceAdditionalSetup();
    UIElement*     InterfaceWindowSwitchToAndFocus(string_view name);
    unique_ptr<UI> GfMain(int argc, char** argv);
@@ -7288,6 +7290,8 @@ void Context::InterfaceAddBuiltinWindowsAndCommands() {
       .label = nullptr,
       .shortcut{.code = UI_KEYCODE_LETTER('N'), .ctrl = true, .shift = false, .invoke = CommandNextCommand}
    });
+   interfaceCommands.push_back(
+      {.label = "Copy Layout to Clipboard", .shortcut{.invoke = [&]() { return ctx.CopyLayoutToClipboard(); }}});
 #if 0
    // conflicts with textbox readlime bindings
    // -----------------------------------------
@@ -7509,6 +7513,52 @@ void Context::InterfaceLayoutCreate(UIElement* parent, const char*& layout_strin
          exit(1);
       }
    }
+}
+
+void Context::GenerateLayoutString(UIElement* e, std::string& sb) {
+   char buf[32];
+
+   if (strcmp(e->_class_name, "Split Pane") == 0) {
+      assert(e->_children.size() == 3);
+      if (e->_flags & UIElement::vertical_flag) {
+         sb.push_back('v');
+      } else {
+         sb.push_back('h');
+      }
+      sb.push_back('(');
+      int n = snprintf(buf, sizeof(buf), "%d", (int)(((UISplitPane*)e)->weight() * 100));
+      sb.insert(sb.end(), buf, buf + n);
+      sb.push_back(',');
+      GenerateLayoutString(e->_children[1], sb);
+      sb.push_back(',');
+      GenerateLayoutString(e->_children[2], sb);
+      sb.push_back(')');
+   } else if (strcmp(e->_class_name, "Tab Pane") == 0) {
+      sb += "t(";
+      for (size_t i = 0; i < e->_children.size(); ++i) {
+         if (i > 0)
+            sb.push_back(',');
+         GenerateLayoutString(e->_children[i], sb);
+      }
+      sb.push_back(')');
+   } else {
+      for (auto& [name, window] : interfaceWindows) {
+         if (window.el != NULL && window.el->_id == e->_id) {
+            sb += name;
+            return;
+         }
+      }
+      assert(0 && "unreachable");
+   }
+}
+
+bool Context::CopyLayoutToClipboard()
+{
+   std::string sb;
+   sb.reserve(512);
+   GenerateLayoutString(switcherMain->_children[0]->_children[0], sb);
+   ui->write_clipboard_text(sb, windowMain, sel_target_t::clipboard);
+   return true;
 }
 
 unique_ptr<UI> Context::GfMain(int argc, char** argv) {
