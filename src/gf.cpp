@@ -1364,6 +1364,9 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
          if (section.empty())
             break;
 
+         if (!key.empty() && key[0] == '#')
+            continue;
+
          if (section == "shortcuts" && !key.empty() && !earlyPass) {
             UIShortcut shortcut;
 
@@ -1509,6 +1512,12 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
                   continue;
                std::from_chars(value.data(), value.data() + value.size(), ((uint32_t*)&ui_config._theme)[i], 16);
                ui_config._has_theme = true;
+            }
+            if (key == "predefined") {
+               if (auto itr = ui_themes.find(std::string(value)); itr != ui_themes.end()) {
+                  ui_config._theme = itr->second;
+                  ui_config._has_theme = true;
+               }
             }
          } else if (section == "vim" && earlyPass && key == "server_name") {
             vimServerName = mk_cstring(value);

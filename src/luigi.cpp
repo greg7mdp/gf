@@ -27,148 +27,147 @@ namespace rng   = std::ranges;
 // --------------------------------------------------
 // Themes.
 // --------------------------------------------------
+std::unordered_map<std::string, UITheme> ui_themes{
+   {"classic",
+    UITheme{
+       .panel1   = 0xFFF0F0F0,
+       .panel2   = 0xFFFFFFFF,
+       .selected = 0xFF94BEFE,
+       .border   = 0xFF404040,
 
-UITheme uiThemeClassic = {
-   .panel1   = 0xFFF0F0F0,
-   .panel2   = 0xFFFFFFFF,
-   .selected = 0xFF94BEFE,
-   .border   = 0xFF404040,
+       .text         = 0xFF000000,
+       .textDisabled = 0xFF404040,
+       .textSelected = 0xFF000000,
 
-   .text         = 0xFF000000,
-   .textDisabled = 0xFF404040,
-   .textSelected = 0xFF000000,
+       .buttonNormal   = 0xFFE0E0E0,
+       .buttonHovered  = 0xFFF0F0F0,
+       .buttonPressed  = 0xFFA0A0A0,
+       .buttonDisabled = 0xFFF0F0F0,
 
-   .buttonNormal   = 0xFFE0E0E0,
-   .buttonHovered  = 0xFFF0F0F0,
-   .buttonPressed  = 0xFFA0A0A0,
-   .buttonDisabled = 0xFFF0F0F0,
+       .textboxNormal  = 0xFFF8F8F8,
+       .textboxFocused = 0xFFFFFFFF,
 
+       .codeFocused      = 0xFFE0E0E0,
+       .codeBackground   = 0xFFFFFFFF,
+       .codeDefault      = 0xFF000000,
+       .codeComment      = 0xFFA11F20,
+       .codeString       = 0xFF037E01,
+       .codeNumber       = 0xFF213EF1,
+       .codeOperator     = 0xFF7F0480,
+       .codePreprocessor = 0xFF545D70,
 
-   .textboxNormal  = 0xFFF8F8F8,
-   .textboxFocused = 0xFFFFFFFF,
+       .accent1 = 0xFF0000,
+       .accent2 = 0x00FF00,
+    }                   },
+   {"dark",
+    UITheme{
+       .panel1   = 0xFF252B31,
+       .panel2   = 0xFF14181E,
+       .selected = 0xFF94BEFE,
+       .border   = 0xFF000000,
 
-   .codeFocused      = 0xFFE0E0E0,
-   .codeBackground   = 0xFFFFFFFF,
-   .codeDefault      = 0xFF000000,
-   .codeComment      = 0xFFA11F20,
-   .codeString       = 0xFF037E01,
-   .codeNumber       = 0xFF213EF1,
-   .codeOperator     = 0xFF7F0480,
-   .codePreprocessor = 0xFF545D70,
+       .text         = 0xFFFFFFFF,
+       .textDisabled = 0xFF787D81,
+       .textSelected = 0xFF000000,
 
-   .accent1 = 0xFF0000,
-   .accent2 = 0x00FF00,
-};
+       .buttonNormal   = 0xFF383D41,
+       .buttonHovered  = 0xFF4B5874,
+       .buttonPressed  = 0xFF0D0D0F,
+       .buttonDisabled = 0xFF1B1F23,
 
-UITheme uiThemeDark = {
-   .panel1   = 0xFF252B31,
-   .panel2   = 0xFF14181E,
-   .selected = 0xFF94BEFE,
-   .border   = 0xFF000000,
+       .textboxNormal  = 0xFF31353C,
+       .textboxFocused = 0xFF4D4D59,
 
-   .text         = 0xFFFFFFFF,
-   .textDisabled = 0xFF787D81,
-   .textSelected = 0xFF000000,
+       .codeFocused      = 0xFF505055,
+       .codeBackground   = 0xFF212126,
+       .codeDefault      = 0xFFFFFFFF,
+       .codeComment      = 0xFFB4B4B4,
+       .codeString       = 0xFFF5DDD1,
+       .codeNumber       = 0xFFC3F5D3,
+       .codeOperator     = 0xFFF5D499,
+       .codePreprocessor = 0xFFF5F3D1,
 
-   .buttonNormal   = 0xFF383D41,
-   .buttonHovered  = 0xFF4B5874,
-   .buttonPressed  = 0xFF0D0D0F,
-   .buttonDisabled = 0xFF1B1F23,
-
-   .textboxNormal  = 0xFF31353C,
-   .textboxFocused = 0xFF4D4D59,
-
-   .codeFocused      = 0xFF505055,
-   .codeBackground   = 0xFF212126,
-   .codeDefault      = 0xFFFFFFFF,
-   .codeComment      = 0xFFB4B4B4,
-   .codeString       = 0xFFF5DDD1,
-   .codeNumber       = 0xFFC3F5D3,
-   .codeOperator     = 0xFFF5D499,
-   .codePreprocessor = 0xFFF5F3D1,
-
-   .accent1 = 0xF01231,
-   .accent2 = 0x45F94E,
-};
-
-UITheme uiThemeIce = {
-   .panel1           = 0xF1F4FF,
-   .panel2           = 0xFFFFFF,
-   .selected         = 0xB5D0FE,
-   .border           = 0x000000,
-   .text             = 0x000000,
-   .textDisabled     = 0x787D81,
-   .textSelected     = 0x000000,
-   .buttonNormal     = 0xEAEDFF,
-   .buttonHovered    = 0xF0F8FF,
-   .buttonPressed    = 0xB6C5FB,
-   .buttonDisabled   = 0x1B1F23,
-   .textboxNormal    = 0xFFFFFF,
-   .textboxFocused   = 0xFFFFFF,
-   .codeFocused      = 0x9CD6FF,
-   .codeBackground   = 0xE8F2FF,
-   .codeDefault      = 0x000000,
-   .codeComment      = 0x7B6F81,
-   .codeString       = 0x0F7D32,
-   .codeNumber       = 0x0058F5,
-   .codeOperator     = 0x720EE7,
-   .codePreprocessor = 0x900092,
-   .accent1          = 0xFF0000,
-   .accent2          = 0x00FF00,
-};
-
-UITheme uiThemeLotus = {
-   .panel1           = 0xFFF1F4,
-   .panel2           = 0xFFFFFF,
-   .selected         = 0xFEB5D0,
-   .border           = 0x000000,
-   .text             = 0x000000,
-   .textDisabled     = 0x81787D,
-   .textSelected     = 0x000000,
-   .buttonNormal     = 0xFFEAED,
-   .buttonHovered    = 0xFFF0F8,
-   .buttonPressed    = 0xFBB6C5,
-   .buttonDisabled   = 0x231B1F,
-   .textboxNormal    = 0xFFFFFF,
-   .textboxFocused   = 0xFFFFFF,
-   .codeFocused      = 0xFCBAFF,
-   .codeBackground   = 0xFFE8F2,
-   .codeDefault      = 0x000000,
-   .codeComment      = 0x817B6F,
-   .codeString       = 0x704697,
-   .codeNumber       = 0xC21140,
-   .codeOperator     = 0xC76716,
-   .codePreprocessor = 0x7A7092,
-   .accent1          = 0xFF0000,
-   .accent2          = 0x00FF00,
-};
-
-UITheme uiThemeHero = {
-   .panel1           = 0x202020,
-   .panel2           = 0x202020,
-   .selected         = 0x3C3836,
-   .border           = 0x404040,
-   .text             = 0xDDDDDD,
-   .textDisabled     = 0x787D81,
-   .textSelected     = 0xFFFFFF,
-   .buttonNormal     = 0x202020,
-   .buttonHovered    = 0x4B5874,
-   .buttonPressed    = 0x0D0D0F,
-   .buttonDisabled   = 0x1B1F23,
-   .textboxNormal    = 0x202020,
-   // .textboxText      = 0xFFFFFF,
-   .textboxFocused   = 0x3C3836,
-   .codeFocused      = 0x3C3836,
-   .codeBackground   = 0x202020,
-   .codeDefault      = 0xBDA175,
-   .codeComment      = 0xA8A5A2,
-   .codeString       = 0xB3B54A,
-   .codeNumber       = 0xD3869B,
-   .codeOperator     = 0xBDA175,
-   .codePreprocessor = 0xA0B8A0,
-   // .gaugeFilled      = 0x2CE342,
-   .accent1          = 0xFF0000,
-   .accent2          = 0x00FF00,
+       .accent1 = 0xF01231,
+       .accent2 = 0x45F94E,
+    }                   },
+   {"ice",
+    UITheme{
+       .panel1           = 0xF1F4FF,
+       .panel2           = 0xFFFFFF,
+       .selected         = 0xB5D0FE,
+       .border           = 0x000000,
+       .text             = 0x000000,
+       .textDisabled     = 0x787D81,
+       .textSelected     = 0x000000,
+       .buttonNormal     = 0xEAEDFF,
+       .buttonHovered    = 0xF0F8FF,
+       .buttonPressed    = 0xB6C5FB,
+       .buttonDisabled   = 0x1B1F23,
+       .textboxNormal    = 0xFFFFFF,
+       .textboxFocused   = 0xFFFFFF,
+       .codeFocused      = 0x9CD6FF,
+       .codeBackground   = 0xE8F2FF,
+       .codeDefault      = 0x000000,
+       .codeComment      = 0x7B6F81,
+       .codeString       = 0x0F7D32,
+       .codeNumber       = 0x0058F5,
+       .codeOperator     = 0x720EE7,
+       .codePreprocessor = 0x900092,
+       .accent1          = 0xFF0000,
+       .accent2          = 0x00FF00,
+    }                   },
+   {"lotus",
+    UITheme{
+       .panel1           = 0xFFF1F4,
+       .panel2           = 0xFFFFFF,
+       .selected         = 0xFEB5D0,
+       .border           = 0x000000,
+       .text             = 0x000000,
+       .textDisabled     = 0x81787D,
+       .textSelected     = 0x000000,
+       .buttonNormal     = 0xFFEAED,
+       .buttonHovered    = 0xFFF0F8,
+       .buttonPressed    = 0xFBB6C5,
+       .buttonDisabled   = 0x231B1F,
+       .textboxNormal    = 0xFFFFFF,
+       .textboxFocused   = 0xFFFFFF,
+       .codeFocused      = 0xFCBAFF,
+       .codeBackground   = 0xFFE8F2,
+       .codeDefault      = 0x000000,
+       .codeComment      = 0x817B6F,
+       .codeString       = 0x704697,
+       .codeNumber       = 0xC21140,
+       .codeOperator     = 0xC76716,
+       .codePreprocessor = 0x7A7092,
+       .accent1          = 0xFF0000,
+       .accent2          = 0x00FF00,
+    }                   },
+   {"hero",
+    UITheme{
+       .panel1           = 0x202020,
+       .panel2           = 0x202020,
+       .selected         = 0x3C3836,
+       .border           = 0x404040,
+       .text             = 0xDDDDDD,
+       .textDisabled     = 0x787D81,
+       .textSelected     = 0xFFFFFF,
+       .buttonNormal     = 0x202020,
+       .buttonHovered    = 0x4B5874,
+       .buttonPressed    = 0x0D0D0F,
+       .buttonDisabled   = 0x1B1F23,
+       .textboxNormal    = 0x202020,
+       .textboxFocused   = 0x3C3836,
+       .codeFocused      = 0x3C3836,
+       .codeBackground   = 0x202020,
+       .codeDefault      = 0xBDA175,
+       .codeComment      = 0xA8A5A2,
+       .codeString       = 0xB3B54A,
+       .codeNumber       = 0xD3869B,
+       .codeOperator     = 0xBDA175,
+       .codePreprocessor = 0xA0B8A0,
+       .accent1          = 0xFF0000,
+       .accent2          = 0x00FF00,
+    }}
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -514,15 +513,18 @@ int UI::column_to_byte(std::string_view string, const size_t column, const size_
 // --------------------------------------------------
 // INI File reader
 // --------------------------------------------------
-// reads into `destination` until character `c1` found (or we reach the end of `_curr_pos`)
-#define INI_READ(destination, counter, c1, c2)                \
-   destination = _curr_pos, counter = 0;                      \
-   while (_remaining && *_curr_pos != c1 && *_curr_pos != c2) \
-      counter++, _curr_pos++, _remaining--;                   \
-   if (_remaining && *_curr_pos == c1)                        \
-      _curr_pos++, _remaining--;
-
 INI_Parser::iterator& INI_Parser::iterator::operator++() {
+   // reads into `destination` until character `c1` found (or we reach the end of `_curr_pos`)
+   auto ini_read = [this](const char*& destination, size_t& counter, char c1, char c2) {
+      destination = _curr_pos, counter = 0;
+      while (_remaining && *_curr_pos != c1 && *_curr_pos != c2) {
+         ++counter; ++_curr_pos; --_remaining;
+      }
+      if (_remaining && *_curr_pos == c1) {
+         ++_curr_pos; --_remaining;
+      }
+   };
+
    while (_remaining) {
       char c = *_curr_pos;
 
@@ -531,20 +533,20 @@ INI_Parser::iterator& INI_Parser::iterator::operator++() {
          continue;
       } else if (c == ';') {
          _value_bytes = 0;
-         INI_READ(_key, _key_bytes, '\n', 0);
+         ini_read(_key, _key_bytes, '\n', 0);
       } else if (c == '[') {
          _key_bytes = _value_bytes = 0;
          _curr_pos++, _remaining--;
-         INI_READ(_section, _section_bytes, ']', 0);
+         ini_read(_section, _section_bytes, ']', 0);
       } else {
-         INI_READ(_key, _key_bytes, '=', '\n');
-         INI_READ(_value, _value_bytes, '\n', 0);
+         ini_read(_key, _key_bytes, '=', '\n');
+         ini_read(_value, _value_bytes, '\n', 0);
       }
 
       _parse_result = parse_result_t{
-         ._section = {_section, _section_bytes},
-           ._key = {_key,     _key_bytes    },
-           ._value = {_value,   _value_bytes  }
+         ._section = ui_trim({_section, _section_bytes}),
+         ._key     = ui_trim({_key,     _key_bytes    }),
+         ._value   = ui_trim({_value,   _value_bytes  })
       };
       // on the last [s, k, v], _curr_pos points to the terminating zero character, and iterator still not end()
       return *this;
@@ -5012,7 +5014,7 @@ bool UI::automation_check_table_item_matches(UITable* table, size_t row, size_t 
 // --------------------------------------------------
 
 void UI::_initialize_common(const UIConfig& cfg, const std::string& default_font_path) {
-   _theme = uiThemeIce;
+   _theme = ui_themes["ice"];
 
 #ifdef UI_FREETYPE
    FT_Init_FreeType(&_ft);

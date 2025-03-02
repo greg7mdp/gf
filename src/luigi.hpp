@@ -184,6 +184,20 @@ inline T ui_atof(std::string_view sv) {
    return 0;
 }
 
+inline std::string_view ui_trimstart(const std::string_view str) {
+    auto pos = str.find_first_not_of(" \t\r\n");
+    return pos == std::string_view::npos ? "" : str.substr(pos);
+}
+
+inline std::string_view ui_trimend(const std::string_view str) {
+    auto pos = str.find_last_not_of(" \t\r\n");
+    return pos == std::string_view::npos ? "" : str.substr(0, pos + 1);
+}
+
+inline std::string_view ui_trim(const std::string_view str) {
+    return ui_trimend(ui_trimstart(str));
+}
+
 // ---------------------------------------------------------------------------
 // assigns val to var, and returns true if the value changed
 // ---------------------------------------------------------------------------
@@ -1987,5 +2001,7 @@ static_assert(std::ranges::input_range<INI_Parser>);
 // ----------------------------------------
 //      Variables
 // ----------------------------------------
-extern UITheme uiThemeClassic;
-extern UITheme uiThemeDark;
+
+// predefined themes are "classic", "dark", "ice", "lotus" and "hero"
+// ------------------------------------------------------------------
+extern std::unordered_map<std::string, UITheme> ui_themes;
