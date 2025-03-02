@@ -17,6 +17,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <cctype>
+#include <charconv>
 #include <functional>
 #include <memory>
 #include <string>
@@ -164,6 +165,24 @@ void print(FILE* f, std::format_string<Args...> fmt, Args&&... args) {
 }
 
 std::string LoadFile(const char* path); // load whole file into string
+
+template<class T>
+inline T ui_atoi(std::string_view sv) {
+   T result{};
+   auto [ptr, ec] = std::from_chars(sv.data(), sv.data() + sv.size(), result);
+   if (ec == std::errc())
+      return result;
+   return 0;
+}
+
+template<class T>
+inline T ui_atof(std::string_view sv) {
+   T result{};
+   auto [ptr, ec] = std::from_chars(sv.data(), sv.data() + sv.size(), result);
+   if (ec == std::errc())
+      return result;
+   return 0;
+}
 
 // ---------------------------------------------------------------------------
 // assigns val to var, and returns true if the value changed
@@ -1854,6 +1873,31 @@ struct INI_Parser {
       std::string_view _section;
       std::string_view _key;
       std::string_view _value;
+
+      template <class T, class F>
+      bool parse(std::string_view sv, T& dest, F&& f) {
+         if (_key == sv && !_value.empty()) {
+            dest = std::forward<F>(f)(_value);
+            return true;
+         }
+         return false;
+      }
+
+      bool parse_str(std::string_view sv, std::string& dest) {
+         return parse(sv, dest, [](std::string_view s) { return std::string(s); });
+      }
+
+      bool parse_int(std::string_view sv, int& dest) {
+         return parse(sv, dest, [](std::string_view s) { return ui_atoi<int>(s); });
+      }
+
+      bool parse_bool(std::string_view sv, bool& dest) {
+         return parse(sv, dest, [](std::string_view s) { return s[0] == '1' || s.substr(0, 4) == "true"; });
+      }
+
+      float parse_float(std::string_view sv, float& dest) {
+         return parse(sv, dest, [](std::string_view s) { return ui_atof<float>(s); });
+      }
 
       bool operator==(const parse_result_t&) const = default;
       auto  operator<=>(const parse_result_t&) const = default;

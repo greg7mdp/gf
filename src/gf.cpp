@@ -220,11 +220,12 @@ struct Context {
 #else
    const char* gdbPath = "gdb";
 #endif
-   std::string initialGDBCommand = "set prompt (gdb) ";
-   bool        firstUpdate       = true;
-   UICode*     logWindow         = nullptr; // if sent, log all debugger output there
-   ui_handle   prev_focus_win    = 0;
-   UI*         ui;                          // non-owning pointer
+   std::string initialGDBCommand        = "set prompt (gdb) ";
+   bool        firstUpdate              = true;
+   UICode*     logWindow                = nullptr; // if sent, log all debugger output there
+   bool        grab_focus_on_breakpoint = true;
+   ui_handle   prev_focus_win           = 0;
+   UI*         ui; // non-owning pointer
 
    unique_ptr<regexp::debugger_base> dbg_re;
    unique_ptr<regexp::language_base> lang_re;
@@ -282,7 +283,7 @@ struct Context {
    }
 
    void grab_focus(UIWindow *win) {
-      if (win) {
+      if (win && grab_focus_on_breakpoint) {
          prev_focus_win = ui->get_focus();
          win->grab_focus(); // grab focus when breakpoint is hit!
       }
@@ -1356,7 +1357,8 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
 
       INI_Parser config_view(config);
       
-      for (auto [section, key, value] : config_view) {
+      for (auto parse_res : config_view) {
+         auto [section, key, value] = parse_res;
          if (section.empty())
             break;
 
@@ -1406,28 +1408,22 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
                windowMain->register_shortcut(std::move(shortcut));
             }
          } else if (section == "ui" && !key.empty() && earlyPass) {
-            if (key == "font_path") {
-               ui_config.font_path = value;
-            } else if (key == "font_size") {
+            if (key == "font_size") {
                interface_font_size = code_font_size = sv_atoi(value);
-            } else if (key == "font_size_code") {
-               code_font_size = sv_atoi(value);
-            } else if (key == "font_size_interface") {
-               interface_font_size = sv_atoi(value);
-            } else if (key == "scale") {
-               std::from_chars(value.data(), value.data() + value.size(), ui_scale);
-            } else if (key == "layout") {
-               gfc.layout_string = value;
-            } else if (key == "maximize") {
-               maximize = sv_atoi(value);
-            } else if (key == "restore_watch_window") {
-               restoreWatchWindow = sv_atoi(value);
-            } else if (key == "selectable_source") {
-               selectableSource = sv_atoi(value);
-            } else if (key == "window_width") {
-               window_width = sv_atoi(value);
-            } else if (key == "window_height") {
-               window_height = sv_atoi(value);
+            } else {
+               // clang-format off
+               parse_res.parse_str  ("font_path", ui_config.font_path) ||
+               parse_res.parse_int  ("font_size_code", code_font_size) ||
+               parse_res.parse_int  ("font_size_interface", interface_font_size) ||
+               parse_res.parse_float("scale", ui_scale) ||
+               parse_res.parse_str  ("layout", gfc.layout_string) ||
+               parse_res.parse_bool ("maximize", maximize) ||
+               parse_res.parse_bool ("restore_watch_window", restoreWatchWindow) ||
+               parse_res.parse_bool ("selectable_source", selectableSource) ||
+               parse_res.parse_int  ("window_width", window_width) ||
+               parse_res.parse_int  ("window_height", window_height) ||
+               parse_res.parse_bool ("grab_focus_on_breakpoint", ctx.grab_focus_on_breakpoint);
+               // clang-format on
             }
          } else if (section == "gdb" && !key.empty() && !earlyPass) {
             if (key == "argument") {
@@ -1493,12 +1489,12 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
                   print(std::cerr, "Warning: gdb.log_all_output was enabled, "
                                    "but your layout does not have a 'Log' window.\n");
                }
-            } else if (key == "confirm_command_kill") {
-               confirmCommandKill = sv_atoi(value);
-            } else if (key == "confirm_command_connect") {
-               confirmCommandConnect = sv_atoi(value);
-            } else if (key == "backtrace_count_limit") {
-               backtraceCountLimit = sv_atoi(value);
+            } else {
+               // clang-format off
+               parse_res.parse_bool("confirm_command_kill", confirmCommandKill) ||
+               parse_res.parse_bool("confirm_command_connect", confirmCommandConnect) ||
+               parse_res.parse_int ("backtrace_count_limit", backtraceCountLimit);
+               // clang-format on
             }
          } else if (section == "commands" && earlyPass && !key.empty() && !value.empty()) {
             presetCommands.push_back(Command{._key = std::string(key), ._value = std::string(value) });
@@ -1523,13 +1519,11 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
             pthread_t thread;
             pthread_create(&thread, nullptr, ControlPipeThread, nullptr);
          } else if (section == "executable" && !key.empty() && earlyPass) {
-            if (key == "path") {
-               gfc.exe_path = value;
-            } else if (key == "arguments") {
-               gfc.exe_args = value;
-            } else if (key == "ask_directory") {
-               gfc.exe_ask_dir = sv_atoi(value);
-            }
+            // clang-format off
+            parse_res.parse_str ("path", gfc.exe_path) ||
+            parse_res.parse_str ("arguments", gfc.exe_args) ||
+            parse_res.parse_bool("ask_directory", gfc.exe_ask_dir);
+            // clang-format on
          } else if (earlyPass && !section.empty() && !key.empty() && !value.empty()) {
             if (auto it = interfaceWindows.find(std::string(section)); it != interfaceWindows.end()) {
                const auto& [name, window] = *it;
