@@ -7526,7 +7526,7 @@ void Context::GenerateLayoutString(UIElement* e, std::string& sb) {
          sb.push_back('h');
       }
       sb.push_back('(');
-      int n = snprintf(buf, sizeof(buf), "%d", (int)(((UISplitPane*)e)->weight() * 100));
+      int n = snprintf(buf, sizeof(buf), "%d", (int)std::round(((UISplitPane*)e)->weight() * 100));
       sb.insert(sb.end(), buf, buf + n);
       sb.push_back(',');
       GenerateLayoutString(e->_children[1], sb);
