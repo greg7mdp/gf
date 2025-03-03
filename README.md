@@ -34,9 +34,13 @@ cmake -Bbuild -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=clang++-18 -DCMAKE_E
 
 ## Recommended
 
-Install a newer version of `gdb` (I'm using `gdb 15.2`) and make sure it is found first in your `PATH`. Old versions sometimes crash when evaluating C++ expressions. 
+Install a newer version of `gdb` (I'm using `gdb 15.2`) and make sure it is found first in your `PATH`. 
+Old versions sometimes crash when evaluating C++ expressions. 
 
-> Note: when building and using a new version of `gdb`, it is likely that the auto-load allowing pretty printing of STL containers will not be found. This can be fixed with a symbolic link. So for example if your new gdb was installed in `/usr/local/bin`, do: `sudo ln -s /usr/share/gdb/auto-load /usr/local/share/gdb`.
+> Note: when building and using a new version of `gdb`, it is likely that the auto-load allowing pretty 
+> printing of STL containers will not be found. This can be fixed with a symbolic link. 
+> So for example if your new gdb was installed in `/usr/local/bin`, do: 
+> `sudo ln -s /usr/share/gdb/auto-load /usr/local/share/gdb`.
 
 > Note: The gdb prompt including the version can be found on the top of the `Log` window.
 
@@ -54,14 +58,18 @@ If you're new to GDB, see [this article](https://handmade.network/forums/article
 ## Tips
 
 - You can run the application with `./gf`. Any additional command line arguments passed to `gf` will be forwarded to GDB.
-- Press Ctrl+Shift+P to synchronize your working directory with GDB after you start your target executable. This is necessary if you open `gf` in a different directory to the one you compile in.
+- Press Ctrl+Shift+P to synchronize your working directory with GDB after you start your target executable. 
+  This is necessary if you open `gf` in a different directory to the one you compile in.
 - To view RGBA bitmaps, select the `Data` tab and then select `Add bitmap...`.
-- Ctrl+Click a line in the source view to run "until" that line. Shift+Click a line in the source view to skip to it without executing the code in between.
+- Ctrl+Click a line in the source view to run "until" that line. Shift+Click a line in the source view to 
+  skip to it without executing the code in between.
 - Press Shift+F10 to step out of a block, and press Shift+F11 to step out a function.
 - Press Tab while entering a watch expression to auto-complete it.
-- Press `/` with a watch expression highlighted to change the format specifier. For example, `/x` switches to hexadecimal view.
+- Press `/` with a watch expression highlighted to change the format specifier. 
+  For example, `/x` switches to hexadecimal view.
 - Press backtick to enter line inspect mode. This mode evaluates all expressions on the current line.
-- Use `gf --rr-replay` for replaying a trace recorded by [rr](https://rr-project.org/). Use Ctrl+Shift+(F5/F10/F11) for reverse continue and step.
+- Use `gf --rr-replay` for replaying a trace recorded by [rr](https://rr-project.org/). 
+  Use Ctrl+Shift+(F5/F10/F11) for reverse continue and step.
 
 You may want to add the following commands to your `~/.gdbinit` file:
 ```
@@ -71,7 +79,8 @@ set disassembly-flavor intel
 
 ## Settings
 
-On startup, settings are loaded from `~/.config/gf2_config.ini`, followed by `.project.gf`. This is an INI-style file.
+On startup, settings are loaded from `~/.config/gf2_config.ini`, followed by `.project.gf`. 
+This is an INI-style file.
 
 ### GDB configuration
 
@@ -89,7 +98,9 @@ You can also change the location of the GDB executable. For example,
 path=/home/a/opt/gdb
 ```
 
-You can direct all output from GDB to be sent to the "Log" window, if you have one in your layout string. This will work even if you haven't setup a log pipe. This can be used to view the stderr output from your target dynamically as it is running.
+You can direct all output from GDB to be sent to the "Log" window, if you have one in your layout string. 
+This will work even if you haven't setup a log pipe. This can be used to view the stderr output from your 
+target dynamically as it is running.
 
 ```ini
 [gdb]
@@ -126,7 +137,7 @@ You can use any standard GDB command, or any of the commands listed in "Special 
 
 ### User interface
 
-You can change the font and user interface scaling in the `[ui]` section. For example,
+You can change the font, user interface scaling, and window width and height in the `[ui]` section. For example,
 
 ```ini
 [ui]
@@ -134,17 +145,24 @@ scale=1.5
 font_path=/usr/share/fonts/TTF/DejaVuSansMono.ttf
 font_size_interface=17
 font_size_code=20
+window_width=3000
+window_height=1700
 ```
 
-To change the font, FreeType must have been available when you compiled gf. You can enable subpixel font rendering by recompiling with `extra_flags=-DUI_FREETYPE_SUBPIXEL ./build.sh`.
+To change the font, FreeType must have been available when you compiled gf. 
+You can enable subpixel font rendering by recompiling with `extra_flags=-DUI_FREETYPE_SUBPIXEL ./build.sh`.
     
-You can also configure the interface layout, with the `layout` parameter. Use `h(position,left,right)` to create a horizontal split, `v(position,left,right)` to create a vertical split, and `t(...)` to create a tab pane. This value should not contain any whitespace. Please note this value is not validated, so make sure it is formatted correctly!
+You can also configure the interface layout, with the `layout` parameter. 
+Use `h(position,top,bottom)` to create a horizontal split, `v(position,left,right)` to create a vertical split, 
+and `t(...)` to create a tab pane. This value should not contain any whitespace. 
+Please note this value is not validated, so make sure it is formatted correctly!
 
 ```ini
 layout=h(75,v(75,Source,Console),v(50,t(Watch,Breakpoints,Commands,Struct,Exe),t(Stack,Files,Registers,Data,Thread))))
 ```
 
-**NB: Horizontal and vertical splits must have exactly two children.** Instead, you can nest them to create more complex layouts.
+**NB: Horizontal and vertical splits must have exactly two children.** Instead, you can nest them to create 
+more complex layouts.
 
 You can maximize the window at startup with `maximize=1`.
 
@@ -158,7 +176,9 @@ You can change the theme in the `theme` section. See https://github.com/nakst/gf
 
 ### Preset commands
 
-You can create a list of quickly accessible commands, available in the "Commands" tab in the UI. Separate individual commands using a semicolon. Each command in the list is run one after another; to run the final command asynchronously, put a `&` at the end. For example,
+You can create a list of quickly accessible commands, available in the "Commands" tab in the UI. 
+Separate individual commands using a semicolon. Each command in the list is run one after another; 
+to run the final command asynchronously, put a `&` at the end. For example,
 
 ```ini
 [commands]
@@ -183,7 +203,8 @@ server_name=MyVimServer
 
 You can change the loaded file and line by sending commands to the control pipe. 
 
-First, you must set the location of the control pipe. In the `[pipe]` section of the configuration file, set the `control` key to the absolute path where you want the control pipe to be.
+First, you must set the location of the control pipe. In the `[pipe]` section of the configuration file, 
+set the `control` key to the absolute path where you want the control pipe to be.
 
 Then, you can send commands to the pipe. For example,
 
@@ -204,7 +225,10 @@ This can be used for text editor integration.
 
 You can show messages send to a pipe using the log window.
 
-First, you must set the location of the log pipe. In the `[pipe]` section of the configuration file, set the `log` key to the absolute path where you want the log pipe to be. Next, you must add the "Log" window somewhere in your layout string (see the "User interface" section above). Once configured, you can then send messages to the pipe and they will appear in the log window. 
+First, you must set the location of the log pipe. In the `[pipe]` section of the configuration file, 
+set the `log` key to the absolute path where you want the log pipe to be. 
+Next, you must add the "Log" window somewhere in your layout string (see the "User interface" section above). 
+Once configured, you can then send messages to the pipe and they will appear in the log window. 
 
 Here is an example of how to send messages to the pipe:
 
@@ -223,31 +247,38 @@ LOG("Hello, world!\n");
 
 ### gf-step
 
-`gf-step` either steps a single line (`step`) or single instruction (`stepi`), depending whether disassembly view is active.
+`gf-step` either steps a single line (`step`) or single instruction (`stepi`), 
+depending whether disassembly view is active.
 
 ### gf-next
 
-`gf-next` either steps over a single line (`next`) or single instruction (`nexti`), depending whether disassembly view is active.
+`gf-next` either steps over a single line (`next`) or single instruction (`nexti`), 
+depending whether disassembly view is active.
 
 ### gf-step-out-of-block
 
-`gf-step-out-of-block` steps out of the current block. That is, it steps to the next line after the first unmatched `}`, starting from the current line. 
+`gf-step-out-of-block` steps out of the current block. 
+That is, it steps to the next line after the first unmatched `}`, starting from the current line. 
 
 ### gf-restart-gdb
 
-`gf-restart-gdb` restarts the GDB process immediately. Any state such as loaded symbol files or breakpoints will be lost.
+`gf-restart-gdb` restarts the GDB process immediately. 
+Any state such as loaded symbol files or breakpoints will be lost.
 
 ### gf-get-pwd
 
-`gf-get-pwd` asks GDB for the working directory in which the current executable file was compiled. This ensures the source view tries to load files from the correct directory.
+`gf-get-pwd` asks GDB for the working directory in which the current executable file was compiled. 
+This ensures the source view tries to load files from the correct directory.
 
 ### gf-switch-to
 
-`gf-switch-to <window-name>` switches to a specific window. The window names are the same as given in the layout string, as seen in the "User interface" section.
+`gf-switch-to <window-name>` switches to a specific window.
+The window names are the same as given in the layout string, as seen in the "User interface" section.
 
 ### gf-command
 
-`gf-command <name>` runs the command(s) corresponding to `<name>` in the `[commands]` section of your configuration file.
+`gf-command <name>` runs the command(s) corresponding to `<name>` in the `[commands]` section of 
+your configuration file.
 
 ### gf-inspect-line
 
@@ -255,10 +286,21 @@ LOG("Hello, world!\n");
 
 ## Watch window hooks
 
-You can customize the behaviour of the watch window when displaying specific types using Python. When the watch window wants to display the fields of a value, it will look a hook function at `gf_hooks[type_of_value]`. The hook function should take two arguments, `item` and `field`. If the hook function exists, it will be called in one of two ways:
+You can customize the behaviour of the watch window when displaying specific types using Python. 
+When the watch window wants to display the fields of a value, it will look a hook function at `gf_hooks[type_of_value]`. 
+The hook function should take two arguments, `item` and `field`. 
+If the hook function exists, it will be called in one of two ways:
 
-1. When the watch window needs a list of the fields in the value, it calls the hook with `item` set to an opaque handle and `field` set to `None`. You should print out a list of all the names of the fields in the value, one on each line. You can print out all the standard fields by calling `_gf_fields_recurse(item)`. **When adding custom fields, their names must be enclosed by `[]`.**
-2. When the watch window needs to get the value of a specific custom field in the value, it calls the hook with `item` set to a `gdb.Value` for the value, and `field` to the name of the custom field that was added. **The hook is not called for standard fields.** You should return a `gdb.Value` that gives the value of the field.
+1. When the watch window needs a list of the fields in the value, it calls the hook with `item` set to 
+   an opaque handle and `field` set to `None`. 
+   You should print out a list of all the names of the fields in the value, one on each line. 
+   You can print out all the standard fields by calling `_gf_fields_recurse(item)`. 
+   **When adding custom fields, their names must be enclosed by `[]`.**
+2. When the watch window needs to get the value of a specific custom field in the value, 
+   it calls the hook with `item` set to a `gdb.Value` for the value, and `field` to the 
+   name of the custom field that was added. 
+   **The hook is not called for standard fields.** 
+   You should return a `gdb.Value` that gives the value of the field.
 
 For example, the following hook add a width and height custom field for a rectangle type.
 
@@ -281,7 +323,10 @@ def RectangleHook(item, field):
 gf_hooks = { 'Rectangle': RectangleHook } # create the hook dictionary
 ```
 
-If you want to create a custom dynamic array type, instead of printing field names, print `(d_arr)` followed by the number of array items. The fields will then be automatically populated in the form of `[%d]`, where `%d` is the index. For example, given the following structure:
+If you want to create a custom dynamic array type, instead of printing field names, print `(d_arr)` followed 
+by the number of array items. 
+The fields will then be automatically populated in the form of `[%d]`, where `%d` is the index. 
+For example, given the following structure:
 
 ```cpp
 struct MyArray {
@@ -298,13 +343,16 @@ def MyArrayHook(item, field):
 	else: print('(d_arr)', int(item['length']))
 ```
 
-Templates are removed from the name of the type. For example, `Array<int>`, `Array<char *>` and `Array<float>` would all use the `Array` hook.
+Templates are removed from the name of the type. 
+For example, `Array<int>`, `Array<char *>` and `Array<float>` would all use the `Array` hook.
 
 ## Plugins
 
-There is a simple plugin system. Make a file called `plugins.cpp` in the source code folder. It will be found automatically, and #included in the compilation of the main translation unit.
+There is a simple plugin system. Make a file called `plugins.cpp` in the source code folder. 
+It will be found automatically, and #included in the compilation of the main translation unit.
 
-gf uses the Luigi UI library. It is documented here: [https://github.com/nakst/luigi/blob/main/README.md](https://github.com/nakst/luigi/blob/main/README.md).
+gf uses the Luigi UI library. It is documented here: 
+[https://github.com/nakst/luigi/blob/main/README.md](https://github.com/nakst/luigi/blob/main/README.md).
 
 You can register new windows, command and data viewers in a constructor function. For example,
 
@@ -339,7 +387,8 @@ UIElement *MyPluginHelloWindowCreate(UIElement *parent) {
 }
 ```
 
-The interface window update callback is passed the output of GDB from the most recent step, and the UIElement returned by the creation callback.
+The interface window update callback is passed the output of GDB from the most recent step, 
+and the UIElement returned by the creation callback.
 
 ```cpp
 void MyPluginHelloWindowUpdate(const char *gdbOutput, UIElement *element) {
