@@ -494,8 +494,7 @@ end
 // Forward declarations:
 
 bool DisplaySetPosition(const char* file, std::optional<size_t> line, bool useGDBToGetFullPath);
-void WatchAddExpression2(string_view string);
-int  WatchWindowMessage(UIElement* el, UIMessage msg, int di, void* dp);
+void WatchAddExpression(string_view string);
 bool CommandInspectLine();
 
 // ------------------------------------------------------
@@ -1326,7 +1325,7 @@ void SettingsAddTrustedFolder() {
 //   +  "executable"
 //
 // !earlypass:
-//   + "shortcuts"
+//   +  "shortcuts"
 //   +  "gdb"
 //   +  "theme"
 // ------------------------------------------------------------------------------
@@ -2256,7 +2255,7 @@ int InspectLineModeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
          if (index < (int)inspectResults.size()) {
             InspectLineModeExit(el);
-            WatchAddExpression2(inspectResults[index].expression);
+            WatchAddExpression(inspectResults[index].expression);
          }
       } else {
          auto currentLine = displayCode->current_line();
@@ -2665,6 +2664,9 @@ UIElement* ConsoleWindowCreate(UIElement* parent) {
 struct Watch;
 using WatchVector = vector<shared_ptr<Watch>>;
 
+struct WatchWindow;
+static WatchWindow* WatchGetFocused();
+
 struct Watch {
    bool        open = false, hasFields = false, loadedFields = false, isArray = false, isDynamicArray = false;
    uint8_t     depth      = 0;
@@ -2679,126 +2681,6 @@ struct Watch {
 
    static constexpr int WATCH_ARRAY_MAX_FIELDS = 10000000;
 };
-
-enum WatchWindowMode {
-   WATCH_NORMAL,
-   WATCH_LOCALS,
-};
-
-struct WatchWindow : public UIElement {
-   WatchVector     rows;
-   WatchVector     baseExpressions;
-   WatchVector     dynamicArrays;
-   UITextbox*      textbox;
-   std::string     lastLocalList;
-   size_t          selectedRow;
-   int             extraRows;
-   WatchWindowMode mode;
-   uint64_t        updateIndex;
-   bool            waitingForFormatCharacter;
-
-   WatchWindow(UIElement* parent, uint32_t flags, const char* name);
-};
-
-struct WatchLogEvaluated {
-   std::string result;
-};
-
-struct WatchLogEntry {
-   std::string               value;
-   std::string               where;
-   vector<WatchLogEvaluated> evaluated;
-   vector<StackEntry>        trace;
-};
-
-struct WatchLogger {
-   int                   id            = 0;
-   int                   selectedEntry = 0;
-   char                  columns[256]  = {0};
-   std::string           expressionsToEvaluate;
-   vector<WatchLogEntry> entries;
-   UITable*              table = nullptr;
-   UITable*              trace = nullptr;
-};
-
-vector<WatchLogger*> watchLoggers;
-
-size_t WatchLastRow(WatchWindow* w) {
-   size_t res = w->rows.size() + w->extraRows;
-   return res ? res - 1 : res;
-}
-
-int WatchTextboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-   if (msg == UIMessage::UPDATE) {
-      if (!el->is_focused()) {
-         el->destroy();
-         ((WatchWindow*)el->_cp)->textbox = nullptr;
-      }
-   } else if (msg == UIMessage::KEY_TYPED) {
-      UITextbox*  textbox = (UITextbox*)el;
-      UIKeyTyped* m       = (UIKeyTyped*)dp;
-
-      static TabCompleter tabCompleter  = {};
-      bool                lastKeyWasTab = tabCompleter._lastKeyWasTab;
-      tabCompleter._lastKeyWasTab       = false;
-
-      if (m->code == UIKeycode::TAB && textbox->text().size() && !el->_window->_shift) {
-         TabCompleterRun(&tabCompleter, textbox, lastKeyWasTab, true);
-         return 1;
-      }
-   }
-
-   return 0;
-}
-
-void WatchDestroyTextbox(WatchWindow* w) {
-   if (!w->textbox)
-      return;
-   w->textbox->destroy();
-   w->textbox = nullptr;
-   w->focus();
-}
-
-void WatchFree(WatchWindow* w, const shared_ptr<Watch>& watch, bool fieldsOnly = false) {
-   if (watch->isDynamicArray) {
-      if (auto it = rng::find(w->dynamicArrays, watch); it != rng::end(w->dynamicArrays))
-         w->dynamicArrays.erase(it);
-   }
-
-   watch->loadedFields = false;
-   watch->fields.clear();
-
-   if (!fieldsOnly) {
-      watch->key.clear();
-   }
-}
-
-void WatchDeleteExpression(WatchWindow* w, bool fieldsOnly = false) {
-   WatchDestroyTextbox(w);
-   if (w->selectedRow == w->rows.size())
-      return;
-   int end = w->selectedRow + 1;
-
-   for (; end < (int)w->rows.size(); end++) {
-      if (w->rows[w->selectedRow]->depth >= w->rows[end]->depth) {
-         break;
-      }
-   }
-
-   shared_ptr<Watch> watch = w->rows[w->selectedRow]; // no reference as we want to hold the pointer
-
-   if (!fieldsOnly) {
-      if (auto it = rng::find(w->baseExpressions, watch); it != rng::end(w->baseExpressions))
-         w->baseExpressions.erase(it);
-   }
-
-   if (fieldsOnly)
-      w->selectedRow++;
-   w->rows.erase(w->rows.cbegin() + w->selectedRow, w->rows.cbegin() + end);
-   WatchFree(w, watch, fieldsOnly);
-   if (!fieldsOnly)
-      watch.reset();
-}
 
 std::string WatchEvaluate(std::string_view function, const shared_ptr<Watch>& watch) {
    char      buffer[4096];
@@ -2864,82 +2746,6 @@ bool WatchHasFields(const shared_ptr<Watch>& watch) {
    return false;
 }
 
-void WatchAddFields(WatchWindow* w, const shared_ptr<Watch>& watch) {
-   if (watch->loadedFields) {
-      return;
-   }
-
-   watch->loadedFields = true;
-
-   auto res = WatchEvaluate("gf_fields", watch);
-
-   if (res.contains("(array)") || res.contains("(d_arr)")) {
-      int count = sv_atoi(res, 7);
-
-      count = std::clamp(count, 0, Watch::WATCH_ARRAY_MAX_FIELDS);
-
-      watch->isArray    = true;
-      bool hasSubFields = false;
-
-      if (res.contains("(d_arr)")) {
-         watch->isDynamicArray = true;
-         w->dynamicArrays.push_back(watch);
-      }
-
-      for (int i = 0; i < count; i++) {
-         auto field        = make_shared<Watch>();
-         field->format     = watch->format;
-         field->arrayIndex = (uintptr_t)i;
-         field->parent     = watch.get();
-
-         watch->fields.push_back(field);
-         if (!i)
-            hasSubFields = WatchHasFields(field);
-         field->hasFields = hasSubFields;
-         field->depth     = watch->depth + 1;
-      }
-   } else {
-      char* start    = (char*)res.c_str();
-      char* position = start;
-
-      while (true) {
-         // add all fields from `res`. fields are separated by `\n` characters.
-         // -------------------------------------------------------------------
-         char* end = strchr(position, '\n');
-         if (!end)
-            break;
-         *end = 0;
-         if (strstr(position, "(gdb)"))
-            break;
-         auto field    = make_shared<Watch>();
-         field->depth  = (uint8_t)(watch->depth + 1);
-         field->key    = position;
-         field->parent = watch.get();
-
-         watch->fields.emplace_back(field);
-         field->hasFields = WatchHasFields(field);
-         position         = end + 1;
-      }
-   }
-}
-
-void WatchEnsureRowVisible(WatchWindow* w, size_t index) {
-   if (w->selectedRow > w->rows.size())
-      w->selectedRow = w->rows.size();
-   UIScrollBar* scroll    = ((UIPanel*)w->_parent)->scrollbar();
-   int          rowHeight = (int)(ui_size::textbox_height * w->_window->scale());
-   int          start = index * rowHeight, end = (index + 1) * rowHeight, height = w->_parent->_bounds.height();
-   bool         unchanged = false;
-   if (end >= scroll->position() + height)
-      scroll->position() = end - height;
-   else if (start <= scroll->position())
-      scroll->position() = start;
-   else
-      unchanged = true;
-   if (!unchanged)
-      w->_parent->refresh();
-}
-
 void WatchInsertFieldRows2(const shared_ptr<Watch>& watch, WatchVector* array) {
    for (const auto& field : watch->fields) {
       array->push_back(field);
@@ -2948,50 +2754,802 @@ void WatchInsertFieldRows2(const shared_ptr<Watch>& watch, WatchVector* array) {
    }
 }
 
-void WatchInsertFieldRows(WatchWindow* w, const shared_ptr<Watch>& watch, size_t position, bool ensureLastVisible) {
-   WatchVector array = {};
-   WatchInsertFieldRows2(watch, &array);
-   w->rows.insert(w->rows.cbegin() + position, array.cbegin(), array.cend());
-   if (ensureLastVisible)
-      WatchEnsureRowVisible(w, position + array.size() - 1);
-   array.clear();
-}
+std::string WatchGetAddress(const shared_ptr<Watch>& watch) {
+   auto res = WatchEvaluate("gf_addressof", watch);
 
-void WatchAddExpression(WatchWindow* w, string_view string = {}) {
-   if (string.empty() && w->textbox && w->textbox->text().empty()) {
-      WatchDestroyTextbox(w);
-      return;
+   if (strstr(res.c_str(), "??")) {
+      windowMain->show_dialog(0, "Couldn't get the address of the variable.\n%f%B", "OK");
+      return {};
    }
 
-   auto watch = make_shared<Watch>();
+   auto end = res.find_first_of(' ');
+   if (end == npos) {
+      windowMain->show_dialog(0, "Couldn't get the address of the variable.\n%f%B", "OK");
+      return {};
+   }
+   res.resize(end);
 
-   if (!string.empty())
-      watch->key = string;
-   else
-      watch->key = w->textbox->text();
+   resize_to_lf(res);
+   return res;
+}
 
-   WatchDeleteExpression(w); // Deletes textbox.
-   w->rows.insert(w->rows.cbegin() + w->selectedRow, watch);
-   w->baseExpressions.push_back(watch);
-   w->selectedRow++;
+void WatchSaveAsRecurse(FILE* file, const shared_ptr<Watch>& watch, int indent, int indexInParentArray) {
+   print(file, "{:.{}}", "\t\t\t\t\t\t\t\t\t\t\t\t\t\t", indent);
 
-   auto res = WatchEvaluate("gf_typeof", watch);
+   if (indexInParentArray == -1) {
+      print(file, "{} = ", watch->key);
+   } else {
+      print(file, "[{}] = ", indexInParentArray);
+   }
 
-   if (!res.contains("??")) {
+   if (watch->open) {
+      print(file, "\n");
+
+      for (size_t i = 0; i < watch->fields.size(); i++)
+         WatchSaveAsRecurse(file, watch->fields[i], indent + 1, watch->isArray ? i : -1);
+   } else {
+      auto res = WatchEvaluate("gf_valueof", watch);
+      if (!res.empty()) {
+         resize_to_lf(res);
+         print(file, "{}\n", res);
+      }
+   }
+}
+
+static int WatchTextboxMessage(UIElement* el, UIMessage msg, int di, void* dp);
+
+struct WatchWindow : public UIElement {
+   enum WatchWindowMode {
+      WATCH_NORMAL,
+      WATCH_LOCALS,
+   };
+  
+   WatchVector     rows;
+   WatchVector     baseExpressions;
+   WatchVector     dynamicArrays;
+   UITextbox*      textbox;
+   std::string     lastLocalList;
+   size_t          selectedRow;
+   int             extraRows;
+   WatchWindowMode mode;
+   uint64_t        updateIndex;
+   bool            waitingForFormatCharacter;
+
+   WatchWindow(UIElement* parent, uint32_t flags, const char* name)
+      : UIElement(parent, flags, WatchWindow::WatchWindowMessage, name)
+      , textbox(nullptr)
+      , selectedRow(0)
+      , mode(WATCH_NORMAL)
+      , updateIndex(0)
+      , waitingForFormatCharacter(false) {
+      _cp = this; // may be needed, see WatchGetFocused()
+   }
+
+   size_t last_row() const {
+      size_t res = rows.size() + extraRows;
+      return res ? res - 1 : res;
+   }
+
+   void destroy_textbox() {
+      if (!textbox)
+         return;
+      textbox->destroy();
+      textbox = nullptr;
+      focus();
+   }
+
+   bool add_watch() {
+      if (textbox)
+         return false;
+      selectedRow = rows.size();
+      create_textbox_for_row(false);
+      return true;
+   }
+
+   void free_watch(const shared_ptr<Watch>& watch, bool fieldsOnly) {
+      if (watch->isDynamicArray) {
+         if (auto it = rng::find(dynamicArrays, watch); it != rng::end(dynamicArrays))
+            dynamicArrays.erase(it);
+      }
+
+      watch->loadedFields = false;
+      watch->fields.clear();
+
+      if (!fieldsOnly) {
+         watch->key.clear();
+      }
+   }
+
+   void delete_expression(bool fieldsOnly = false) {
+      destroy_textbox();
+      if (selectedRow == rows.size())
+         return;
+      int end = selectedRow + 1;
+
+      for (; end < (int)rows.size(); end++) {
+         if (rows[selectedRow]->depth >= rows[end]->depth) {
+            break;
+         }
+      }
+
+      shared_ptr<Watch> watch = rows[selectedRow]; // no reference as we want to hold the pointer
+
+      if (!fieldsOnly) {
+         if (auto it = rng::find(baseExpressions, watch); it != rng::end(baseExpressions))
+            baseExpressions.erase(it);
+      }
+
+      if (fieldsOnly)
+         selectedRow++;
+      rows.erase(rows.cbegin() + selectedRow, rows.cbegin() + end);
+      free_watch(watch, fieldsOnly);
+      if (!fieldsOnly)
+         watch.reset();
+   }
+
+   void add_fields(const shared_ptr<Watch>& watch) {
+      if (watch->loadedFields) {
+         return;
+      }
+
+      watch->loadedFields = true;
+
+      auto res = WatchEvaluate("gf_fields", watch);
+
+      if (res.contains("(array)") || res.contains("(d_arr)")) {
+         int count = sv_atoi(res, 7);
+
+         count = std::clamp(count, 0, Watch::WATCH_ARRAY_MAX_FIELDS);
+
+         watch->isArray    = true;
+         bool hasSubFields = false;
+
+         if (res.contains("(d_arr)")) {
+            watch->isDynamicArray = true;
+            dynamicArrays.push_back(watch);
+         }
+
+         for (int i = 0; i < count; i++) {
+            auto field        = make_shared<Watch>();
+            field->format     = watch->format;
+            field->arrayIndex = (uintptr_t)i;
+            field->parent     = watch.get();
+
+            watch->fields.push_back(field);
+            if (!i)
+               hasSubFields = WatchHasFields(field);
+            field->hasFields = hasSubFields;
+            field->depth     = watch->depth + 1;
+         }
+      } else {
+         char* start    = (char*)res.c_str();
+         char* position = start;
+
+         while (true) {
+            // add all fields from `res`. fields are separated by `\n` characters.
+            // -------------------------------------------------------------------
+            char* end = strchr(position, '\n');
+            if (!end)
+               break;
+            *end = 0;
+            if (strstr(position, "(gdb)"))
+               break;
+            auto field    = make_shared<Watch>();
+            field->depth  = (uint8_t)(watch->depth + 1);
+            field->key    = position;
+            field->parent = watch.get();
+
+            watch->fields.emplace_back(field);
+            field->hasFields = WatchHasFields(field);
+            position         = end + 1;
+         }
+      }
+   }
+
+   void ensure_row_visible(size_t index) {
+      if (selectedRow > rows.size())
+         selectedRow = rows.size();
+      UIScrollBar* scroll    = ((UIPanel*)_parent)->scrollbar();
+      int          rowHeight = (int)(ui_size::textbox_height * _window->scale());
+      int          start = index * rowHeight, end = (index + 1) * rowHeight, height = _parent->_bounds.height();
+      bool         unchanged = false;
+      if (end >= scroll->position() + height)
+         scroll->position() = end - height;
+      else if (start <= scroll->position())
+         scroll->position() = start;
+      else
+         unchanged = true;
+      if (!unchanged)
+         _parent->refresh();
+   }
+
+   void insert_field_rows(const shared_ptr<Watch>& watch, size_t position, bool ensureLastVisible) {
+      WatchVector array = {};
+      WatchInsertFieldRows2(watch, &array);
+      rows.insert(rows.cbegin() + position, array.cbegin(), array.cend());
+      if (ensureLastVisible)
+         ensure_row_visible(position + array.size() - 1);
+      array.clear();
+   }
+
+   void add_expression(string_view string = {}) {
+      if (string.empty() && textbox && textbox->text().empty()) {
+         destroy_textbox();
+         return;
+      }
+
+      auto watch = make_shared<Watch>();
+
+      if (!string.empty())
+         watch->key = string;
+      else
+         watch->key = textbox->text();
+
+      delete_expression(); // Deletes textbox.
+      rows.insert(rows.cbegin() + selectedRow, watch);
+      baseExpressions.push_back(watch);
+      selectedRow++;
+
+      auto res = WatchEvaluate("gf_typeof", watch);
+
+      if (!res.contains("??")) {
+         resize_to_lf(res);
+         watch->type      = std::move(res);
+         watch->hasFields = WatchHasFields(watch);
+      }
+   }
+
+   void create_textbox_for_row(bool addExistingText) {
+      int         rowHeight = (int)(ui_size::textbox_height * _window->scale());
+      UIRectangle row       = _bounds;
+      row.t += selectedRow * rowHeight, row.b = row.t + rowHeight;
+      textbox = &add_textbox(0).set_user_proc(WatchTextboxMessage).set_cp(this);
+      textbox->move(row, true);
+      textbox->focus();
+
+      if (addExistingText) {
+         textbox->replace_text(rows[selectedRow]->key, false);
+      }
+   }
+
+   bool add_entry_for_address() {
+      if (mode == WATCH_NORMAL && selectedRow == rows.size())
+         return false;
+      const auto& watch = rows[selectedRow];
+      auto        res   = WatchGetAddress(watch);
+      if (res.empty())
+         return false;
+
+      if (mode != WATCH_NORMAL) {
+         ctx.InterfaceWindowSwitchToAndFocus("Watch");
+         auto w = WatchGetFocused();
+         assert(w != NULL);
+         return w->add_entry_for_address2(res);
+      }
+      return add_entry_for_address2(res);
+   }
+
+   bool add_entry_for_address2(std::string& res) {
+      auto        address = res;
+      const auto& watch   = rows[selectedRow];
+      res                 = WatchEvaluate("gf_typeof", watch);
+      if (res.empty() || res.contains("??"))
+         return false;
       resize_to_lf(res);
-      watch->type      = std::move(res);
-      watch->hasFields = WatchHasFields(watch);
+
+      auto buffer = std::format("({}*){}", res, address);
+      add_expression(buffer);
+      ensure_row_visible(selectedRow);
+      _parent->refresh();
+      refresh();
+      return true;
    }
+
+   bool view_source_at_address() {
+      if (mode == WATCH_NORMAL && selectedRow == rows.size())
+         return false;
+      char* position = (char*)rows[selectedRow]->value.c_str();
+      while (*position && !isdigit(*position))
+         position++;
+      if (!(*position))
+         return false;
+      uint64_t value = strtoul(position, nullptr, 0);
+      auto     res   = EvaluateCommand(std::format("info line * 0x{:x}", value));
+      position       = (char*)res.c_str();
+
+      if (res.contains("No line number")) {
+         resize_to_lf(res);
+         windowMain->show_dialog(0, "%s\n%f%B", res.c_str(), "OK");
+         return false;
+      }
+
+      while (*position && !isdigit(*position))
+         position++;
+      if (!(*position))
+         return false;
+      size_t line = strtol(position, &position, 0);
+      while (*position && *position != '"')
+         position++;
+      if (!(*position))
+         return false;
+      char* file = position + 1;
+      char* end  = strchr(file, '"');
+      if (!end)
+         return false;
+      *end = 0;
+      DisplaySetPosition(file, line - 1, false);
+      return true;
+   }
+
+   void copy_value_to_clipboard() {
+      if (mode == WATCH_NORMAL && selectedRow == rows.size())
+         return;
+
+      const shared_ptr<Watch>& watch = rows[selectedRow];
+
+      auto res = WatchEvaluate("gf_valueof", watch);
+      if (!res.empty()) {
+         resize_to_lf(res);
+         _window->write_clipboard_text(strdup(res.c_str()), sel_target_t::clipboard);
+      }
+   }
+
+   void update() {
+      if (mode == WatchWindow::WATCH_LOCALS) {
+         auto res = EvaluateCommand("py gf_locals()");
+
+         bool newFrame = (lastLocalList.empty() || lastLocalList != res);
+
+         if (newFrame) {
+            lastLocalList = res;
+
+            char*         buffer = strdup(res.c_str());
+            char*         s      = buffer;
+            char*         end;
+            vector<char*> expressions = {};
+
+            // we get a list of variables separated by `\n` characters, followed by the prompt
+            // extract all the variable names into `expressions`.
+            // we could use a regex here
+            // -------------------------------------------------------------------------------
+            while ((end = strchr(s, '\n')) != NULL) {
+               *end = '\0';
+               if (strstr(s, "(gdb)"))
+                  break;
+               expressions.push_back(s);
+               s = end + 1;
+            }
+
+            if (expressions.size() > 0) {
+               for (size_t watchIndex = 0; watchIndex < baseExpressions.size(); watchIndex++) {
+                  const shared_ptr<Watch>& watch   = baseExpressions[watchIndex];
+                  bool                     matched = false;
+
+                  if (auto it = rng::find_if(expressions, [&](char* e) { return watch->key == e; });
+                      it != rng::end(expressions)) {
+                     expressions.erase(it);
+                     matched = true;
+                  }
+
+                  if (!matched) {
+                     [[maybe_unused]] bool found = false;
+                     for (size_t rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
+                        if (rows[rowIndex] == watch) {
+                           selectedRow = rowIndex;
+                           delete_expression();
+                           watchIndex--;
+                           found = true;
+                           break;
+                        }
+                     }
+                     assert(found);
+                  }
+               }
+
+               // Add the remaining (new) variables.
+               for (auto exp : expressions) {
+                  selectedRow = rows.size();
+                  add_expression(exp);
+               }
+
+               selectedRow = rows.size();
+            }
+
+            free(buffer);
+            expressions.clear();
+         }
+      }
+
+      for (size_t i = 0; i < baseExpressions.size(); i++) {
+         const shared_ptr<Watch>& watch = baseExpressions[i];
+         auto                     res   = WatchEvaluate("gf_typeof", watch);
+         resize_to_lf(res);
+
+         if (res != watch->type && res != "??") {
+            watch->type = std::move(res);
+
+            for (size_t j = 0; j < rows.size(); j++) {
+               if (rows[j] == watch) {
+                  selectedRow = j;
+                  add_expression(watch->key);
+                  selectedRow = rows.size(), i--;
+                  break;
+               }
+            }
+         }
+      }
+
+      for (size_t i = 0; i < dynamicArrays.size(); i++) {
+         const shared_ptr<Watch>& watch = dynamicArrays[i];
+         auto                     res   = WatchEvaluate("gf_fields", watch);
+         if (res.empty() || !res.contains("(d_arr)"))
+            continue;
+         int count = sv_atoi(res, 7);
+
+         count        = std::clamp(count, 0, Watch::WATCH_ARRAY_MAX_FIELDS);
+         int oldCount = watch->fields.size();
+
+         if (oldCount != count) {
+            size_t index = (size_t)-1;
+
+            for (size_t i = 0; i < rows.size(); i++) {
+               if (rows[i] == watch) {
+                  index = i;
+                  break;
+               }
+            }
+
+            assert(index != (size_t)-1);
+            selectedRow = index;
+            delete_expression(true);
+            watch->open = true;
+            add_fields(watch);
+            insert_field_rows(watch, index + 1, false);
+         }
+      }
+
+      updateIndex++;
+      _parent->refresh();
+      refresh();
+   }
+
+   void WatchChangeLoggerCreate();
+
+   void save_as() {
+      if (selectedRow == rows.size())
+         return;
+
+      char* filePath = nullptr;
+      auto  result   = windowMain->show_dialog(0, "Path:            \n%t\n%f%B%C", &filePath, "Save", "Cancel");
+
+      if (result == "Cancel") {
+         free(filePath);
+         return;
+      }
+
+      FILE* f = fopen(filePath, "wb");
+      free(filePath);
+
+      if (!f) {
+         windowMain->show_dialog(0, "Could not open the file for writing!\n%f%B", "OK");
+         return;
+      }
+
+      WatchSaveAsRecurse(f, rows[selectedRow], 0, -1);
+      fclose(f);
+   }
+
+   int _class_message_proc(UIMessage msg, int di, void* dp);
+
+   static int WatchWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<WatchWindow*>(el)->_class_message_proc(msg, di, dp);
+   }
+};
+
+int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
+   int          rowHeight = (int)(ui_size::textbox_height * _window->scale());
+   int          result    = 0;
+
+   if (msg == UIMessage::PAINT) {
+      UIPainter* painter = (UIPainter*)dp;
+      auto&      thm   = theme();
+
+      for (size_t i = (painter->_clip.t - _bounds.t) / rowHeight; i <= last_row(); i++) {
+         UIRectangle row = _bounds;
+         row.t += i * rowHeight, row.b = row.t + rowHeight;
+
+         UIRectangle rect_intersection = intersection(row, painter->_clip);
+         if (!rect_intersection.valid())
+            break;
+
+         bool focused = i == selectedRow && is_focused();
+
+         if (focused)
+            painter->draw_block(row, thm.selected);
+         painter->draw_border(row, thm.border, UIRectangle(0, 1, 0, 1));
+
+         row.l += ui_size::textbox_margin;
+         row.r -= ui_size::textbox_margin;
+
+         if (i < rows.size()) {
+            const shared_ptr<Watch>& watch = rows[i];
+            char                     buffer[256];
+
+            if ((watch->value.empty() || watch->updateIndex != updateIndex) && !watch->open) {
+               if (!ctx.programRunning) {
+                  watch->updateIndex = updateIndex;
+                  auto res           = WatchEvaluate("gf_valueof", watch);
+                  resize_to_lf(res);
+                  watch->value = std::move(res);
+               } else {
+                  watch->value = "..";
+               }
+            }
+
+            char keyIndex[64];
+
+            if (watch->key.empty()) {
+               std_format_to_n(keyIndex, sizeof(keyIndex), "[{}]", watch->arrayIndex);
+            }
+
+            if (focused && waitingForFormatCharacter) {
+               std_format_to_n(buffer, sizeof(buffer), "Enter format character: (e.g. 'x' for hex)");
+            } else {
+               std_format_to_n(buffer, sizeof(buffer), "{:.{}}{}{}{}{}", "                                           ",
+                               watch->depth * 3,
+                               watch->open        ? "v "
+                               : watch->hasFields ? "> "
+                                                  : "",
+                               !watch->key.empty() ? watch->key.c_str() : keyIndex, watch->open ? "" : " = ",
+                               watch->open ? "" : watch->value.c_str());
+            }
+
+            if (focused) {
+               painter->draw_string(row, buffer, thm.textSelected, UIAlign::left, nullptr);
+            } else {
+               painter->draw_string_highlighted(row, buffer, 1, NULL);
+            }
+         }
+      }
+   } else if (msg == UIMessage::GET_HEIGHT) {
+      return (last_row() + 1) * rowHeight;
+   } else if (msg == UIMessage::LEFT_DOWN) {
+      auto act_font = active_font();
+      auto pos      = cursor_pos();
+      if (pos.y >= _bounds.t) {
+         selectedRow = (pos.y - _bounds.t) / rowHeight;
+
+         if (selectedRow < rows.size()) {
+            const shared_ptr<Watch>& watch = rows[selectedRow];
+            int                      x     = (pos.x - _bounds.l) / act_font->_glyph_width;
+
+            if (x >= watch->depth * 3 - 1 && x <= watch->depth * 3 + 1 && watch->hasFields) {
+               UIKeyTyped m;
+               m.code = watch->open ? UIKeycode::LEFT : UIKeycode::RIGHT;
+               _class_message_proc(UIMessage::KEY_TYPED, 0, &m);
+            }
+         }
+      } else
+         selectedRow = 0;
+
+      focus();
+      repaint(nullptr);
+   } else if (msg == UIMessage::RIGHT_DOWN) {
+      auto pos = cursor_pos();
+      if (pos.y >= _bounds.t) {
+         size_t index = (pos.y - _bounds.t) / rowHeight;
+
+         if (index < rows.size()) {
+            _class_message_proc(UIMessage::LEFT_DOWN, di, dp);
+            UIMenu& menu = ui()->create_menu(_window, UIMenu::NO_SCROLL);
+
+            if (mode == WATCH_NORMAL && !rows[index]->parent) {
+               menu.add_item(0, "Edit expression", [this](UIButton&) { create_textbox_for_row(true); })
+                  .add_item(0, "Delete", [this](UIButton&) {
+                     delete_expression();
+                     _parent->refresh();
+                     refresh();
+                  });
+            }
+
+            menu.add_item(0, "Copy value to clipboard\tCtrl+C", [this](UIButton&) { copy_value_to_clipboard(); })
+               .add_item(0, "Log writes to address...", [this](UIButton&) { WatchChangeLoggerCreate(); })
+               .add_item(0, "Break on writes to address", [this](UIButton&) {
+                  if (selectedRow == rows.size())
+                     return;
+                  auto res = WatchGetAddress(rows[selectedRow]);
+                  if (res.empty())
+                     return;
+
+                  auto buffer = std::format("watch * {}", res);
+                  (void)DebuggerSend(buffer, true, false);
+               });
+
+            if (firstWatchWindow) {
+               menu.add_item(0, "Add entry for address\tCtrl+E", [this](UIButton&) { add_entry_for_address(); });
+            }
+
+            menu.add_item(0, "View source at address\tCtrl+G", [this](UIButton&) { view_source_at_address(); })
+               .add_item(0, "Save as...", [this](UIButton&) { save_as(); })
+               .show();
+         }
+      }
+   } else if (msg == UIMessage::UPDATE) {
+      repaint(nullptr);
+   } else if (msg == UIMessage::KEY_TYPED) {
+      UIKeyTyped* m = (UIKeyTyped*)dp;
+      result        = 1;
+
+      if (waitingForFormatCharacter) {
+         rows[selectedRow]->format = (!m->text.empty() && isalpha(m->text[0])) ? m->text[0] : 0;
+         rows[selectedRow]->updateIndex--;
+
+         if (rows[selectedRow]->isArray) {
+            for (auto& field : rows[selectedRow]->fields) {
+               field->format = rows[selectedRow]->format;
+               field->updateIndex--;
+            }
+         }
+
+         waitingForFormatCharacter = false;
+      } else if (mode == WATCH_NORMAL && selectedRow != rows.size() && !textbox &&
+                 (m->code == UIKeycode::ENTER || m->code == UIKeycode::BACKSPACE ||
+                  (m->code == UIKeycode::LEFT && !rows[selectedRow]->open)) &&
+                 !rows[selectedRow]->parent) {
+         create_textbox_for_row(true);
+      } else if (m->code == UIKeycode::DEL && !textbox && selectedRow != rows.size() &&
+                 !rows[selectedRow]->parent) {
+         delete_expression();
+      } else if (!m->text.empty() && m->text[0] == '/' && selectedRow != rows.size()) {
+         waitingForFormatCharacter = true;
+      } else if (!m->text.empty() && m->text[0] == '`') {
+         result = 0;
+      } else if (mode == WATCH_NORMAL && !m->text.empty() && m->code != UIKeycode::TAB && !textbox &&
+                 !_window->_ctrl && !_window->_alt &&
+                 (selectedRow == rows.size() || !rows[selectedRow]->parent)) {
+         create_textbox_for_row(false);
+         textbox->message(msg, di, dp);
+      } else if (mode == WATCH_NORMAL && !m->text.empty() && m->code == UI_KEYCODE_LETTER('V') && !textbox &&
+                 _window->_ctrl && !_window->_alt && !_window->_shift &&
+                 (selectedRow == rows.size() || !rows[selectedRow]->parent)) {
+         create_textbox_for_row(false);
+         textbox->message(msg, di, dp);
+      } else if (m->code == UIKeycode::ENTER && textbox) {
+         add_expression();
+      } else if (m->code == UIKeycode::ESCAPE) {
+         destroy_textbox();
+      } else if (m->code == UIKeycode::UP) {
+         if (_window->_shift) {
+            auto currentLine = displayCode->current_line();
+            if (currentLine && *currentLine > 0) {
+               DisplaySetPosition(NULL, *currentLine - 1, false);
+            }
+         } else {
+            destroy_textbox();
+            if (selectedRow)
+               selectedRow--;
+         }
+      } else if (m->code == UIKeycode::DOWN) {
+         if (_window->_shift) {
+            auto currentLine = displayCode->current_line();
+            if (currentLine && *currentLine + 1 < displayCode->num_lines()) {
+               DisplaySetPosition(NULL, *currentLine + 1, false);
+            }
+         } else {
+            destroy_textbox();
+            selectedRow++;
+         }
+      } else if (m->code == UIKeycode::HOME) {
+         selectedRow = 0;
+      } else if (m->code == UIKeycode::END) {
+         selectedRow = last_row();
+      } else if (m->code == UIKeycode::RIGHT && !textbox && selectedRow != rows.size() &&
+                 rows[selectedRow]->hasFields && !rows[selectedRow]->open) {
+         const shared_ptr<Watch>& watch = rows[selectedRow];
+         watch->open                    = true;
+         add_fields(watch);
+         insert_field_rows(watch, selectedRow + 1, true);
+      } else if (m->code == UIKeycode::LEFT && !textbox && selectedRow != rows.size() &&
+                 rows[selectedRow]->hasFields && rows[selectedRow]->open) {
+         size_t end = selectedRow + 1;
+
+         for (; end < rows.size(); end++) {
+            if (rows[selectedRow]->depth >= rows[end]->depth) {
+               break;
+            }
+         }
+
+         rows.erase(rows.cbegin() + selectedRow + 1, rows.cbegin() + end);
+         rows[selectedRow]->open = false;
+      } else if (m->code == UIKeycode::LEFT && !textbox && selectedRow != rows.size() &&
+                 !rows[selectedRow]->open) {
+         for (size_t i = 0; i < rows.size(); i++) {
+            if (rows[selectedRow]->parent == rows[i].get()) {
+               selectedRow = i;
+               break;
+            }
+         }
+      } else if (m->code == UI_KEYCODE_LETTER('C') && !textbox && !_window->_shift && !_window->_alt &&
+                 _window->_ctrl) {
+         copy_value_to_clipboard();
+      } else {
+         result = 0;
+      }
+
+      ensure_row_visible(selectedRow);
+      _parent->refresh();
+      refresh();
+   } else if (msg == UIMessage::MIDDLE_DOWN) {
+      if (mode == WATCH_NORMAL && !textbox && !_window->_ctrl && !_window->_alt &&
+          (selectedRow == rows.size() || !rows[selectedRow]->parent)) {
+         create_textbox_for_row(false);
+         textbox->paste(sel_target_t::primary);
+         repaint(NULL);
+      }
+      return 1;
+   }
+
+   if (selectedRow > last_row()) {
+      selectedRow = last_row();
+   }
+
+   return result;
 }
 
-void WatchAddExpression2(string_view string) {
+struct WatchLogEvaluated {
+   std::string result;
+};
+
+struct WatchLogEntry {
+   std::string               value;
+   std::string               where;
+   vector<WatchLogEvaluated> evaluated;
+   vector<StackEntry>        trace;
+};
+
+struct WatchLogger {
+   int                   id            = 0;
+   int                   selectedEntry = 0;
+   char                  columns[256]  = {0};
+   std::string           expressionsToEvaluate;
+   vector<WatchLogEntry> entries;
+   UITable*              table = nullptr;
+   UITable*              trace = nullptr;
+};
+
+vector<WatchLogger*> watchLoggers;
+
+int WatchTextboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+   if (msg == UIMessage::UPDATE) {
+      if (!el->is_focused()) {
+         el->destroy();
+         ((WatchWindow*)el->_cp)->textbox = nullptr;  // use _cp here!
+      }
+   } else if (msg == UIMessage::KEY_TYPED) {
+      UITextbox*  textbox = (UITextbox*)el;
+      UIKeyTyped* m       = (UIKeyTyped*)dp;
+
+      static TabCompleter tabCompleter  = {};
+      bool                lastKeyWasTab = tabCompleter._lastKeyWasTab;
+      tabCompleter._lastKeyWasTab       = false;
+
+      if (m->code == UIKeycode::TAB && textbox->text().size() && !el->_window->_shift) {
+         TabCompleterRun(&tabCompleter, textbox, lastKeyWasTab, true);
+         return 1;
+      }
+   }
+
+   return 0;
+}
+
+void WatchAddExpression(string_view string) {
    UIElement*   el = ctx.InterfaceWindowSwitchToAndFocus("Watch");
    WatchWindow* w  = (WatchWindow*)el->_cp;
    w->selectedRow  = w->rows.size();
-   WatchAddExpression(w, string);
+   w->add_expression(string);
    if (w->selectedRow)
       w->selectedRow--;
-   WatchEnsureRowVisible(w, w->selectedRow);
+   w->ensure_row_visible(w->selectedRow);
    w->_parent->refresh();
    w->refresh();
 }
@@ -3090,32 +3648,13 @@ int WatchLoggerTraceMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    return 0;
 }
 
-std::string WatchGetAddress(const shared_ptr<Watch>& watch) {
-   auto res = WatchEvaluate("gf_addressof", watch);
-
-   if (strstr(res.c_str(), "??")) {
-      windowMain->show_dialog(0, "Couldn't get the address of the variable.\n%f%B", "OK");
-      return {};
-   }
-
-   auto end = res.find_first_of(' ');
-   if (end == npos) {
-      windowMain->show_dialog(0, "Couldn't get the address of the variable.\n%f%B", "OK");
-      return {};
-   }
-   res.resize(end);
-
-   resize_to_lf(res);
-   return res;
-}
-
 void WatchLoggerResizeColumns(WatchLogger* logger) {
    logger->table->resize_columns();
    logger->table->refresh();
 }
 
-void WatchChangeLoggerCreate(WatchWindow* w) {
-   if (w->selectedRow == w->rows.size()) {
+void WatchWindow::WatchChangeLoggerCreate() {
+   if (selectedRow == rows.size()) {
       return;
    }
 
@@ -3124,7 +3663,7 @@ void WatchChangeLoggerCreate(WatchWindow* w) {
       return;
    }
 
-   auto res = WatchGetAddress(w->rows[w->selectedRow]);
+   auto res = WatchGetAddress(rows[selectedRow]);
    if (res.empty()) {
       return;
    }
@@ -3277,416 +3816,22 @@ bool WatchLoggerUpdate(std::string _data) {
    return true;
 }
 
-void WatchCreateTextboxForRow(WatchWindow* w, bool addExistingText) {
-   int         rowHeight = (int)(ui_size::textbox_height * w->_window->scale());
-   UIRectangle row       = w->_bounds;
-   row.t += w->selectedRow * rowHeight, row.b = row.t + rowHeight;
-   w->textbox = &w->add_textbox(0).set_user_proc(WatchTextboxMessage).set_cp(w);
-   w->textbox->move(row, true);
-   w->textbox->focus();
-
-   if (addExistingText) {
-      w->textbox->replace_text(w->rows[w->selectedRow]->key, false);
-   }
-}
-
 WatchWindow* WatchGetFocused() {
-   return windowMain->focused()->_class_proc == WatchWindowMessage ? (WatchWindow*)windowMain->focused()->_cp : NULL;
-}
-
-bool CommandWatchAddEntryForAddress(WatchWindow* _w) {
-   WatchWindow* w = _w ? _w : WatchGetFocused();
-   if (!w)
-      return false;
-   if (w->mode == WATCH_NORMAL && w->selectedRow == w->rows.size())
-      return false;
-   const auto& watch = w->rows[w->selectedRow];
-   auto        res   = WatchGetAddress(watch);
-   if (res.empty())
-      return false;
-
-   if (w->mode != WATCH_NORMAL) {
-      ctx.InterfaceWindowSwitchToAndFocus("Watch");
-      w = WatchGetFocused();
-      assert(w != NULL);
-   }
-
-   auto address = res;
-   res          = WatchEvaluate("gf_typeof", watch);
-   if (res.empty() || res.contains("??"))
-      return false;
-   resize_to_lf(res);
-
-   auto buffer = std::format("({}*){}", res, address);
-   WatchAddExpression(w, buffer);
-   WatchEnsureRowVisible(w, w->selectedRow);
-   w->_parent->refresh();
-   w->refresh();
-   return true;
+   return windowMain->focused()->_class_proc == WatchWindow::WatchWindowMessage
+             ? (WatchWindow*)windowMain->focused()->_cp
+             : nullptr;
 }
 
 bool CommandWatchAddEntryForAddress() {
-   return CommandWatchAddEntryForAddress(WatchGetFocused());
-}
-
-bool CommandWatchViewSourceAtAddress(WatchWindow* _w) {
-   WatchWindow* w = _w ? _w : WatchGetFocused();
-   if (!w)
-      return false;
-   if (w->mode == WATCH_NORMAL && w->selectedRow == w->rows.size())
-      return false;
-   char* position = (char*)w->rows[w->selectedRow]->value.c_str();
-   while (*position && !isdigit(*position))
-      position++;
-   if (!(*position))
-      return false;
-   uint64_t value = strtoul(position, nullptr, 0);
-   auto     res   = EvaluateCommand(std::format("info line * 0x{:x}", value));
-   position       = (char*)res.c_str();
-
-   if (res.contains("No line number")) {
-      resize_to_lf(res);
-      windowMain->show_dialog(0, "%s\n%f%B", res.c_str(), "OK");
-      return false;
-   }
-
-   while (*position && !isdigit(*position))
-      position++;
-   if (!(*position))
-      return false;
-   size_t line = strtol(position, &position, 0);
-   while (*position && *position != '"')
-      position++;
-   if (!(*position))
-      return false;
-   char* file = position + 1;
-   char* end  = strchr(file, '"');
-   if (!end)
-      return false;
-   *end = 0;
-   DisplaySetPosition(file, line - 1, false);
-   return true;
+   if (auto w = WatchGetFocused())
+      return w->add_entry_for_address();
+   return false;
 }
 
 bool CommandWatchViewSourceAtAddress() {
-   return CommandWatchViewSourceAtAddress(WatchGetFocused());
-}
-
-void CommandWatchSaveAsRecurse(FILE* file, const shared_ptr<Watch>& watch, int indent, int indexInParentArray) {
-   print(file, "{:.{}}", "\t\t\t\t\t\t\t\t\t\t\t\t\t\t", indent);
-
-   if (indexInParentArray == -1) {
-      print(file, "{} = ", watch->key);
-   } else {
-      print(file, "[{}] = ", indexInParentArray);
-   }
-
-   if (watch->open) {
-      print(file, "\n");
-
-      for (size_t i = 0; i < watch->fields.size(); i++) {
-         CommandWatchSaveAsRecurse(file, watch->fields[i], indent + 1, watch->isArray ? i : -1);
-      }
-   } else {
-      auto res = WatchEvaluate("gf_valueof", watch);
-      if (!res.empty()) {
-         resize_to_lf(res);
-         print(file, "{}\n", res);
-      }
-   }
-}
-
-void CommandWatchSaveAs(WatchWindow* _w) {
-   WatchWindow* w = _w ? _w : WatchGetFocused();
-   if (!w)
-      return;
-   if (w->selectedRow == w->rows.size())
-      return;
-
-   char* filePath = nullptr;
-   auto  result   = windowMain->show_dialog(0, "Path:            \n%t\n%f%B%C", &filePath, "Save", "Cancel");
-
-   if (result == "Cancel") {
-      free(filePath);
-      return;
-   }
-
-   FILE* f = fopen(filePath, "wb");
-   free(filePath);
-
-   if (!f) {
-      windowMain->show_dialog(0, "Could not open the file for writing!\n%f%B", "OK");
-      return;
-   }
-
-   CommandWatchSaveAsRecurse(f, w->rows[w->selectedRow], 0, -1);
-   fclose(f);
-}
-
-void CommandWatchCopyValueToClipboard(WatchWindow* w) {
-   if (!w)
-      return;
-   if (w->mode == WATCH_NORMAL && w->selectedRow == w->rows.size())
-      return;
-
-   const shared_ptr<Watch>& watch = w->rows[w->selectedRow];
-
-   auto res = WatchEvaluate("gf_valueof", watch);
-   if (!res.empty()) {
-      resize_to_lf(res);
-      w->_window->write_clipboard_text(strdup(res.c_str()), sel_target_t::clipboard);
-   }
-}
-
-int WatchWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-   WatchWindow* w         = (WatchWindow*)el->_cp;
-   int          rowHeight = (int)(ui_size::textbox_height * el->_window->scale());
-   int          result    = 0;
-
-   if (msg == UIMessage::PAINT) {
-      UIPainter* painter = (UIPainter*)dp;
-      auto&      theme   = el->theme();
-
-      for (size_t i = (painter->_clip.t - el->_bounds.t) / rowHeight; i <= WatchLastRow(w); i++) {
-         UIRectangle row = el->_bounds;
-         row.t += i * rowHeight, row.b = row.t + rowHeight;
-
-         UIRectangle rect_intersection = intersection(row, painter->_clip);
-         if (!rect_intersection.valid())
-            break;
-
-         bool focused = i == w->selectedRow && el->is_focused();
-
-         if (focused)
-            painter->draw_block(row, theme.selected);
-         painter->draw_border(row, theme.border, UIRectangle(0, 1, 0, 1));
-
-         row.l += ui_size::textbox_margin;
-         row.r -= ui_size::textbox_margin;
-
-         if (i < w->rows.size()) {
-            const shared_ptr<Watch>& watch = w->rows[i];
-            char                     buffer[256];
-
-            if ((watch->value.empty() || watch->updateIndex != w->updateIndex) && !watch->open) {
-               if (!ctx.programRunning) {
-                  watch->updateIndex = w->updateIndex;
-                  auto res           = WatchEvaluate("gf_valueof", watch);
-                  resize_to_lf(res);
-                  watch->value = std::move(res);
-               } else {
-                  watch->value = "..";
-               }
-            }
-
-            char keyIndex[64];
-
-            if (watch->key.empty()) {
-               std_format_to_n(keyIndex, sizeof(keyIndex), "[{}]", watch->arrayIndex);
-            }
-
-            if (focused && w->waitingForFormatCharacter) {
-               std_format_to_n(buffer, sizeof(buffer), "Enter format character: (e.g. 'x' for hex)");
-            } else {
-               std_format_to_n(buffer, sizeof(buffer), "{:.{}}{}{}{}{}", "                                           ",
-                               watch->depth * 3,
-                               watch->open        ? "v "
-                               : watch->hasFields ? "> "
-                                                  : "",
-                               !watch->key.empty() ? watch->key.c_str() : keyIndex, watch->open ? "" : " = ",
-                               watch->open ? "" : watch->value.c_str());
-            }
-
-            if (focused) {
-               painter->draw_string(row, buffer, theme.textSelected, UIAlign::left, nullptr);
-            } else {
-               painter->draw_string_highlighted(row, buffer, 1, NULL);
-            }
-         }
-      }
-   } else if (msg == UIMessage::GET_HEIGHT) {
-      return (WatchLastRow(w) + 1) * rowHeight;
-   } else if (msg == UIMessage::LEFT_DOWN) {
-      auto active_font = el->active_font();
-      auto pos         = el->cursor_pos();
-      if (pos.y >= el->_bounds.t) {
-         w->selectedRow = (pos.y - el->_bounds.t) / rowHeight;
-
-         if (w->selectedRow < w->rows.size()) {
-            const shared_ptr<Watch>& watch = w->rows[w->selectedRow];
-            int                      x     = (pos.x - el->_bounds.l) / active_font->_glyph_width;
-
-            if (x >= watch->depth * 3 - 1 && x <= watch->depth * 3 + 1 && watch->hasFields) {
-               UIKeyTyped m;
-               m.code = watch->open ? UIKeycode::LEFT : UIKeycode::RIGHT;
-               WatchWindowMessage(el, UIMessage::KEY_TYPED, 0, &m);
-            }
-         }
-      } else
-         w->selectedRow = 0;
-
-      el->focus();
-      el->repaint(nullptr);
-   } else if (msg == UIMessage::RIGHT_DOWN) {
-      auto pos = el->cursor_pos();
-      if (pos.y >= el->_bounds.t) {
-         size_t index = (pos.y - el->_bounds.t) / rowHeight;
-
-         if (index < w->rows.size()) {
-            WatchWindowMessage(el, UIMessage::LEFT_DOWN, di, dp);
-            UIMenu& menu = el->ui()->create_menu(el->_window, UIMenu::NO_SCROLL);
-
-            if (w->mode == WATCH_NORMAL && !w->rows[index]->parent) {
-               menu.add_item(0, "Edit expression", [w](UIButton&) { WatchCreateTextboxForRow(w, true); })
-                  .add_item(0, "Delete", [w](UIButton&) {
-                     WatchDeleteExpression(w);
-                     w->_parent->refresh();
-                     w->refresh();
-                  });
-            }
-
-            menu.add_item(0, "Copy value to clipboard\tCtrl+C", [w](UIButton&) { CommandWatchCopyValueToClipboard(w); })
-               .add_item(0, "Log writes to address...", [w](UIButton&) { WatchChangeLoggerCreate(w); })
-               .add_item(0, "Break on writes to address", [w](UIButton&) {
-                  if (w->selectedRow == w->rows.size())
-                     return;
-                  auto res = WatchGetAddress(w->rows[w->selectedRow]);
-                  if (res.empty())
-                     return;
-
-                  auto buffer = std::format("watch * {}", res);
-                  (void)DebuggerSend(buffer, true, false);
-               });
-
-            if (firstWatchWindow) {
-               menu.add_item(0, "Add entry for address\tCtrl+E", [w](UIButton&) { CommandWatchAddEntryForAddress(w); });
-            }
-
-            menu.add_item(0, "View source at address\tCtrl+G", [w](UIButton&) { CommandWatchViewSourceAtAddress(w); })
-               .add_item(0, "Save as...", [w](UIButton&) { CommandWatchSaveAs(w); })
-               .show();
-         }
-      }
-   } else if (msg == UIMessage::UPDATE) {
-      el->repaint(nullptr);
-   } else if (msg == UIMessage::KEY_TYPED) {
-      UIKeyTyped* m = (UIKeyTyped*)dp;
-      result        = 1;
-
-      if (w->waitingForFormatCharacter) {
-         w->rows[w->selectedRow]->format = (!m->text.empty() && isalpha(m->text[0])) ? m->text[0] : 0;
-         w->rows[w->selectedRow]->updateIndex--;
-
-         if (w->rows[w->selectedRow]->isArray) {
-            for (auto& field : w->rows[w->selectedRow]->fields) {
-               field->format = w->rows[w->selectedRow]->format;
-               field->updateIndex--;
-            }
-         }
-
-         w->waitingForFormatCharacter = false;
-      } else if (w->mode == WATCH_NORMAL && w->selectedRow != w->rows.size() && !w->textbox &&
-                 (m->code == UIKeycode::ENTER || m->code == UIKeycode::BACKSPACE ||
-                  (m->code == UIKeycode::LEFT && !w->rows[w->selectedRow]->open)) &&
-                 !w->rows[w->selectedRow]->parent) {
-         WatchCreateTextboxForRow(w, true);
-      } else if (m->code == UIKeycode::DEL && !w->textbox && w->selectedRow != w->rows.size() &&
-                 !w->rows[w->selectedRow]->parent) {
-         WatchDeleteExpression(w);
-      } else if (!m->text.empty() && m->text[0] == '/' && w->selectedRow != w->rows.size()) {
-         w->waitingForFormatCharacter = true;
-      } else if (!m->text.empty() && m->text[0] == '`') {
-         result = 0;
-      } else if (w->mode == WATCH_NORMAL && !m->text.empty() && m->code != UIKeycode::TAB && !w->textbox &&
-                 !el->_window->_ctrl && !el->_window->_alt &&
-                 (w->selectedRow == w->rows.size() || !w->rows[w->selectedRow]->parent)) {
-         WatchCreateTextboxForRow(w, false);
-         w->textbox->message(msg, di, dp);
-      } else if (w->mode == WATCH_NORMAL && !m->text.empty() && m->code == UI_KEYCODE_LETTER('V') && !w->textbox &&
-                 el->_window->_ctrl && !el->_window->_alt && !el->_window->_shift &&
-                 (w->selectedRow == w->rows.size() || !w->rows[w->selectedRow]->parent)) {
-         WatchCreateTextboxForRow(w, false);
-         w->textbox->message(msg, di, dp);
-      } else if (m->code == UIKeycode::ENTER && w->textbox) {
-         WatchAddExpression(w);
-      } else if (m->code == UIKeycode::ESCAPE) {
-         WatchDestroyTextbox(w);
-      } else if (m->code == UIKeycode::UP) {
-         if (el->_window->_shift) {
-            auto currentLine = displayCode->current_line();
-            if (currentLine && *currentLine > 0) {
-               DisplaySetPosition(NULL, *currentLine - 1, false);
-            }
-         } else {
-            WatchDestroyTextbox(w);
-            if (w->selectedRow)
-               w->selectedRow--;
-         }
-      } else if (m->code == UIKeycode::DOWN) {
-         if (el->_window->_shift) {
-            auto currentLine = displayCode->current_line();
-            if (currentLine && *currentLine + 1 < displayCode->num_lines()) {
-               DisplaySetPosition(NULL, *currentLine + 1, false);
-            }
-         } else {
-            WatchDestroyTextbox(w);
-            w->selectedRow++;
-         }
-      } else if (m->code == UIKeycode::HOME) {
-         w->selectedRow = 0;
-      } else if (m->code == UIKeycode::END) {
-         w->selectedRow = WatchLastRow(w);
-      } else if (m->code == UIKeycode::RIGHT && !w->textbox && w->selectedRow != w->rows.size() &&
-                 w->rows[w->selectedRow]->hasFields && !w->rows[w->selectedRow]->open) {
-         const shared_ptr<Watch>& watch = w->rows[w->selectedRow];
-         watch->open                    = true;
-         WatchAddFields(w, watch);
-         WatchInsertFieldRows(w, watch, w->selectedRow + 1, true);
-      } else if (m->code == UIKeycode::LEFT && !w->textbox && w->selectedRow != w->rows.size() &&
-                 w->rows[w->selectedRow]->hasFields && w->rows[w->selectedRow]->open) {
-         size_t end = w->selectedRow + 1;
-
-         for (; end < w->rows.size(); end++) {
-            if (w->rows[w->selectedRow]->depth >= w->rows[end]->depth) {
-               break;
-            }
-         }
-
-         w->rows.erase(w->rows.cbegin() + w->selectedRow + 1, w->rows.cbegin() + end);
-         w->rows[w->selectedRow]->open = false;
-      } else if (m->code == UIKeycode::LEFT && !w->textbox && w->selectedRow != w->rows.size() &&
-                 !w->rows[w->selectedRow]->open) {
-         for (size_t i = 0; i < w->rows.size(); i++) {
-            if (w->rows[w->selectedRow]->parent == w->rows[i].get()) {
-               w->selectedRow = i;
-               break;
-            }
-         }
-      } else if (m->code == UI_KEYCODE_LETTER('C') && !w->textbox && !el->_window->_shift && !el->_window->_alt &&
-                 el->_window->_ctrl) {
-         CommandWatchCopyValueToClipboard(w);
-      } else {
-         result = 0;
-      }
-
-      WatchEnsureRowVisible(w, w->selectedRow);
-      el->_parent->refresh();
-      el->refresh();
-   } else if (msg == UIMessage::MIDDLE_DOWN) {
-      if (w->mode == WATCH_NORMAL && !w->textbox && !el->_window->_ctrl && !el->_window->_alt &&
-          (w->selectedRow == w->rows.size() || !w->rows[w->selectedRow]->parent)) {
-         WatchCreateTextboxForRow(w, false);
-         w->textbox->paste(sel_target_t::primary);
-         el->repaint(NULL);
-      }
-      return 1;
-   }
-
-   if (w->selectedRow > WatchLastRow(w)) {
-      w->selectedRow = WatchLastRow(w);
-   }
-
-   return result;
+   if (auto w = WatchGetFocused())
+      return w->view_source_at_address();
+   return false;
 }
 
 int WatchPanelMessage(UIElement* el, UIMessage msg, int di, void* dp) {
@@ -3699,22 +3844,12 @@ int WatchPanelMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    return 0;
 }
 
-WatchWindow::WatchWindow(UIElement* parent, uint32_t flags, const char* name)
-   : UIElement(parent, flags, WatchWindowMessage, name)
-   , textbox(nullptr)
-   , selectedRow(0)
-   , mode(WATCH_NORMAL)
-   , updateIndex(0)
-   , waitingForFormatCharacter(false) {
-   _cp = this; // todo: shouldn't be needed
-}
-
 UIElement* WatchWindowCreate(UIElement* parent) {
    UIPanel*     panel = &parent->add_panel(UIPanel::SCROLL | UIPanel::COLOR_1);
    WatchWindow* w     = new WatchWindow(panel, UIElement::h_fill | UIElement::tab_stop_flag, "Watch");
    panel->set_user_proc(WatchPanelMessage).set_cp(w);
 
-   w->mode      = WATCH_NORMAL;
+   w->mode      = WatchWindow::WATCH_NORMAL;
    w->extraRows = 1;
    if (!firstWatchWindow)
       firstWatchWindow = w;
@@ -3725,146 +3860,22 @@ UIElement* LocalsWindowCreate(UIElement* parent) {
    UIPanel*     panel = &parent->add_panel(UIPanel::SCROLL | UIPanel::COLOR_1);
    WatchWindow* w     = new WatchWindow(panel, UIElement::h_fill | UIElement::tab_stop_flag, "Locals");
    panel->set_user_proc(WatchPanelMessage).set_cp(w);
-   w->mode            = WATCH_LOCALS;
+   w->mode            = WatchWindow::WATCH_LOCALS;
    return panel;
 }
 
 void WatchWindowUpdate(const char*, UIElement* el) {
-   WatchWindow* w = (WatchWindow*)el->_cp;
-
-   if (w->mode == WATCH_LOCALS) {
-      auto res = EvaluateCommand("py gf_locals()");
-
-      bool newFrame = (w->lastLocalList.empty() || w->lastLocalList != res);
-
-      if (newFrame) {
-         w->lastLocalList = res;
-
-         char*         buffer = strdup(res.c_str());
-         char*         s      = buffer;
-         char*         end;
-         vector<char*> expressions = {};
-
-         // we get a list of variables separated by `\n` characters, followed by the prompt
-         // extract all the variable names into `expressions`.
-         // we could use a regex here
-         // -------------------------------------------------------------------------------
-         while ((end = strchr(s, '\n')) != NULL) {
-            *end = '\0';
-            if (strstr(s, "(gdb)"))
-               break;
-            expressions.push_back(s);
-            s = end + 1;
-         }
-
-         if (expressions.size() > 0) {
-            for (size_t watchIndex = 0; watchIndex < w->baseExpressions.size(); watchIndex++) {
-               const shared_ptr<Watch>& watch   = w->baseExpressions[watchIndex];
-               bool                     matched = false;
-
-               if (auto it = rng::find_if(expressions, [&](char* e) { return watch->key == e; });
-                   it != rng::end(expressions)) {
-                  expressions.erase(it);
-                  matched = true;
-               }
-
-               if (!matched) {
-                  [[maybe_unused]] bool found = false;
-                  for (size_t rowIndex = 0; rowIndex < w->rows.size(); rowIndex++) {
-                     if (w->rows[rowIndex] == watch) {
-                        w->selectedRow = rowIndex;
-                        WatchDeleteExpression(w);
-                        watchIndex--;
-                        found = true;
-                        break;
-                     }
-                  }
-                  assert(found);
-               }
-            }
-
-            // Add the remaining (new) variables.
-            for (auto exp : expressions) {
-               w->selectedRow = w->rows.size();
-               WatchAddExpression(w, exp);
-            }
-
-            w->selectedRow = w->rows.size();
-         }
-
-         free(buffer);
-         expressions.clear();
-      }
-   }
-
-   for (size_t i = 0; i < w->baseExpressions.size(); i++) {
-      const shared_ptr<Watch>& watch = w->baseExpressions[i];
-      auto                     res   = WatchEvaluate("gf_typeof", watch);
-      resize_to_lf(res);
-
-      if (res != watch->type && res != "??") {
-         watch->type = std::move(res);
-
-         for (size_t j = 0; j < w->rows.size(); j++) {
-            if (w->rows[j] == watch) {
-               w->selectedRow = j;
-               WatchAddExpression(w, watch->key);
-               w->selectedRow = w->rows.size(), i--;
-               break;
-            }
-         }
-      }
-   }
-
-   for (size_t i = 0; i < w->dynamicArrays.size(); i++) {
-      const shared_ptr<Watch>& watch = w->dynamicArrays[i];
-      auto                     res   = WatchEvaluate("gf_fields", watch);
-      if (res.empty() || !res.contains("(d_arr)"))
-         continue;
-      int count = sv_atoi(res, 7);
-
-      count        = std::clamp(count, 0, Watch::WATCH_ARRAY_MAX_FIELDS);
-      int oldCount = watch->fields.size();
-
-      if (oldCount != count) {
-         size_t index = (size_t)-1;
-
-         for (size_t i = 0; i < w->rows.size(); i++) {
-            if (w->rows[i] == watch) {
-               index = i;
-               break;
-            }
-         }
-
-         assert(index != (size_t)-1);
-         w->selectedRow = index;
-         WatchDeleteExpression(w, true);
-         watch->open = true;
-         WatchAddFields(w, watch);
-         WatchInsertFieldRows(w, watch, index + 1, false);
-      }
-   }
-
-   w->updateIndex++;
-   el->_parent->refresh();
-   el->refresh();
+   static_cast<WatchWindow*>(el->_cp)->update();
 }
 
 void WatchWindowFocus(UIElement* el) {
-   WatchWindow* w = (WatchWindow*)el;
-   w->focus();
+   static_cast<WatchWindow*>(el)->focus();
 }
 
 bool CommandAddWatch() {
-   UIElement* el = ctx.InterfaceWindowSwitchToAndFocus("Watch");
-   if (!el)
-      return false;
-   WatchWindow* w = (WatchWindow*)el->_cp;
-   if (w->textbox)
-      return false;
-   w->selectedRow = w->rows.size();
-   WatchCreateTextboxForRow(w, false);
-   return true;
+   if (auto el = ctx.InterfaceWindowSwitchToAndFocus("Watch"))
+      return static_cast<WatchWindow*>(el)->add_watch();
+   return false;
 }
 
 // ---------------------------------------------------/
@@ -7120,7 +7131,7 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
          const char* end = strchr(data, '\n');
          if (!end)
             break;
-         WatchAddExpression2(string_view{data, static_cast<size_t>(end - data)});
+         WatchAddExpression(string_view{data, static_cast<size_t>(end - data)});
          data = end + 1;
       }
 
@@ -7467,7 +7478,7 @@ const char* InterfaceLayoutNextToken(const char*& current, const char* expected 
 void Context::InterfaceAdditionalSetup() {
    if (displayCode && firstWatchWindow) {
       displayCode->add_selection_menu_item("Add watch", [&](std::string_view sel) {
-         WatchAddExpression2(sel);
+         WatchAddExpression(sel);
       });
    }
 }
