@@ -2667,7 +2667,7 @@ using WatchVector = vector<shared_ptr<Watch>>;
 struct WatchWindow;
 static WatchWindow* WatchGetFocused();
 
-struct Watch {
+struct Watch : public std::enable_shared_from_this<Watch> {
    bool        open = false, hasFields = false, loadedFields = false, isArray = false, isDynamicArray = false;
    uint8_t     depth      = 0;
    char        format     = 0;
@@ -2744,6 +2744,8 @@ struct Watch {
       }
       return false;
    }
+
+   void add_fields(WatchWindow* w);
 
    void insert_field_rows(WatchVector* array) {
       for (const auto& field : fields) {
@@ -2887,65 +2889,6 @@ struct WatchWindow : public UIElement {
       free_watch(watch, fieldsOnly);
       if (!fieldsOnly)
          watch.reset();
-   }
-
-   void add_fields(const shared_ptr<Watch>& watch) {
-      if (watch->loadedFields) {
-         return;
-      }
-
-      watch->loadedFields = true;
-
-      auto res = watch->evaluate("gf_fields");
-
-      if (res.contains("(array)") || res.contains("(d_arr)")) {
-         int count = sv_atoi(res, 7);
-
-         count = std::clamp(count, 0, Watch::WATCH_ARRAY_MAX_FIELDS);
-
-         watch->isArray    = true;
-         bool hasSubFields = false;
-
-         if (res.contains("(d_arr)")) {
-            watch->isDynamicArray = true;
-            dynamicArrays.push_back(watch);
-         }
-
-         for (int i = 0; i < count; i++) {
-            auto field        = make_shared<Watch>();
-            field->format     = watch->format;
-            field->arrayIndex = (uintptr_t)i;
-            field->parent     = watch.get();
-
-            watch->fields.push_back(field);
-            if (!i)
-               hasSubFields = field->has_fields();
-            field->hasFields = hasSubFields;
-            field->depth     = watch->depth + 1;
-         }
-      } else {
-         char* start    = (char*)res.c_str();
-         char* position = start;
-
-         while (true) {
-            // add all fields from `res`. fields are separated by `\n` characters.
-            // -------------------------------------------------------------------
-            char* end = strchr(position, '\n');
-            if (!end)
-               break;
-            *end = 0;
-            if (strstr(position, "(gdb)"))
-               break;
-            auto field    = make_shared<Watch>();
-            field->depth  = (uint8_t)(watch->depth + 1);
-            field->key    = position;
-            field->parent = watch.get();
-
-            watch->fields.emplace_back(field);
-            field->hasFields = field->has_fields();
-            position         = end + 1;
-         }
-      }
    }
 
    void ensure_row_visible(size_t index) {
@@ -3205,7 +3148,7 @@ struct WatchWindow : public UIElement {
             selectedRow = index;
             delete_expression(true);
             watch->open = true;
-            add_fields(watch);
+            watch->add_fields(this);
             insert_field_rows(watch, index + 1, false);
          }
       }
@@ -3247,6 +3190,65 @@ struct WatchWindow : public UIElement {
       return static_cast<WatchWindow*>(el)->_class_message_proc(msg, di, dp);
    }
 };
+
+void Watch::add_fields(WatchWindow* w) {
+   if (loadedFields) {
+      return;
+   }
+
+   loadedFields = true;
+
+   auto res = evaluate("gf_fields");
+
+   if (res.contains("(array)") || res.contains("(d_arr)")) {
+      int count = sv_atoi(res, 7);
+
+      count = std::clamp(count, 0, Watch::WATCH_ARRAY_MAX_FIELDS);
+
+      isArray           = true;
+      bool hasSubFields = false;
+
+      if (res.contains("(d_arr)")) {
+         isDynamicArray = true;
+         w->dynamicArrays.push_back(shared_from_this());
+      }
+
+      for (int i = 0; i < count; i++) {
+         auto field        = make_shared<Watch>();
+         field->format     = format;
+         field->arrayIndex = (uintptr_t)i;
+         field->parent     = this;
+
+         fields.push_back(field);
+         if (!i)
+            hasSubFields = field->has_fields();
+         field->hasFields = hasSubFields;
+         field->depth     = depth + 1;
+      }
+   } else {
+      char* start    = (char*)res.c_str();
+      char* position = start;
+
+      while (true) {
+         // add all fields from `res`. fields are separated by `\n` characters.
+         // -------------------------------------------------------------------
+         char* end = strchr(position, '\n');
+         if (!end)
+            break;
+         *end = 0;
+         if (strstr(position, "(gdb)"))
+            break;
+         auto field    = make_shared<Watch>();
+         field->depth  = (uint8_t)(depth + 1);
+         field->key    = position;
+         field->parent = this;
+
+         fields.emplace_back(field);
+         field->hasFields = field->has_fields();
+         position         = end + 1;
+      }
+   }
+}
 
 int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
    int          rowHeight = (int)(ui_size::textbox_height * _window->scale());
@@ -3449,7 +3451,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
                  rows[selectedRow]->hasFields && !rows[selectedRow]->open) {
          const shared_ptr<Watch>& watch = rows[selectedRow];
          watch->open                    = true;
-         add_fields(watch);
+         watch->add_fields(this);
          insert_field_rows(watch, selectedRow + 1, true);
       } else if (m->code == UIKeycode::LEFT && !textbox && selectedRow != rows.size() &&
                  rows[selectedRow]->hasFields && rows[selectedRow]->open) {
