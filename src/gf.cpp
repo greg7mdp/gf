@@ -141,18 +141,16 @@ T sv_atoi_impl(string_view str, size_t offset = 0) {
    return negative ? result : -result;
 }
 
-char *mk_cstring(std::string_view sv) {
+char* mk_cstring(std::string_view sv) {
    auto sz = sv.size();
-   auto s = (char*)malloc(sz + 1);
-   for (size_t i=0; i<sz; ++i)
+   auto s  = (char*)malloc(sz + 1);
+   for (size_t i = 0; i < sz; ++i)
       s[i] = sv[i];
    s[sz] = 0;
    return s;
 }
 
-static inline int sv_atoi(string_view str, size_t offset = 0) {
-   return sv_atoi_impl<int>(str, offset);
-}
+static inline int sv_atoi(string_view str, size_t offset = 0) { return sv_atoi_impl<int>(str, offset); }
 
 [[maybe_unused]] static inline long sv_atol(string_view str, size_t offset = 0) {
    return sv_atoi_impl<long>(str, offset);
@@ -166,9 +164,7 @@ static inline int sv_atoi(string_view str, size_t offset = 0) {
    return sv_atoi_impl<uint64_t>(str, offset);
 }
 
-void print(const std::string_view str) {
-   std::cout << str;
-}
+void print(const std::string_view str) { std::cout << str; }
 
 // Variadic template for print with format arguments
 template <typename... Args>
@@ -282,7 +278,7 @@ struct Context {
       }
    }
 
-   void grab_focus(UIWindow *win) {
+   void grab_focus(UIWindow* win) {
       if (win && grab_focus_on_breakpoint) {
          prev_focus_win = ui->get_focus();
          win->grab_focus(); // grab focus when breakpoint is hit!
@@ -295,7 +291,7 @@ struct Context {
    void           RegisterExtensions();
    void           InterfaceShowMenu(UIButton* self);
    void           InterfaceLayoutCreate(UIElement* parent, const char*& current);
-   void           GenerateLayoutString(UIElement *e, std::string &sb);
+   void           GenerateLayoutString(UIElement* e, std::string& sb);
    bool           CopyLayoutToClipboard();
    void           InterfaceAdditionalSetup();
    UIElement*     InterfaceWindowSwitchToAndFocus(string_view name);
@@ -1152,26 +1148,18 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
    return res;
 }
 
-void CommandSendToGDB(string_view s) {
-   (void)CommandParseInternal(s, false);
-}
+void CommandSendToGDB(string_view s) { (void)CommandParseInternal(s, false); }
 
 static void BreakpointCommand(int index, const char* action) {
    Breakpoint* breakpoint = &breakpoints[index];
    (void)DebuggerSend(std::format("{} {}", action, breakpoint->number), true, false);
 }
 
-static void CommandDeleteBreakpoint(int index) {
-   BreakpointCommand(index, "delete");
-}
+static void CommandDeleteBreakpoint(int index) { BreakpointCommand(index, "delete"); }
 
-static void CommandDisableBreakpoint(int index) {
-   BreakpointCommand(index, "disable");
-}
+static void CommandDisableBreakpoint(int index) { BreakpointCommand(index, "disable"); }
 
-static void CommandEnableBreakpoint(int index) {
-   BreakpointCommand(index, "enable");
-}
+static void CommandEnableBreakpoint(int index) { BreakpointCommand(index, "enable"); }
 
 bool CommandSyncWithGvim() {
    char buffer[1024];
@@ -1357,7 +1345,7 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
       }
 
       INI_Parser config_view(config);
-      
+
       for (auto parse_res : config_view) {
          auto [section, key, value] = parse_res;
          if (section.empty())
@@ -1370,8 +1358,7 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
             UIShortcut shortcut;
 
             std::string k(key);
-            std::transform(k.begin(), k.end(), k.begin(),
-                           [](unsigned char c){ return std::tolower(c); });
+            std::transform(k.begin(), k.end(), k.begin(), [](unsigned char c) { return std::tolower(c); });
 
             shortcut.ctrl   = k.contains("ctrl+");
             shortcut.shift  = k.contains("shift+");
@@ -1437,7 +1424,7 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
                ctx.gdbArgv[ctx.gdbArgc]     = nullptr;
             } else if (key == "arguments") {
                char buffer[2048];
-               auto sz = value.size();
+               auto sz  = value.size();
                auto val = value.data();
 
                for (size_t i = 0; i < sz; i++) {
@@ -1465,9 +1452,7 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
                   } else {
                      argumentStart = i;
                      i++;
-                     for (; i < sz &&
-                            (val[i] != '\'' && val[i] != '\"' && !isspace(val[i]));
-                          i++)
+                     for (; i < sz && (val[i] != '\'' && val[i] != '\"' && !isspace(val[i])); i++)
                         ;
                      argumentEnd = i;
                   }
@@ -1501,11 +1486,11 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
                // clang-format on
             }
          } else if (section == "commands" && earlyPass && !key.empty() && !value.empty()) {
-            presetCommands.push_back(Command{._key = std::string(key), ._value = std::string(value) });
+            presetCommands.push_back(Command{._key = std::string(key), ._value = std::string(value)});
          } else if (section == "trusted_folders" && earlyPass && !key.empty()) {
             if (key == localConfigDirectory)
                currentFolderIsTrusted = true;
-         } else if (section == "theme" && !earlyPass &&  !key.empty() && !value.empty()) {
+         } else if (section == "theme" && !earlyPass && !key.empty() && !value.empty()) {
             for (uintptr_t i = 0; i < sizeof(themeItems) / sizeof(themeItems[0]); i++) {
                if (key != themeItems[i])
                   continue;
@@ -1514,7 +1499,7 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
             }
             if (key == "predefined") {
                if (auto itr = ui_themes.find(std::string(value)); itr != ui_themes.end()) {
-                  ui_config._theme = itr->second;
+                  ui_config._theme     = itr->second;
                   ui_config._has_theme = true;
                }
             }
@@ -2200,9 +2185,7 @@ void SourceWindowUpdate(const char* data, UIElement* el) {
    el->refresh();
 }
 
-bool InspectIsTokenCharacter(char c) {
-   return isalpha(c) || c == '_';
-}
+bool InspectIsTokenCharacter(char c) { return isalpha(c) || c == '_'; }
 
 void InspectCurrentLine() {
    inspectResults.clear();
@@ -2688,8 +2671,8 @@ struct Watch : public std::enable_shared_from_this<Watch> {
       position += std_format_to_n(buffer + position, sizeof(buffer) - position, "py {}([", function);
 
       const Watch* stack[32];
-      int    stackCount = 0;
-      stack[0]          = this;
+      int          stackCount = 0;
+      stack[0]                = this;
 
       while (stack[stackCount]) {
          stack[stackCount + 1] = stack[stackCount]->parent;
@@ -2813,7 +2796,7 @@ struct WatchWindow : public UIElement {
       WATCH_NORMAL,
       WATCH_LOCALS,
    };
-  
+
    WatchVector     rows;
    WatchVector     baseExpressions;
    WatchVector     dynamicArrays;
@@ -3251,12 +3234,12 @@ void Watch::add_fields(WatchWindow* w) {
 }
 
 int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
-   int          rowHeight = (int)(ui_size::textbox_height * _window->scale());
-   int          result    = 0;
+   int rowHeight = (int)(ui_size::textbox_height * _window->scale());
+   int result    = 0;
 
    if (msg == UIMessage::PAINT) {
       UIPainter* painter = (UIPainter*)dp;
-      auto&      thm   = theme();
+      auto&      thm     = theme();
 
       for (size_t i = (painter->_clip.t - _bounds.t) / rowHeight; i <= last_row(); i++) {
          UIRectangle row = _bounds;
@@ -3361,7 +3344,8 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
                .add_item(0, "Break on writes to address", [this](UIButton&) {
                   if (selectedRow == rows.size())
                      return;
-                  auto res = rows[selectedRow]->get_address();;
+                  auto res = rows[selectedRow]->get_address();
+                  ;
                   if (res.empty())
                      return;
 
@@ -3401,16 +3385,14 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
                   (m->code == UIKeycode::LEFT && !rows[selectedRow]->open)) &&
                  !rows[selectedRow]->parent) {
          create_textbox_for_row(true);
-      } else if (m->code == UIKeycode::DEL && !textbox && selectedRow != rows.size() &&
-                 !rows[selectedRow]->parent) {
+      } else if (m->code == UIKeycode::DEL && !textbox && selectedRow != rows.size() && !rows[selectedRow]->parent) {
          delete_expression();
       } else if (!m->text.empty() && m->text[0] == '/' && selectedRow != rows.size()) {
          waitingForFormatCharacter = true;
       } else if (!m->text.empty() && m->text[0] == '`') {
          result = 0;
-      } else if (mode == WATCH_NORMAL && !m->text.empty() && m->code != UIKeycode::TAB && !textbox &&
-                 !_window->_ctrl && !_window->_alt &&
-                 (selectedRow == rows.size() || !rows[selectedRow]->parent)) {
+      } else if (mode == WATCH_NORMAL && !m->text.empty() && m->code != UIKeycode::TAB && !textbox && !_window->_ctrl &&
+                 !_window->_alt && (selectedRow == rows.size() || !rows[selectedRow]->parent)) {
          create_textbox_for_row(false);
          textbox->message(msg, di, dp);
       } else if (mode == WATCH_NORMAL && !m->text.empty() && m->code == UI_KEYCODE_LETTER('V') && !textbox &&
@@ -3453,8 +3435,8 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
          watch->open                    = true;
          watch->add_fields(this);
          insert_field_rows(watch, selectedRow + 1, true);
-      } else if (m->code == UIKeycode::LEFT && !textbox && selectedRow != rows.size() &&
-                 rows[selectedRow]->hasFields && rows[selectedRow]->open) {
+      } else if (m->code == UIKeycode::LEFT && !textbox && selectedRow != rows.size() && rows[selectedRow]->hasFields &&
+                 rows[selectedRow]->open) {
          size_t end = selectedRow + 1;
 
          for (; end < rows.size(); end++) {
@@ -3465,8 +3447,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
 
          rows.erase(rows.cbegin() + selectedRow + 1, rows.cbegin() + end);
          rows[selectedRow]->open = false;
-      } else if (m->code == UIKeycode::LEFT && !textbox && selectedRow != rows.size() &&
-                 !rows[selectedRow]->open) {
+      } else if (m->code == UIKeycode::LEFT && !textbox && selectedRow != rows.size() && !rows[selectedRow]->open) {
          for (size_t i = 0; i < rows.size(); i++) {
             if (rows[selectedRow]->parent == rows[i].get()) {
                selectedRow = i;
@@ -3527,7 +3508,7 @@ int WatchTextboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::UPDATE) {
       if (!el->is_focused()) {
          el->destroy();
-         ((WatchWindow*)el->_cp)->textbox = nullptr;  // use _cp here!
+         ((WatchWindow*)el->_cp)->textbox = nullptr; // use _cp here!
       }
    } else if (msg == UIMessage::KEY_TYPED) {
       UITextbox*  textbox = (UITextbox*)el;
@@ -3741,7 +3722,8 @@ void WatchWindow::WatchChangeLoggerCreate() {
 // right click on variable and "Log writes to address..."
 // ---------------------------------------------------
 // parse something like:
-// "\nHardware watchpoint 16: * 0x7fffffffd85c\n\nOld value = 1\nNew value = 2\000main (argc=1, argv=0x7fffffffd988)\n    at /home/greg/github/greg/gf/examples/gf_testprog.cpp:33\00033\t   int res = a.x + c.y[1] - fi"
+// "\nHardware watchpoint 16: * 0x7fffffffd85c\n\nOld value = 1\nNew value = 2\000main (argc=1, argv=0x7fffffffd988)\n
+// at /home/greg/github/greg/gf/examples/gf_testprog.cpp:33\00033\t   int res = a.x + c.y[1] - fi"
 // --------------------------------------------------------------------------------------------------
 bool WatchLoggerUpdate(std::string _data) {
    char* data             = &_data[0];
@@ -3869,17 +3851,13 @@ UIElement* LocalsWindowCreate(UIElement* parent) {
    UIPanel*     panel = &parent->add_panel(UIPanel::SCROLL | UIPanel::COLOR_1);
    WatchWindow* w     = new WatchWindow(panel, UIElement::h_fill | UIElement::tab_stop_flag, "Locals");
    panel->set_user_proc(WatchPanelMessage).set_cp(w);
-   w->mode            = WatchWindow::WATCH_LOCALS;
+   w->mode = WatchWindow::WATCH_LOCALS;
    return panel;
 }
 
-void WatchWindowUpdate(const char*, UIElement* el) {
-   static_cast<WatchWindow*>(el->_cp)->update();
-}
+void WatchWindowUpdate(const char*, UIElement* el) { static_cast<WatchWindow*>(el->_cp)->update(); }
 
-void WatchWindowFocus(UIElement* el) {
-   static_cast<WatchWindow*>(el)->focus();
-}
+void WatchWindowFocus(UIElement* el) { static_cast<WatchWindow*>(el)->focus(); }
 
 bool CommandAddWatch() {
    if (auto el = ctx.InterfaceWindowSwitchToAndFocus("Watch"))
@@ -3964,17 +3942,11 @@ void for_all_selected_breakpoints(BreakpointTableData* data, string_view action)
    }
 }
 
-void CommandDeleteSelectedBreakpoints(BreakpointTableData* data) {
-   for_all_selected_breakpoints(data, "delete");
-}
+void CommandDeleteSelectedBreakpoints(BreakpointTableData* data) { for_all_selected_breakpoints(data, "delete"); }
 
-void CommandDisableSelectedBreakpoints(BreakpointTableData* data) {
-   for_all_selected_breakpoints(data, "disable");
-}
+void CommandDisableSelectedBreakpoints(BreakpointTableData* data) { for_all_selected_breakpoints(data, "disable"); }
 
-void CommandEnableSelectedBreakpoints(BreakpointTableData* data) {
-   for_all_selected_breakpoints(data, "enable");
-}
+void CommandEnableSelectedBreakpoints(BreakpointTableData* data) { for_all_selected_breakpoints(data, "enable"); }
 
 int TableBreakpointsMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    BreakpointTableData* data = (BreakpointTableData*)el->_cp;
@@ -4024,7 +3996,7 @@ int TableBreakpointsMessage(UIElement* el, UIMessage msg, int di, void* dp) {
                for (const auto& breakpoint : breakpoints) {
                   if (breakpoint.number == selected) {
                      if (breakpoint.enabled)
-                        atLeastOneBreakpointEnabled  = true;
+                        atLeastOneBreakpointEnabled = true;
                      else
                         atLeastOneBreakpointDisabled = true;
                   }
@@ -4035,7 +4007,7 @@ int TableBreakpointsMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
             if (atLeastOneBreakpointDisabled)
                menu.add_item(0, "Enable", [data](UIButton&) { CommandEnableSelectedBreakpoints(data); });
-            
+
             if (atLeastOneBreakpointEnabled)
                menu.add_item(0, "Disable", [data](UIButton&) { CommandDisableSelectedBreakpoints(data); });
          } else {
@@ -5014,9 +4986,7 @@ void ProfShowSource(ProfFlameGraphReport* report) {
    }
 }
 
-void ProfAddBreakpoint(ProfFlameGraphEntry* entry) {
-   CommandSendToGDB(std::format("b {}", entry->cName));
-}
+void ProfAddBreakpoint(ProfFlameGraphEntry* entry) { CommandSendToGDB(std::format("b {}", entry->cName)); }
 
 void ProfFillView(ProfFlameGraphReport* report) {
    ProfFlameGraphEntry* entry = report->menuItem;
@@ -6058,9 +6028,7 @@ void MemoryWindowGotoButtonInvoke(void* cp) {
    free(expression);
 }
 
-UIElement* MemoryWindowCreate(UIElement* parent) {
-   return new MemoryWindow(parent);
-}
+UIElement* MemoryWindowCreate(UIElement* parent) { return new MemoryWindow(parent); }
 
 /////////////////////////////////////////////////////
 // View window:
@@ -6537,9 +6505,7 @@ void ViewWindowView(void* cp) {
    panel->refresh();
 }
 
-void ViewWindowView() {
-   ViewWindowView(nullptr);
-}
+void ViewWindowView() { ViewWindowView(nullptr); }
 
 void ViewWindowUpdate(const char* data, UIElement* el) {}
 
@@ -6836,9 +6802,7 @@ int WaveformDisplayNormalizeButtonMessage(UIElement* el, UIMessage msg, int di, 
    return 0;
 }
 
-WaveformDisplay* WaveformDisplayCreate(UIElement* parent, uint32_t flags) {
-   return new WaveformDisplay(parent, flags);
-}
+WaveformDisplay* WaveformDisplayCreate(UIElement* parent, uint32_t flags) { return new WaveformDisplay(parent, flags); }
 
 void WaveformDisplaySetContent(WaveformDisplay* display, float* samples, size_t sampleCount, size_t channels) {
    UI_ASSERT(channels >= 1);
@@ -7044,10 +7008,10 @@ void WaveformViewerUpdate(const char* pointerString, const char* sampleCountStri
          .set_user_proc(WaveformViewerRefreshMessage);
       owner = window;
 
-      UIPanel* panel              = &owner->add_panel(UIPanel::EXPAND);
-      viewer->labelPanel          = &panel->add_panel(UIPanel::COLOR_1 | UIElement::v_fill);
-      viewer->label               = &viewer->labelPanel->add_label(UIElement::h_fill, {});
-      viewer->display             = WaveformDisplayCreate(panel, UIElement::v_fill);
+      UIPanel* panel     = &owner->add_panel(UIPanel::EXPAND);
+      viewer->labelPanel = &panel->add_panel(UIPanel::COLOR_1 | UIElement::v_fill);
+      viewer->label      = &viewer->labelPanel->add_label(UIElement::h_fill, {});
+      viewer->display    = WaveformDisplayCreate(panel, UIElement::v_fill);
       viewer->display->set_user_proc(WaveformViewerDisplayMessage);
    }
 
@@ -7158,7 +7122,7 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
       DebuggerGetStack();
       DebuggerGetBreakpoints();
 
-      ctx.grab_focus(textboxInput->_window);  // grab focus when breakpoint is hit!
+      ctx.grab_focus(textboxInput->_window); // grab focus when breakpoint is hit!
    }
 
    for (auto& [name, iw] : ctx.interfaceWindows) {
@@ -7197,15 +7161,13 @@ void MsgReceivedControl(std::unique_ptr<std::string> input) {
    }
 }
 
-enum invoker_flags {
-   invoker_restore_focus = 1 << 0
-};
+enum invoker_flags { invoker_restore_focus = 1 << 0 };
 
 auto gdb_invoker(string_view cmd, int flags = 0) {
    return [cmd, flags]() {
       CommandSendToGDB(cmd);
       if (flags & invoker_restore_focus)
-         ctx.restore_focus();            // restore input focus to the window that had it before `gf` grabbed it
+         ctx.restore_focus(); // restore input focus to the window that had it before `gf` grabbed it
       return true;
    };
 }
@@ -7247,7 +7209,8 @@ void Context::InterfaceAddBuiltinWindowsAndCommands() {
       .label = "Connect\tF4", .shortcut{.code = UI_KEYCODE_FKEY(4), .invoke = gdb_invoker("target remote :1234")}
    });
    interfaceCommands.push_back({
-         .label = "Continue\tF5", .shortcut{.code = UI_KEYCODE_FKEY(5), .invoke = gdb_invoker("c", invoker_restore_focus)}
+      .label = "Continue\tF5",
+      .shortcut{.code = UI_KEYCODE_FKEY(5), .invoke = gdb_invoker("c", invoker_restore_focus)}
    });
    interfaceCommands.push_back({
       .label = "Step over\tF10", .shortcut{.code = UI_KEYCODE_FKEY(10), .invoke = gdb_invoker("gf-next")}
@@ -7486,9 +7449,7 @@ const char* InterfaceLayoutNextToken(const char*& current, const char* expected 
 
 void Context::InterfaceAdditionalSetup() {
    if (displayCode && firstWatchWindow) {
-      displayCode->add_selection_menu_item("Add watch", [&](std::string_view sel) {
-         WatchAddExpression(sel);
-      });
+      displayCode->add_selection_menu_item("Add watch", [&](std::string_view sel) { WatchAddExpression(sel); });
    }
 }
 
@@ -7581,8 +7542,7 @@ void Context::GenerateLayoutString(UIElement* e, std::string& sb) {
    }
 }
 
-bool Context::CopyLayoutToClipboard()
-{
+bool Context::CopyLayoutToClipboard() {
    std::string sb;
    sb.reserve(512);
    GenerateLayoutString(switcherMain->_children[0]->_children[0], sb);
@@ -7632,7 +7592,7 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
    ui_config.default_font_size = interface_font_size;
 
    auto ui = UI::initialise(ui_config); // sets `ui.default_font_path`
-   ctx.ui = ui.get();
+   ctx.ui  = ui.get();
 
    // ui->_theme = uiThemeDark; // force it for now, overriding `gf2_config.ini` - should remove though!
 
@@ -7643,10 +7603,10 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
    ui->create_font(font_path, interface_font_size)->activate();
 
    if (window_width == -1 || window_height == -1) {
-      auto dims = ui->screen_size();
+      auto dims  = ui->screen_size();
       auto ratio = (float)dims.x / dims.y;
-      if (ratio > 2.5f) 
-         dims.x /= 2;  // superwide or two screens
+      if (ratio > 2.5f)
+         dims.x /= 2; // superwide or two screens
       window_width  = (int)((float)dims.x * 0.78f);
       window_height = (int)((float)dims.y * 0.78f);
    }
@@ -7660,7 +7620,7 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
       windowMain->register_shortcut(ic.shortcut);
    }
 
-   switcherMain = &windowMain->add_switcher(0);
+   switcherMain                      = &windowMain->add_switcher(0);
    const char* layout_string_current = gfc.layout_string.c_str();
    InterfaceLayoutCreate(&switcherMain->add_panel(UIPanel::EXPAND), layout_string_current);
    switcherMain->switch_to(switcherMain->_children[0]);
@@ -7671,7 +7631,7 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
 
    InterfaceAdditionalSetup();
 
-   ui_config   = ctx.SettingsLoad(false);
+   ui_config = ctx.SettingsLoad(false);
    if (ui_config._has_theme)
       ui->theme() = ui_config._theme;
 
