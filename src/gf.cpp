@@ -2680,121 +2680,129 @@ struct Watch {
    uint64_t    updateIndex = 0;
 
    static constexpr int WATCH_ARRAY_MAX_FIELDS = 10000000;
+
+   std::string evaluate(std::string_view function) const {
+      char      buffer[4096];
+      uintptr_t position = 0;
+
+      position += std_format_to_n(buffer + position, sizeof(buffer) - position, "py {}([", function);
+
+      const Watch* stack[32];
+      int    stackCount = 0;
+      stack[0]          = this;
+
+      while (stack[stackCount]) {
+         stack[stackCount + 1] = stack[stackCount]->parent;
+         stackCount++;
+         if (stackCount == 32)
+            break;
+      }
+
+      bool first = true;
+
+      while (stackCount) {
+         stackCount--;
+
+         if (!first) {
+            position += std_format_to_n(buffer + position, sizeof(buffer) - position, ",");
+         } else {
+            first = false;
+         }
+
+         auto w = stack[stackCount];
+         if (!w->key.empty()) {
+            position += std_format_to_n(buffer + position, sizeof(buffer) - position, "'{}'", w->key);
+         } else if (w->parent && w->parent->isDynamicArray) {
+            position += std_format_to_n(buffer + position, sizeof(buffer) - position, "'[{}]'", w->arrayIndex);
+         } else {
+            position += std_format_to_n(buffer + position, sizeof(buffer) - position, "{}", w->arrayIndex);
+         }
+      }
+
+      position += std_format_to_n(buffer + position, sizeof(buffer) - position, "]");
+
+      if (function == "gf_valueof") {
+         position += std_format_to_n(buffer + position, sizeof(buffer) - position, ",'{:c}'", format ?: ' ');
+      }
+
+      position += std_format_to_n(buffer + position, sizeof(buffer) - position, ")");
+      return EvaluateCommand(buffer);
+   }
+
+   bool has_fields() const {
+      auto res = evaluate("gf_fields");
+
+      if (res.contains("(array)") || res.contains("(d_arr)")) {
+         return true;
+      }
+
+      if (auto pos = res.find_first_of('\n'); pos != string::npos) {
+         // trim string to first `\n` and return true if remaining isn't gdb prompt
+         // -----------------------------------------------------------------------
+         res.resize(pos);
+         return !res.contains("(gdb)\n");
+      }
+      return false;
+   }
+
+   void insert_field_rows(WatchVector* array) {
+      for (const auto& field : fields) {
+         array->push_back(field);
+         if (field->open)
+            field->insert_field_rows(array);
+      }
+   }
+
+   std::string get_address() {
+      auto res = evaluate("gf_addressof");
+
+      if (strstr(res.c_str(), "??")) {
+         windowMain->show_dialog(0, "Couldn't get the address of the variable.\n%f%B", "OK");
+         return {};
+      }
+
+      auto end = res.find_first_of(' ');
+      if (end == npos) {
+         windowMain->show_dialog(0, "Couldn't get the address of the variable.\n%f%B", "OK");
+         return {};
+      }
+      res.resize(end);
+      resize_to_lf(res);
+      return res;
+   }
+
+   void save_as(FILE* file, int indent, int indexInParentArray) {
+      print(file, "{:.{}}", "\t\t\t\t\t\t\t\t\t\t\t\t\t\t", indent);
+
+      if (indexInParentArray == -1) {
+         print(file, "{} = ", key);
+      } else {
+         print(file, "[{}] = ", indexInParentArray);
+      }
+
+      if (open) {
+         print(file, "\n");
+
+         for (size_t i = 0; i < fields.size(); i++)
+            fields[i]->save_as(file, indent + 1, isArray ? i : -1);
+      } else {
+         auto res = evaluate("gf_valueof");
+         if (!res.empty()) {
+            resize_to_lf(res);
+            print(file, "{}\n", res);
+         }
+      }
+   }
+
+   void clear(bool fieldsOnly) {
+      loadedFields = false;
+      fields.clear();
+
+      if (!fieldsOnly) {
+         key.clear();
+      }
+   }
 };
-
-std::string WatchEvaluate(std::string_view function, const shared_ptr<Watch>& watch) {
-   char      buffer[4096];
-   uintptr_t position = 0;
-
-   position += std_format_to_n(buffer + position, sizeof(buffer) - position, "py {}([", function);
-
-   Watch* stack[32];
-   int    stackCount = 0;
-   stack[0]          = watch.get();
-
-   while (stack[stackCount]) {
-      stack[stackCount + 1] = stack[stackCount]->parent;
-      stackCount++;
-      if (stackCount == 32)
-         break;
-   }
-
-   bool first = true;
-
-   while (stackCount) {
-      stackCount--;
-
-      if (!first) {
-         position += std_format_to_n(buffer + position, sizeof(buffer) - position, ",");
-      } else {
-         first = false;
-      }
-
-      auto w = stack[stackCount];
-      if (!w->key.empty()) {
-         position += std_format_to_n(buffer + position, sizeof(buffer) - position, "'{}'", w->key);
-      } else if (w->parent && w->parent->isDynamicArray) {
-         position += std_format_to_n(buffer + position, sizeof(buffer) - position, "'[{}]'", w->arrayIndex);
-      } else {
-         position += std_format_to_n(buffer + position, sizeof(buffer) - position, "{}", w->arrayIndex);
-      }
-   }
-
-   position += std_format_to_n(buffer + position, sizeof(buffer) - position, "]");
-
-   if (function == "gf_valueof") {
-      position += std_format_to_n(buffer + position, sizeof(buffer) - position, ",'{:c}'", watch->format ?: ' ');
-   }
-
-   position += std_format_to_n(buffer + position, sizeof(buffer) - position, ")");
-   return EvaluateCommand(buffer);
-}
-
-bool WatchHasFields(const shared_ptr<Watch>& watch) {
-   auto res = WatchEvaluate("gf_fields", watch);
-
-   if (res.contains("(array)") || res.contains("(d_arr)")) {
-      return true;
-   }
-
-   if (auto pos = res.find_first_of('\n'); pos != string::npos) {
-      // trim string to first `\n` and return true if remaining isn't gdb prompt
-      // -----------------------------------------------------------------------
-      res.resize(pos);
-      return !res.contains("(gdb)\n");
-   }
-   return false;
-}
-
-void WatchInsertFieldRows2(const shared_ptr<Watch>& watch, WatchVector* array) {
-   for (const auto& field : watch->fields) {
-      array->push_back(field);
-      if (field->open)
-         WatchInsertFieldRows2(field, array);
-   }
-}
-
-std::string WatchGetAddress(const shared_ptr<Watch>& watch) {
-   auto res = WatchEvaluate("gf_addressof", watch);
-
-   if (strstr(res.c_str(), "??")) {
-      windowMain->show_dialog(0, "Couldn't get the address of the variable.\n%f%B", "OK");
-      return {};
-   }
-
-   auto end = res.find_first_of(' ');
-   if (end == npos) {
-      windowMain->show_dialog(0, "Couldn't get the address of the variable.\n%f%B", "OK");
-      return {};
-   }
-   res.resize(end);
-
-   resize_to_lf(res);
-   return res;
-}
-
-void WatchSaveAsRecurse(FILE* file, const shared_ptr<Watch>& watch, int indent, int indexInParentArray) {
-   print(file, "{:.{}}", "\t\t\t\t\t\t\t\t\t\t\t\t\t\t", indent);
-
-   if (indexInParentArray == -1) {
-      print(file, "{} = ", watch->key);
-   } else {
-      print(file, "[{}] = ", indexInParentArray);
-   }
-
-   if (watch->open) {
-      print(file, "\n");
-
-      for (size_t i = 0; i < watch->fields.size(); i++)
-         WatchSaveAsRecurse(file, watch->fields[i], indent + 1, watch->isArray ? i : -1);
-   } else {
-      auto res = WatchEvaluate("gf_valueof", watch);
-      if (!res.empty()) {
-         resize_to_lf(res);
-         print(file, "{}\n", res);
-      }
-   }
-}
 
 static int WatchTextboxMessage(UIElement* el, UIMessage msg, int di, void* dp);
 
@@ -2851,13 +2859,7 @@ struct WatchWindow : public UIElement {
          if (auto it = rng::find(dynamicArrays, watch); it != rng::end(dynamicArrays))
             dynamicArrays.erase(it);
       }
-
-      watch->loadedFields = false;
-      watch->fields.clear();
-
-      if (!fieldsOnly) {
-         watch->key.clear();
-      }
+      watch->clear(fieldsOnly);
    }
 
    void delete_expression(bool fieldsOnly = false) {
@@ -2894,7 +2896,7 @@ struct WatchWindow : public UIElement {
 
       watch->loadedFields = true;
 
-      auto res = WatchEvaluate("gf_fields", watch);
+      auto res = watch->evaluate("gf_fields");
 
       if (res.contains("(array)") || res.contains("(d_arr)")) {
          int count = sv_atoi(res, 7);
@@ -2917,7 +2919,7 @@ struct WatchWindow : public UIElement {
 
             watch->fields.push_back(field);
             if (!i)
-               hasSubFields = WatchHasFields(field);
+               hasSubFields = field->has_fields();
             field->hasFields = hasSubFields;
             field->depth     = watch->depth + 1;
          }
@@ -2940,7 +2942,7 @@ struct WatchWindow : public UIElement {
             field->parent = watch.get();
 
             watch->fields.emplace_back(field);
-            field->hasFields = WatchHasFields(field);
+            field->hasFields = field->has_fields();
             position         = end + 1;
          }
       }
@@ -2965,7 +2967,7 @@ struct WatchWindow : public UIElement {
 
    void insert_field_rows(const shared_ptr<Watch>& watch, size_t position, bool ensureLastVisible) {
       WatchVector array = {};
-      WatchInsertFieldRows2(watch, &array);
+      watch->insert_field_rows(&array);
       rows.insert(rows.cbegin() + position, array.cbegin(), array.cend());
       if (ensureLastVisible)
          ensure_row_visible(position + array.size() - 1);
@@ -2990,12 +2992,12 @@ struct WatchWindow : public UIElement {
       baseExpressions.push_back(watch);
       selectedRow++;
 
-      auto res = WatchEvaluate("gf_typeof", watch);
+      auto res = watch->evaluate("gf_typeof");
 
       if (!res.contains("??")) {
          resize_to_lf(res);
          watch->type      = std::move(res);
-         watch->hasFields = WatchHasFields(watch);
+         watch->hasFields = watch->has_fields();
       }
    }
 
@@ -3016,7 +3018,7 @@ struct WatchWindow : public UIElement {
       if (mode == WATCH_NORMAL && selectedRow == rows.size())
          return false;
       const auto& watch = rows[selectedRow];
-      auto        res   = WatchGetAddress(watch);
+      auto        res   = watch->get_address();
       if (res.empty())
          return false;
 
@@ -3032,7 +3034,7 @@ struct WatchWindow : public UIElement {
    bool add_entry_for_address2(std::string& res) {
       auto        address = res;
       const auto& watch   = rows[selectedRow];
-      res                 = WatchEvaluate("gf_typeof", watch);
+      res                 = watch->evaluate("gf_typeof");
       if (res.empty() || res.contains("??"))
          return false;
       resize_to_lf(res);
@@ -3087,7 +3089,7 @@ struct WatchWindow : public UIElement {
 
       const shared_ptr<Watch>& watch = rows[selectedRow];
 
-      auto res = WatchEvaluate("gf_valueof", watch);
+      auto res = watch->evaluate("gf_valueof");
       if (!res.empty()) {
          resize_to_lf(res);
          _window->write_clipboard_text(strdup(res.c_str()), sel_target_t::clipboard);
@@ -3162,7 +3164,7 @@ struct WatchWindow : public UIElement {
 
       for (size_t i = 0; i < baseExpressions.size(); i++) {
          const shared_ptr<Watch>& watch = baseExpressions[i];
-         auto                     res   = WatchEvaluate("gf_typeof", watch);
+         auto                     res   = watch->evaluate("gf_typeof");
          resize_to_lf(res);
 
          if (res != watch->type && res != "??") {
@@ -3181,7 +3183,7 @@ struct WatchWindow : public UIElement {
 
       for (size_t i = 0; i < dynamicArrays.size(); i++) {
          const shared_ptr<Watch>& watch = dynamicArrays[i];
-         auto                     res   = WatchEvaluate("gf_fields", watch);
+         auto                     res   = watch->evaluate("gf_fields");
          if (res.empty() || !res.contains("(d_arr)"))
             continue;
          int count = sv_atoi(res, 7);
@@ -3235,7 +3237,7 @@ struct WatchWindow : public UIElement {
          return;
       }
 
-      WatchSaveAsRecurse(f, rows[selectedRow], 0, -1);
+      rows[selectedRow]->save_as(f, 0, -1);
       fclose(f);
    }
 
@@ -3278,7 +3280,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
             if ((watch->value.empty() || watch->updateIndex != updateIndex) && !watch->open) {
                if (!ctx.programRunning) {
                   watch->updateIndex = updateIndex;
-                  auto res           = WatchEvaluate("gf_valueof", watch);
+                  auto res           = watch->evaluate("gf_valueof");
                   resize_to_lf(res);
                   watch->value = std::move(res);
                } else {
@@ -3357,7 +3359,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
                .add_item(0, "Break on writes to address", [this](UIButton&) {
                   if (selectedRow == rows.size())
                      return;
-                  auto res = WatchGetAddress(rows[selectedRow]);
+                  auto res = rows[selectedRow]->get_address();;
                   if (res.empty())
                      return;
 
@@ -3663,7 +3665,7 @@ void WatchWindow::WatchChangeLoggerCreate() {
       return;
    }
 
-   auto res = WatchGetAddress(rows[selectedRow]);
+   auto res = rows[selectedRow]->get_address();
    if (res.empty()) {
       return;
    }
@@ -3674,7 +3676,7 @@ void WatchWindow::WatchChangeLoggerCreate() {
       0, "-- Watch logger settings --\nExpressions to evaluate (separate with semicolons):\n%t\n\n%l\n\n%f%B%C",
       &expressionsToEvaluate, "Start", "Cancel");
 
-   if (result == "Cancel") {
+   if (result == "Cancel" || expressionsToEvaluate == nullptr) {
       free(expressionsToEvaluate);
       return;
    }
@@ -3734,6 +3736,11 @@ void WatchWindow::WatchChangeLoggerCreate() {
    return;
 }
 
+// right click on variable and "Log writes to address..."
+// ---------------------------------------------------
+// parse something like:
+// "\nHardware watchpoint 16: * 0x7fffffffd85c\n\nOld value = 1\nNew value = 2\000main (argc=1, argv=0x7fffffffd988)\n    at /home/greg/github/greg/gf/examples/gf_testprog.cpp:33\00033\t   int res = a.x + c.y[1] - fi"
+// --------------------------------------------------------------------------------------------------
 bool WatchLoggerUpdate(std::string _data) {
    char* data             = &_data[0];
    char* stringWatchpoint = strstr(data, "watchpoint ");
@@ -6358,13 +6365,13 @@ void ViewWindowView(void* cp) {
    char oldFormat = watch->format;
    watch->format  = 0;
 
-   auto res = WatchEvaluate("gf_typeof", watch);
+   auto res = watch->evaluate("gf_typeof");
    resize_to_lf(res);
    std_format_to_n(type, sizeof(type), "{}", res);
    std_format_to_n(buffer, sizeof(buffer), "Type: {}", type);
    panel->add_label(0, buffer);
 
-   res = WatchEvaluate("gf_valueof", watch);
+   res = watch->evaluate("gf_valueof");
    resize_to_lf(res);
    watch->format = oldFormat;
    // print("valueof: {}\n", ctx.evaluateResult);
@@ -6419,7 +6426,7 @@ void ViewWindowView(void* cp) {
       char address[64];
 
       if ((res)[0] != '(') {
-         res = WatchEvaluate("gf_addressof", watch);
+         res = watch->evaluate("gf_addressof");
          print("addressof '{}'\n", res);
          resize_to_lf(res, ' ');
          resize_to_lf(res);
@@ -6479,7 +6486,7 @@ void ViewWindowView(void* cp) {
          goto unrecognised;
       if (w <= 1 || h <= 1)
          goto unrecognised;
-      auto res = WatchGetAddress(watch);
+      auto res = watch->get_address();
       if (res.empty())
          goto unrecognised;
 
