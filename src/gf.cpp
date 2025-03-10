@@ -998,56 +998,56 @@ void DebuggerGetBreakpoints() {
 
 struct TabCompleter {
    bool _lastKeyWasTab;
-   int  consecutiveTabCount;
-   int  lastTabBytes;
+   int  _consecutiveTabCount;
+   int  _lastTabBytes;
+
+   void run(UITextbox* textbox, bool lastKeyWasTab, bool addPrintPrefix) {
+      auto text   = textbox->text();
+      auto buffer = std::format("complete {}{}", addPrintPrefix ? "p " : "",
+                                text.substr(0, lastKeyWasTab ? (size_t)_lastTabBytes : text.size()));
+      for (int i = 0; buffer[i]; i++)
+         if (buffer[i] == '\\')
+            buffer[i] = ' ';
+      auto res = EvaluateCommand(buffer);
+      if (res.empty())
+         return;
+
+      const char* start = res.c_str();
+      const char* end   = strchr(start, '\n');
+
+      if (!lastKeyWasTab) {
+         _consecutiveTabCount = 0;
+         _lastTabBytes        = text.size();
+      }
+
+      while (start && end && memcmp(start + (addPrintPrefix ? 2 : 0), text.data(), _lastTabBytes)) {
+         start = end + 1;
+         end   = strchr(start, '\n');
+      }
+
+      for (int i = 0; end && i < _consecutiveTabCount; i++) {
+         start = end + 1;
+         end   = strchr(start, '\n');
+      }
+
+      if (!end) {
+         _consecutiveTabCount = 0;
+         start                           = res.c_str();
+         end                             = strchr(start, '\n');
+      }
+
+      _lastKeyWasTab = true;
+      _consecutiveTabCount++;
+
+      if (end) {
+         if (addPrintPrefix)
+            start += 2;
+         textbox->clear(false);
+         textbox->replace_text({start, static_cast<size_t>(end - start)}, false);
+         textbox->refresh();
+      }
+   }
 };
-
-void TabCompleterRun(TabCompleter* completer, UITextbox* textbox, bool lastKeyWasTab, bool addPrintPrefix) {
-   auto text   = textbox->text();
-   auto buffer = std::format("complete {}{}", addPrintPrefix ? "p " : "",
-                             text.substr(0, lastKeyWasTab ? (size_t)completer->lastTabBytes : text.size()));
-   for (int i = 0; buffer[i]; i++)
-      if (buffer[i] == '\\')
-         buffer[i] = ' ';
-   auto res = EvaluateCommand(buffer);
-   if (res.empty())
-      return;
-
-   const char* start = res.c_str();
-   const char* end   = strchr(start, '\n');
-
-   if (!lastKeyWasTab) {
-      completer->consecutiveTabCount = 0;
-      completer->lastTabBytes        = text.size();
-   }
-
-   while (start && end && memcmp(start + (addPrintPrefix ? 2 : 0), text.data(), completer->lastTabBytes)) {
-      start = end + 1;
-      end   = strchr(start, '\n');
-   }
-
-   for (int i = 0; end && i < completer->consecutiveTabCount; i++) {
-      start = end + 1;
-      end   = strchr(start, '\n');
-   }
-
-   if (!end) {
-      completer->consecutiveTabCount = 0;
-      start                          = res.c_str();
-      end                            = strchr(start, '\n');
-   }
-
-   completer->_lastKeyWasTab = true;
-   completer->consecutiveTabCount++;
-
-   if (end) {
-      if (addPrintPrefix)
-         start += 2;
-      textbox->clear(false);
-      textbox->replace_text({start, static_cast<size_t>(end - start)}, false);
-      textbox->refresh();
-   }
-}
 
 // ------------------------------------------------------
 // Commands:
@@ -2603,7 +2603,7 @@ int TextboxInputMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
          return 1;
       } else if (m->code == UIKeycode::TAB && sz && !el->_window->_shift) {
-         TabCompleterRun(&tabCompleter, textbox, lastKeyWasTab, false);
+         tabCompleter.run(textbox, lastKeyWasTab, false);
          return 1;
       } else if (m->code == UIKeycode::UP) {
          auto currentLine = displayCode->current_line();
@@ -3519,7 +3519,7 @@ int WatchTextboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       tabCompleter._lastKeyWasTab       = false;
 
       if (m->code == UIKeycode::TAB && textbox->text().size() && !el->_window->_shift) {
-         TabCompleterRun(&tabCompleter, textbox, lastKeyWasTab, true);
+         tabCompleter.run(textbox, lastKeyWasTab, true);
          return 1;
       }
    }
@@ -4469,12 +4469,6 @@ void* LogWindowThread(void* context) {
    }
 }
 
-void LogReceived(char* buffer) {
-   ctx.logWindow->insert_content(buffer, false);
-   (*(UIElement**)buffer)->refresh();
-   free(buffer);
-}
-
 UIElement* LogWindowCreate(UIElement* parent) {
    UICode*   code = &parent->add_code(UICode::SELECTABLE);
    pthread_t thread;
@@ -4494,25 +4488,70 @@ struct Thread {
 
 struct ThreadWindow {
    vector<Thread> threads;
+
+   int _class_message_proc(UITable* table, UIMessage msg, int di, void* dp);
+
+   static int ThreadTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<ThreadWindow*>(el->_cp)->_class_message_proc(static_cast<UITable*>(el), msg, di, dp);
+   }
+
+   void update(UITable* table) {
+      threads.clear();
+      auto res = EvaluateCommand("info threads");
+      if (res.empty())
+         return;
+
+      char* position = (char*)res.c_str();
+      for (int i = 0; position[i]; i++) {
+         if (position[i] == '\n' && position[i + 1] == ' ' && position[i + 2] == ' ' && position[i + 3] == ' ') {
+            memmove(position + i, position + i + 3, strlen(position) - 3 - i + 1);
+         }
+      }
+
+      while (true) {
+         position = strchr(position, '\n');
+         if (!position)
+            break;
+         Thread thread = {};
+         if (position[1] == '*')
+            thread.active = true;
+         thread.id = sv_atoi(position, 2);
+         position  = strchr(position + 1, '"');
+         if (!position)
+            break;
+         position = strchr(position + 1, '"');
+         if (!position)
+            break;
+         position++;
+         char* end = strchr(position, '\n');
+         if (end - position >= (ptrdiff_t)sizeof(thread.frame))
+            end = position + sizeof(thread.frame) - 1;
+         memcpy(thread.frame, position, end - position);
+         thread.frame[end - position] = 0;
+         threads.push_back(thread);
+      }
+
+      table->set_num_items(threads.size());
+      table->resize_columns();
+      table->refresh();
+   }
 };
 
-int ThreadTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-   ThreadWindow* window = (ThreadWindow*)el->_cp;
-
+int ThreadWindow::_class_message_proc(UITable* table, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m = (UITableGetItem*)dp;
-      m->_is_selected   = window->threads[m->_row].active;
+      m->_is_selected   = threads[m->_row].active;
 
       if (m->_column == 0) {
-         return m->format_to("{}", window->threads[m->_row].id);
+         return m->format_to("{}", threads[m->_row].id);
       } else if (m->_column == 1) {
-         return m->format_to("{}", window->threads[m->_row].frame);
+         return m->format_to("{}", threads[m->_row].frame);
       }
    } else if (msg == UIMessage::LEFT_DOWN) {
-      int index = ((UITable*)el)->hittest(el->cursor_pos());
+      int index = table->hittest(table->cursor_pos());
 
       if (index != -1) {
-         (void)DebuggerSend(std::format("thread {}", window->threads[index].id), true, false);
+         (void)DebuggerSend(std::format("thread {}", threads[index].id), true, false);
       }
    }
 
@@ -4520,52 +4559,12 @@ int ThreadTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 }
 
 UIElement* ThreadWindowCreate(UIElement* parent) {
-   return &parent->add_table(0, "ID\tFrame").set_cp(new ThreadWindow).set_user_proc(ThreadTableMessage);
+   return &parent->add_table(0, "ID\tFrame").set_cp(new ThreadWindow).set_user_proc(ThreadWindow::ThreadTableMessage);
 }
 
-void ThreadWindowUpdate(const char*, UIElement* _table) {
-   ThreadWindow* window = (ThreadWindow*)_table->_cp;
-   window->threads.clear();
-
-   auto res = EvaluateCommand("info threads");
-   if (res.empty())
-      return;
-
-   char* position = (char*)res.c_str();
-
-   for (int i = 0; position[i]; i++) {
-      if (position[i] == '\n' && position[i + 1] == ' ' && position[i + 2] == ' ' && position[i + 3] == ' ') {
-         memmove(position + i, position + i + 3, strlen(position) - 3 - i + 1);
-      }
-   }
-
-   while (true) {
-      position = strchr(position, '\n');
-      if (!position)
-         break;
-      Thread thread = {};
-      if (position[1] == '*')
-         thread.active = true;
-      thread.id = sv_atoi(position, 2);
-      position  = strchr(position + 1, '"');
-      if (!position)
-         break;
-      position = strchr(position + 1, '"');
-      if (!position)
-         break;
-      position++;
-      char* end = strchr(position, '\n');
-      if (end - position >= (ptrdiff_t)sizeof(thread.frame))
-         end = position + sizeof(thread.frame) - 1;
-      memcpy(thread.frame, position, end - position);
-      thread.frame[end - position] = 0;
-      window->threads.push_back(thread);
-   }
-
-   UITable* table = (UITable*)_table;
-   table->set_num_items(window->threads.size());
-   table->resize_columns();
-   table->refresh();
+void ThreadWindowUpdate(const char*, UIElement* table) {
+   ThreadWindow* window = static_cast<ThreadWindow*>(table->_cp);
+   window->update(static_cast<UITable*>(table));
 }
 
 // ---------------------------------------------------/
