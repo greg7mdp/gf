@@ -387,9 +387,27 @@ struct StackEntry {
    int      id;
 };
 
-vector<StackEntry> stack;
-size_t             stackSelected;
-bool               stackChanged;
+struct StackWindow {
+   vector<StackEntry> stack;
+   size_t             stackSelected;
+   bool               stackChanged;
+
+   void        clear() { stack.clear(); }
+   void        append(const StackEntry& entry) { stack.push_back(entry); }
+   bool        has_selection() const { return stackSelected < stack.size(); }
+   bool        changed() const { return stackChanged; }
+   
+   const StackEntry& operator[](size_t i) const { return stack[i]; }
+   StackEntry& operator[](size_t i) { return stack[i]; }
+   StackEntry& current() { return stack[stackSelected]; }
+
+   void set_frame(UIElement* el, int index);
+
+   static UIElement* Create(UIElement* parent);
+   static void Update(const char*, UIElement* table) ;
+};
+
+StackWindow sw;
 
 // Python code:
 
@@ -830,7 +848,7 @@ void DebuggerGetStack() {
    if (res.empty())
       return;
 
-   stack.clear();
+   sw.clear();
 
    const char* position = res.c_str();
 
@@ -878,7 +896,7 @@ void DebuggerGetStack() {
          std_format_to_n(entry.location, sizeof(entry.location), "{}", std::string_view{file, (size_t)(end - file)});
       }
 
-      stack.push_back(entry);
+      sw.append(entry);
 
       if (!(*next))
          break;
@@ -1636,10 +1654,11 @@ bool DisplaySetPosition(const char* file, std::optional<size_t> line, bool useGD
 }
 
 void DisplaySetPositionFromStack() {
-   if (stackSelected < stack.size()) {
+   if (sw.has_selection()) {
       char location[sizeof(previousLocation)];
-      strcpy(previousLocation, stack[stackSelected].location);
-      strcpy(location, stack[stackSelected].location);
+      auto& current = sw.current();
+      strcpy(previousLocation, current.location);
+      strcpy(location, current.location);
       char*                 line = strchr(location, ':');
       std::optional<size_t> position;
       if (line) {
@@ -2016,11 +2035,11 @@ void SourceWindowUpdate(const char* data, UIElement* el) {
       }
    }
 
-   if (!stackChanged && changedSourceLine)
-      stackSelected = 0;
-   stackChanged = false;
+   if (!sw.changed() && changedSourceLine)
+      sw.stackSelected = 0;
+   sw.stackChanged = false;
 
-   if (changedSourceLine && stackSelected < stack.size() && strcmp(stack[stackSelected].location, previousLocation)) {
+   if (changedSourceLine && sw.has_selection() && strcmp(sw.current().location, previousLocation)) {
       DisplaySetPositionFromStack();
    }
 
@@ -3802,11 +3821,11 @@ bool WatchLoggerUpdate(std::string _data) {
       where[sizeof(entry.where) - 1] = 0;
    entry.value                      = value;
    entry.where                      = where;
-   vector<StackEntry> previousStack = stack;
-   stack                            = {};
+   vector<StackEntry> previousStack = sw.stack;
+   sw.stack                        = {};
    DebuggerGetStack();
-   entry.trace = stack;
-   stack       = previousStack;
+   entry.trace = sw.stack;
+   sw.stack   = previousStack;
    logger->entries.push_back(entry);
    ++logger->table->num_items();
    logger->table->refresh();
@@ -3874,7 +3893,7 @@ bool CommandAddWatch() {
 // Stack window:
 // ---------------------------------------------------/
 
-void StackSetFrame(UIElement* el, int index) {
+void StackWindow::set_frame(UIElement* el, int index) {
    if (index >= 0 && index < (int)((UITable*)el)->num_items()) {
       stackChanged = true;
       if (stackSelected != (size_t)index) {
@@ -3891,25 +3910,25 @@ void StackSetFrame(UIElement* el, int index) {
 int TableStackMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m = (UITableGetItem*)dp;
-      m->_is_selected   = (size_t)m->_row == stackSelected;
-      StackEntry* entry = &stack[m->_row];
+      m->_is_selected   = (size_t)m->_row == sw.stackSelected;
+      const StackEntry& entry = sw[m->_row];
 
       if (m->_column == 0) {
-         return m->format_to("{}", entry->id);
+         return m->format_to("{}", entry.id);
       } else if (m->_column == 1) {
-         return m->format_to("{}", entry->function);
+         return m->format_to("{}", entry.function);
       } else if (m->_column == 2) {
-         return m->format_to("{}", entry->location);
+         return m->format_to("{}", entry.location);
       } else if (m->_column == 3) {
-         return m->format_to("0x{:X}", entry->address);
+         return m->format_to("0x{:X}", entry.address);
       }
    } else if (msg == UIMessage::LEFT_DOWN || msg == UIMessage::MOUSE_DRAG) {
-      StackSetFrame(el, ((UITable*)el)->hittest(el->cursor_pos()));
+      sw.set_frame(el, ((UITable*)el)->hittest(el->cursor_pos()));
    } else if (msg == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
       if (m->code == UIKeycode::UP || m->code == UIKeycode::DOWN) {
-         StackSetFrame(el, stackSelected + (m->code == UIKeycode::UP ? -1 : 1));
+         sw.set_frame(el, sw.stackSelected + (m->code == UIKeycode::UP ? -1 : 1));
          // TODO Scroll the row into view if necessary.
          return 1;
       }
@@ -3918,13 +3937,13 @@ int TableStackMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    return 0;
 }
 
-UIElement* StackWindowCreate(UIElement* parent) {
+UIElement* StackWindow::Create(UIElement* parent) {
    return &parent->add_table(0, "Index\tFunction\tLocation\tAddress").set_user_proc(TableStackMessage);
 }
 
-void StackWindowUpdate(const char*, UIElement* _table) {
+void StackWindow::Update(const char*, UIElement* _table) {
    UITable& table = *(UITable*)_table;
-   table.set_num_items(stack.size()).resize_columns().refresh();
+   table.set_num_items(sw.stack.size()).resize_columns().refresh();
 }
 
 // ---------------------------------------------------/
@@ -7179,7 +7198,7 @@ auto gdb_invoker(string_view cmd, int flags = 0) {
 }
 
 void Context::InterfaceAddBuiltinWindowsAndCommands() {
-   interfaceWindows["Stack"]       = {StackWindowCreate, StackWindowUpdate};
+   interfaceWindows["Stack"]       = {StackWindow::Create, StackWindow::Update};
    interfaceWindows["Source"]      = {SourceWindowCreate, SourceWindowUpdate};
    interfaceWindows["Breakpoints"] = {BreakpointsWindowCreate, BreakpointsWindowUpdate};
    interfaceWindows["Registers"]   = {RegistersWindowCreate, RegistersWindowUpdate};
