@@ -3172,6 +3172,13 @@ struct WatchWindow : public UIElement {
    static int WatchWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<WatchWindow*>(el)->_class_message_proc(msg, di, dp);
    }
+
+   static UIElement* Create(UIElement* parent, const char* name, WatchWindowMode mode);
+
+   static void Update(const char*, UIElement* el) { static_cast<WatchWindow*>(el->_cp)->update(); }
+
+   static void Focus(UIElement* el) { static_cast<WatchWindow*>(el)->focus(); }
+
 };
 
 void Watch::add_fields(WatchWindow* w) {
@@ -3835,29 +3842,27 @@ int WatchPanelMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    return 0;
 }
 
-UIElement* WatchWindowCreate(UIElement* parent) {
+UIElement* WatchWindow::Create(UIElement* parent, const char* name, WatchWindowMode mode) {
    UIPanel*     panel = &parent->add_panel(UIPanel::SCROLL | UIPanel::COLOR_1);
-   WatchWindow* w     = new WatchWindow(panel, UIElement::h_fill | UIElement::tab_stop_flag, "Watch");
+   WatchWindow* w     = new WatchWindow(panel, UIElement::h_fill | UIElement::tab_stop_flag, name);
    panel->set_user_proc(WatchPanelMessage).set_cp(w);
 
-   w->mode      = WatchWindow::WATCH_NORMAL;
-   w->extraRows = 1;
-   if (!firstWatchWindow)
-      firstWatchWindow = w;
+   w->mode = mode;
+   if (mode == WatchWindow::WATCH_NORMAL) {
+      w->extraRows = 1;
+      if (!firstWatchWindow)
+         firstWatchWindow = w;
+   }
    return panel;
 }
 
 UIElement* LocalsWindowCreate(UIElement* parent) {
-   UIPanel*     panel = &parent->add_panel(UIPanel::SCROLL | UIPanel::COLOR_1);
-   WatchWindow* w     = new WatchWindow(panel, UIElement::h_fill | UIElement::tab_stop_flag, "Locals");
-   panel->set_user_proc(WatchPanelMessage).set_cp(w);
-   w->mode = WatchWindow::WATCH_LOCALS;
-   return panel;
+   return WatchWindow::Create(parent, "Locals", WatchWindow::WATCH_LOCALS);
 }
 
-void WatchWindowUpdate(const char*, UIElement* el) { static_cast<WatchWindow*>(el->_cp)->update(); }
-
-void WatchWindowFocus(UIElement* el) { static_cast<WatchWindow*>(el)->focus(); }
+UIElement* WatchWindowCreate(UIElement* parent) {
+   return WatchWindow::Create(parent, "Watch", WatchWindow::WATCH_NORMAL);
+}
 
 bool CommandAddWatch() {
    if (auto el = ctx.InterfaceWindowSwitchToAndFocus("Watch"))
@@ -4480,13 +4485,13 @@ UIElement* LogWindowCreate(UIElement* parent) {
 // Thread window:
 // ---------------------------------------------------/
 
-struct Thread {
-   char frame[127];
-   bool active = false;
-   int  id     = 0;
-};
-
 struct ThreadWindow {
+   struct Thread {
+      char frame[127];
+      bool active = false;
+      int  id     = 0;
+   };
+
    vector<Thread> threads;
 
    int _class_message_proc(UITable* table, UIMessage msg, int di, void* dp);
@@ -4535,6 +4540,16 @@ struct ThreadWindow {
       table->resize_columns();
       table->refresh();
    }
+   
+   static UIElement* Create(UIElement* parent) {
+      return &parent->add_table(0, "ID\tFrame").set_cp(new ThreadWindow).set_user_proc(ThreadWindow::ThreadTableMessage);
+   }
+
+   static void Update(const char*, UIElement* table) {
+      ThreadWindow* window = static_cast<ThreadWindow*>(table->_cp);
+      window->update(static_cast<UITable*>(table));
+   }
+
 };
 
 int ThreadWindow::_class_message_proc(UITable* table, UIMessage msg, int di, void* dp) {
@@ -4558,14 +4573,6 @@ int ThreadWindow::_class_message_proc(UITable* table, UIMessage msg, int di, voi
    return 0;
 }
 
-UIElement* ThreadWindowCreate(UIElement* parent) {
-   return &parent->add_table(0, "ID\tFrame").set_cp(new ThreadWindow).set_user_proc(ThreadWindow::ThreadTableMessage);
-}
-
-void ThreadWindowUpdate(const char*, UIElement* table) {
-   ThreadWindow* window = static_cast<ThreadWindow*>(table->_cp);
-   window->update(static_cast<UITable*>(table));
-}
 
 // ---------------------------------------------------/
 // Executable window:
@@ -4615,30 +4622,30 @@ struct ExecutableWindow {
       SettingsAddTrustedFolder();
       windowMain->show_dialog(0, "Saved executable settings!\n%f%B", "OK");
    }
+
+   static UIElement* Create(UIElement* parent) {
+      ExecutableWindow* win   = new ExecutableWindow;
+      UIPanel*          panel = &parent->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND);
+
+      panel->add_n(
+         [&](auto& p) { p.add_label(0, "Path to executable:"); },
+         [&](auto& p) { win->path = &p.add_textbox(0).replace_text(gfc.exe_path, false); },
+         [&](auto& p) { p.add_label(0, "Command line arguments:"); },
+         [&](auto& p) { win->arguments = &p.add_textbox(0).replace_text(gfc.exe_args, false); },
+         [&](auto& p) {
+            p.add_checkbox(0, "Ask GDB for working directory").set_checked(gfc.exe_ask_dir).track(&win->should_ask);
+         },
+         [&](auto& p) {
+            p.add_panel(UIPanel::HORIZONTAL)
+               .add_n(
+                  [&](auto& p) { p.add_button(0, "Run").on_click([win](UIButton&) { win->start_or_run(false); }); },
+                  [&](auto& p) { p.add_button(0, "Start").on_click([win](UIButton&) { win->start_or_run(true); }); },
+                  [&](auto& p) { p.add_spacer(0, 10, 0); },
+                  [&](auto& p) { p.add_button(0, "Save to .project.gf").on_click([win](UIButton&) { win->save(); }); });
+         });
+      return panel;
+   }
 };
-
-UIElement* ExecutableWindowCreate(UIElement* parent) {
-   ExecutableWindow* win   = new ExecutableWindow;
-   UIPanel*          panel = &parent->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND);
-
-   panel->add_n(
-      [&](auto& p) { p.add_label(0, "Path to executable:"); },
-      [&](auto& p) { win->path = &p.add_textbox(0).replace_text(gfc.exe_path, false); },
-      [&](auto& p) { p.add_label(0, "Command line arguments:"); },
-      [&](auto& p) { win->arguments = &p.add_textbox(0).replace_text(gfc.exe_args, false); },
-      [&](auto& p) {
-         p.add_checkbox(0, "Ask GDB for working directory").set_checked(gfc.exe_ask_dir).track(&win->should_ask);
-      },
-      [&](auto& p) {
-         p.add_panel(UIPanel::HORIZONTAL)
-            .add_n(
-               [&](auto& p) { p.add_button(0, "Run").on_click([win](UIButton&) { win->start_or_run(false); }); },
-               [&](auto& p) { p.add_button(0, "Start").on_click([win](UIButton&) { win->start_or_run(true); }); },
-               [&](auto& p) { p.add_spacer(0, 10, 0); },
-               [&](auto& p) { p.add_button(0, "Save to .project.gf").on_click([win](UIButton&) { win->save(); }); });
-      });
-   return panel;
-}
 
 // ---------------------------------------------------/
 // Command search window:
@@ -7176,16 +7183,16 @@ void Context::InterfaceAddBuiltinWindowsAndCommands() {
    interfaceWindows["Source"]      = {SourceWindowCreate, SourceWindowUpdate};
    interfaceWindows["Breakpoints"] = {BreakpointsWindowCreate, BreakpointsWindowUpdate};
    interfaceWindows["Registers"]   = {RegistersWindowCreate, RegistersWindowUpdate};
-   interfaceWindows["Watch"]       = {WatchWindowCreate, WatchWindowUpdate, WatchWindowFocus};
-   interfaceWindows["Locals"]      = {LocalsWindowCreate, WatchWindowUpdate, WatchWindowFocus};
+   interfaceWindows["Watch"]       = {WatchWindowCreate, WatchWindow::Update, WatchWindow::Focus};
+   interfaceWindows["Locals"]      = {LocalsWindowCreate, WatchWindow::Update, WatchWindow::Focus};
    interfaceWindows["Commands"]    = {CommandsWindowCreate, nullptr};
    interfaceWindows["Data"]        = {DataWindowCreate, nullptr};
    interfaceWindows["Struct"]      = {StructWindowCreate, nullptr};
    interfaceWindows["Files"]       = {FilesWindowCreate, nullptr};
    interfaceWindows["Console"]     = {ConsoleWindowCreate, nullptr};
    interfaceWindows["Log"]         = {LogWindowCreate, nullptr};
-   interfaceWindows["Thread"]      = {ThreadWindowCreate, ThreadWindowUpdate};
-   interfaceWindows["Exe"]         = {ExecutableWindowCreate, nullptr};
+   interfaceWindows["Thread"]      = {ThreadWindow::Create, ThreadWindow::Update};
+   interfaceWindows["Exe"]         = {ExecutableWindow::Create, nullptr};
    interfaceWindows["CmdSearch"]   = {CommandSearchWindowCreate, nullptr};
 
    interfaceDataViewers.push_back({"Add bitmap...", BitmapAddDialog});
