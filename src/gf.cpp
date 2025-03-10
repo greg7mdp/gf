@@ -176,23 +176,23 @@ void print(std::format_string<Args...> fmt, Args&&... args) {
 //                              Data structures
 // ---------------------------------------------------------------------------------------------
 struct InterfaceCommand {
-   const char* label = nullptr;
-   UIShortcut  shortcut;
+   const char* _label = nullptr;
+   UIShortcut  _shortcut;
 };
 
 struct InterfaceWindow {
-   UIElement* (*create)(UIElement* parent)            = nullptr;
-   void (*update)(const char* data, UIElement* el)    = nullptr;
-   void (*focus)(UIElement* el)                       = nullptr;
-   UIElement* el                                      = nullptr;
-   bool       queuedUpdate                            = false;
-   bool       alwaysUpdate                            = false;
-   void (*config)(string_view key, string_view value) = nullptr;
+   UIElement* (*_create)(UIElement* parent)            = nullptr;
+   void (*_update)(const char* data, UIElement* el)    = nullptr;
+   void (*_focus)(UIElement* el)                       = nullptr;
+   UIElement* _el                                      = nullptr;
+   bool       _queued_update                           = false;
+   bool       _always_update                           = false;
+   void (*_config)(string_view key, string_view value) = nullptr;
 };
 
 struct InterfaceDataViewer {
-   const char* addButtonLabel = nullptr;
-   void (*addButtonCallback)();
+   const char* _add_button_label = nullptr;
+   void (*_add_button_callback)();
 };
 
 // --------------------------------------------------------------------------------------------
@@ -203,8 +203,8 @@ struct Command {
 
 // --------------------------------------------------------------------------------------------
 struct ReceiveMessageType {
-   UIMessage                                         msg;
-   std::function<void(std::unique_ptr<std::string>)> callback;
+   UIMessage                                         _msg;
+   std::function<void(std::unique_ptr<std::string>)> _callback;
 };
 
 struct WatchWindow;
@@ -212,75 +212,76 @@ struct WatchWindow;
 struct Context {
 // ========== Debugger config ======================
 #if defined(__OpenBSD__)
-   const char* gdbPath = "egdb";
+   const char* _gdb_path = "egdb";
 #else
-   const char* gdbPath = "gdb";
+   const char* _gdb_path = "gdb";
 #endif
-   std::string initialGDBCommand        = "set prompt (gdb) ";
-   bool        firstUpdate              = true;
-   UICode*     logWindow                = nullptr; // if sent, log all debugger output there
-   bool        grab_focus_on_breakpoint = true;
-   ui_handle   prev_focus_win           = 0;
-   UI*         ui; // non-owning pointer
+   std::string _initial_gdb_command      = "set prompt (gdb) ";
+   bool        _first_update             = true;
+   UICode*     _log_window               = nullptr; // if sent, log all debugger output there
+   bool        _grab_focus_on_breakpoint = true;
+   ui_handle   _prev_focus_win           = 0;
+   UI*         _ui; // non-owning pointer
 
-   unique_ptr<regexp::debugger_base> dbg_re;
-   unique_ptr<regexp::language_base> lang_re;
+   unique_ptr<regexp::debugger_base> _dbg_re;
+   unique_ptr<regexp::language_base> _lang_re;
 
    // ========== Debugger interaction ======================
-   int               pipeToGDB     = 0;
-   pid_t             gdbPID        = 0;
-   std::atomic<bool> killGdbThread = false;
-   std::thread       gdbThread;            // reads gdb output and pushes it to queue (we wait on queue in DebuggerSend
-   std::atomic<bool> evaluateMode = false; // when true, means we sent a command to gdb and are waiting for the response
-   char**            gdbArgv      = nullptr;
-   int               gdbArgc      = 0;
-   SPSCQueue<std::string> evaluateResultQueue;
-   std::atomic<bool>      programRunning = true;
+   int               _pipe_to_gdb     = 0;
+   pid_t             _gdb_pid         = 0;
+   std::atomic<bool> _kill_gdb_thread = false;
+   std::thread       _gdb_thread; // reads gdb output and pushes it to queue (we wait on queue in DebuggerSend
+   std::atomic<bool> _evaluate_mode =
+      false; // when true, means we sent a command to gdb and are waiting for the response
+   char**                 _gdb_argv = nullptr;
+   int                    _gdb_argc = 0;
+   SPSCQueue<std::string> _evaluate_result_queue;
+   std::atomic<bool>      _program_running = true;
 
-   std::unordered_map<std::string, InterfaceWindow> interfaceWindows;
-   vector<InterfaceCommand>                         interfaceCommands;
-   vector<InterfaceDataViewer>                      interfaceDataViewers;
+   std::unordered_map<std::string, InterfaceWindow> _interface_windows;
+   vector<InterfaceCommand>                         _interface_commands;
+   vector<InterfaceDataViewer>                      _interface_data_viewers;
 
    Context();
 
    // make private
    void SendToGdb(string_view sv) const {
       char newline = '\n';
-      write(pipeToGDB, sv.data(), sv.size());
-      write(pipeToGDB, &newline, 1);
+      write(_pipe_to_gdb, sv.data(), sv.size());
+      write(_pipe_to_gdb, &newline, 1);
    }
 
    void InterruptGdb(size_t wait_time_us = 20 * 1000) {
-      if (programRunning) {
-         kill(gdbPID, SIGINT);
+      if (_program_running) {
+         kill(_gdb_pid, SIGINT);
          std::this_thread::sleep_for(std::chrono::microseconds{wait_time_us});
-         programRunning = false;
+         _program_running = false;
       }
    }
 
    void KillGdbThread() {
       print(std::cerr, "killing gdb thread.\n");
-      killGdbThread = true;
-      gdbThread.join();
-      killGdbThread = false;
+      _kill_gdb_thread = true;
+      _gdb_thread.join();
+      _kill_gdb_thread = false;
    }
 
    void KillGdb() {
       KillGdbThread();
-      print(std::cerr, "killing gdb process {}.\n", gdbPID);
-      kill(gdbPID, SIGKILL);
+      print(std::cerr, "killing gdb process {}.\n", _gdb_pid);
+      kill(_gdb_pid, SIGKILL);
    }
 
    void restore_focus() {
-      if (prev_focus_win) {
-         ui->set_focus(prev_focus_win);
-         prev_focus_win = 0;
+      if (_prev_focus_win) {
+         _ui->set_focus(_prev_focus_win);
+         _prev_focus_win = 0;
       }
    }
 
    void grab_focus(UIWindow* win) {
-      if (win && grab_focus_on_breakpoint) {
-         prev_focus_win = ui->get_focus();
+      if (win && _grab_focus_on_breakpoint) {
+         _prev_focus_win = _ui->get_focus();
          win->grab_focus(); // grab focus when breakpoint is hit!
       }
    }
@@ -302,14 +303,14 @@ Context ctx;
 
 // --------------------------------------------------------------------------------------------
 struct GF_Config {
-   std::string layout_string = "v(75,h(50,Source,v(50,t(Exe,Breakpoints,Commands,Struct),t(Stack,Files,Thread,"
-                               "CmdSearch))),h(40,Console,t(Watch,Locals,Registers,Data,Log,Prof,Memory,View)))";
+   std::string _layout_string = "v(75,h(50,Source,v(50,t(Exe,Breakpoints,Commands,Struct),t(Stack,Files,Thread,"
+                                "CmdSearch))),h(40,Console,t(Watch,Locals,Registers,Data,Log,Prof,Memory,View)))";
 
    // executable window
    // -----------------
-   std::string exe_path;
-   std::string exe_args;
-   bool        exe_ask_dir = true;
+   std::string _exe_path;
+   std::string _exe_args;
+   bool        _exe_ask_dir = true;
 };
 
 
@@ -364,16 +365,16 @@ UIFont* code_font = nullptr;
 // Breakpoints:
 
 struct Breakpoint {
-   int      number = 0;
-   char     file[PATH_MAX];
-   char     fileFull[PATH_MAX];
-   int      line       = 0;
-   int      hit        = 0;
-   bool     watchpoint = false;
-   bool     enabled    = false;
-   bool     multiple   = false;
-   char     condition[128];
-   uint64_t conditionHash = 0;
+   int      _number = 0;
+   char     _file[PATH_MAX];
+   char     _full_path[PATH_MAX];
+   int      _line       = 0;
+   int      _hit        = 0;
+   bool     _watchpoint = false;
+   bool     _enabled    = false;
+   bool     _multiple   = false;
+   char     _condition[128];
+   uint64_t _condition_hash = 0;
 };
 
 vector<Breakpoint> breakpoints;
@@ -381,30 +382,30 @@ vector<Breakpoint> breakpoints;
 // Stack:
 
 struct StackEntry {
-   char     function[64];
-   char     location[sizeof(previousLocation)];
-   uint64_t address;
-   int      id;
+   char     _function[64];
+   char     _location[sizeof(previousLocation)];
+   uint64_t _address;
+   int      _id;
 };
 
 struct StackWindow {
-   vector<StackEntry> stack;
-   size_t             stackSelected;
-   bool               stackChanged;
+   vector<StackEntry> _stack;
+   size_t             _selected;
+   bool               _has_changed;
 
-   void        clear() { stack.clear(); }
-   void        append(const StackEntry& entry) { stack.push_back(entry); }
-   bool        has_selection() const { return stackSelected < stack.size(); }
-   bool        changed() const { return stackChanged; }
-   
-   const StackEntry& operator[](size_t i) const { return stack[i]; }
-   StackEntry& operator[](size_t i) { return stack[i]; }
-   StackEntry& current() { return stack[stackSelected]; }
+   void clear() { _stack.clear(); }
+   void append(const StackEntry& entry) { _stack.push_back(entry); }
+   bool has_selection() const { return _selected < _stack.size(); }
+   bool changed() const { return _has_changed; }
+
+   const StackEntry& operator[](size_t i) const { return _stack[i]; }
+   StackEntry&       operator[](size_t i) { return _stack[i]; }
+   StackEntry&       current() { return _stack[_selected]; }
 
    void set_frame(UIElement* el, int index);
 
    static UIElement* Create(UIElement* parent);
-   static void Update(const char*, UIElement* table) ;
+   static void       Update(const char*, UIElement* table);
 };
 
 StackWindow sw;
@@ -533,7 +534,7 @@ int ModifiedRowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 int TrafficLightMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::PAINT) {
       static_cast<UIPainter*>(dp)->draw_rectangle(el->_bounds,
-                                                  ctx.programRunning ? el->theme().accent1 : el->theme().accent2,
+                                                  ctx._program_running ? el->theme().accent1 : el->theme().accent2,
                                                   el->theme().border, UIRectangle(1));
    }
 
@@ -649,9 +650,9 @@ bool SourceFindOuterFunctionCall(const char** start, const char** end) {
 }
 
 UIMessage ReceiveMessageRegister(std::function<void(std::unique_ptr<std::string>)> callback) {
-   receiveMessageTypes.push_back({.msg = msgReceivedNext, .callback = std::move(callback)});
+   receiveMessageTypes.push_back({._msg = msgReceivedNext, ._callback = std::move(callback)});
    msgReceivedNext = (UIMessage)((uint32_t)msgReceivedNext + 1);
-   return receiveMessageTypes.back().msg;
+   return receiveMessageTypes.back()._msg;
 }
 
 void Context::DebuggerThread() {
@@ -690,15 +691,15 @@ void Context::DebuggerThread() {
    posix_spawnattr_init(&attrs);
    posix_spawnattr_setflags(&attrs, POSIX_SPAWN_SETSID);
 
-   posix_spawnp(&gdbPID, gdbPath, &actions, &attrs, gdbArgv, environ);
+   posix_spawnp(&_gdb_pid, _gdb_path, &actions, &attrs, _gdb_argv, environ);
 
    posix_spawn_file_actions_destroy(&actions);
    posix_spawnattr_destroy(&attrs);
 #endif
 
-   pipeToGDB = inputPipe[1];
+   _pipe_to_gdb = inputPipe[1];
 
-   SendToGdb(initialGDBCommand);
+   SendToGdb(_initial_gdb_command);
 
    int pipeFromGdb = outputPipe[0];
 
@@ -719,12 +720,12 @@ void Context::DebuggerThread() {
          std::cout << "error: " << errno << '\n';
          break;
       } else if (result == 0) { // timeout
-         if (killGdbThread)
+         if (_kill_gdb_thread)
             break;
       } else if (FD_ISSET(pipeFromGdb, &readfds)) { // Data is available for reading
          char buffer[512 + 1];
          int  count = read(pipeFromGdb, buffer, 512);
-         if (killGdbThread)
+         if (_kill_gdb_thread)
             break;
          if (count <= 0) {
             std::this_thread::sleep_for(std::chrono::microseconds{10000});
@@ -735,7 +736,7 @@ void Context::DebuggerThread() {
          // if `logWindow` is set, copy all received output from gdb there as soon
          // as we receive it, even it it is not complete.
          // ----------------------------------------------------------------------
-         if (logWindow && !evaluateMode)
+         if (_log_window && !_evaluate_mode)
             windowMain->post_message(msgReceivedLog, new std::string(buffer));
 
          if (catBuffer.size() + count + 1 > catBuffer.capacity())
@@ -757,9 +758,9 @@ void Context::DebuggerThread() {
 
          // Notify the main thread we have data.
          // ------------------------------------
-         if (evaluateMode) {
-            evaluateResultQueue.push(std::move(catBuffer));
-            evaluateMode = false;
+         if (_evaluate_mode) {
+            _evaluate_result_queue.push(std::move(catBuffer));
+            _evaluate_mode = false;
          } else {
             windowMain->post_message(msgReceivedData, new std::string(std::move(catBuffer)));
          }
@@ -772,7 +773,7 @@ void Context::DebuggerThread() {
 }
 
 void DebuggerStartThread() {
-   ctx.gdbThread = std::thread([]() { ctx.DebuggerThread(); });
+   ctx._gdb_thread = std::thread([]() { ctx.DebuggerThread(); });
 }
 
 // can be called by: SourceWindowUpdate -> EvaluateExpresion -> EvaluateCommand
@@ -782,9 +783,9 @@ std::optional<std::string> DebuggerSend(string_view command, bool echo, bool syn
    ctx.InterruptGdb();
 
    if (synchronous)
-      ctx.evaluateMode = true;
+      ctx._evaluate_mode = true;
 
-   ctx.programRunning = true;
+   ctx._program_running = true;
 
    if (trafficLight)
       trafficLight->repaint(nullptr);
@@ -799,12 +800,12 @@ std::optional<std::string> DebuggerSend(string_view command, bool echo, bool syn
    ctx.SendToGdb(command);
 
    if (synchronous) {
-      bool quit = !ctx.evaluateResultQueue.pop(res);
+      bool quit = !ctx._evaluate_result_queue.pop(res);
       if (!res) {
          print("Hit timeout on command \"{}\"\n", command);
          res = std::string{}; // in synchronous mode we always return a (possibly empty) string
       } else {
-         ctx.programRunning = false;
+         ctx._program_running = false;
          if (!quit && trafficLight)
             trafficLight->repaint(nullptr);
       }
@@ -866,14 +867,14 @@ void DebuggerGetStack() {
 
       StackEntry entry = {};
 
-      entry.id = strtoul(position + 1, (char**)&position, 0);
+      entry._id = strtoul(position + 1, (char**)&position, 0);
 
       while (*position == ' ' && position < next)
          position++;
       bool hasAddress = *position == '0';
 
       if (hasAddress) {
-         entry.address = strtoul(position, (char**)&position, 0);
+         entry._address = strtoul(position, (char**)&position, 0);
          position += 4;
       }
 
@@ -883,7 +884,7 @@ void DebuggerGetStack() {
       position                 = strchr(position, ' ');
       if (!position || position >= next)
          break;
-      std_format_to_n(entry.function, sizeof(entry.function), "{}",
+      std_format_to_n(entry._function, sizeof(entry._function), "{}",
                       std::string_view{functionName, (size_t)(position - functionName)});
 
       const char* file = strstr(position, " at ");
@@ -893,7 +894,7 @@ void DebuggerGetStack() {
          const char* end = file;
          while (*end != '\n' && end < next)
             end++;
-         std_format_to_n(entry.location, sizeof(entry.location), "{}", std::string_view{file, (size_t)(end - file)});
+         std_format_to_n(entry._location, sizeof(entry._location), "{}", std::string_view{file, (size_t)(end - file)});
       }
 
       sw.append(entry);
@@ -942,8 +943,8 @@ void DebuggerGetBreakpoints() {
          file += 4;
 
       Breakpoint breakpoint = {};
-      breakpoint.number     = number;
-      breakpoint.enabled    = enabled;
+      breakpoint._number    = number;
+      breakpoint._enabled   = enabled;
 
       bool recognised = true;
 
@@ -952,9 +953,9 @@ void DebuggerGetBreakpoints() {
       if (condition && condition < next) {
          const char* end = strchr(condition, '\n');
          condition += 13;
-         std_format_to_n(breakpoint.condition, sizeof(breakpoint.condition), "{}",
+         std_format_to_n(breakpoint._condition, sizeof(breakpoint._condition), "{}",
                          std::string_view{condition, (size_t)(end - condition)});
-         breakpoint.conditionHash = Hash((const uint8_t*)condition, end - condition);
+         breakpoint._condition_hash = Hash((const uint8_t*)condition, end - condition);
       }
 
       const char* hitCountNeedle = "breakpoint already hit";
@@ -963,7 +964,7 @@ void DebuggerGetBreakpoints() {
          hitCount += strlen(hitCountNeedle);
 
       if (hitCount && hitCount < next) {
-         breakpoint.hit = sv_atoi(hitCount);
+         breakpoint._hit = sv_atoi(hitCount);
       }
 
       if (file && file < next) {
@@ -972,25 +973,25 @@ void DebuggerGetBreakpoints() {
          if (end && isdigit(end[1])) {
             if (file[0] == '.' && file[1] == '/')
                file += 2;
-            std_format_to_n(breakpoint.file, sizeof(breakpoint.file), "{}",
+            std_format_to_n(breakpoint._file, sizeof(breakpoint._file), "{}",
                             std::string_view{file, (size_t)(end - file)});
-            breakpoint.line = sv_atoi(end, 1);
+            breakpoint._line = sv_atoi(end, 1);
          } else
             recognised = false;
       } else
          recognised = false;
 
       if (recognised) {
-         realpath(breakpoint.file, breakpoint.fileFull);
+         realpath(breakpoint._file, breakpoint._full_path);
 
          for (auto& bp : breakpoints) {
-            if (strcmp(bp.fileFull, breakpoint.fileFull) == 0 && bp.conditionHash == breakpoint.conditionHash &&
-                bp.line == breakpoint.line) {
-               bp.multiple = breakpoint.multiple = true;
+            if (strcmp(bp._full_path, breakpoint._full_path) == 0 && bp._condition_hash == breakpoint._condition_hash &&
+                bp._line == breakpoint._line) {
+               bp._multiple = breakpoint._multiple = true;
                break;
             }
          }
-         if (!breakpoint.multiple)
+         if (!breakpoint._multiple)
             breakpoints.push_back(std::move(breakpoint));
       } else if (strstr(position, "watchpoint") != 0) {
          // we have a watchpoint
@@ -1002,8 +1003,8 @@ void DebuggerGetBreakpoints() {
             if (!isspace(*address)) {
                const char* end = strchr(address, '\n');
                if (end) {
-                  breakpoint.watchpoint = true;
-                  snprintf(breakpoint.file, sizeof(breakpoint.file), "%.*s", (int)(end - address), address);
+                  breakpoint._watchpoint = true;
+                  snprintf(breakpoint._file, sizeof(breakpoint._file), "%.*s", (int)(end - address), address);
                   breakpoints.push_back(std::move(breakpoint));
                }
             }
@@ -1015,14 +1016,14 @@ void DebuggerGetBreakpoints() {
 }
 
 struct TabCompleter {
-   bool _lastKeyWasTab;
-   int  _consecutiveTabCount;
-   int  _lastTabBytes;
+   bool _last_key_was_tab;
+   int  _consecutive_tab_count;
+   int  _last_tab_bytes;
 
    void run(UITextbox* textbox, bool lastKeyWasTab, bool addPrintPrefix) {
       auto text   = textbox->text();
       auto buffer = std::format("complete {}{}", addPrintPrefix ? "p " : "",
-                                text.substr(0, lastKeyWasTab ? (size_t)_lastTabBytes : text.size()));
+                                text.substr(0, lastKeyWasTab ? (size_t)_last_tab_bytes : text.size()));
       for (int i = 0; buffer[i]; i++)
          if (buffer[i] == '\\')
             buffer[i] = ' ';
@@ -1034,28 +1035,28 @@ struct TabCompleter {
       const char* end   = strchr(start, '\n');
 
       if (!lastKeyWasTab) {
-         _consecutiveTabCount = 0;
-         _lastTabBytes        = text.size();
+         _consecutive_tab_count = 0;
+         _last_tab_bytes        = text.size();
       }
 
-      while (start && end && memcmp(start + (addPrintPrefix ? 2 : 0), text.data(), _lastTabBytes)) {
+      while (start && end && memcmp(start + (addPrintPrefix ? 2 : 0), text.data(), _last_tab_bytes)) {
          start = end + 1;
          end   = strchr(start, '\n');
       }
 
-      for (int i = 0; end && i < _consecutiveTabCount; i++) {
+      for (int i = 0; end && i < _consecutive_tab_count; i++) {
          start = end + 1;
          end   = strchr(start, '\n');
       }
 
       if (!end) {
-         _consecutiveTabCount = 0;
-         start                           = res.c_str();
-         end                             = strchr(start, '\n');
+         _consecutive_tab_count = 0;
+         start                  = res.c_str();
+         end                    = strchr(start, '\n');
       }
 
-      _lastKeyWasTab = true;
-      _consecutiveTabCount++;
+      _last_key_was_tab = true;
+      _consecutive_tab_count++;
 
       if (end) {
          if (addPrintPrefix)
@@ -1074,10 +1075,10 @@ struct TabCompleter {
 std::optional<std::string> CommandParseInternal(string_view command, bool synchronous) {
    std::optional<std::string> res;
    if (command == "gf-step") {
-      if (!ctx.programRunning)
+      if (!ctx._program_running)
          res = DebuggerSend(showingDisassembly ? "stepi" : "s", true, synchronous);
    } else if (command == "gf-next") {
-      if (!ctx.programRunning)
+      if (!ctx._program_running)
          res = DebuggerSend(showingDisassembly ? "nexti" : "n", true, synchronous);
    } else if (command == "gf-step-out-of-block") {
       int line = SourceFindEndOfBlock();
@@ -1095,7 +1096,7 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
          return CommandParseInternal("gf-step", synchronous);
       }
    } else if (command == "gf-restart-gdb") {
-      ctx.firstUpdate = true;
+      ctx._first_update = true;
       ctx.KillGdb();
       DebuggerStartThread();
    } else if (command == "gf-get-pwd") {
@@ -1170,7 +1171,7 @@ void CommandSendToGDB(string_view s) { (void)CommandParseInternal(s, false); }
 
 static void BreakpointCommand(int index, const char* action) {
    Breakpoint* breakpoint = &breakpoints[index];
-   (void)DebuggerSend(std::format("{} {}", action, breakpoint->number), true, false);
+   (void)DebuggerSend(std::format("{} {}", action, breakpoint->_number), true, false);
 }
 
 static void CommandDeleteBreakpoint(int index) { BreakpointCommand(index, "delete"); }
@@ -1238,7 +1239,7 @@ void CommandToggleBreakpoint(int line = 0) {
    }
 
    for (const auto& bp : breakpoints) {
-      if (bp.line == line && 0 == strcmp(bp.fileFull, currentFileFull)) {
+      if (bp._line == line && 0 == strcmp(bp._full_path, currentFileFull)) {
          (void)DebuggerSend(std::format("clear {}:{}", currentFile, line), true, false);
          return;
       }
@@ -1425,21 +1426,21 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
                parse_res.parse_int  ("font_size_code", code_font_size) ||
                parse_res.parse_int  ("font_size_interface", interface_font_size) ||
                parse_res.parse_float("scale", ui_scale) ||
-               parse_res.parse_str  ("layout", gfc.layout_string) ||
+               parse_res.parse_str  ("layout", gfc._layout_string) ||
                parse_res.parse_bool ("maximize", maximize) ||
                parse_res.parse_bool ("restore_watch_window", restoreWatchWindow) ||
                parse_res.parse_bool ("selectable_source", selectableSource) ||
                parse_res.parse_int  ("window_width", window_width) ||
                parse_res.parse_int  ("window_height", window_height) ||
-               parse_res.parse_bool ("grab_focus_on_breakpoint", ctx.grab_focus_on_breakpoint);
+               parse_res.parse_bool ("grab_focus_on_breakpoint", ctx._grab_focus_on_breakpoint);
                // clang-format on
             }
          } else if (section == "gdb" && !key.empty() && !earlyPass) {
             if (key == "argument") {
-               ctx.gdbArgc++;
-               ctx.gdbArgv                  = (char**)realloc(ctx.gdbArgv, sizeof(char*) * (ctx.gdbArgc + 1));
-               ctx.gdbArgv[ctx.gdbArgc - 1] = mk_cstring(value);
-               ctx.gdbArgv[ctx.gdbArgc]     = nullptr;
+               ctx._gdb_argc++;
+               ctx._gdb_argv                    = (char**)realloc(ctx._gdb_argv, sizeof(char*) * (ctx._gdb_argc + 1));
+               ctx._gdb_argv[ctx._gdb_argc - 1] = mk_cstring(value);
+               ctx._gdb_argv[ctx._gdb_argc]     = nullptr;
             } else if (key == "arguments") {
                char buffer[2048];
                auto sz  = value.size();
@@ -1478,21 +1479,21 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
                   std_format_to_n(buffer, sizeof(buffer), "{}",
                                   std::string_view{&val[argumentStart], (size_t)(argumentEnd - argumentStart)});
 
-                  ctx.gdbArgc++; // 0 is for the program name
-                  ctx.gdbArgv                  = (char**)realloc(ctx.gdbArgv, sizeof(char*) * (ctx.gdbArgc + 1));
-                  ctx.gdbArgv[ctx.gdbArgc - 1] = strdup(buffer);
-                  ctx.gdbArgv[ctx.gdbArgc]     = nullptr;
+                  ctx._gdb_argc++; // 0 is for the program name
+                  ctx._gdb_argv = (char**)realloc(ctx._gdb_argv, sizeof(char*) * (ctx._gdb_argc + 1));
+                  ctx._gdb_argv[ctx._gdb_argc - 1] = strdup(buffer);
+                  ctx._gdb_argv[ctx._gdb_argc]     = nullptr;
                }
             } else if (key == "path") {
-               char* path     = mk_cstring(value);
-               ctx.gdbPath    = path;
-               ctx.gdbArgv[0] = path;
+               char* path       = mk_cstring(value);
+               ctx._gdb_path    = path;
+               ctx._gdb_argv[0] = path;
             } else if (key == "log_all_output" && sv_atoi(value)) {
-               if (auto it = interfaceWindows.find("Log"); it != interfaceWindows.end()) {
+               if (auto it = _interface_windows.find("Log"); it != _interface_windows.end()) {
                   const auto& [name, window] = *it;
-                  ctx.logWindow              = static_cast<UICode*>(window.el);
+                  ctx._log_window            = static_cast<UICode*>(window._el);
                }
-               if (!ctx.logWindow) {
+               if (!ctx._log_window) {
                   print(std::cerr, "Warning: gdb.log_all_output was enabled, "
                                    "but your layout does not have a 'Log' window.\n");
                }
@@ -1533,15 +1534,15 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
             pthread_create(&thread, nullptr, ControlPipeThread, nullptr);
          } else if (section == "executable" && !key.empty() && earlyPass) {
             // clang-format off
-            parse_res.parse_str ("path", gfc.exe_path) ||
-            parse_res.parse_str ("arguments", gfc.exe_args) ||
-            parse_res.parse_bool("ask_directory", gfc.exe_ask_dir);
+            parse_res.parse_str ("path", gfc._exe_path) ||
+            parse_res.parse_str ("arguments", gfc._exe_args) ||
+            parse_res.parse_bool("ask_directory", gfc._exe_ask_dir);
             // clang-format on
          } else if (earlyPass && !section.empty() && !key.empty() && !value.empty()) {
-            if (auto it = interfaceWindows.find(std::string(section)); it != interfaceWindows.end()) {
+            if (auto it = _interface_windows.find(std::string(section)); it != _interface_windows.end()) {
                const auto& [name, window] = *it;
-               if (window.config) {
-                  window.config(key, value);
+               if (window._config) {
+                  window._config(key, value);
                }
             }
          }
@@ -1570,8 +1571,8 @@ int ifConditionEvaluation, ifConditionLine;
 int ifConditionFrom, ifConditionTo;
 
 struct InspectResult {
-   std::string expression;
-   std::string value;
+   std::string _expression;
+   std::string _value;
 };
 
 vector<InspectResult> inspectResults;
@@ -1655,10 +1656,10 @@ bool DisplaySetPosition(const char* file, std::optional<size_t> line, bool useGD
 
 void DisplaySetPositionFromStack() {
    if (sw.has_selection()) {
-      char location[sizeof(previousLocation)];
+      char  location[sizeof(previousLocation)];
       auto& current = sw.current();
-      strcpy(previousLocation, current.location);
-      strcpy(location, current.location);
+      strcpy(previousLocation, current._location);
+      strcpy(location, current._location);
       char*                 line = strchr(location, ':');
       std::optional<size_t> position;
       if (line) {
@@ -1793,7 +1794,7 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
    int         width        = (strlen(instructions) + 8) * active_font->_glyph_width;
 
    for (const auto& ir : inspectResults) {
-      int w = (ir.expression.size() + ir.value.size() + 8) * active_font->_glyph_width;
+      int w = (ir._expression.size() + ir._value.size() + 8) * active_font->_glyph_width;
       if (w > width)
          width = w;
    }
@@ -1825,11 +1826,11 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
    size_t index = 0;
    for (const auto& ir : inspectResults) {
       if (noInspectResults) {
-         buffer = ir.expression;
+         buffer = ir._expression;
       } else if (index < 9) {
-         buffer = std::format("[{}] {} {}", index + 1, ir.expression, ir.value);
+         buffer = std::format("[{}] {} {}", index + 1, ir._expression, ir._value);
       } else {
-         buffer = std::format("    {} {}", ir.expression, ir.value);
+         buffer = std::format("    {} {}", ir._expression, ir._value);
       }
 
       painter->draw_string(line, buffer, noInspectResults ? theme.codeOperator : theme.codeString, UIAlign::left, NULL);
@@ -1843,7 +1844,7 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
 template <class F>
 void for_all_breakpoints_on_line(int line, F&& f) {
    for (size_t i = 0; i < breakpoints.size(); i++) {
-      if (breakpoints[i].line == line && 0 == strcmp(breakpoints[i].fileFull, currentFileFull)) {
+      if (breakpoints[i]._line == line && 0 == strcmp(breakpoints[i]._full_path, currentFileFull)) {
          std::forward<F>(f)(i);
       }
    }
@@ -1888,7 +1889,7 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          auto pos       = code->code_pos_from_point(cursor_pt);
          auto line      = code->line(pos.line);
 
-         auto bounds = ctx.lang_re->find_symbol_at_pos(line, pos.offset);
+         auto bounds = ctx._lang_re->find_symbol_at_pos(line, pos.offset);
          if (bounds) {
             auto [start, end] = *bounds;
             code->set_selection(2, pos.line, start); // anchor
@@ -1905,14 +1906,14 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       bool atLeastOneBreakpointEnabled = false;
 
       for (const auto& bp : breakpoints) {
-         if (bp.line == -result && 0 == strcmp(bp.fileFull, currentFileFull) && bp.enabled) {
+         if (bp._line == -result && 0 == strcmp(bp._full_path, currentFileFull) && bp._enabled) {
             atLeastOneBreakpointEnabled = true;
             break;
          }
       }
 
       for (const auto& bp : breakpoints) {
-         if (bp.line == -result && 0 == strcmp(bp.fileFull, currentFileFull)) {
+         if (bp._line == -result && 0 == strcmp(bp._full_path, currentFileFull)) {
             UIMenu& menu = el->ui()->create_menu(el->_window, UIMenu::NO_SCROLL).add_item(0, "Delete", [=](UIButton&) {
                CommandDeleteAllBreakpointsOnLine(-result);
             });
@@ -1928,8 +1929,8 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       bool  atLeastOneBreakpointDisabled = false;
 
       for (const auto& bp : breakpoints) {
-         if (bp.line == di && 0 == strcmp(bp.fileFull, currentFileFull)) {
-            if (bp.enabled)
+         if (bp._line == di && 0 == strcmp(bp._full_path, currentFileFull)) {
+            if (bp._enabled)
                return theme.accent1;
             else
                atLeastOneBreakpointDisabled = true;
@@ -2036,10 +2037,10 @@ void SourceWindowUpdate(const char* data, UIElement* el) {
    }
 
    if (!sw.changed() && changedSourceLine)
-      sw.stackSelected = 0;
-   sw.stackChanged = false;
+      sw._selected = 0;
+   sw._has_changed = false;
 
-   if (changedSourceLine && sw.has_selection() && strcmp(sw.current().location, previousLocation)) {
+   if (changedSourceLine && sw.has_selection() && strcmp(sw.current()._location, previousLocation)) {
       DisplaySetPositionFromStack();
    }
 
@@ -2214,12 +2215,12 @@ void InspectCurrentLine() {
 
    auto code = displayCode->line(*currentLine);
 
-   auto expressions = ctx.lang_re->extract_debuggable_expressions(code);
+   auto expressions = ctx._lang_re->extract_debuggable_expressions(code);
    for (auto e : expressions) {
       auto res = EvaluateExpression(e);
       // std::cout << "eval(\"" << e << "\") -> " << res << '\n';
 
-      if (ctx.dbg_re->evaluation_error(res))
+      if (ctx._dbg_re->evaluation_error(res))
          continue;
 
       if (0 == memcmp(res.c_str(), "= {", 3) && !strchr(res.c_str() + 3, '='))
@@ -2257,7 +2258,7 @@ int InspectLineModeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
          if (index < (int)inspectResults.size()) {
             InspectLineModeExit(el);
-            WatchAddExpression(inspectResults[index].expression);
+            WatchAddExpression(inspectResults[index]._expression);
          }
       } else {
          auto currentLine = displayCode->current_line();
@@ -2299,15 +2300,15 @@ bool CommandInspectLine() {
 // ---------------------------------------------------/
 
 struct AutoUpdateViewer {
-   UIElement* el;
-   void (*callback)(UIElement*);
+   UIElement* _el;
+   void (*_callback)(UIElement*);
 };
 
 vector<AutoUpdateViewer> autoUpdateViewers;
 bool                     autoUpdateViewersQueued;
 
 bool DataViewerRemoveFromAutoUpdateList(UIElement* el) {
-   if (auto it = rng::find_if(autoUpdateViewers, [&](const auto& auv) { return auv.el == el; });
+   if (auto it = rng::find_if(autoUpdateViewers, [&](const auto& auv) { return auv._el == el; });
        it != rng::end(autoUpdateViewers)) {
       autoUpdateViewers.erase(it);
       return true;
@@ -2321,7 +2322,7 @@ int DataViewerAutoUpdateButtonMessage(UIElement* el, UIMessage msg, int di, void
       el->_flags ^= UIButton::CHECKED;
 
       if (el->_flags & UIButton::CHECKED) {
-         AutoUpdateViewer v = {.el = el->_parent, .callback = (void (*)(UIElement*))el->_cp};
+         AutoUpdateViewer v = {._el = el->_parent, ._callback = (void (*)(UIElement*))el->_cp};
          autoUpdateViewers.push_back(v);
       } else {
          [[maybe_unused]] bool found = DataViewerRemoveFromAutoUpdateList(el->_parent);
@@ -2335,7 +2336,7 @@ int DataViewerAutoUpdateButtonMessage(UIElement* el, UIMessage msg, int di, void
 void DataViewersUpdateAll() {
    if (~dataTab->_flags & UIElement::hide_flag) {
       for (const auto& auv : autoUpdateViewers) {
-         auv.callback(auv.el);
+         auv._callback(auv._el);
       }
    } else if (!autoUpdateViewers.empty()) {
       autoUpdateViewersQueued = true;
@@ -2347,16 +2348,16 @@ void DataViewersUpdateAll() {
 // ---------------------------------------------------/
 
 struct BitmapViewer {
-   std::string     pointer;
-   std::string     width;
-   std::string     height;
-   std::string     stride;
-   int             parsedWidth  = 0;
-   int             parsedHeight = 0;
-   UIButton*       autoToggle   = nullptr;
-   UIImageDisplay* display      = nullptr;
-   UIPanel*        labelPanel   = nullptr;
-   UILabel*        label        = nullptr;
+   std::string     _pointer;
+   std::string     _width;
+   std::string     _height;
+   std::string     _stride;
+   int             _parsed_width  = 0;
+   int             _parsed_height = 0;
+   UIButton*       _auto_toggle   = nullptr;
+   UIImageDisplay* _display       = nullptr;
+   UIPanel*        _label_panel   = nullptr;
+   UILabel*        _label         = nullptr;
 };
 
 int BitmapViewerWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
@@ -2366,10 +2367,10 @@ int BitmapViewerWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       delete viewer;
       el->_cp = nullptr;
    } else if (msg == UIMessage::GET_WIDTH) {
-      int fit = viewer->parsedWidth + 40;
+      int fit = viewer->_parsed_width + 40;
       return fit > 300 ? fit : 300;
    } else if (msg == UIMessage::GET_HEIGHT) {
-      int fit = viewer->parsedHeight + 40;
+      int fit = viewer->_parsed_height + 40;
       return fit > 100 ? fit : 100;
    }
 
@@ -2382,7 +2383,7 @@ void BitmapViewerUpdate(std::string pointerString, std::string widthString, std:
 int BitmapViewerRefreshMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::CLICKED) {
       BitmapViewer* bitmap = (BitmapViewer*)el->_parent->_cp;
-      BitmapViewerUpdate(bitmap->pointer, bitmap->width, bitmap->height, bitmap->stride, el->_parent);
+      BitmapViewerUpdate(bitmap->_pointer, bitmap->_width, bitmap->_height, bitmap->_stride, el->_parent);
    }
 
    return 0;
@@ -2476,7 +2477,7 @@ int BitmapViewerDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
 void BitmapViewerAutoUpdateCallback(UIElement* el) {
    BitmapViewer* bitmap = (BitmapViewer*)el->_cp;
-   BitmapViewerUpdate(bitmap->pointer, bitmap->width, bitmap->height, bitmap->stride, el);
+   BitmapViewerUpdate(bitmap->_pointer, bitmap->_width, bitmap->_height, bitmap->_stride, el);
 }
 
 void BitmapViewerUpdate(std::string pointerString, std::string widthString, std::string heightString,
@@ -2489,39 +2490,39 @@ void BitmapViewerUpdate(std::string pointerString, std::string widthString, std:
    if (!owner) {
       BitmapViewer* bitmap = new BitmapViewer;
 
-      bitmap->pointer = std::move(pointerString);
-      bitmap->width   = std::move(widthString);
-      bitmap->height  = std::move(heightString);
-      bitmap->stride  = std::move(strideString);
+      bitmap->_pointer = std::move(pointerString);
+      bitmap->_width   = std::move(widthString);
+      bitmap->_height  = std::move(heightString);
+      bitmap->_stride  = std::move(strideString);
 
       UIMDIChild* window = &dataWindow->add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Bitmap")
                                .set_user_proc(BitmapViewerWindowMessage)
                                .set_cp(bitmap);
-      bitmap->autoToggle = &window->add_button(UIButton::SMALL | UIElement::non_client_flag, "Auto")
-                               .set_cp((void*)BitmapViewerAutoUpdateCallback)
-                               .set_user_proc(DataViewerAutoUpdateButtonMessage);
+      bitmap->_auto_toggle = &window->add_button(UIButton::SMALL | UIElement::non_client_flag, "Auto")
+                                 .set_cp((void*)BitmapViewerAutoUpdateCallback)
+                                 .set_user_proc(DataViewerAutoUpdateButtonMessage);
       window->add_button(UIButton::SMALL | UIElement::non_client_flag, "Refresh")
          .set_user_proc(BitmapViewerRefreshMessage);
       owner = window;
 
       UIPanel* panel = &owner->add_panel(UIPanel::EXPAND);
-      bitmap->display =
+      bitmap->_display =
          &panel->add_imagedisplay(UIImageDisplay::INTERACTIVE | UIElement::v_fill, bits, width, height, stride)
              .set_user_proc(BitmapViewerDisplayMessage);
-      bitmap->labelPanel = &panel->add_panel(UIPanel::COLOR_1 | UIElement::v_fill);
-      bitmap->label      = &bitmap->labelPanel->add_label(UIElement::h_fill, {});
+      bitmap->_label_panel = &panel->add_panel(UIPanel::COLOR_1 | UIElement::v_fill);
+      bitmap->_label       = &bitmap->_label_panel->add_label(UIElement::h_fill, {});
    }
 
-   BitmapViewer* bitmap = (BitmapViewer*)owner->_cp;
-   bitmap->parsedWidth = width, bitmap->parsedHeight = height;
-   bitmap->display->set_content(bits, width, height, stride);
+   BitmapViewer* bitmap  = (BitmapViewer*)owner->_cp;
+   bitmap->_parsed_width = width, bitmap->_parsed_height = height;
+   bitmap->_display->set_content(bits, width, height, stride);
    if (error)
-      bitmap->label->set_label(error);
+      bitmap->_label->set_label(error);
    if (error)
-      bitmap->labelPanel->_flags &= ~UIElement::hide_flag, bitmap->display->_flags |= UIElement::hide_flag;
+      bitmap->_label_panel->_flags &= ~UIElement::hide_flag, bitmap->_display->_flags |= UIElement::hide_flag;
    else
-      bitmap->labelPanel->_flags |= UIElement::hide_flag, bitmap->display->_flags &= ~UIElement::hide_flag;
-   bitmap->labelPanel->_parent->refresh();
+      bitmap->_label_panel->_flags |= UIElement::hide_flag, bitmap->_display->_flags &= ~UIElement::hide_flag;
+   bitmap->_label_panel->_parent->refresh();
    owner->refresh();
    dataWindow->refresh();
 
@@ -2584,8 +2585,8 @@ int TextboxInputMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
       static TabCompleter tabCompleter  = {};
-      bool                lastKeyWasTab = tabCompleter._lastKeyWasTab;
-      tabCompleter._lastKeyWasTab       = false;
+      bool                lastKeyWasTab = tabCompleter._last_key_was_tab;
+      tabCompleter._last_key_was_tab    = false;
 
       std::string_view text = textbox->text();
       auto             sz   = text.size();
@@ -2670,16 +2671,20 @@ struct WatchWindow;
 static WatchWindow* WatchGetFocused();
 
 struct Watch : public std::enable_shared_from_this<Watch> {
-   bool        open = false, hasFields = false, loadedFields = false, isArray = false, isDynamicArray = false;
-   uint8_t     depth      = 0;
-   char        format     = 0;
-   uintptr_t   arrayIndex = 0;
-   std::string key;
-   std::string value;
-   std::string type;
-   WatchVector fields;
-   Watch*      parent      = nullptr;
-   uint64_t    updateIndex = 0;
+   bool        _open             = false;
+   bool        _has_fields       = false;
+   bool        _loaded_fields    = false;
+   bool        _is_array         = false;
+   bool        _is_dynamic_array = false;
+   uint8_t     _depth            = 0;
+   char        _format           = 0;
+   uintptr_t   _array_index      = 0;
+   std::string _key;
+   std::string _value;
+   std::string _type;
+   WatchVector _fields;
+   Watch*      _parent       = nullptr;
+   uint64_t    _update_index = 0;
 
    static constexpr int WATCH_ARRAY_MAX_FIELDS = 10000000;
 
@@ -2694,7 +2699,7 @@ struct Watch : public std::enable_shared_from_this<Watch> {
       stack[0]                = this;
 
       while (stack[stackCount]) {
-         stack[stackCount + 1] = stack[stackCount]->parent;
+         stack[stackCount + 1] = stack[stackCount]->_parent;
          stackCount++;
          if (stackCount == 32)
             break;
@@ -2712,19 +2717,19 @@ struct Watch : public std::enable_shared_from_this<Watch> {
          }
 
          auto w = stack[stackCount];
-         if (!w->key.empty()) {
-            position += std_format_to_n(buffer + position, sizeof(buffer) - position, "'{}'", w->key);
-         } else if (w->parent && w->parent->isDynamicArray) {
-            position += std_format_to_n(buffer + position, sizeof(buffer) - position, "'[{}]'", w->arrayIndex);
+         if (!w->_key.empty()) {
+            position += std_format_to_n(buffer + position, sizeof(buffer) - position, "'{}'", w->_key);
+         } else if (w->_parent && w->_parent->_is_dynamic_array) {
+            position += std_format_to_n(buffer + position, sizeof(buffer) - position, "'[{}]'", w->_array_index);
          } else {
-            position += std_format_to_n(buffer + position, sizeof(buffer) - position, "{}", w->arrayIndex);
+            position += std_format_to_n(buffer + position, sizeof(buffer) - position, "{}", w->_array_index);
          }
       }
 
       position += std_format_to_n(buffer + position, sizeof(buffer) - position, "]");
 
       if (function == "gf_valueof") {
-         position += std_format_to_n(buffer + position, sizeof(buffer) - position, ",'{:c}'", format ?: ' ');
+         position += std_format_to_n(buffer + position, sizeof(buffer) - position, ",'{:c}'", _format ?: ' ');
       }
 
       position += std_format_to_n(buffer + position, sizeof(buffer) - position, ")");
@@ -2750,9 +2755,9 @@ struct Watch : public std::enable_shared_from_this<Watch> {
    void add_fields(WatchWindow* w);
 
    void insert_field_rows(WatchVector* array) {
-      for (const auto& field : fields) {
+      for (const auto& field : _fields) {
          array->push_back(field);
-         if (field->open)
+         if (field->_open)
             field->insert_field_rows(array);
       }
    }
@@ -2779,16 +2784,16 @@ struct Watch : public std::enable_shared_from_this<Watch> {
       print(file, "{:.{}}", "\t\t\t\t\t\t\t\t\t\t\t\t\t\t", indent);
 
       if (indexInParentArray == -1) {
-         print(file, "{} = ", key);
+         print(file, "{} = ", _key);
       } else {
          print(file, "[{}] = ", indexInParentArray);
       }
 
-      if (open) {
+      if (_open) {
          print(file, "\n");
 
-         for (size_t i = 0; i < fields.size(); i++)
-            fields[i]->save_as(file, indent + 1, isArray ? i : -1);
+         for (size_t i = 0; i < _fields.size(); i++)
+            _fields[i]->save_as(file, indent + 1, _is_array ? i : -1);
       } else {
          auto res = evaluate("gf_valueof");
          if (!res.empty()) {
@@ -2799,11 +2804,11 @@ struct Watch : public std::enable_shared_from_this<Watch> {
    }
 
    void clear(bool fieldsOnly) {
-      loadedFields = false;
-      fields.clear();
+      _loaded_fields = false;
+      _fields.clear();
 
       if (!fieldsOnly) {
-         key.clear();
+         _key.clear();
       }
    }
 };
@@ -2816,86 +2821,86 @@ struct WatchWindow : public UIElement {
       WATCH_LOCALS,
    };
 
-   WatchVector     rows;
-   WatchVector     baseExpressions;
-   WatchVector     dynamicArrays;
-   UITextbox*      textbox;
-   std::string     lastLocalList;
-   size_t          selectedRow;
-   int             extraRows;
-   WatchWindowMode mode;
-   uint64_t        updateIndex;
-   bool            waitingForFormatCharacter;
+   WatchVector     _rows;
+   WatchVector     _base_expressions;
+   WatchVector     _dynamic_arrays;
+   UITextbox*      _textbox;
+   std::string     _last_local_list;
+   size_t          _selected_row;
+   int             _extra_rows;
+   WatchWindowMode _mode;
+   uint64_t        _update_index;
+   bool            _waiting_for_format_character;
 
    WatchWindow(UIElement* parent, uint32_t flags, const char* name)
       : UIElement(parent, flags, WatchWindow::WatchWindowMessage, name)
-      , textbox(nullptr)
-      , selectedRow(0)
-      , mode(WATCH_NORMAL)
-      , updateIndex(0)
-      , waitingForFormatCharacter(false) {
+      , _textbox(nullptr)
+      , _selected_row(0)
+      , _mode(WATCH_NORMAL)
+      , _update_index(0)
+      , _waiting_for_format_character(false) {
       _cp = this; // may be needed, see WatchGetFocused()
    }
 
    size_t last_row() const {
-      size_t res = rows.size() + extraRows;
+      size_t res = _rows.size() + _extra_rows;
       return res ? res - 1 : res;
    }
 
    void destroy_textbox() {
-      if (!textbox)
+      if (!_textbox)
          return;
-      textbox->destroy();
-      textbox = nullptr;
+      _textbox->destroy();
+      _textbox = nullptr;
       focus();
    }
 
    bool add_watch() {
-      if (textbox)
+      if (_textbox)
          return false;
-      selectedRow = rows.size();
+      _selected_row = _rows.size();
       create_textbox_for_row(false);
       return true;
    }
 
    void free_watch(const shared_ptr<Watch>& watch, bool fieldsOnly) {
-      if (watch->isDynamicArray) {
-         if (auto it = rng::find(dynamicArrays, watch); it != rng::end(dynamicArrays))
-            dynamicArrays.erase(it);
+      if (watch->_is_dynamic_array) {
+         if (auto it = rng::find(_dynamic_arrays, watch); it != rng::end(_dynamic_arrays))
+            _dynamic_arrays.erase(it);
       }
       watch->clear(fieldsOnly);
    }
 
    void delete_expression(bool fieldsOnly = false) {
       destroy_textbox();
-      if (selectedRow == rows.size())
+      if (_selected_row == _rows.size())
          return;
-      int end = selectedRow + 1;
+      int end = _selected_row + 1;
 
-      for (; end < (int)rows.size(); end++) {
-         if (rows[selectedRow]->depth >= rows[end]->depth) {
+      for (; end < (int)_rows.size(); end++) {
+         if (_rows[_selected_row]->_depth >= _rows[end]->_depth) {
             break;
          }
       }
 
-      shared_ptr<Watch> watch = rows[selectedRow]; // no reference as we want to hold the pointer
+      shared_ptr<Watch> watch = _rows[_selected_row]; // no reference as we want to hold the pointer
 
       if (!fieldsOnly) {
-         if (auto it = rng::find(baseExpressions, watch); it != rng::end(baseExpressions))
-            baseExpressions.erase(it);
+         if (auto it = rng::find(_base_expressions, watch); it != rng::end(_base_expressions))
+            _base_expressions.erase(it);
       }
 
       if (fieldsOnly)
-         selectedRow++;
-      rows.erase(rows.cbegin() + selectedRow, rows.cbegin() + end);
+         _selected_row++;
+      _rows.erase(_rows.cbegin() + _selected_row, _rows.cbegin() + end);
       free_watch(watch, fieldsOnly);
       if (!fieldsOnly)
          watch.reset();
    }
 
    void ensure_row_visible(size_t index) {
-      if (selectedRow > rows.size())
-         selectedRow = rows.size();
+      if (_selected_row > _rows.size())
+         _selected_row = _rows.size();
       UIScrollBar* scroll    = ((UIPanel*)_parent)->scrollbar();
       int          rowHeight = (int)(ui_size::textbox_height * _window->scale());
       int          start = index * rowHeight, end = (index + 1) * rowHeight, height = _parent->_bounds.height();
@@ -2913,14 +2918,14 @@ struct WatchWindow : public UIElement {
    void insert_field_rows(const shared_ptr<Watch>& watch, size_t position, bool ensureLastVisible) {
       WatchVector array = {};
       watch->insert_field_rows(&array);
-      rows.insert(rows.cbegin() + position, array.cbegin(), array.cend());
+      _rows.insert(_rows.cbegin() + position, array.cbegin(), array.cend());
       if (ensureLastVisible)
          ensure_row_visible(position + array.size() - 1);
       array.clear();
    }
 
    void add_expression(string_view string = {}) {
-      if (string.empty() && textbox && textbox->text().empty()) {
+      if (string.empty() && _textbox && _textbox->text().empty()) {
          destroy_textbox();
          return;
       }
@@ -2928,46 +2933,46 @@ struct WatchWindow : public UIElement {
       auto watch = make_shared<Watch>();
 
       if (!string.empty())
-         watch->key = string;
+         watch->_key = string;
       else
-         watch->key = textbox->text();
+         watch->_key = _textbox->text();
 
       delete_expression(); // Deletes textbox.
-      rows.insert(rows.cbegin() + selectedRow, watch);
-      baseExpressions.push_back(watch);
-      selectedRow++;
+      _rows.insert(_rows.cbegin() + _selected_row, watch);
+      _base_expressions.push_back(watch);
+      _selected_row++;
 
       auto res = watch->evaluate("gf_typeof");
 
       if (!res.contains("??")) {
          resize_to_lf(res);
-         watch->type      = std::move(res);
-         watch->hasFields = watch->has_fields();
+         watch->_type       = std::move(res);
+         watch->_has_fields = watch->has_fields();
       }
    }
 
    void create_textbox_for_row(bool addExistingText) {
       int         rowHeight = (int)(ui_size::textbox_height * _window->scale());
       UIRectangle row       = _bounds;
-      row.t += selectedRow * rowHeight, row.b = row.t + rowHeight;
-      textbox = &add_textbox(0).set_user_proc(WatchTextboxMessage).set_cp(this);
-      textbox->move(row, true);
-      textbox->focus();
+      row.t += _selected_row * rowHeight, row.b = row.t + rowHeight;
+      _textbox = &add_textbox(0).set_user_proc(WatchTextboxMessage).set_cp(this);
+      _textbox->move(row, true);
+      _textbox->focus();
 
       if (addExistingText) {
-         textbox->replace_text(rows[selectedRow]->key, false);
+         _textbox->replace_text(_rows[_selected_row]->_key, false);
       }
    }
 
    bool add_entry_for_address() {
-      if (mode == WATCH_NORMAL && selectedRow == rows.size())
+      if (_mode == WATCH_NORMAL && _selected_row == _rows.size())
          return false;
-      const auto& watch = rows[selectedRow];
+      const auto& watch = _rows[_selected_row];
       auto        res   = watch->get_address();
       if (res.empty())
          return false;
 
-      if (mode != WATCH_NORMAL) {
+      if (_mode != WATCH_NORMAL) {
          ctx.InterfaceWindowSwitchToAndFocus("Watch");
          auto w = WatchGetFocused();
          assert(w != NULL);
@@ -2978,7 +2983,7 @@ struct WatchWindow : public UIElement {
 
    bool add_entry_for_address2(std::string& res) {
       auto        address = res;
-      const auto& watch   = rows[selectedRow];
+      const auto& watch   = _rows[_selected_row];
       res                 = watch->evaluate("gf_typeof");
       if (res.empty() || res.contains("??"))
          return false;
@@ -2986,16 +2991,16 @@ struct WatchWindow : public UIElement {
 
       auto buffer = std::format("({}*){}", res, address);
       add_expression(buffer);
-      ensure_row_visible(selectedRow);
+      ensure_row_visible(_selected_row);
       _parent->refresh();
       refresh();
       return true;
    }
 
    bool view_source_at_address() {
-      if (mode == WATCH_NORMAL && selectedRow == rows.size())
+      if (_mode == WATCH_NORMAL && _selected_row == _rows.size())
          return false;
-      char* position = (char*)rows[selectedRow]->value.c_str();
+      char* position = (char*)_rows[_selected_row]->_value.c_str();
       while (*position && !isdigit(*position))
          position++;
       if (!(*position))
@@ -3029,10 +3034,10 @@ struct WatchWindow : public UIElement {
    }
 
    void copy_value_to_clipboard() {
-      if (mode == WATCH_NORMAL && selectedRow == rows.size())
+      if (_mode == WATCH_NORMAL && _selected_row == _rows.size())
          return;
 
-      const shared_ptr<Watch>& watch = rows[selectedRow];
+      const shared_ptr<Watch>& watch = _rows[_selected_row];
 
       auto res = watch->evaluate("gf_valueof");
       if (!res.empty()) {
@@ -3042,13 +3047,13 @@ struct WatchWindow : public UIElement {
    }
 
    void update() {
-      if (mode == WatchWindow::WATCH_LOCALS) {
+      if (_mode == WatchWindow::WATCH_LOCALS) {
          auto res = EvaluateCommand("py gf_locals()");
 
-         bool newFrame = (lastLocalList.empty() || lastLocalList != res);
+         bool newFrame = (_last_local_list.empty() || _last_local_list != res);
 
          if (newFrame) {
-            lastLocalList = res;
+            _last_local_list = res;
 
             char*         buffer = strdup(res.c_str());
             char*         s      = buffer;
@@ -3068,11 +3073,11 @@ struct WatchWindow : public UIElement {
             }
 
             if (expressions.size() > 0) {
-               for (size_t watchIndex = 0; watchIndex < baseExpressions.size(); watchIndex++) {
-                  const shared_ptr<Watch>& watch   = baseExpressions[watchIndex];
+               for (size_t watchIndex = 0; watchIndex < _base_expressions.size(); watchIndex++) {
+                  const shared_ptr<Watch>& watch   = _base_expressions[watchIndex];
                   bool                     matched = false;
 
-                  if (auto it = rng::find_if(expressions, [&](char* e) { return watch->key == e; });
+                  if (auto it = rng::find_if(expressions, [&](char* e) { return watch->_key == e; });
                       it != rng::end(expressions)) {
                      expressions.erase(it);
                      matched = true;
@@ -3080,9 +3085,9 @@ struct WatchWindow : public UIElement {
 
                   if (!matched) {
                      [[maybe_unused]] bool found = false;
-                     for (size_t rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
-                        if (rows[rowIndex] == watch) {
-                           selectedRow = rowIndex;
+                     for (size_t rowIndex = 0; rowIndex < _rows.size(); rowIndex++) {
+                        if (_rows[rowIndex] == watch) {
+                           _selected_row = rowIndex;
                            delete_expression();
                            watchIndex--;
                            found = true;
@@ -3095,11 +3100,11 @@ struct WatchWindow : public UIElement {
 
                // Add the remaining (new) variables.
                for (auto exp : expressions) {
-                  selectedRow = rows.size();
+                  _selected_row = _rows.size();
                   add_expression(exp);
                }
 
-               selectedRow = rows.size();
+               _selected_row = _rows.size();
             }
 
             free(buffer);
@@ -3107,55 +3112,55 @@ struct WatchWindow : public UIElement {
          }
       }
 
-      for (size_t i = 0; i < baseExpressions.size(); i++) {
-         const shared_ptr<Watch>& watch = baseExpressions[i];
+      for (size_t i = 0; i < _base_expressions.size(); i++) {
+         const shared_ptr<Watch>& watch = _base_expressions[i];
          auto                     res   = watch->evaluate("gf_typeof");
          resize_to_lf(res);
 
-         if (res != watch->type && res != "??") {
-            watch->type = std::move(res);
+         if (res != watch->_type && res != "??") {
+            watch->_type = std::move(res);
 
-            for (size_t j = 0; j < rows.size(); j++) {
-               if (rows[j] == watch) {
-                  selectedRow = j;
-                  add_expression(watch->key);
-                  selectedRow = rows.size(), i--;
+            for (size_t j = 0; j < _rows.size(); j++) {
+               if (_rows[j] == watch) {
+                  _selected_row = j;
+                  add_expression(watch->_key);
+                  _selected_row = _rows.size(), i--;
                   break;
                }
             }
          }
       }
 
-      for (size_t i = 0; i < dynamicArrays.size(); i++) {
-         const shared_ptr<Watch>& watch = dynamicArrays[i];
+      for (size_t i = 0; i < _dynamic_arrays.size(); i++) {
+         const shared_ptr<Watch>& watch = _dynamic_arrays[i];
          auto                     res   = watch->evaluate("gf_fields");
          if (res.empty() || !res.contains("(d_arr)"))
             continue;
          int count = sv_atoi(res, 7);
 
          count        = std::clamp(count, 0, Watch::WATCH_ARRAY_MAX_FIELDS);
-         int oldCount = watch->fields.size();
+         int oldCount = watch->_fields.size();
 
          if (oldCount != count) {
             size_t index = (size_t)-1;
 
-            for (size_t i = 0; i < rows.size(); i++) {
-               if (rows[i] == watch) {
+            for (size_t i = 0; i < _rows.size(); i++) {
+               if (_rows[i] == watch) {
                   index = i;
                   break;
                }
             }
 
             assert(index != (size_t)-1);
-            selectedRow = index;
+            _selected_row = index;
             delete_expression(true);
-            watch->open = true;
+            watch->_open = true;
             watch->add_fields(this);
             insert_field_rows(watch, index + 1, false);
          }
       }
 
-      updateIndex++;
+      _update_index++;
       _parent->refresh();
       refresh();
    }
@@ -3163,7 +3168,7 @@ struct WatchWindow : public UIElement {
    void WatchChangeLoggerCreate();
 
    void save_as() {
-      if (selectedRow == rows.size())
+      if (_selected_row == _rows.size())
          return;
 
       char* filePath = nullptr;
@@ -3182,7 +3187,7 @@ struct WatchWindow : public UIElement {
          return;
       }
 
-      rows[selectedRow]->save_as(f, 0, -1);
+      _rows[_selected_row]->save_as(f, 0, -1);
       fclose(f);
    }
 
@@ -3197,15 +3202,14 @@ struct WatchWindow : public UIElement {
    static void Update(const char*, UIElement* el) { static_cast<WatchWindow*>(el->_cp)->update(); }
 
    static void Focus(UIElement* el) { static_cast<WatchWindow*>(el)->focus(); }
-
 };
 
 void Watch::add_fields(WatchWindow* w) {
-   if (loadedFields) {
+   if (_loaded_fields) {
       return;
    }
 
-   loadedFields = true;
+   _loaded_fields = true;
 
    auto res = evaluate("gf_fields");
 
@@ -3214,25 +3218,25 @@ void Watch::add_fields(WatchWindow* w) {
 
       count = std::clamp(count, 0, Watch::WATCH_ARRAY_MAX_FIELDS);
 
-      isArray           = true;
+      _is_array         = true;
       bool hasSubFields = false;
 
       if (res.contains("(d_arr)")) {
-         isDynamicArray = true;
-         w->dynamicArrays.push_back(shared_from_this());
+         _is_dynamic_array = true;
+         w->_dynamic_arrays.push_back(shared_from_this());
       }
 
       for (int i = 0; i < count; i++) {
-         auto field        = make_shared<Watch>();
-         field->format     = format;
-         field->arrayIndex = (uintptr_t)i;
-         field->parent     = this;
+         auto field          = make_shared<Watch>();
+         field->_format      = _format;
+         field->_array_index = (uintptr_t)i;
+         field->_parent      = this;
 
-         fields.push_back(field);
+         _fields.push_back(field);
          if (!i)
             hasSubFields = field->has_fields();
-         field->hasFields = hasSubFields;
-         field->depth     = depth + 1;
+         field->_has_fields = hasSubFields;
+         field->_depth      = _depth + 1;
       }
    } else {
       char* start    = (char*)res.c_str();
@@ -3247,14 +3251,14 @@ void Watch::add_fields(WatchWindow* w) {
          *end = 0;
          if (strstr(position, "(gdb)"))
             break;
-         auto field    = make_shared<Watch>();
-         field->depth  = (uint8_t)(depth + 1);
-         field->key    = position;
-         field->parent = this;
+         auto field     = make_shared<Watch>();
+         field->_depth  = (uint8_t)(_depth + 1);
+         field->_key    = position;
+         field->_parent = this;
 
-         fields.emplace_back(field);
-         field->hasFields = field->has_fields();
-         position         = end + 1;
+         _fields.emplace_back(field);
+         field->_has_fields = field->has_fields();
+         position           = end + 1;
       }
    }
 }
@@ -3275,7 +3279,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
          if (!rect_intersection.valid())
             break;
 
-         bool focused = i == selectedRow && is_focused();
+         bool focused = i == _selected_row && is_focused();
 
          if (focused)
             painter->draw_block(row, thm.selected);
@@ -3284,37 +3288,37 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
          row.l += ui_size::textbox_margin;
          row.r -= ui_size::textbox_margin;
 
-         if (i < rows.size()) {
-            const shared_ptr<Watch>& watch = rows[i];
+         if (i < _rows.size()) {
+            const shared_ptr<Watch>& watch = _rows[i];
             char                     buffer[256];
 
-            if ((watch->value.empty() || watch->updateIndex != updateIndex) && !watch->open) {
-               if (!ctx.programRunning) {
-                  watch->updateIndex = updateIndex;
-                  auto res           = watch->evaluate("gf_valueof");
+            if ((watch->_value.empty() || watch->_update_index != _update_index) && !watch->_open) {
+               if (!ctx._program_running) {
+                  watch->_update_index = _update_index;
+                  auto res             = watch->evaluate("gf_valueof");
                   resize_to_lf(res);
-                  watch->value = std::move(res);
+                  watch->_value = std::move(res);
                } else {
-                  watch->value = "..";
+                  watch->_value = "..";
                }
             }
 
             char keyIndex[64];
 
-            if (watch->key.empty()) {
-               std_format_to_n(keyIndex, sizeof(keyIndex), "[{}]", watch->arrayIndex);
+            if (watch->_key.empty()) {
+               std_format_to_n(keyIndex, sizeof(keyIndex), "[{}]", watch->_array_index);
             }
 
-            if (focused && waitingForFormatCharacter) {
+            if (focused && _waiting_for_format_character) {
                std_format_to_n(buffer, sizeof(buffer), "Enter format character: (e.g. 'x' for hex)");
             } else {
                std_format_to_n(buffer, sizeof(buffer), "{:.{}}{}{}{}{}", "                                           ",
-                               watch->depth * 3,
-                               watch->open        ? "v "
-                               : watch->hasFields ? "> "
-                                                  : "",
-                               !watch->key.empty() ? watch->key.c_str() : keyIndex, watch->open ? "" : " = ",
-                               watch->open ? "" : watch->value.c_str());
+                               watch->_depth * 3,
+                               watch->_open         ? "v "
+                               : watch->_has_fields ? "> "
+                                                    : "",
+                               !watch->_key.empty() ? watch->_key.c_str() : keyIndex, watch->_open ? "" : " = ",
+                               watch->_open ? "" : watch->_value.c_str());
             }
 
             if (focused) {
@@ -3330,20 +3334,20 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
       auto act_font = active_font();
       auto pos      = cursor_pos();
       if (pos.y >= _bounds.t) {
-         selectedRow = (pos.y - _bounds.t) / rowHeight;
+         _selected_row = (pos.y - _bounds.t) / rowHeight;
 
-         if (selectedRow < rows.size()) {
-            const shared_ptr<Watch>& watch = rows[selectedRow];
+         if (_selected_row < _rows.size()) {
+            const shared_ptr<Watch>& watch = _rows[_selected_row];
             int                      x     = (pos.x - _bounds.l) / act_font->_glyph_width;
 
-            if (x >= watch->depth * 3 - 1 && x <= watch->depth * 3 + 1 && watch->hasFields) {
+            if (x >= watch->_depth * 3 - 1 && x <= watch->_depth * 3 + 1 && watch->_has_fields) {
                UIKeyTyped m;
-               m.code = watch->open ? UIKeycode::LEFT : UIKeycode::RIGHT;
+               m.code = watch->_open ? UIKeycode::LEFT : UIKeycode::RIGHT;
                _class_message_proc(UIMessage::KEY_TYPED, 0, &m);
             }
          }
       } else
-         selectedRow = 0;
+         _selected_row = 0;
 
       focus();
       repaint(nullptr);
@@ -3352,11 +3356,11 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
       if (pos.y >= _bounds.t) {
          size_t index = (pos.y - _bounds.t) / rowHeight;
 
-         if (index < rows.size()) {
+         if (index < _rows.size()) {
             _class_message_proc(UIMessage::LEFT_DOWN, di, dp);
             UIMenu& menu = ui()->create_menu(_window, UIMenu::NO_SCROLL);
 
-            if (mode == WATCH_NORMAL && !rows[index]->parent) {
+            if (_mode == WATCH_NORMAL && !_rows[index]->_parent) {
                menu.add_item(0, "Edit expression", [this](UIButton&) { create_textbox_for_row(true); })
                   .add_item(0, "Delete", [this](UIButton&) {
                      delete_expression();
@@ -3368,9 +3372,9 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
             menu.add_item(0, "Copy value to clipboard\tCtrl+C", [this](UIButton&) { copy_value_to_clipboard(); })
                .add_item(0, "Log writes to address...", [this](UIButton&) { WatchChangeLoggerCreate(); })
                .add_item(0, "Break on writes to address", [this](UIButton&) {
-                  if (selectedRow == rows.size())
+                  if (_selected_row == _rows.size())
                      return;
-                  auto res = rows[selectedRow]->get_address();
+                  auto res = _rows[_selected_row]->get_address();
                   ;
                   if (res.empty())
                      return;
@@ -3394,39 +3398,41 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
       result        = 1;
 
-      if (waitingForFormatCharacter) {
-         rows[selectedRow]->format = (!m->text.empty() && isalpha(m->text[0])) ? m->text[0] : 0;
-         rows[selectedRow]->updateIndex--;
+      if (_waiting_for_format_character) {
+         _rows[_selected_row]->_format = (!m->text.empty() && isalpha(m->text[0])) ? m->text[0] : 0;
+         _rows[_selected_row]->_update_index--;
 
-         if (rows[selectedRow]->isArray) {
-            for (auto& field : rows[selectedRow]->fields) {
-               field->format = rows[selectedRow]->format;
-               field->updateIndex--;
+         if (_rows[_selected_row]->_is_array) {
+            for (auto& field : _rows[_selected_row]->_fields) {
+               field->_format = _rows[_selected_row]->_format;
+               field->_update_index--;
             }
          }
 
-         waitingForFormatCharacter = false;
-      } else if (mode == WATCH_NORMAL && selectedRow != rows.size() && !textbox &&
+         _waiting_for_format_character = false;
+      } else if (_mode == WATCH_NORMAL && _selected_row != _rows.size() && !_textbox &&
                  (m->code == UIKeycode::ENTER || m->code == UIKeycode::BACKSPACE ||
-                  (m->code == UIKeycode::LEFT && !rows[selectedRow]->open)) &&
-                 !rows[selectedRow]->parent) {
+                  (m->code == UIKeycode::LEFT && !_rows[_selected_row]->_open)) &&
+                 !_rows[_selected_row]->_parent) {
          create_textbox_for_row(true);
-      } else if (m->code == UIKeycode::DEL && !textbox && selectedRow != rows.size() && !rows[selectedRow]->parent) {
+      } else if (m->code == UIKeycode::DEL && !_textbox && _selected_row != _rows.size() &&
+                 !_rows[_selected_row]->_parent) {
          delete_expression();
-      } else if (!m->text.empty() && m->text[0] == '/' && selectedRow != rows.size()) {
-         waitingForFormatCharacter = true;
+      } else if (!m->text.empty() && m->text[0] == '/' && _selected_row != _rows.size()) {
+         _waiting_for_format_character = true;
       } else if (!m->text.empty() && m->text[0] == '`') {
          result = 0;
-      } else if (mode == WATCH_NORMAL && !m->text.empty() && m->code != UIKeycode::TAB && !textbox && !_window->_ctrl &&
-                 !_window->_alt && (selectedRow == rows.size() || !rows[selectedRow]->parent)) {
+      } else if (_mode == WATCH_NORMAL && !m->text.empty() && m->code != UIKeycode::TAB && !_textbox &&
+                 !_window->_ctrl && !_window->_alt &&
+                 (_selected_row == _rows.size() || !_rows[_selected_row]->_parent)) {
          create_textbox_for_row(false);
-         textbox->message(msg, di, dp);
-      } else if (mode == WATCH_NORMAL && !m->text.empty() && m->code == UI_KEYCODE_LETTER('V') && !textbox &&
+         _textbox->message(msg, di, dp);
+      } else if (_mode == WATCH_NORMAL && !m->text.empty() && m->code == UI_KEYCODE_LETTER('V') && !_textbox &&
                  _window->_ctrl && !_window->_alt && !_window->_shift &&
-                 (selectedRow == rows.size() || !rows[selectedRow]->parent)) {
+                 (_selected_row == _rows.size() || !_rows[_selected_row]->_parent)) {
          create_textbox_for_row(false);
-         textbox->message(msg, di, dp);
-      } else if (m->code == UIKeycode::ENTER && textbox) {
+         _textbox->message(msg, di, dp);
+      } else if (m->code == UIKeycode::ENTER && _textbox) {
          add_expression();
       } else if (m->code == UIKeycode::ESCAPE) {
          destroy_textbox();
@@ -3438,8 +3444,8 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
             }
          } else {
             destroy_textbox();
-            if (selectedRow)
-               selectedRow--;
+            if (_selected_row)
+               _selected_row--;
          }
       } else if (m->code == UIKeycode::DOWN) {
          if (_window->_shift) {
@@ -3449,83 +3455,84 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
             }
          } else {
             destroy_textbox();
-            selectedRow++;
+            _selected_row++;
          }
       } else if (m->code == UIKeycode::HOME) {
-         selectedRow = 0;
+         _selected_row = 0;
       } else if (m->code == UIKeycode::END) {
-         selectedRow = last_row();
-      } else if (m->code == UIKeycode::RIGHT && !textbox && selectedRow != rows.size() &&
-                 rows[selectedRow]->hasFields && !rows[selectedRow]->open) {
-         const shared_ptr<Watch>& watch = rows[selectedRow];
-         watch->open                    = true;
+         _selected_row = last_row();
+      } else if (m->code == UIKeycode::RIGHT && !_textbox && _selected_row != _rows.size() &&
+                 _rows[_selected_row]->_has_fields && !_rows[_selected_row]->_open) {
+         const shared_ptr<Watch>& watch = _rows[_selected_row];
+         watch->_open                   = true;
          watch->add_fields(this);
-         insert_field_rows(watch, selectedRow + 1, true);
-      } else if (m->code == UIKeycode::LEFT && !textbox && selectedRow != rows.size() && rows[selectedRow]->hasFields &&
-                 rows[selectedRow]->open) {
-         size_t end = selectedRow + 1;
+         insert_field_rows(watch, _selected_row + 1, true);
+      } else if (m->code == UIKeycode::LEFT && !_textbox && _selected_row != _rows.size() &&
+                 _rows[_selected_row]->_has_fields && _rows[_selected_row]->_open) {
+         size_t end = _selected_row + 1;
 
-         for (; end < rows.size(); end++) {
-            if (rows[selectedRow]->depth >= rows[end]->depth) {
+         for (; end < _rows.size(); end++) {
+            if (_rows[_selected_row]->_depth >= _rows[end]->_depth) {
                break;
             }
          }
 
-         rows.erase(rows.cbegin() + selectedRow + 1, rows.cbegin() + end);
-         rows[selectedRow]->open = false;
-      } else if (m->code == UIKeycode::LEFT && !textbox && selectedRow != rows.size() && !rows[selectedRow]->open) {
-         for (size_t i = 0; i < rows.size(); i++) {
-            if (rows[selectedRow]->parent == rows[i].get()) {
-               selectedRow = i;
+         _rows.erase(_rows.cbegin() + _selected_row + 1, _rows.cbegin() + end);
+         _rows[_selected_row]->_open = false;
+      } else if (m->code == UIKeycode::LEFT && !_textbox && _selected_row != _rows.size() &&
+                 !_rows[_selected_row]->_open) {
+         for (size_t i = 0; i < _rows.size(); i++) {
+            if (_rows[_selected_row]->_parent == _rows[i].get()) {
+               _selected_row = i;
                break;
             }
          }
-      } else if (m->code == UI_KEYCODE_LETTER('C') && !textbox && !_window->_shift && !_window->_alt &&
+      } else if (m->code == UI_KEYCODE_LETTER('C') && !_textbox && !_window->_shift && !_window->_alt &&
                  _window->_ctrl) {
          copy_value_to_clipboard();
       } else {
          result = 0;
       }
 
-      ensure_row_visible(selectedRow);
+      ensure_row_visible(_selected_row);
       _parent->refresh();
       refresh();
    } else if (msg == UIMessage::MIDDLE_DOWN) {
-      if (mode == WATCH_NORMAL && !textbox && !_window->_ctrl && !_window->_alt &&
-          (selectedRow == rows.size() || !rows[selectedRow]->parent)) {
+      if (_mode == WATCH_NORMAL && !_textbox && !_window->_ctrl && !_window->_alt &&
+          (_selected_row == _rows.size() || !_rows[_selected_row]->_parent)) {
          create_textbox_for_row(false);
-         textbox->paste(sel_target_t::primary);
+         _textbox->paste(sel_target_t::primary);
          repaint(NULL);
       }
       return 1;
    }
 
-   if (selectedRow > last_row()) {
-      selectedRow = last_row();
+   if (_selected_row > last_row()) {
+      _selected_row = last_row();
    }
 
    return result;
 }
 
 struct WatchLogEvaluated {
-   std::string result;
+   std::string _result;
 };
 
 struct WatchLogEntry {
-   std::string               value;
-   std::string               where;
-   vector<WatchLogEvaluated> evaluated;
-   vector<StackEntry>        trace;
+   std::string               _value;
+   std::string               _where;
+   vector<WatchLogEvaluated> _evaluated;
+   vector<StackEntry>        _trace;
 };
 
 struct WatchLogger {
-   int                   id            = 0;
-   int                   selectedEntry = 0;
-   char                  columns[256]  = {0};
-   std::string           expressionsToEvaluate;
-   vector<WatchLogEntry> entries;
-   UITable*              table = nullptr;
-   UITable*              trace = nullptr;
+   int                   _id             = 0;
+   int                   _selected_entry = 0;
+   char                  _columns[256]   = {0};
+   std::string           _expressions_to_evaluate;
+   vector<WatchLogEntry> _entries;
+   UITable*              _table = nullptr;
+   UITable*              _trace = nullptr;
 };
 
 vector<WatchLogger*> watchLoggers;
@@ -3534,15 +3541,15 @@ int WatchTextboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::UPDATE) {
       if (!el->is_focused()) {
          el->destroy();
-         ((WatchWindow*)el->_cp)->textbox = nullptr; // use _cp here!
+         ((WatchWindow*)el->_cp)->_textbox = nullptr; // use _cp here!
       }
    } else if (msg == UIMessage::KEY_TYPED) {
       UITextbox*  textbox = (UITextbox*)el;
       UIKeyTyped* m       = (UIKeyTyped*)dp;
 
       static TabCompleter tabCompleter  = {};
-      bool                lastKeyWasTab = tabCompleter._lastKeyWasTab;
-      tabCompleter._lastKeyWasTab       = false;
+      bool                lastKeyWasTab = tabCompleter._last_key_was_tab;
+      tabCompleter._last_key_was_tab    = false;
 
       if (m->code == UIKeycode::TAB && textbox->text().size() && !el->_window->_shift) {
          tabCompleter.run(textbox, lastKeyWasTab, true);
@@ -3554,13 +3561,13 @@ int WatchTextboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 }
 
 void WatchAddExpression(string_view string) {
-   UIElement*   el = ctx.InterfaceWindowSwitchToAndFocus("Watch");
-   WatchWindow* w  = (WatchWindow*)el->_cp;
-   w->selectedRow  = w->rows.size();
+   UIElement*   el  = ctx.InterfaceWindowSwitchToAndFocus("Watch");
+   WatchWindow* w   = (WatchWindow*)el->_cp;
+   w->_selected_row = w->_rows.size();
    w->add_expression(string);
-   if (w->selectedRow)
-      w->selectedRow--;
-   w->ensure_row_visible(w->selectedRow);
+   if (w->_selected_row)
+      w->_selected_row--;
+   w->ensure_row_visible(w->_selected_row);
    w->_parent->refresh();
    w->refresh();
 }
@@ -3573,7 +3580,7 @@ int WatchLoggerWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          if (auto it = rng::find(watchLoggers, logger); it != rng::end(watchLoggers))
             watchLoggers.erase(it);
 
-         EvaluateCommand(std::format("delete {}", logger->id));
+         EvaluateCommand(std::format("delete {}", logger->_id));
          delete logger;
       }
    } else if (msg == UIMessage::GET_WIDTH || msg == UIMessage::GET_HEIGHT) {
@@ -3588,9 +3595,9 @@ void WatchLoggerTraceSelectFrame(UIElement* el, int index, WatchLogger* logger) 
       return;
    }
 
-   StackEntry* entry = &logger->entries[logger->selectedEntry].trace[index];
-   char        location[sizeof(entry->location)];
-   strcpy(location, entry->location);
+   StackEntry* entry = &logger->_entries[logger->_selected_entry]._trace[index];
+   char        location[sizeof(entry->_location)];
+   strcpy(location, entry->_location);
    char* colon = strchr(location, ':');
 
    if (colon) {
@@ -3605,16 +3612,16 @@ int WatchLoggerTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
    if (msg == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m     = (UITableGetItem*)dp;
-      WatchLogEntry*  entry = &logger->entries[m->_row];
-      m->_is_selected       = (int)m->_row == logger->selectedEntry;
+      WatchLogEntry*  entry = &logger->_entries[m->_row];
+      m->_is_selected       = (int)m->_row == logger->_selected_entry;
 
       if (m->_column == 0) {
-         return m->format_to("{}", entry->value);
+         return m->format_to("{}", entry->_value);
       } else if (m->_column == 1) {
-         return m->format_to("{}", entry->where);
+         return m->format_to("{}", entry->_where);
       } else {
-         if (m->_column - 2 < entry->evaluated.size()) {
-            return m->format_to("{}", entry->evaluated[m->_column - 2].result);
+         if (m->_column - 2 < entry->_evaluated.size()) {
+            return m->format_to("{}", entry->_evaluated[m->_column - 2]._result);
          } else {
             return 0;
          }
@@ -3622,12 +3629,12 @@ int WatchLoggerTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::LEFT_DOWN || msg == UIMessage::MOUSE_DRAG) {
       int index = ((UITable*)el)->hittest(el->cursor_pos());
 
-      if (index != -1 && logger->selectedEntry != index) {
-         logger->selectedEntry = index;
-         logger->trace->set_num_items(logger->entries[index].trace.size());
-         WatchLoggerTraceSelectFrame(logger->trace, 0, logger);
-         logger->trace->resize_columns();
-         logger->trace->refresh();
+      if (index != -1 && logger->_selected_entry != index) {
+         logger->_selected_entry = index;
+         logger->_trace->set_num_items(logger->_entries[index]._trace.size());
+         WatchLoggerTraceSelectFrame(logger->_trace, 0, logger);
+         logger->_trace->resize_columns();
+         logger->_trace->refresh();
          el->refresh();
       }
    }
@@ -3640,16 +3647,16 @@ int WatchLoggerTraceMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
    if (msg == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m     = (UITableGetItem*)dp;
-      StackEntry*     entry = &logger->entries[logger->selectedEntry].trace[m->_row];
+      StackEntry*     entry = &logger->_entries[logger->_selected_entry]._trace[m->_row];
 
       if (m->_column == 0) {
-         return m->format_to("{}", entry->id);
+         return m->format_to("{}", entry->_id);
       } else if (m->_column == 1) {
-         return m->format_to("{}", entry->function);
+         return m->format_to("{}", entry->_function);
       } else if (m->_column == 2) {
-         return m->format_to("{}", entry->location);
+         return m->format_to("{}", entry->_location);
       } else if (m->_column == 3) {
-         return m->format_to("0x{:X}", entry->address);
+         return m->format_to("0x{:X}", entry->_address);
       }
    } else if (msg == UIMessage::LEFT_DOWN || msg == UIMessage::MOUSE_DRAG) {
       int index = ((UITable*)el)->hittest(el->cursor_pos());
@@ -3660,12 +3667,12 @@ int WatchLoggerTraceMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 }
 
 void WatchLoggerResizeColumns(WatchLogger* logger) {
-   logger->table->resize_columns();
-   logger->table->refresh();
+   logger->_table->resize_columns();
+   logger->_table->refresh();
 }
 
 void WatchWindow::WatchChangeLoggerCreate() {
-   if (selectedRow == rows.size()) {
+   if (_selected_row == _rows.size()) {
       return;
    }
 
@@ -3674,7 +3681,7 @@ void WatchWindow::WatchChangeLoggerCreate() {
       return;
    }
 
-   auto res = rows[selectedRow]->get_address();
+   auto res = _rows[_selected_row]->get_address();
    if (res.empty()) {
       return;
    }
@@ -3707,14 +3714,14 @@ void WatchWindow::WatchChangeLoggerCreate() {
    });
 
    uintptr_t position = 0;
-   position += std_format_to_n(logger->columns + position, sizeof(logger->columns) - position, "New value\tWhere");
+   position += std_format_to_n(logger->_columns + position, sizeof(logger->_columns) - position, "New value\tWhere");
 
    if (expressionsToEvaluate) {
       uintptr_t start = 0;
 
       for (uintptr_t i = 0; true; i++) {
          if (expressionsToEvaluate[i] == ';' || !expressionsToEvaluate[i]) {
-            position += std_format_to_n(logger->columns + position, sizeof(logger->columns) - position, "\t{}",
+            position += std_format_to_n(logger->_columns + position, sizeof(logger->_columns) - position, "\t{}",
                                         std::string_view{expressionsToEvaluate + start, (size_t)(i - start)});
             start = i + 1;
          }
@@ -3726,14 +3733,14 @@ void WatchWindow::WatchChangeLoggerCreate() {
    }
 
    UISplitPane* panel = &child->add_splitpane(0, 0.5f);
-   UITable*     table = &panel->add_table(UIElement::h_fill | UIElement::v_fill, logger->columns);
+   UITable*     table = &panel->add_table(UIElement::h_fill | UIElement::v_fill, logger->_columns);
    UITable*     trace = &panel->add_table(UIElement::h_fill | UIElement::v_fill, "Index\tFunction\tLocation\tAddress");
 
-   logger->id                    = sv_atoi(number, 6);
-   logger->table                 = table;
-   logger->trace                 = trace;
-   logger->selectedEntry         = -1;
-   logger->expressionsToEvaluate = expressionsToEvaluate;
+   logger->_id                      = sv_atoi(number, 6);
+   logger->_table                   = table;
+   logger->_trace                   = trace;
+   logger->_selected_entry          = -1;
+   logger->_expressions_to_evaluate = expressionsToEvaluate;
    child->set_user_proc(WatchLoggerWindowMessage).set_cp(logger);
    table->set_user_proc(WatchLoggerTableMessage).set_cp(logger);
    trace->set_user_proc(WatchLoggerTraceMessage).set_cp(logger);
@@ -3777,7 +3784,7 @@ bool WatchLoggerUpdate(std::string _data) {
    WatchLogger* logger = nullptr;
 
    for (const auto& wl : watchLoggers) {
-      if (wl->id == id) {
+      if (wl->_id == id) {
          logger = wl;
          break;
       }
@@ -3790,7 +3797,7 @@ bool WatchLoggerUpdate(std::string _data) {
    *afterWhere         = 0;
    WatchLogEntry entry = {};
 
-   const char* expressionsToEvaluate = logger->expressionsToEvaluate.c_str();
+   const char* expressionsToEvaluate = logger->_expressions_to_evaluate.c_str();
 
    if (expressionsToEvaluate) {
       uintptr_t start = 0;
@@ -3803,10 +3810,10 @@ bool WatchLoggerUpdate(std::string _data) {
             WatchLogEvaluated evaluated;
             const char*       start = strstr(res.c_str(), " = ");
             if (start)
-               evaluated.result = start + 3;
+               evaluated._result = start + 3;
             else
-               evaluated.result = std::move(res);
-            entry.evaluated.push_back(std::move(evaluated));
+               evaluated._result = std::move(res);
+            entry._evaluated.push_back(std::move(evaluated));
          }
 
          if (!expressionsToEvaluate[i]) {
@@ -3815,20 +3822,20 @@ bool WatchLoggerUpdate(std::string _data) {
       }
    }
 
-   if (strlen(value) >= sizeof(entry.value))
-      value[sizeof(entry.value) - 1] = 0;
-   if (strlen(where) >= sizeof(entry.where))
-      where[sizeof(entry.where) - 1] = 0;
-   entry.value                      = value;
-   entry.where                      = where;
-   vector<StackEntry> previousStack = sw.stack;
-   sw.stack                        = {};
+   if (strlen(value) >= sizeof(entry._value))
+      value[sizeof(entry._value) - 1] = 0;
+   if (strlen(where) >= sizeof(entry._where))
+      where[sizeof(entry._where) - 1] = 0;
+   entry._value                     = value;
+   entry._where                     = where;
+   vector<StackEntry> previousStack = sw._stack;
+   sw._stack                        = {};
    DebuggerGetStack();
-   entry.trace = sw.stack;
-   sw.stack   = previousStack;
-   logger->entries.push_back(entry);
-   ++logger->table->num_items();
-   logger->table->refresh();
+   entry._trace = sw._stack;
+   sw._stack    = previousStack;
+   logger->_entries.push_back(entry);
+   ++logger->_table->num_items();
+   logger->_table->refresh();
    (void)DebuggerSend("c", false, false);
    return true;
 }
@@ -3866,9 +3873,9 @@ UIElement* WatchWindow::Create(UIElement* parent, const char* name, WatchWindowM
    WatchWindow* w     = new WatchWindow(panel, UIElement::h_fill | UIElement::tab_stop_flag, name);
    panel->set_user_proc(WatchPanelMessage).set_cp(w);
 
-   w->mode = mode;
+   w->_mode = mode;
    if (mode == WatchWindow::WATCH_NORMAL) {
-      w->extraRows = 1;
+      w->_extra_rows = 1;
       if (!firstWatchWindow)
          firstWatchWindow = w;
    }
@@ -3895,10 +3902,10 @@ bool CommandAddWatch() {
 
 void StackWindow::set_frame(UIElement* el, int index) {
    if (index >= 0 && index < (int)((UITable*)el)->num_items()) {
-      stackChanged = true;
-      if (stackSelected != (size_t)index) {
+      _has_changed = true;
+      if (_selected != (size_t)index) {
          (void)DebuggerSend(std::format("frame {}", index), false, false);
-         stackSelected = index;
+         _selected = index;
          el->repaint(nullptr);
       } else {
          displayCode->set_current_line({}); // force the update in DisplayPosition as we may have scrolled away
@@ -3909,18 +3916,18 @@ void StackWindow::set_frame(UIElement* el, int index) {
 
 int TableStackMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::TABLE_GET_ITEM) {
-      UITableGetItem* m = (UITableGetItem*)dp;
-      m->_is_selected   = (size_t)m->_row == sw.stackSelected;
+      UITableGetItem* m       = (UITableGetItem*)dp;
+      m->_is_selected         = (size_t)m->_row == sw._selected;
       const StackEntry& entry = sw[m->_row];
 
       if (m->_column == 0) {
-         return m->format_to("{}", entry.id);
+         return m->format_to("{}", entry._id);
       } else if (m->_column == 1) {
-         return m->format_to("{}", entry.function);
+         return m->format_to("{}", entry._function);
       } else if (m->_column == 2) {
-         return m->format_to("{}", entry.location);
+         return m->format_to("{}", entry._location);
       } else if (m->_column == 3) {
-         return m->format_to("0x{:X}", entry.address);
+         return m->format_to("0x{:X}", entry._address);
       }
    } else if (msg == UIMessage::LEFT_DOWN || msg == UIMessage::MOUSE_DRAG) {
       sw.set_frame(el, ((UITable*)el)->hittest(el->cursor_pos()));
@@ -3928,7 +3935,7 @@ int TableStackMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
       if (m->code == UIKeycode::UP || m->code == UIKeycode::DOWN) {
-         sw.set_frame(el, sw.stackSelected + (m->code == UIKeycode::UP ? -1 : 1));
+         sw.set_frame(el, sw._selected + (m->code == UIKeycode::UP ? -1 : 1));
          // TODO Scroll the row into view if necessary.
          return 1;
       }
@@ -3943,7 +3950,7 @@ UIElement* StackWindow::Create(UIElement* parent) {
 
 void StackWindow::Update(const char*, UIElement* _table) {
    UITable& table = *(UITable*)_table;
-   table.set_num_items(sw.stack.size()).resize_columns().refresh();
+   table.set_num_items(sw._stack.size()).resize_columns().refresh();
 }
 
 // ---------------------------------------------------/
@@ -3951,14 +3958,14 @@ void StackWindow::Update(const char*, UIElement* _table) {
 // ---------------------------------------------------/
 
 struct BreakpointTableData {
-   vector<int> selected;
-   int         anchor = 0;
+   vector<int> _selected;
+   int         _anchor = 0;
 };
 
 void for_all_selected_breakpoints(BreakpointTableData* data, string_view action) {
-   for (auto selected : data->selected) {
+   for (auto selected : data->_selected) {
       for (const auto& breakpoint : breakpoints) {
-         if (breakpoint.number == selected) {
+         if (breakpoint._number == selected) {
             (void)DebuggerSend(std::format("{} {}", action, selected), true, false);
             break;
          }
@@ -3978,22 +3985,22 @@ int TableBreakpointsMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m     = (UITableGetItem*)dp;
       Breakpoint*     entry = &breakpoints[m->_row];
-      m->_is_selected       = rng::find(data->selected, entry->number) != rng::end(data->selected);
+      m->_is_selected       = rng::find(data->_selected, entry->_number) != rng::end(data->_selected);
 
       if (m->_column == 0) {
-         return m->format_to("{}", entry->file);
+         return m->format_to("{}", entry->_file);
       } else if (m->_column == 1) {
-         if (entry->watchpoint)
-            return m->format_to("watch {}", entry->number);
+         if (entry->_watchpoint)
+            return m->format_to("watch {}", entry->_number);
          else
-            return m->format_to("{}", entry->line);
+            return m->format_to("{}", entry->_line);
       } else if (m->_column == 2) {
-         return m->format_to("{}", entry->enabled ? "yes" : "no");
+         return m->format_to("{}", entry->_enabled ? "yes" : "no");
       } else if (m->_column == 3) {
-         return m->format_to("{}", entry->condition);
+         return m->format_to("{}", entry->_condition);
       } else if (m->_column == 4) {
-         if (entry->hit > 0) {
-            return m->format_to("{}", entry->hit);
+         if (entry->_hit > 0) {
+            return m->format_to("{}", entry->_hit);
          }
       }
    } else if (msg == UIMessage::RIGHT_DOWN) {
@@ -4002,24 +4009,24 @@ int TableBreakpointsMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       if (index != -1) {
          Breakpoint* entry = &breakpoints[index];
 
-         bool found = rng::find(data->selected, entry->number) != rng::end(data->selected);
-         if (data->selected.size() <= 1 || !found) {
+         bool found = rng::find(data->_selected, entry->_number) != rng::end(data->_selected);
+         if (data->_selected.size() <= 1 || !found) {
             if (!el->_window->_ctrl)
-               data->selected.clear();
-            data->selected.push_back(entry->number);
+               data->_selected.clear();
+            data->_selected.push_back(entry->_number);
          }
 
          UIMenu& menu = el->ui()->create_menu(el->_window, UIMenu::NO_SCROLL);
 
-         if (data->selected.size() > 1) {
+         if (data->_selected.size() > 1) {
             bool atLeastOneBreakpointDisabled = false;
             bool atLeastOneBreakpointEnabled  = false;
 
 
-            for (auto selected : data->selected) {
+            for (auto selected : data->_selected) {
                for (const auto& breakpoint : breakpoints) {
-                  if (breakpoint.number == selected) {
-                     if (breakpoint.enabled)
+                  if (breakpoint._number == selected) {
+                     if (breakpoint._enabled)
                         atLeastOneBreakpointEnabled = true;
                      else
                         atLeastOneBreakpointDisabled = true;
@@ -4037,7 +4044,7 @@ int TableBreakpointsMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          } else {
             menu.add_item(0, "Delete", [index](UIButton&) { CommandDeleteBreakpoint(index); });
 
-            if (breakpoints[index].enabled)
+            if (breakpoints[index]._enabled)
                menu.add_item(0, "Disable", [index](UIButton&) { CommandDisableBreakpoint(index); });
             else
                menu.add_item(0, "Enable", [index](UIButton&) { CommandEnableBreakpoint(index); });
@@ -4052,17 +4059,17 @@ int TableBreakpointsMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          Breakpoint* entry = &breakpoints[index];
 
          if (!el->_window->_shift)
-            data->anchor = entry->number;
+            data->_anchor = entry->_number;
          if (!el->_window->_ctrl)
-            data->selected.clear();
+            data->_selected.clear();
 
          uintptr_t from = 0, to = 0;
 
          for (size_t i = 0; i < breakpoints.size(); i++) {
-            if (breakpoints[i].number == entry->number) {
+            if (breakpoints[i]._number == entry->_number) {
                from = i;
             }
-            if (breakpoints[i].number == data->anchor) {
+            if (breakpoints[i]._number == data->_anchor) {
                to = i;
             }
          }
@@ -4074,24 +4081,24 @@ int TableBreakpointsMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
          for (uintptr_t i = from; i <= to; i++) {
             if (el->_window->_ctrl && !el->_window->_shift) {
-               if (auto it = rng::find(data->selected, breakpoints[i].number); it != rng::end(data->selected))
-                  data->selected.erase(it);
+               if (auto it = rng::find(data->_selected, breakpoints[i]._number); it != rng::end(data->_selected))
+                  data->_selected.erase(it);
             } else {
-               data->selected.push_back(breakpoints[i].number);
+               data->_selected.push_back(breakpoints[i]._number);
             }
          }
 
-         if (!entry->watchpoint && rng::find(data->selected, entry->number) != rng::end(data->selected)) {
-            DisplaySetPosition(entry->file, entry->line - 1, false);
+         if (!entry->_watchpoint && rng::find(data->_selected, entry->_number) != rng::end(data->_selected)) {
+            DisplaySetPosition(entry->_file, entry->_line - 1, false);
          }
       } else if (!el->_window->_ctrl && !el->_window->_shift) {
-         data->selected.clear();
+         data->_selected.clear();
       }
       el->focus();
    } else if (msg == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
-      if (m->code == UIKeycode::DEL && data->selected.size() > 0) {
+      if (m->code == UIKeycode::DEL && data->_selected.size() > 0) {
          CommandDeleteSelectedBreakpoints(data);
       }
    }
@@ -4123,7 +4130,7 @@ int DataTabMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       // If we've switched to the data tab, we may need to update the bitmap viewers.
 
       for (const auto& auw : autoUpdateViewers)
-         auw.callback(auw.el);
+         auw._callback(auw._el);
 
       autoUpdateViewersQueued = false;
    }
@@ -4154,8 +4161,10 @@ UIElement* DataWindowCreate(UIElement* parent) {
    UIPanel* panel5 = &dataTab->add_panel(UIPanel::COLOR_1 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
 
    panel5->add_button(UIButton::SMALL, "Fill window").on_click([](UIButton&) { CommandToggleFillDataTab(); });
-   for (const auto& idw : ctx.interfaceDataViewers) {
-      panel5->add_button(UIButton::SMALL, idw.addButtonLabel).on_click([&](UIButton&) { idw.addButtonCallback(); });
+   for (const auto& idw : ctx._interface_data_viewers) {
+      panel5->add_button(UIButton::SMALL, idw._add_button_label).on_click([&](UIButton&) {
+         idw._add_button_callback();
+      });
    }
 
    dataWindow = &dataTab->add_mdiclient(UIElement::v_fill);
@@ -4168,8 +4177,8 @@ UIElement* DataWindowCreate(UIElement* parent) {
 // ---------------------------------------------------/
 
 struct StructWindow {
-   UICode*    display = nullptr;
-   UITextbox* textbox = nullptr;
+   UICode*    _display = nullptr;
+   UITextbox* _textbox = nullptr;
 };
 
 int TextboxStructNameMessage(UIElement* el, UIMessage msg, int di, void* dp) {
@@ -4179,13 +4188,13 @@ int TextboxStructNameMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
       if (m->code == UIKeycode::ENTER) {
-         auto  res = EvaluateCommand(std::format("ptype /o {}", window->textbox->text()));
+         auto  res = EvaluateCommand(std::format("ptype /o {}", window->_textbox->text()));
          char* end = (char*)strstr(res.c_str(), "\n(gdb)");
          if (end)
             *end = 0;
-         window->display->insert_content(res, true);
-         window->textbox->clear(false);
-         window->display->refresh();
+         window->_display->insert_content(res, true);
+         window->_textbox->clear(false);
+         window->_display->refresh();
          el->refresh();
          return 1;
       }
@@ -4197,9 +4206,9 @@ int TextboxStructNameMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 UIElement* StructWindowCreate(UIElement* parent) {
    StructWindow* window = new StructWindow;
    UIPanel*      panel  = &parent->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND);
-   window->textbox      = &panel->add_textbox(0).set_user_proc(TextboxStructNameMessage).set_cp(window);
-   window->display      = &panel->add_code(UIElement::v_fill | UICode::NO_MARGIN | UICode::SELECTABLE)
-                         .insert_content("Type the name of a struct to view its layout.", false);
+   window->_textbox     = &panel->add_textbox(0).set_user_proc(TextboxStructNameMessage).set_cp(window);
+   window->_display     = &panel->add_code(UIElement::v_fill | UICode::NO_MARGIN | UICode::SELECTABLE)
+                          .insert_content("Type the name of a struct to view its layout.", false);
    return panel;
 }
 
@@ -4208,20 +4217,20 @@ UIElement* StructWindowCreate(UIElement* parent) {
 // ---------------------------------------------------/
 
 struct FilesWindow {
-   char     directory[PATH_MAX];
-   UIPanel* panel = nullptr;
-   UILabel* path  = nullptr;
+   char     _directory[PATH_MAX];
+   UIPanel* _panel = nullptr;
+   UILabel* _path  = nullptr;
 };
 
 bool FilesPanelPopulate(FilesWindow* window);
 
 mode_t FilesGetMode(FilesWindow* window, UIButton* button, size_t* oldLength) {
    const char* name = button->label().data();
-   *oldLength       = strlen(window->directory);
-   strcat(window->directory, "/");
-   strcat(window->directory, name);
+   *oldLength       = strlen(window->_directory);
+   strcat(window->_directory, "/");
+   strcat(window->_directory, name);
    struct stat s;
-   stat(window->directory, &s);
+   stat(window->_directory, &s);
    return s.st_mode;
 }
 
@@ -4236,15 +4245,15 @@ int FilesButtonMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       if (S_ISDIR(mode)) {
          if (FilesPanelPopulate(window)) {
             char copy[PATH_MAX];
-            realpath(window->directory, copy);
-            strcpy(window->directory, copy);
+            realpath(window->_directory, copy);
+            strcpy(window->_directory, copy);
             return 0;
          }
       } else if (S_ISREG(mode)) {
-         DisplaySetPosition(window->directory, 0, false);
+         DisplaySetPosition(window->_directory, 0, false);
       }
 
-      window->directory[oldLength] = 0;
+      window->_directory[oldLength] = 0;
    } else if (msg == UIMessage::PAINT) {
       UIPainter* painter = (UIPainter*)dp;
       int        i       = el->is_pressed() + el->is_hovered();
@@ -4262,7 +4271,7 @@ int FilesButtonMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
 bool FilesPanelPopulate(FilesWindow* window) {
    size_t         oldLength;
-   DIR*           directory = opendir(window->directory);
+   DIR*           directory = opendir(window->_directory);
    struct dirent* entry;
    if (!directory)
       return false;
@@ -4270,13 +4279,13 @@ bool FilesPanelPopulate(FilesWindow* window) {
    while ((entry = readdir(directory)))
       names.push_back(entry->d_name);
    closedir(directory);
-   window->panel->destroy_descendents();
+   window->_panel->destroy_descendents();
 
    std::sort(names.begin(), names.end());
 
    for (auto name : names) {
       if (name[0] != '.' || name[1] != 0) {
-         UIButton* button = &window->panel->add_button(0, name)
+         UIButton* button = &window->_panel->add_button(0, name)
                                 .clear_flag(UIElement::tab_stop_flag)
                                 .set_cp(window)
                                 .set_user_proc(FilesButtonMessage);
@@ -4285,30 +4294,30 @@ bool FilesPanelPopulate(FilesWindow* window) {
             button->set_flag(UIButton::CHECKED);
          }
 
-         window->directory[oldLength] = 0;
+         window->_directory[oldLength] = 0;
       }
    }
 
-   window->panel->refresh();
+   window->_panel->refresh();
 
    char path[PATH_MAX];
-   realpath(window->directory, path);
-   window->path->set_label(path);
+   realpath(window->_directory, path);
+   window->_path->set_label(path);
 
    return true;
 }
 
 void FilesNavigateToCWD(FilesWindow* window) {
-   getcwd(window->directory, sizeof(window->directory));
+   getcwd(window->_directory, sizeof(window->_directory));
    FilesPanelPopulate(window);
 }
 
 void FilesNavigateToActiveFile(FilesWindow* window) {
-   std_format_to_n(window->directory, sizeof(window->directory), "{}", currentFileFull);
-   int p = strlen(window->directory);
+   std_format_to_n(window->_directory, sizeof(window->_directory), "{}", currentFileFull);
+   int p = strlen(window->_directory);
    while (p--)
-      if (window->directory[p] == '/') {
-         window->directory[p] = 0;
+      if (window->_directory[p] == '/') {
+         window->_directory[p] = 0;
          break;
       }
    FilesPanelPopulate(window);
@@ -4317,10 +4326,10 @@ void FilesNavigateToActiveFile(FilesWindow* window) {
 UIElement* FilesWindowCreate(UIElement* parent) {
    FilesWindow* window    = new FilesWindow;
    UIPanel*     container = &parent->add_panel(UIPanel::EXPAND);
-   window->panel = &container->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND | UIPanel::SCROLL | UIElement::v_fill)
-                       .set_gap(-1)
-                       .set_border(UIRectangle(1))
-                       .set_cp(window);
+   window->_panel = &container->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND | UIPanel::SCROLL | UIElement::v_fill)
+                        .set_gap(-1)
+                        .set_border(UIRectangle(1))
+                        .set_cp(window);
    UIPanel* row = &container->add_panel(UIPanel::COLOR_2 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
 
    row->add_button(UIButton::SMALL, "-> cwd").on_click([window](UIButton&) { FilesNavigateToCWD(window); });
@@ -4328,7 +4337,7 @@ UIElement* FilesWindowCreate(UIElement* parent) {
       FilesNavigateToActiveFile(window);
    });
 
-   window->path = &row->add_label(UIElement::h_fill, "");
+   window->_path = &row->add_label(UIElement::h_fill, "");
    FilesNavigateToCWD(window);
    return container;
 }
@@ -4338,7 +4347,7 @@ UIElement* FilesWindowCreate(UIElement* parent) {
 // ---------------------------------------------------/
 
 struct RegisterData {
-   char string[128];
+   char _string[128];
 };
 vector<RegisterData> registerData;
 
@@ -4383,14 +4392,14 @@ void RegistersWindowUpdate(const char*, UIElement* panel) {
       const char* stringEnd   = format2End;
 
       RegisterData data;
-      std_format_to_n(data.string, sizeof(data.string), "{}",
+      std_format_to_n(data._string, sizeof(data._string), "{}",
                       std::string_view{stringStart, (size_t)(stringEnd - stringStart)});
       bool modified = false;
 
       if (registerData.size() > newRegisterData.size()) {
          RegisterData* old = &registerData[newRegisterData.size()];
 
-         if (strcmp(old->string, data.string)) {
+         if (strcmp(old->_string, data._string)) {
             modified = true;
          }
       }
@@ -4506,12 +4515,12 @@ UIElement* LogWindowCreate(UIElement* parent) {
 
 struct ThreadWindow {
    struct Thread {
-      char frame[127];
-      bool active = false;
-      int  id     = 0;
+      char _frame[127];
+      bool _active = false;
+      int  _id     = 0;
    };
 
-   vector<Thread> threads;
+   vector<Thread> _threads;
 
    int _class_message_proc(UITable* table, UIMessage msg, int di, void* dp);
 
@@ -4520,7 +4529,7 @@ struct ThreadWindow {
    }
 
    void update(UITable* table) {
-      threads.clear();
+      _threads.clear();
       auto res = EvaluateCommand("info threads");
       if (res.empty())
          return;
@@ -4538,9 +4547,9 @@ struct ThreadWindow {
             break;
          Thread thread = {};
          if (position[1] == '*')
-            thread.active = true;
-         thread.id = sv_atoi(position, 2);
-         position  = strchr(position + 1, '"');
+            thread._active = true;
+         thread._id = sv_atoi(position, 2);
+         position   = strchr(position + 1, '"');
          if (!position)
             break;
          position = strchr(position + 1, '"');
@@ -4548,44 +4557,45 @@ struct ThreadWindow {
             break;
          position++;
          char* end = strchr(position, '\n');
-         if (end - position >= (ptrdiff_t)sizeof(thread.frame))
-            end = position + sizeof(thread.frame) - 1;
-         memcpy(thread.frame, position, end - position);
-         thread.frame[end - position] = 0;
-         threads.push_back(thread);
+         if (end - position >= (ptrdiff_t)sizeof(thread._frame))
+            end = position + sizeof(thread._frame) - 1;
+         memcpy(thread._frame, position, end - position);
+         thread._frame[end - position] = 0;
+         _threads.push_back(thread);
       }
 
-      table->set_num_items(threads.size());
+      table->set_num_items(_threads.size());
       table->resize_columns();
       table->refresh();
    }
-   
+
    static UIElement* Create(UIElement* parent) {
-      return &parent->add_table(0, "ID\tFrame").set_cp(new ThreadWindow).set_user_proc(ThreadWindow::ThreadTableMessage);
+      return &parent->add_table(0, "ID\tFrame")
+                 .set_cp(new ThreadWindow)
+                 .set_user_proc(ThreadWindow::ThreadTableMessage);
    }
 
    static void Update(const char*, UIElement* table) {
       ThreadWindow* window = static_cast<ThreadWindow*>(table->_cp);
       window->update(static_cast<UITable*>(table));
    }
-
 };
 
 int ThreadWindow::_class_message_proc(UITable* table, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m = (UITableGetItem*)dp;
-      m->_is_selected   = threads[m->_row].active;
+      m->_is_selected   = _threads[m->_row]._active;
 
       if (m->_column == 0) {
-         return m->format_to("{}", threads[m->_row].id);
+         return m->format_to("{}", _threads[m->_row]._id);
       } else if (m->_column == 1) {
-         return m->format_to("{}", threads[m->_row].frame);
+         return m->format_to("{}", _threads[m->_row]._frame);
       }
    } else if (msg == UIMessage::LEFT_DOWN) {
       int index = table->hittest(table->cursor_pos());
 
       if (index != -1) {
-         (void)DebuggerSend(std::format("thread {}", threads[index].id), true, false);
+         (void)DebuggerSend(std::format("thread {}", _threads[index]._id), true, false);
       }
    }
 
@@ -4598,21 +4608,21 @@ int ThreadWindow::_class_message_proc(UITable* table, UIMessage msg, int di, voi
 // ---------------------------------------------------/
 
 struct ExecutableWindow {
-   UITextbox* path      = nullptr;
-   UITextbox* arguments = nullptr;
-   bool       should_ask;
+   UITextbox* _path      = nullptr;
+   UITextbox* _arguments = nullptr;
+   bool       _should_ask;
 
    void start_or_run(bool pause) {
-      auto res = EvaluateCommand(std::format("file \"{}\"", path->text()));
+      auto res = EvaluateCommand(std::format("file \"{}\"", _path->text()));
 
       if (res.contains("No such file or directory.")) {
          windowMain->show_dialog(0, "The executable path is invalid.\n%f%B", "OK");
          return;
       }
 
-      (void)EvaluateCommand(std::format("start {}", arguments->text()));
+      (void)EvaluateCommand(std::format("start {}", _arguments->text()));
 
-      if (should_ask) {
+      if (_should_ask) {
          CommandParseInternal("gf-get-pwd", true);
       }
 
@@ -4635,8 +4645,8 @@ struct ExecutableWindow {
       }
 
       f = fopen(localConfigPath, "wb");
-      print(f, "[executable]\npath={}\narguments={}\nask_directory={}\n", path->text(), arguments->text(),
-            should_ask ? '1' : '0');
+      print(f, "[executable]\npath={}\narguments={}\nask_directory={}\n", _path->text(), _arguments->text(),
+            _should_ask ? '1' : '0');
       fclose(f);
       SettingsAddTrustedFolder();
       windowMain->show_dialog(0, "Saved executable settings!\n%f%B", "OK");
@@ -4648,11 +4658,11 @@ struct ExecutableWindow {
 
       panel->add_n(
          [&](auto& p) { p.add_label(0, "Path to executable:"); },
-         [&](auto& p) { win->path = &p.add_textbox(0).replace_text(gfc.exe_path, false); },
+         [&](auto& p) { win->_path = &p.add_textbox(0).replace_text(gfc._exe_path, false); },
          [&](auto& p) { p.add_label(0, "Command line arguments:"); },
-         [&](auto& p) { win->arguments = &p.add_textbox(0).replace_text(gfc.exe_args, false); },
+         [&](auto& p) { win->_arguments = &p.add_textbox(0).replace_text(gfc._exe_args, false); },
          [&](auto& p) {
-            p.add_checkbox(0, "Ask GDB for working directory").set_checked(gfc.exe_ask_dir).track(&win->should_ask);
+            p.add_checkbox(0, "Ask GDB for working directory").set_checked(gfc._exe_ask_dir).track(&win->_should_ask);
          },
          [&](auto& p) {
             p.add_panel(UIPanel::HORIZONTAL)
@@ -4671,22 +4681,22 @@ struct ExecutableWindow {
 // ---------------------------------------------------/
 
 struct GDBCommand {
-   char* name             = nullptr;
-   char* description      = nullptr;
-   char* descriptionLower = nullptr;
+   char* _name              = nullptr;
+   char* _description       = nullptr;
+   char* _description_lower = nullptr;
 };
 
 struct CommandSearchWindow {
-   UICode*            display = nullptr;
-   UITextbox*         textbox = nullptr;
-   vector<GDBCommand> commands;
+   UICode*            _display = nullptr;
+   UITextbox*         _textbox = nullptr;
+   vector<GDBCommand> _commands;
 };
 
 int TextboxSearchCommandMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    CommandSearchWindow* window = (CommandSearchWindow*)el->_cp;
 
    if (msg == UIMessage::KEY_TYPED) {
-      if (!window->commands.size()) {
+      if (!window->_commands.size()) {
          auto  res = EvaluateCommand("help all");
          char* s   = nullptr;
          if (!res.empty()) {
@@ -4708,25 +4718,25 @@ int TextboxSearchCommandMessage(UIElement* el, UIMessage msg, int di, void* dp) 
 
             if (dash && dash < next && dash > position + 1) {
                GDBCommand command = {};
-               command.name       = (char*)calloc(1, dash - 1 - position + 1);
+               command._name      = (char*)calloc(1, dash - 1 - position + 1);
 
                for (int i = 0, j = 0; i < dash - 1 - position; i++) {
                   if (position[i] != ' ' || position[i + 1] != ' ') {
-                     command.name[j++] = position[i];
+                     command._name[j++] = position[i];
                   }
                }
 
-               command.description      = (char*)calloc(1, next - (dash + 3) + 1);
-               command.descriptionLower = (char*)calloc(1, next - (dash + 3) + 1);
-               memcpy(command.description, dash + 3, next - (dash + 3));
+               command._description       = (char*)calloc(1, next - (dash + 3) + 1);
+               command._description_lower = (char*)calloc(1, next - (dash + 3) + 1);
+               memcpy(command._description, dash + 3, next - (dash + 3));
 
-               for (int i = 0; command.description[i]; i++) {
-                  command.descriptionLower[i] = command.description[i] >= 'A' && command.description[i] <= 'Z'
-                                                   ? command.description[i] + 'a' - 'A'
-                                                   : command.description[i];
+               for (int i = 0; command._description[i]; i++) {
+                  command._description_lower[i] = command._description[i] >= 'A' && command._description[i] <= 'Z'
+                                                     ? command._description[i] + 'a' - 'A'
+                                                     : command._description[i];
                }
 
-               window->commands.push_back(command);
+               window->_commands.push_back(command);
             }
 
             position = next + 1;
@@ -4737,25 +4747,25 @@ int TextboxSearchCommandMessage(UIElement* el, UIMessage msg, int di, void* dp) 
       char buffer[4096];
       bool firstMatch = true;
 
-      std_format_to_n(query, sizeof(query), "{}", window->textbox->text());
+      std_format_to_n(query, sizeof(query), "{}", window->_textbox->text());
       for (int i = 0; query[i]; i++) {
          query[i] = query[i] >= 'A' && query[i] <= 'Z' ? query[i] + 'a' - 'A' : query[i];
       }
 
-      for (const auto& cmd : window->commands) {
-         if (strstr(cmd.descriptionLower, query)) {
-            std_format_to_n(buffer, sizeof(buffer), "{}: {}", cmd.name, cmd.description);
-            window->display->insert_content(buffer, firstMatch);
+      for (const auto& cmd : window->_commands) {
+         if (strstr(cmd._description_lower, query)) {
+            std_format_to_n(buffer, sizeof(buffer), "{}: {}", cmd._name, cmd._description);
+            window->_display->insert_content(buffer, firstMatch);
             firstMatch = false;
          }
       }
 
       if (firstMatch) {
-         window->display->insert_content("(no matches)", firstMatch);
+         window->_display->insert_content("(no matches)", firstMatch);
       }
 
-      window->display->reset_vscroll();
-      window->display->refresh();
+      window->_display->reset_vscroll();
+      window->_display->refresh();
    }
 
    return 0;
@@ -4767,10 +4777,10 @@ UIElement* CommandSearchWindowCreate(UIElement* parent) {
    UIPanel* panel =
       &parent->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND)
           .add_n(
-             [&](auto& p) { win->textbox = &p.add_textbox(0).set_user_proc(TextboxSearchCommandMessage).set_cp(win); },
+             [&](auto& p) { win->_textbox = &p.add_textbox(0).set_user_proc(TextboxSearchCommandMessage).set_cp(win); },
              [&](auto& p) {
-                win->display = &p.add_code(UIElement::v_fill | UICode::NO_MARGIN | UICode::SELECTABLE)
-                                   .insert_content("Type here to search \nGDB command descriptions.", true);
+                win->_display = &p.add_code(UIElement::v_fill | UICode::NO_MARGIN | UICode::SELECTABLE)
+                                    .insert_content("Type here to search \nGDB command descriptions.", true);
              });
    return panel;
 }
@@ -4852,34 +4862,34 @@ void ThumbnailResize(uint32_t* bits, uint32_t originalWidth, uint32_t originalHe
 // TODO Coloring the flame graph based on other parameters?
 // TODO Watching expressions during profiled step; highlight entries that modify it.
 struct ProfProfilingEntry {
-   void*    thisFunction = nullptr;
-   uint64_t timeStamp    = 0; // High bit set if exiting the function.
+   void*    _this_function = nullptr;
+   uint64_t _time_stamp    = 0; // High bit set if exiting the function.
 };
 
 struct ProfWindow {
-   uint64_t ticksPerMs         = 0;
-   UIFont*  fontFlameGraph     = nullptr;
-   bool     inStepOverProfiled = false;
+   uint64_t _ticks_per_ms          = 0;
+   UIFont*  _font_flame_graph      = nullptr;
+   bool     _in_step_over_profiled = false;
 };
 
 struct ProfFlameGraphEntry {
-   void*       thisFunction = nullptr;
-   const char* cName        = nullptr;
-   double      startTime    = 0;
-   double      endTime      = 0;
-   int         depth        = 0;
-   uint8_t     colorIndex   = 0;
+   void*       _this_function = nullptr;
+   const char* _name          = nullptr;
+   double      _start_time    = 0;
+   double      _end_time      = 0;
+   int         _depth         = 0;
+   uint8_t     _color_index   = 0;
 };
 
 struct ProfFlameGraphEntryTime {
    // Keep this structure as small as possible!
-   float start = 0;
-   float end   = 0;
-   int   depth = 0;
+   float _start = 0;
+   float _end   = 0;
+   int   _depth = 0;
 };
 
 struct ProfSourceFileEntry {
-   char cPath[256];
+   char _path[256];
 };
 
 struct ProfFunctionEntry {
@@ -4988,35 +4998,35 @@ volatile int profRenderActiveThreads;
 int ProfFlameGraphEntryCompare(const void* _a, const void* _b) {
    ProfFlameGraphEntry* a = (ProfFlameGraphEntry*)_a;
    ProfFlameGraphEntry* b = (ProfFlameGraphEntry*)_b;
-   return a->depth > b->depth           ? 1
-          : a->depth < b->depth         ? -1
-          : a->startTime > b->startTime ? 1
-          : a->startTime < b->startTime ? -1
-                                        : 0;
+   return a->_depth > b->_depth             ? 1
+          : a->_depth < b->_depth           ? -1
+          : a->_start_time > b->_start_time ? 1
+          : a->_start_time < b->_start_time ? -1
+                                            : 0;
 }
 
 void ProfShowSource(ProfFlameGraphReport* report) {
    ProfFlameGraphEntry* entry = report->menuItem;
-   if (!report->functions.contains(entry->thisFunction)) {
+   if (!report->functions.contains(entry->_this_function)) {
       windowMain->show_dialog(0, "Source information was not found for this function.\n%f%b", "OK");
       return;
    }
-   ProfFunctionEntry& function = report->functions[entry->thisFunction];
+   ProfFunctionEntry& function = report->functions[entry->_this_function];
 
    if (!function.cName[0]) {
       windowMain->show_dialog(0, "Source information was not found for this function.\n%f%b", "OK");
       return;
    } else {
-      DisplaySetPosition(report->sourceFiles[function.sourceFileIndex].cPath, function.lineNumber - 1, false);
+      DisplaySetPosition(report->sourceFiles[function.sourceFileIndex]._path, function.lineNumber - 1, false);
    }
 }
 
-void ProfAddBreakpoint(ProfFlameGraphEntry* entry) { CommandSendToGDB(std::format("b {}", entry->cName)); }
+void ProfAddBreakpoint(ProfFlameGraphEntry* entry) { CommandSendToGDB(std::format("b {}", entry->_name)); }
 
 void ProfFillView(ProfFlameGraphReport* report) {
    ProfFlameGraphEntry* entry = report->menuItem;
-   report->xStart             = entry->startTime;
-   report->xEnd               = entry->endTime;
+   report->xStart             = entry->_start_time;
+   report->xEnd               = entry->_end_time;
    report->repaint(0);
 }
 
@@ -5043,11 +5053,11 @@ void ProfDrawTransparentOverlay(UIPainter* painter, UIRectangle rectangle, uint3
 }
 
 #define PROFILER_ENTRY_RECTANGLE_EARLY() \
-   int64_t rr = report->client.l + (int64_t)((time->end - report->xStart) * zoomX + 0.999);
+   int64_t rr = report->client.l + (int64_t)((time->_end - report->xStart) * zoomX + 0.999);
 
-#define PROFILER_ENTRY_RECTANGLE_OTHER()                                                                        \
-   int64_t rl = report->client.l + (int64_t)((time->start - report->xStart) * zoomX);                           \
-   int64_t rt = report->client.t + time->depth * profRowHeight + profScaleHeight - report->vScroll->position(); \
+#define PROFILER_ENTRY_RECTANGLE_OTHER()                                                                         \
+   int64_t rl = report->client.l + (int64_t)((time->_start - report->xStart) * zoomX);                           \
+   int64_t rt = report->client.t + time->_depth * profRowHeight + profScaleHeight - report->vScroll->position(); \
    int64_t rb = rt + profRowHeight;
 
 void* ProfFlameGraphRenderThread(void* _unused) {
@@ -5080,13 +5090,13 @@ void* ProfFlameGraphRenderThread(void* _unused) {
       for (size_t i = startIndex; i < endIndex; i++) {
          ProfFlameGraphEntryTime* time = &report->entryTimes[i];
 
-         if (time->end < xStartF || time->start > xEndF) {
+         if (time->_end < xStartF || time->_start > xEndF) {
             continue;
          }
 
          PROFILER_ENTRY_RECTANGLE_EARLY();
 
-         if (pr == rr && pd == time->depth) {
+         if (pr == rr && pd == time->_depth) {
             continue;
          }
 
@@ -5107,23 +5117,23 @@ void* ProfFlameGraphRenderThread(void* _unused) {
             painter->draw_block(UIRectangle(r.l, r.r - 1, r.t, r.t + 1), profBorderLightColor);
             painter->draw_block(UIRectangle(r.l, r.l + 1, r.t + 1, r.b - 1), profBorderLightColor);
 
-            bool     hovered = report->hover && report->hover->thisFunction == entry->thisFunction && !report->dragMode;
-            uint32_t color   = hovered ? profHoverColor : profEntryColorPalette[entry->colorIndex];
+            bool hovered = report->hover && report->hover->_this_function == entry->_this_function && !report->dragMode;
+            uint32_t color = hovered ? profHoverColor : profEntryColorPalette[entry->_color_index];
             /// uint32_t color = hovered ? profHoverColor : profMainColor;
             painter->draw_block(UIRectangle(r.l + 1, r.r - 1, r.t + 1, r.b - 1), color);
 
             if (r.width() > 40) {
-               auto string = std::format("{} {:f}ms", entry->cName, entry->endTime - entry->startTime);
+               auto string = std::format("{} {:f}ms", entry->_name, entry->_end_time - entry->_start_time);
                painter->draw_string(UIRectangle(r.l + 2, r.r, r.t, r.b), string, profTextColor, UIAlign::left, NULL);
             }
          }
 
-         pr = rr, pd = entry->depth;
+         pr = rr, pd = entry->_depth;
 
-         float nextDrawTime = 0.99f / zoomX + time->end;
+         float nextDrawTime = 0.99f / zoomX + time->_end;
 
          for (; i < report->entries.size(); i++) {
-            if (report->entryTimes[i].end >= nextDrawTime || report->entryTimes[i].depth != time->depth) {
+            if (report->entryTimes[i]._end >= nextDrawTime || report->entryTimes[i]._depth != time->_depth) {
                i--;
                break;
             }
@@ -5237,15 +5247,15 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       }
 
       if (report->hover && !report->dragMode) {
-         const ProfFunctionEntry& function = report->functions[report->hover->thisFunction];
+         const ProfFunctionEntry& function = report->functions[report->hover->_this_function];
 
          char line1[256], line2[256], line3[256];
-         std_format_to_n(line1, sizeof(line1), "[{}] {}:{}", report->hover->cName,
-                         function.sourceFileIndex != -1 ? report->sourceFiles[function.sourceFileIndex].cPath : "??",
+         std_format_to_n(line1, sizeof(line1), "[{}] {}:{}", report->hover->_name,
+                         function.sourceFileIndex != -1 ? report->sourceFiles[function.sourceFileIndex]._path : "??",
                          function.lineNumber);
          std_format_to_n(line2, sizeof(line2), "This call: {:f}ms {:.1f}%%",
-                         report->hover->endTime - report->hover->startTime,
-                         (report->hover->endTime - report->hover->startTime) / report->totalTime * 100.0);
+                         report->hover->_end_time - report->hover->_start_time,
+                         (report->hover->_end_time - report->hover->_start_time) / report->totalTime * 100.0);
          std_format_to_n(line3, sizeof(line3), "Total: {:f}ms in {} calls ({:f}ms avg) {:.1f}%%", function.totalTime,
                          function.callCount, function.totalTime / function.callCount,
                          function.totalTime / report->totalTime * 100.0);
@@ -5295,7 +5305,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       for (size_t i = 0; i < report->entries.size(); i++) {
          ProfFlameGraphEntryTime* time = &report->entryTimes[i];
 
-         if (time->depth != depth || time->end < xStartF || time->start > xEndF) {
+         if (time->_depth != depth || time->_end < xStartF || time->_start > xEndF) {
             continue;
          }
 
@@ -5569,9 +5579,9 @@ void ProfLoadProfileData(void* _window) {
 
    auto        res              = EvaluateExpression("gfProfilingTicksPerMs");
    const char* ticksPerMsString = strstr(res.c_str(), "= ");
-   data->ticksPerMs             = ticksPerMsString ? sv_atoi(ticksPerMsString, 2) : 0;
+   data->_ticks_per_ms          = ticksPerMsString ? sv_atoi(ticksPerMsString, 2) : 0;
 
-   if (!ticksPerMsString || !data->ticksPerMs) {
+   if (!ticksPerMsString || !data->_ticks_per_ms) {
       windowMain->show_dialog(0, "Profile data could not be loaded (1).\nConsult the guide.\n%f%b", "OK");
       return;
    }
@@ -5627,7 +5637,7 @@ void ProfLoadProfileData(void* _window) {
    int stackDepth      = 0;
 
    for (int i = 0; i < rawEntryCount; i++) {
-      if (rawEntries[i].timeStamp >> 63) {
+      if (rawEntries[i]._time_stamp >> 63) {
          if (stackDepth)
             stackDepth--;
          else
@@ -5636,13 +5646,13 @@ void ProfLoadProfileData(void* _window) {
          stackDepth++;
       }
 
-      if (functions.contains(rawEntries[i].thisFunction))
+      if (functions.contains(rawEntries[i]._this_function))
          continue;
-      ProfFunctionEntry& function = functions[rawEntries[i].thisFunction];
+      ProfFunctionEntry& function = functions[rawEntries[i]._this_function];
 
       function.sourceFileIndex = -1;
 
-      std_format_to_n(buffer, sizeof(buffer), "(void *) {:p}", rawEntries[i].thisFunction);
+      std_format_to_n(buffer, sizeof(buffer), "(void *) {:p}", rawEntries[i]._this_function);
       auto cName = EvaluateExpression(buffer);
       if (cName.empty())
          continue;
@@ -5682,16 +5692,16 @@ void ProfLoadProfileData(void* _window) {
          ProfSourceFileEntry sourceFile  = {};
          const char*         cSourceFile = res.c_str();
          length                          = strlen(cSourceFile);
-         if (length > (int)sizeof(sourceFile.cPath) - 1)
-            length = sizeof(sourceFile.cPath) - 1;
-         memcpy(sourceFile.cPath, cSourceFile, length);
-         sourceFile.cPath[length] = 0;
+         if (length > (int)sizeof(sourceFile._path) - 1)
+            length = sizeof(sourceFile._path) - 1;
+         memcpy(sourceFile._path, cSourceFile, length);
+         sourceFile._path[length] = 0;
          std_format_to_n(buffer, sizeof(buffer), "py print(gdb.lookup_global_symbol('{}').line)", function.cName);
          res                 = EvaluateCommand(buffer);
          function.lineNumber = sv_atoi(res);
 
          for (size_t i = 0; i < sourceFiles.size(); i++) {
-            if (0 == strcmp(sourceFiles[i].cPath, sourceFile.cPath)) {
+            if (0 == strcmp(sourceFiles[i]._path, sourceFile._path)) {
                function.sourceFileIndex = i;
                break;
             }
@@ -5715,7 +5725,7 @@ void ProfLoadProfileData(void* _window) {
                                         .set_user_proc(ProfTableMessage);
 
    report->vScroll = &report->add_scrollbar(0);
-   report->font    = data->fontFlameGraph;
+   report->font    = data->_font_flame_graph;
 
    window->set_cp(report).set_user_proc(ProfReportWindowMessage);
 
@@ -5728,57 +5738,57 @@ void ProfLoadProfileData(void* _window) {
 
    for (int i = 0; i < stackErrorCount; i++) {
       ProfFlameGraphEntry entry = {};
-      entry.cName               = "[unknown]";
-      entry.startTime           = 0;
-      entry.depth               = stack.size();
+      entry._name               = "[unknown]";
+      entry._start_time         = 0;
+      entry._depth              = stack.size();
       stack.push_back(entry);
    }
 
    for (int i = 0; i < rawEntryCount; i++) {
-      if (rawEntries[i].timeStamp >> 63) {
+      if (rawEntries[i]._time_stamp >> 63) {
          if (!stack.size()) {
             continue;
          }
 
          ProfFlameGraphEntry entry = stack.back();
-         entry.endTime             = (double)((rawEntries[i].timeStamp & 0x7FFFFFFFFFFFFFFFUL) -
-                                  (rawEntries[0].timeStamp & 0x7FFFFFFFFFFFFFFFUL)) /
-                         data->ticksPerMs;
+         entry._end_time           = (double)((rawEntries[i]._time_stamp & 0x7FFFFFFFFFFFFFFFUL) -
+                                    (rawEntries[0]._time_stamp & 0x7FFFFFFFFFFFFFFFUL)) /
+                           data->_ticks_per_ms;
 
-         if (0 == strcmp(entry.cName, "[unknown]")) {
-            if (report->functions.contains(rawEntries[i].thisFunction))
-               entry.cName = report->functions[rawEntries[i].thisFunction].cName;
+         if (0 == strcmp(entry._name, "[unknown]")) {
+            if (report->functions.contains(rawEntries[i]._this_function))
+               entry._name = report->functions[rawEntries[i]._this_function].cName;
          }
 
-         entry.thisFunction = rawEntries[i].thisFunction;
+         entry._this_function = rawEntries[i]._this_function;
          stack.pop_back();
          report->entries.push_back(entry);
       } else {
          ProfFlameGraphEntry entry = {};
-         if (report->functions.contains(rawEntries[i].thisFunction)) {
-            ProfFunctionEntry& function = report->functions[rawEntries[i].thisFunction];
-            entry.cName                 = function.cName;
-            entry.colorIndex =
+         if (report->functions.contains(rawEntries[i]._this_function)) {
+            ProfFunctionEntry& function = report->functions[rawEntries[i]._this_function];
+            entry._name                 = function.cName;
+            entry._color_index =
                function.sourceFileIndex % (sizeof(profEntryColorPalette) / sizeof(profEntryColorPalette[0]));
          }
 
-         entry.startTime =
-            (double)(rawEntries[i].timeStamp - (rawEntries[0].timeStamp & 0x7FFFFFFFFFFFFFFFUL)) / data->ticksPerMs;
-         entry.thisFunction = rawEntries[i].thisFunction;
-         entry.depth        = stack.size();
+         entry._start_time = (double)(rawEntries[i]._time_stamp - (rawEntries[0]._time_stamp & 0x7FFFFFFFFFFFFFFFUL)) /
+                             data->_ticks_per_ms;
+         entry._this_function = rawEntries[i]._this_function;
+         entry._depth         = stack.size();
          stack.push_back(entry);
       }
    }
 
    for (const auto& entry : report->entries) {
-      if (entry.endTime > report->totalTime) {
-         report->totalTime = entry.endTime;
+      if (entry._end_time > report->totalTime) {
+         report->totalTime = entry._end_time;
       }
    }
 
    while (stack.size()) {
       ProfFlameGraphEntry entry = stack.back();
-      entry.endTime             = report->totalTime;
+      entry._end_time           = report->totalTime;
       stack.pop_back();
       report->entries.push_back(entry);
    }
@@ -5795,18 +5805,18 @@ void ProfLoadProfileData(void* _window) {
 
    for (const auto& entry : report->entries) {
       ProfFlameGraphEntryTime time;
-      time.start = entry.startTime;
-      time.end   = entry.endTime;
-      time.depth = entry.depth;
+      time._start = entry._start_time;
+      time._end   = entry._end_time;
+      time._depth = entry._depth;
       report->entryTimes.push_back(time);
 
-      if (entry.depth > maxDepth) {
-         maxDepth = entry.depth;
+      if (entry._depth > maxDepth) {
+         maxDepth = entry._depth;
       }
 
-      ProfFunctionEntry& function = report->functions[entry.thisFunction];
+      ProfFunctionEntry& function = report->functions[entry._this_function];
       function.callCount++;
-      function.totalTime += entry.endTime - entry.startTime;
+      function.totalTime += entry._end_time - entry._start_time;
    }
 
    print("Found {} functions over {} source files.\n", report->functions.size(), report->sourceFiles.size());
@@ -5845,18 +5855,18 @@ void ProfLoadProfileData(void* _window) {
 void ProfStepOverProfiled(ProfWindow* window) {
    (void)EvaluateCommand("call GfProfilingStart()");
    CommandSendToGDB("gf-next");
-   window->inStepOverProfiled = true;
+   window->_in_step_over_profiled = true;
 }
 
 void ProfWindowUpdate(const char* data, UIElement* el) {
    ProfWindow* window = (ProfWindow*)el->_cp;
 
-   if (window->inStepOverProfiled) {
+   if (window->_in_step_over_profiled) {
       (void)EvaluateCommand("call GfProfilingStop()");
       ProfLoadProfileData(window);
       ctx.InterfaceWindowSwitchToAndFocus("Data");
       dataWindow->refresh();
-      window->inStepOverProfiled = false;
+      window->_in_step_over_profiled = false;
    }
 }
 
@@ -5864,7 +5874,7 @@ UIElement* ProfWindowCreate(UIElement* parent) {
    const int   fontSizeFlameGraph = 8;
    ProfWindow* window             = new ProfWindow;
    UI*         ui                 = parent->ui();
-   window->fontFlameGraph         = ui->create_font(ui->default_font_path(), fontSizeFlameGraph);
+   window->_font_flame_graph      = ui->create_font(ui->default_font_path(), fontSizeFlameGraph);
    UIPanel* panel                 = &parent->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND).set_cp(window);
    panel->add_button(UIElement::v_fill, "Step over profiled").on_click([window](UIButton&) {
       ProfStepOverProfiled(window);
@@ -5872,9 +5882,9 @@ UIElement* ProfWindowCreate(UIElement* parent) {
 
 #ifdef UI_FREETYPE
    // Since we will do multithreaded painting with fontFlameGraph, we need to make sure all its glyphs are ready to go.
-   for (uintptr_t i = 0; i < sizeof(window->fontFlameGraph->_glyphs_rendered); i++) {
+   for (uintptr_t i = 0; i < sizeof(window->_font_flame_graph->_glyphs_rendered); i++) {
       UIPainter fakePainter(parent->ui(), 0, 0, nullptr);
-      UIFont*   previousFont = window->fontFlameGraph->activate();
+      UIFont*   previousFont = window->_font_flame_graph->activate();
       fakePainter.draw_glyph(0, 0, i, 0xFF000000);
       previousFont->activate();
    }
@@ -6338,11 +6348,12 @@ void ViewWindowView(void* cp) {
    if (!watchElement)
       return;
    WatchWindow* w = (WatchWindow*)watchElement->_cp;
-   if (w->textbox)
+   if (w->_textbox)
       return;
-   if (w->selectedRow > w->rows.size() || !w->rows.size())
+   if (w->_selected_row > w->_rows.size() || !w->_rows.size())
       return;
-   const shared_ptr<Watch>& watch = w->rows[w->selectedRow == w->rows.size() ? w->selectedRow - 1 : w->selectedRow];
+   const shared_ptr<Watch>& watch =
+      w->_rows[w->_selected_row == w->_rows.size() ? w->_selected_row - 1 : w->_selected_row];
    if (!watch)
       return;
    if (!cp)
@@ -6357,8 +6368,8 @@ void ViewWindowView(void* cp) {
 
    // Get information about the watch expression.
    char type[256], buffer[256];
-   char oldFormat = watch->format;
-   watch->format  = 0;
+   char oldFormat = watch->_format;
+   watch->_format = 0;
 
    auto res = watch->evaluate("gf_typeof");
    resize_to_lf(res);
@@ -6368,7 +6379,7 @@ void ViewWindowView(void* cp) {
 
    res = watch->evaluate("gf_valueof");
    resize_to_lf(res);
-   watch->format = oldFormat;
+   watch->_format = oldFormat;
    // print("valueof: {}\n", ctx.evaluateResult);
 
    // Create the specific display for the given type.
@@ -7081,16 +7092,16 @@ void WaveformAddDialog() {
 // ----------------------------------------------------------
 
 void Context::RegisterExtensions() {
-   interfaceWindows["Prof"]   = {.create = ProfWindowCreate, .update = ProfWindowUpdate, .alwaysUpdate = true};
-   interfaceWindows["Memory"] = {MemoryWindowCreate, MemoryWindowUpdate};
-   interfaceWindows["View"]   = {ViewWindowCreate, ViewWindowUpdate};
+   _interface_windows["Prof"]   = {._create = ProfWindowCreate, ._update = ProfWindowUpdate, ._always_update = true};
+   _interface_windows["Memory"] = {MemoryWindowCreate, MemoryWindowUpdate};
+   _interface_windows["View"]   = {ViewWindowCreate, ViewWindowUpdate};
 
-   interfaceDataViewers.push_back({"Add waveform...", WaveformAddDialog});
-   interfaceCommands.push_back({
-      .label = nullptr, .shortcut{.code = UI_KEYCODE_LETTER('V'), .ctrl = true, .shift = true, .invoke = []() {
-                                     ViewWindowView();
-                                     return true;
-                                  }}
+   _interface_data_viewers.push_back({"Add waveform...", WaveformAddDialog});
+   _interface_commands.push_back({
+      ._label = nullptr, ._shortcut{.code = UI_KEYCODE_LETTER('V'), .ctrl = true, .shift = true, .invoke = []() {
+                                       ViewWindowView();
+                                       return true;
+                                    }}
    });
 }
 
@@ -7115,9 +7126,9 @@ bool ElementHidden(UIElement* el) {
 }
 
 void MsgReceivedData(std::unique_ptr<std::string> input) {
-   ctx.programRunning = false;
+   ctx._program_running = false;
 
-   if (ctx.firstUpdate) {
+   if (ctx._first_update) {
       (void)EvaluateCommand(pythonCode);
 
       char path[PATH_MAX];
@@ -7133,7 +7144,7 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
          data = end + 1;
       }
 
-      ctx.firstUpdate = false;
+      ctx._first_update = false;
    }
 
    if (WatchLoggerUpdate(*input))
@@ -7141,7 +7152,7 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
    if (showingDisassembly)
       DisassemblyUpdateLine();
 
-   if (!ctx.dbg_re->match_stack_or_breakpoint_output(*input)) {
+   if (!ctx._dbg_re->match_stack_or_breakpoint_output(*input)) {
       // we don't want to call `DebuggerGetBreakpoints()` upon receiving the result of `DebuggerGetBreakpoints()`,
       // causing an infinite loop!!!
       DebuggerGetStack();
@@ -7150,14 +7161,14 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
       ctx.grab_focus(textboxInput->_window); // grab focus when breakpoint is hit!
    }
 
-   for (auto& [name, iw] : ctx.interfaceWindows) {
+   for (auto& [name, iw] : ctx._interface_windows) {
       InterfaceWindow* window = &iw;
-      if (!window->update || !window->el)
+      if (!window->_update || !window->_el)
          continue;
-      if (!window->alwaysUpdate && ElementHidden(window->el))
-         window->queuedUpdate = true;
+      if (!window->_always_update && ElementHidden(window->_el))
+         window->_queued_update = true;
       else
-         window->update(input->c_str(), window->el);
+         window->_update(input->c_str(), window->_el);
    }
 
    DataViewersUpdateAll();
@@ -7198,117 +7209,117 @@ auto gdb_invoker(string_view cmd, int flags = 0) {
 }
 
 void Context::InterfaceAddBuiltinWindowsAndCommands() {
-   interfaceWindows["Stack"]       = {StackWindow::Create, StackWindow::Update};
-   interfaceWindows["Source"]      = {SourceWindowCreate, SourceWindowUpdate};
-   interfaceWindows["Breakpoints"] = {BreakpointsWindowCreate, BreakpointsWindowUpdate};
-   interfaceWindows["Registers"]   = {RegistersWindowCreate, RegistersWindowUpdate};
-   interfaceWindows["Watch"]       = {WatchWindowCreate, WatchWindow::Update, WatchWindow::Focus};
-   interfaceWindows["Locals"]      = {LocalsWindowCreate, WatchWindow::Update, WatchWindow::Focus};
-   interfaceWindows["Commands"]    = {CommandsWindowCreate, nullptr};
-   interfaceWindows["Data"]        = {DataWindowCreate, nullptr};
-   interfaceWindows["Struct"]      = {StructWindowCreate, nullptr};
-   interfaceWindows["Files"]       = {FilesWindowCreate, nullptr};
-   interfaceWindows["Console"]     = {ConsoleWindowCreate, nullptr};
-   interfaceWindows["Log"]         = {LogWindowCreate, nullptr};
-   interfaceWindows["Thread"]      = {ThreadWindow::Create, ThreadWindow::Update};
-   interfaceWindows["Exe"]         = {ExecutableWindow::Create, nullptr};
-   interfaceWindows["CmdSearch"]   = {CommandSearchWindowCreate, nullptr};
+   _interface_windows["Stack"]       = {StackWindow::Create, StackWindow::Update};
+   _interface_windows["Source"]      = {SourceWindowCreate, SourceWindowUpdate};
+   _interface_windows["Breakpoints"] = {BreakpointsWindowCreate, BreakpointsWindowUpdate};
+   _interface_windows["Registers"]   = {RegistersWindowCreate, RegistersWindowUpdate};
+   _interface_windows["Watch"]       = {WatchWindowCreate, WatchWindow::Update, WatchWindow::Focus};
+   _interface_windows["Locals"]      = {LocalsWindowCreate, WatchWindow::Update, WatchWindow::Focus};
+   _interface_windows["Commands"]    = {CommandsWindowCreate, nullptr};
+   _interface_windows["Data"]        = {DataWindowCreate, nullptr};
+   _interface_windows["Struct"]      = {StructWindowCreate, nullptr};
+   _interface_windows["Files"]       = {FilesWindowCreate, nullptr};
+   _interface_windows["Console"]     = {ConsoleWindowCreate, nullptr};
+   _interface_windows["Log"]         = {LogWindowCreate, nullptr};
+   _interface_windows["Thread"]      = {ThreadWindow::Create, ThreadWindow::Update};
+   _interface_windows["Exe"]         = {ExecutableWindow::Create, nullptr};
+   _interface_windows["CmdSearch"]   = {CommandSearchWindowCreate, nullptr};
 
-   interfaceDataViewers.push_back({"Add bitmap...", BitmapAddDialog});
+   _interface_data_viewers.push_back({"Add bitmap...", BitmapAddDialog});
 
-   interfaceCommands.push_back({
-      .label = "Run\tShift+F5", .shortcut{.code = UI_KEYCODE_FKEY(5), .shift = true, .invoke = gdb_invoker("r")}
+   _interface_commands.push_back({
+      ._label = "Run\tShift+F5", ._shortcut{.code = UI_KEYCODE_FKEY(5), .shift = true, .invoke = gdb_invoker("r")}
    });
-   interfaceCommands.push_back({
-      .label = "Run paused\tCtrl+F5",
-      .shortcut{.code = UI_KEYCODE_FKEY(5), .ctrl = true, .invoke = gdb_invoker("start")}
+   _interface_commands.push_back({
+      ._label = "Run paused\tCtrl+F5",
+      ._shortcut{.code = UI_KEYCODE_FKEY(5), .ctrl = true, .invoke = gdb_invoker("start")}
    });
-   interfaceCommands.push_back({
-      .label = "Kill\tF3", .shortcut{.code = UI_KEYCODE_FKEY(3), .invoke = gdb_invoker("kill")}
+   _interface_commands.push_back({
+      ._label = "Kill\tF3", ._shortcut{.code = UI_KEYCODE_FKEY(3), .invoke = gdb_invoker("kill")}
    });
-   interfaceCommands.push_back({
-      .label = "Restart GDB\tCtrl+R",
-      .shortcut{.code = UI_KEYCODE_LETTER('R'), .ctrl = true, .invoke = gdb_invoker("gf-restart-gdb")}
+   _interface_commands.push_back({
+      ._label = "Restart GDB\tCtrl+R",
+      ._shortcut{.code = UI_KEYCODE_LETTER('R'), .ctrl = true, .invoke = gdb_invoker("gf-restart-gdb")}
    });
-   interfaceCommands.push_back({
-      .label = "Connect\tF4", .shortcut{.code = UI_KEYCODE_FKEY(4), .invoke = gdb_invoker("target remote :1234")}
+   _interface_commands.push_back({
+      ._label = "Connect\tF4", ._shortcut{.code = UI_KEYCODE_FKEY(4), .invoke = gdb_invoker("target remote :1234")}
    });
-   interfaceCommands.push_back({
-      .label = "Continue\tF5",
-      .shortcut{.code = UI_KEYCODE_FKEY(5), .invoke = gdb_invoker("c", invoker_restore_focus)}
+   _interface_commands.push_back({
+      ._label = "Continue\tF5",
+      ._shortcut{.code = UI_KEYCODE_FKEY(5), .invoke = gdb_invoker("c", invoker_restore_focus)}
    });
-   interfaceCommands.push_back({
-      .label = "Step over\tF10", .shortcut{.code = UI_KEYCODE_FKEY(10), .invoke = gdb_invoker("gf-next")}
+   _interface_commands.push_back({
+      ._label = "Step over\tF10", ._shortcut{.code = UI_KEYCODE_FKEY(10), .invoke = gdb_invoker("gf-next")}
    });
-   interfaceCommands.push_back({
-      .label = "Step out of block\tShift+F10",
-      .shortcut{.code = UI_KEYCODE_FKEY(10), .shift = true, .invoke = gdb_invoker("gf-step-out-of-block")}
+   _interface_commands.push_back({
+      ._label = "Step out of block\tShift+F10",
+      ._shortcut{.code = UI_KEYCODE_FKEY(10), .shift = true, .invoke = gdb_invoker("gf-step-out-of-block")}
    });
-   interfaceCommands.push_back({
-      .label = "Step in\tF11", .shortcut{.code = UI_KEYCODE_FKEY(11), .invoke = gdb_invoker("gf-step")}
+   _interface_commands.push_back({
+      ._label = "Step in\tF11", ._shortcut{.code = UI_KEYCODE_FKEY(11), .invoke = gdb_invoker("gf-step")}
    });
-   interfaceCommands.push_back({
-      .label = "Step into outer\tShift+F8",
-      .shortcut{.code = UI_KEYCODE_FKEY(8), .shift = true, .invoke = gdb_invoker("gf-step-into-outer")}
+   _interface_commands.push_back({
+      ._label = "Step into outer\tShift+F8",
+      ._shortcut{.code = UI_KEYCODE_FKEY(8), .shift = true, .invoke = gdb_invoker("gf-step-into-outer")}
    });
-   interfaceCommands.push_back({
-      .label = "Step out\tShift+F11",
-      .shortcut{.code = UI_KEYCODE_FKEY(11), .shift = true, .invoke = gdb_invoker("finish")}
+   _interface_commands.push_back({
+      ._label = "Step out\tShift+F11",
+      ._shortcut{.code = UI_KEYCODE_FKEY(11), .shift = true, .invoke = gdb_invoker("finish")}
    });
-   interfaceCommands.push_back({
-      .label = "Reverse continue\tCtrl+Shift+F5",
-      .shortcut{.code = UI_KEYCODE_FKEY(5), .ctrl = true, .shift = true, .invoke = gdb_invoker("reverse-continue")}
+   _interface_commands.push_back({
+      ._label = "Reverse continue\tCtrl+Shift+F5",
+      ._shortcut{.code = UI_KEYCODE_FKEY(5), .ctrl = true, .shift = true, .invoke = gdb_invoker("reverse-continue")}
    });
-   interfaceCommands.push_back({
-      .label = "Reverse step over\tCtrl+Shift+F10",
-      .shortcut{.code = UI_KEYCODE_FKEY(10), .ctrl = true, .shift = true, .invoke = gdb_invoker("reverse-next")}
+   _interface_commands.push_back({
+      ._label = "Reverse step over\tCtrl+Shift+F10",
+      ._shortcut{.code = UI_KEYCODE_FKEY(10), .ctrl = true, .shift = true, .invoke = gdb_invoker("reverse-next")}
    });
-   interfaceCommands.push_back({
-      .label = "Reverse step in\tCtrl+Shift+F11",
-      .shortcut{.code = UI_KEYCODE_FKEY(11), .ctrl = true, .shift = true, .invoke = gdb_invoker("reverse-step")}
+   _interface_commands.push_back({
+      ._label = "Reverse step in\tCtrl+Shift+F11",
+      ._shortcut{.code = UI_KEYCODE_FKEY(11), .ctrl = true, .shift = true, .invoke = gdb_invoker("reverse-step")}
    });
-   interfaceCommands.push_back({
-      .label = "Break\tF8", .shortcut{.code = UI_KEYCODE_FKEY(8), .invoke = [&]() {
-                                         ctx.InterruptGdb(0);
-                                         return true;
-                                      }}
+   _interface_commands.push_back({
+      ._label = "Break\tF8", ._shortcut{.code = UI_KEYCODE_FKEY(8), .invoke = [&]() {
+                                           ctx.InterruptGdb(0);
+                                           return true;
+                                        }}
    });
-   interfaceCommands.push_back({
-      .label = "Toggle breakpoint\tF9", .shortcut{.code = UI_KEYCODE_FKEY(9), .invoke = []() {
-                                                     CommandToggleBreakpoint();
-                                                     return true;
-                                                  }}
+   _interface_commands.push_back({
+      ._label = "Toggle breakpoint\tF9", ._shortcut{.code = UI_KEYCODE_FKEY(9), .invoke = []() {
+                                                       CommandToggleBreakpoint();
+                                                       return true;
+                                                    }}
    });
-   interfaceCommands.push_back({
-      .label = "Sync with gvim\tF2", .shortcut{.code = UI_KEYCODE_FKEY(2), .invoke = CommandSyncWithGvim}
+   _interface_commands.push_back({
+      ._label = "Sync with gvim\tF2", ._shortcut{.code = UI_KEYCODE_FKEY(2), .invoke = CommandSyncWithGvim}
    });
-   interfaceCommands.push_back({
-      .label = "Ask GDB for PWD\tCtrl+Shift+P",
-      .shortcut{.code = UI_KEYCODE_LETTER('P'), .ctrl = true, .shift = true, .invoke = gdb_invoker("gf-get-pwd")}
+   _interface_commands.push_back({
+      ._label = "Ask GDB for PWD\tCtrl+Shift+P",
+      ._shortcut{.code = UI_KEYCODE_LETTER('P'), .ctrl = true, .shift = true, .invoke = gdb_invoker("gf-get-pwd")}
    });
-   interfaceCommands.push_back({
-      .label = "Set disassembly mode\tCtrl+M",
-      .shortcut{.code = UI_KEYCODE_LETTER('M'), .ctrl = true, .invoke = CommandSetDisassemblyMode}
+   _interface_commands.push_back({
+      ._label = "Set disassembly mode\tCtrl+M",
+      ._shortcut{.code = UI_KEYCODE_LETTER('M'), .ctrl = true, .invoke = CommandSetDisassemblyMode}
    });
-   interfaceCommands.push_back({
-      .label = "Inspect line", .shortcut{.code = UIKeycode::BACKTICK, .invoke = CommandInspectLine}
+   _interface_commands.push_back({
+      ._label = "Inspect line", ._shortcut{.code = UIKeycode::BACKTICK, .invoke = CommandInspectLine}
    });
-   interfaceCommands.push_back({
-      .label = nullptr, .shortcut{.code = UI_KEYCODE_LETTER('G'), .ctrl = true, .invoke = []() {
-                                     CommandWatchViewSourceAtAddress();
-                                     return true;
-                                  }}
+   _interface_commands.push_back({
+      ._label = nullptr, ._shortcut{.code = UI_KEYCODE_LETTER('G'), .ctrl = true, .invoke = []() {
+                                       CommandWatchViewSourceAtAddress();
+                                       return true;
+                                    }}
    });
-   interfaceCommands.push_back({
-      .label = nullptr,
-      .shortcut{.code = UI_KEYCODE_LETTER('P'), .ctrl = true, .shift = false, .invoke = CommandPreviousCommand}
+   _interface_commands.push_back({
+      ._label = nullptr,
+      ._shortcut{.code = UI_KEYCODE_LETTER('P'), .ctrl = true, .shift = false, .invoke = CommandPreviousCommand}
    });
-   interfaceCommands.push_back({
-      .label = nullptr,
-      .shortcut{.code = UI_KEYCODE_LETTER('N'), .ctrl = true, .shift = false, .invoke = CommandNextCommand}
+   _interface_commands.push_back({
+      ._label = nullptr,
+      ._shortcut{.code = UI_KEYCODE_LETTER('N'), .ctrl = true, .shift = false, .invoke = CommandNextCommand}
    });
-   interfaceCommands.push_back(
-      {.label = "Copy Layout to Clipboard", .shortcut{.invoke = [&]() { return ctx.CopyLayoutToClipboard(); }}});
+   _interface_commands.push_back(
+      {._label = "Copy Layout to Clipboard", ._shortcut{.invoke = [&]() { return ctx.CopyLayoutToClipboard(); }}});
 #if 0
    // conflicts with textbox readlime bindings
    // -----------------------------------------
@@ -7335,34 +7346,34 @@ void Context::InterfaceAddBuiltinWindowsAndCommands() {
 
    // received buffer contains debugger output to add to log window
    msgReceivedLog = ReceiveMessageRegister([](std::unique_ptr<std::string> buffer) {
-      assert(ctx.logWindow);
-      ctx.logWindow->insert_content(*buffer, false);
-      ctx.logWindow->refresh();
+      assert(ctx._log_window);
+      ctx._log_window->insert_content(*buffer, false);
+      ctx._log_window->refresh();
    });
 }
 
 void Context::InterfaceShowMenu(UIButton* self) {
    UIMenu& menu = self->ui()->create_menu((UIElement*)self, UIMenu::PLACE_ABOVE | UIMenu::NO_SCROLL);
 
-   for (const auto& ic : interfaceCommands) {
-      if (ic.label)
-         menu.add_item(0, ic.label, [&](UIButton&) { ic.shortcut.invoke(); });
+   for (const auto& ic : _interface_commands) {
+      if (ic._label)
+         menu.add_item(0, ic._label, [&](UIButton&) { ic._shortcut.invoke(); });
    }
    menu.show();
 }
 
 UIElement* Context::InterfaceWindowSwitchToAndFocus(string_view target_name) {
-   for (auto& [name, w] : interfaceWindows) {
-      if (!w.el)
+   for (auto& [name, w] : _interface_windows) {
+      if (!w._el)
          continue;
       if (target_name != name)
          continue;
 
-      if ((w.el->_flags & UIElement::hide_flag) && w.el->_parent->get_class_proc() == UITabPane::_ClassMessageProc) {
-         UITabPane* tabPane = (UITabPane*)w.el->_parent;
+      if ((w._el->_flags & UIElement::hide_flag) && w._el->_parent->get_class_proc() == UITabPane::_ClassMessageProc) {
+         UITabPane* tabPane = (UITabPane*)w._el->_parent;
 
          for (uint32_t i = 0; i < tabPane->_children.size(); i++) {
-            if (tabPane->_children[i] == w.el) {
+            if (tabPane->_children[i] == w._el) {
                tabPane->set_active(i);
                break;
             }
@@ -7371,13 +7382,13 @@ UIElement* Context::InterfaceWindowSwitchToAndFocus(string_view target_name) {
          tabPane->refresh();
       }
 
-      if (w.focus) {
-         w.focus(w.el);
-      } else if (w.el->_flags & UIElement::tab_stop_flag) {
-         w.el->focus();
+      if (w._focus) {
+         w._focus(w._el);
+      } else if (w._el->_flags & UIElement::tab_stop_flag) {
+         w._el->focus();
       }
 
-      return w.el;
+      return w._el;
    }
 
    windowMain->show_dialog(0, "Couldn't find the window '%s'.\n%f%B", target_name, "OK");
@@ -7389,8 +7400,8 @@ int MainWindowMessageProc(UIElement*, UIMessage msg, int di, void* dp) {
       DisplaySetPosition(currentFileFull, displayCode->current_line(), false);
    } else {
       for (const auto& msgtype : receiveMessageTypes) {
-         if (msgtype.msg == msg) {
-            msgtype.callback(std::unique_ptr<std::string>(static_cast<std::string*>(dp)));
+         if (msgtype._msg == msg) {
+            msgtype._callback(std::unique_ptr<std::string>(static_cast<std::string*>(dp)));
             break;
          }
       }
@@ -7403,11 +7414,11 @@ int InterfaceTabPaneMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::LAYOUT) {
       el->_class_proc(el, msg, di, dp);
 
-      for (auto& [name, w] : ctx.interfaceWindows) {
-         if (w.el && (~w.el->_flags & UIElement::hide_flag) && w.queuedUpdate) {
-            w.queuedUpdate = false;
-            w.update("", w.el);
-            w.el->move(w.el->_bounds, false);
+      for (auto& [name, w] : ctx._interface_windows) {
+         if (w._el && (~w._el->_flags & UIElement::hide_flag) && w._queued_update) {
+            w._queued_update = false;
+            w._update("", w._el);
+            w._el->move(w._el->_bounds, false);
          }
       }
 
@@ -7520,9 +7531,9 @@ void Context::InterfaceLayoutCreate(UIElement* parent, const char*& layout_strin
          }
       }
    } else {
-      if (auto it = interfaceWindows.find(token); it != interfaceWindows.end()) {
+      if (auto it = _interface_windows.find(token); it != _interface_windows.end()) {
          auto& [name, w] = *it;
-         w.el            = w.create(parent);
+         w._el           = w._create(parent);
       } else {
          print(std::cerr, "Error: Invalid layout string! The window '{}' was not found.\n", token);
          exit(1);
@@ -7557,8 +7568,8 @@ void Context::GenerateLayoutString(UIElement* e, std::string& sb) {
       }
       sb.push_back(')');
    } else {
-      for (auto& [name, window] : interfaceWindows) {
-         if (window.el != NULL && window.el->_id == e->_id) {
+      for (auto& [name, window] : _interface_windows) {
+         if (window._el != NULL && window._el->_id == e->_id) {
             sb += name;
             return;
          }
@@ -7571,7 +7582,7 @@ bool Context::CopyLayoutToClipboard() {
    std::string sb;
    sb.reserve(512);
    GenerateLayoutString(switcherMain->_children[0]->_children[0], sb);
-   ui->write_clipboard_text(sb, windowMain, sel_target_t::clipboard);
+   _ui->write_clipboard_text(sb, windowMain, sel_target_t::clipboard);
    return true;
 }
 
@@ -7595,15 +7606,15 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
 
    // process command arguments and create updated version to pass to gdb
    // -------------------------------------------------------------------
-   ctx.gdbArgv    = (char**)malloc(sizeof(char*) * (argc + 1));
-   ctx.gdbArgv[0] = (char*)"gdb";
-   memcpy(ctx.gdbArgv + 1, argv + 1, sizeof(argv) * argc);
-   ctx.gdbArgc = argc;
+   ctx._gdb_argv    = (char**)malloc(sizeof(char*) * (argc + 1));
+   ctx._gdb_argv[0] = (char*)"gdb";
+   memcpy(ctx._gdb_argv + 1, argv + 1, sizeof(argv) * argc);
+   ctx._gdb_argc = argc;
 
    if (argc >= 2 && 0 == strcmp(argv[1], "--rr-replay")) {
-      ctx.gdbArgv[0] = (char*)"rr";
-      ctx.gdbArgv[1] = (char*)"replay";
-      ctx.gdbPath    = "rr";
+      ctx._gdb_argv[0] = (char*)"rr";
+      ctx._gdb_argv[1] = (char*)"replay";
+      ctx._gdb_path    = "rr";
    }
 
    // load settings and initialize ui
@@ -7617,7 +7628,7 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
    ui_config.default_font_size = interface_font_size;
 
    auto ui = UI::initialise(ui_config); // sets `ui.default_font_path`
-   ctx.ui  = ui.get();
+   ctx._ui = ui.get();
 
    // ui->_theme = uiThemeDark; // force it for now, overriding `gf2_config.ini` - should remove though!
 
@@ -7639,14 +7650,14 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
                      .set_scale(ui_scale)
                      .set_user_proc(MainWindowMessageProc));
 
-   for (const auto& ic : interfaceCommands) {
-      if (!(int)ic.shortcut.code)
+   for (const auto& ic : _interface_commands) {
+      if (!(int)ic._shortcut.code)
          continue;
-      windowMain->register_shortcut(ic.shortcut);
+      windowMain->register_shortcut(ic._shortcut);
    }
 
    switcherMain                      = &windowMain->add_switcher(0);
-   const char* layout_string_current = gfc.layout_string.c_str();
+   const char* layout_string_current = gfc._layout_string.c_str();
    InterfaceLayoutCreate(&switcherMain->add_panel(UIPanel::EXPAND), layout_string_current);
    switcherMain->switch_to(switcherMain->_children[0]);
 
@@ -7666,8 +7677,8 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
 }
 
 Context::Context() {
-   dbg_re  = std::make_unique<regexp::gdb>();
-   lang_re = std::make_unique<regexp::cpp>();
+   _dbg_re  = std::make_unique<regexp::gdb>();
+   _lang_re = std::make_unique<regexp::cpp>();
 
    InterfaceAddBuiltinWindowsAndCommands();
    RegisterExtensions();
@@ -7686,8 +7697,8 @@ int main(int argc, char** argv) {
       FILE* f = fopen(globalConfigPath, "wb");
 
       if (f) {
-         for (const auto& exp : firstWatchWindow->baseExpressions) {
-            print(f, "{}\n", exp->key);
+         for (const auto& exp : firstWatchWindow->_base_expressions) {
+            print(f, "{}\n", exp->_key);
          }
 
          fclose(f);
