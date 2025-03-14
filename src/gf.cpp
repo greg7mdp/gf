@@ -410,10 +410,10 @@ public:
 
    void set_frame(UIElement* el, int index);
 
-   int _class_message_proc(UITable* table, UIMessage msg, int di, void* dp);
+   int _table_message_proc(UITable* table, UIMessage msg, int di, void* dp);
 
    static int StackWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<StackWindow*>(el->_cp)->_class_message_proc(static_cast<UITable*>(el), msg, di, dp);
+      return static_cast<StackWindow*>(el->_cp)->_table_message_proc(static_cast<UITable*>(el), msg, di, dp);
    }
 
    static UIElement* Create(UIElement* parent);
@@ -1029,9 +1029,11 @@ void DebuggerGetBreakpoints() {
 
 struct TabCompleter {
    bool _last_key_was_tab;
+private:
    int  _consecutive_tab_count;
    int  _last_tab_bytes;
 
+public:
    void run(UITextbox* textbox, bool lastKeyWasTab, bool addPrintPrefix) {
       auto text   = textbox->text();
       auto buffer = std::format("complete {}{}", addPrintPrefix ? "p " : "",
@@ -2683,6 +2685,7 @@ struct WatchWindow;
 static WatchWindow* WatchGetFocused();
 
 struct Watch : public std::enable_shared_from_this<Watch> {
+private:
    bool        _open             = false;
    bool        _has_fields       = false;
    bool        _loaded_fields    = false;
@@ -2698,7 +2701,12 @@ struct Watch : public std::enable_shared_from_this<Watch> {
    Watch*      _parent       = nullptr;
    uint64_t    _update_index = 0;
 
+public:
+   friend struct WatchWindow;
    static constexpr int WATCH_ARRAY_MAX_FIELDS = 10000000;
+
+   char& format() { return _format; }
+   const std::string&  key() const { return _key; };
 
    std::string evaluate(std::string_view function) const {
       char      buffer[4096];
@@ -2833,6 +2841,7 @@ struct WatchWindow : public UIElement {
       WATCH_LOCALS,
    };
 
+private:
    WatchVector     _rows;
    WatchVector     _base_expressions;
    WatchVector     _dynamic_arrays;
@@ -2844,6 +2853,9 @@ struct WatchWindow : public UIElement {
    uint64_t        _update_index;
    bool            _waiting_for_format_character;
 
+public:
+   friend struct Watch;
+   
    WatchWindow(UIElement* parent, uint32_t flags, const char* name)
       : UIElement(parent, flags, WatchWindow::WatchWindowMessage, name)
       , _textbox(nullptr)
@@ -2858,6 +2870,8 @@ struct WatchWindow : public UIElement {
       size_t res = _rows.size() + _extra_rows;
       return res ? res - 1 : res;
    }
+
+   const WatchVector& base_expressions() const { return _base_expressions; }
 
    void destroy_textbox() {
       if (!_textbox)
@@ -2881,6 +2895,12 @@ struct WatchWindow : public UIElement {
             _dynamic_arrays.erase(it);
       }
       watch->clear(fieldsOnly);
+   }
+
+   std::optional<shared_ptr<Watch>> get_selected_watch() const {
+      if (_textbox || _selected_row > _rows.size() || _rows.empty())
+         return {};
+      return _rows[_selected_row == _rows.size() ? _selected_row - 1 : _selected_row];
    }
 
    void delete_expression(bool fieldsOnly = false) {
@@ -2961,6 +2981,16 @@ struct WatchWindow : public UIElement {
          watch->_type       = std::move(res);
          watch->_has_fields = watch->has_fields();
       }
+   }
+
+   void append_expression(string_view string) {
+      _selected_row = _rows.size();
+      add_expression(string);
+      if (_selected_row)
+         _selected_row--;
+      ensure_row_visible(_selected_row);
+      _parent->refresh();
+      refresh();
    }
 
    void create_textbox_for_row(bool addExistingText) {
@@ -3553,7 +3583,7 @@ int WatchTextboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::UPDATE) {
       if (!el->is_focused()) {
          el->destroy();
-         ((WatchWindow*)el->_cp)->_textbox = nullptr; // use _cp here!
+         ((WatchWindow*)el->_cp)->destroy_textbox(); // use _cp here!
       }
    } else if (msg == UIMessage::KEY_TYPED) {
       UITextbox*  textbox = (UITextbox*)el;
@@ -3572,16 +3602,9 @@ int WatchTextboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    return 0;
 }
 
-void WatchAddExpression(string_view string) {
-   UIElement*   el  = ctx.InterfaceWindowSwitchToAndFocus("Watch");
-   WatchWindow* w   = (WatchWindow*)el->_cp;
-   w->_selected_row = w->_rows.size();
-   w->add_expression(string);
-   if (w->_selected_row)
-      w->_selected_row--;
-   w->ensure_row_visible(w->_selected_row);
-   w->_parent->refresh();
-   w->refresh();
+void WatchAddExpression(string_view sv) {
+   UIElement* el = ctx.InterfaceWindowSwitchToAndFocus("Watch");
+   static_cast<WatchWindow*>(el->_cp)->append_expression(sv);
 }
 
 int WatchLoggerWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
@@ -3926,7 +3949,7 @@ void StackWindow::set_frame(UIElement* el, int index) {
    }
 }
 
-int StackWindow::_class_message_proc(UITable* el, UIMessage msg, int di, void* dp) {
+int StackWindow::_table_message_proc(UITable* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m       = (UITableGetItem*)dp;
       m->_is_selected         = (size_t)m->_row == _selected;
@@ -3996,10 +4019,10 @@ public:
 
    void enable_selected_breakpoints() const { for_all_selected_breakpoints("enable"); }
 
-   int _class_message_proc(UITable* table, UIMessage msg, int di, void* dp);
+   int _table_message_proc(UITable* table, UIMessage msg, int di, void* dp);
 
    static int BreakpointsWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<BreakpointsWindow*>(el->_cp)->_class_message_proc(static_cast<UITable*>(el), msg, di, dp);
+      return static_cast<BreakpointsWindow*>(el->_cp)->_table_message_proc(static_cast<UITable*>(el), msg, di, dp);
    }
 
    static UIElement* Create(UIElement* parent) {
@@ -4017,7 +4040,7 @@ public:
    }
 };
 
-int BreakpointsWindow::_class_message_proc(UITable* uitable, UIMessage msg, int di, void* dp) {
+int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m     = (UITableGetItem*)dp;
       Breakpoint*     entry = &breakpoints[m->_row];
@@ -4202,38 +4225,39 @@ UIElement* DataWindowCreate(UIElement* parent) {
 struct StructWindow {
    UICode*    _display = nullptr;
    UITextbox* _textbox = nullptr;
-};
 
-int TextboxStructNameMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-   StructWindow* window = (StructWindow*)el->_cp;
+   int _textbox_message_proc(UITextbox* textbox, UIMessage msg, int di, void* dp) {
+      if (msg == UIMessage::KEY_TYPED) {
+         UIKeyTyped* m = (UIKeyTyped*)dp;
 
-   if (msg == UIMessage::KEY_TYPED) {
-      UIKeyTyped* m = (UIKeyTyped*)dp;
-
-      if (m->code == UIKeycode::ENTER) {
-         auto  res = EvaluateCommand(std::format("ptype /o {}", window->_textbox->text()));
-         char* end = (char*)strstr(res.c_str(), "\n(gdb)");
-         if (end)
-            *end = 0;
-         window->_display->insert_content(res, true);
-         window->_textbox->clear(false);
-         window->_display->refresh();
-         el->refresh();
-         return 1;
+         if (m->code == UIKeycode::ENTER) {
+            auto  res = EvaluateCommand(std::format("ptype /o {}", _textbox->text()));
+            char* end = (char*)strstr(res.c_str(), "\n(gdb)");
+            if (end)
+               *end = 0;
+            _display->insert_content(res, true);
+            _textbox->clear(false);
+            _display->refresh();
+            textbox->refresh();
+            return 1;
+         }
       }
+      return 0;
    }
 
-   return 0;
-}
+   static int TextboxStructNameMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<StructWindow*>(el->_cp)->_textbox_message_proc(static_cast<UITextbox*>(el), msg, di, dp);
+   }
 
-UIElement* StructWindowCreate(UIElement* parent) {
-   StructWindow* window = new StructWindow;
-   UIPanel*      panel  = &parent->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND);
-   window->_textbox     = &panel->add_textbox(0).set_user_proc(TextboxStructNameMessage).set_cp(window);
-   window->_display     = &panel->add_code(UIElement::v_fill | UICode::NO_MARGIN | UICode::SELECTABLE)
-                          .insert_content("Type the name of a struct to view its layout.", false);
-   return panel;
-}
+   static UIElement* Create(UIElement* parent) {
+      StructWindow* window = new StructWindow;
+      UIPanel*      panel  = &parent->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND);
+      window->_textbox     = &panel->add_textbox(0).set_user_proc(TextboxStructNameMessage).set_cp(window);
+      window->_display     = &panel->add_code(UIElement::v_fill | UICode::NO_MARGIN | UICode::SELECTABLE)
+                             .insert_content("Type the name of a struct to view its layout.", false);
+      return panel;
+   }
+ };
 
 // ---------------------------------------------------/
 // Files window:
@@ -4545,10 +4569,10 @@ struct ThreadWindow {
 
    vector<Thread> _threads;
 
-   int _class_message_proc(UITable* table, UIMessage msg, int di, void* dp);
+   int _table_message_proc(UITable* table, UIMessage msg, int di, void* dp);
 
    static int ThreadWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<ThreadWindow*>(el->_cp)->_class_message_proc(static_cast<UITable*>(el), msg, di, dp);
+      return static_cast<ThreadWindow*>(el->_cp)->_table_message_proc(static_cast<UITable*>(el), msg, di, dp);
    }
 
    void update(UITable* table) {
@@ -4604,7 +4628,7 @@ struct ThreadWindow {
    }
 };
 
-int ThreadWindow::_class_message_proc(UITable* uitable, UIMessage msg, int di, void* dp) {
+int ThreadWindow::_table_message_proc(UITable* uitable, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m = (UITableGetItem*)dp;
       m->_is_selected   = _threads[m->_row]._active;
@@ -6370,15 +6394,14 @@ void ViewWindowView(void* cp) {
    UIElement* watchElement = ctx.InterfaceWindowSwitchToAndFocus("Watch");
    if (!watchElement)
       return;
+   
    WatchWindow* w = (WatchWindow*)watchElement->_cp;
-   if (w->_textbox)
+   auto w_opt = w->get_selected_watch();
+   if (!w_opt)
       return;
-   if (w->_selected_row > w->_rows.size() || !w->_rows.size())
-      return;
-   const shared_ptr<Watch>& watch =
-      w->_rows[w->_selected_row == w->_rows.size() ? w->_selected_row - 1 : w->_selected_row];
-   if (!watch)
-      return;
+   
+   const shared_ptr<Watch>& watch = *w_opt;
+
    if (!cp)
       cp = ctx.InterfaceWindowSwitchToAndFocus("View");
    if (!cp)
@@ -6391,8 +6414,8 @@ void ViewWindowView(void* cp) {
 
    // Get information about the watch expression.
    char type[256], buffer[256];
-   char oldFormat = watch->_format;
-   watch->_format = 0;
+   char oldFormat = watch->format();
+   watch->format() = 0;
 
    auto res = watch->evaluate("gf_typeof");
    resize_to_lf(res);
@@ -6402,7 +6425,7 @@ void ViewWindowView(void* cp) {
 
    res = watch->evaluate("gf_valueof");
    resize_to_lf(res);
-   watch->_format = oldFormat;
+   watch->format() = oldFormat;
    // print("valueof: {}\n", ctx.evaluateResult);
 
    // Create the specific display for the given type.
@@ -7240,7 +7263,7 @@ void Context::InterfaceAddBuiltinWindowsAndCommands() {
    _interface_windows["Locals"]      = {LocalsWindowCreate, WatchWindow::Update, WatchWindow::Focus};
    _interface_windows["Commands"]    = {CommandsWindowCreate, nullptr};
    _interface_windows["Data"]        = {DataWindowCreate, nullptr};
-   _interface_windows["Struct"]      = {StructWindowCreate, nullptr};
+   _interface_windows["Struct"]      = {StructWindow::Create, nullptr};
    _interface_windows["Files"]       = {FilesWindowCreate, nullptr};
    _interface_windows["Console"]     = {ConsoleWindowCreate, nullptr};
    _interface_windows["Log"]         = {LogWindowCreate, nullptr};
@@ -7720,8 +7743,8 @@ int main(int argc, char** argv) {
       FILE* f = fopen(globalConfigPath, "wb");
 
       if (f) {
-         for (const auto& exp : firstWatchWindow->_base_expressions) {
-            print(f, "{}\n", exp->_key);
+         for (const auto& exp : firstWatchWindow->base_expressions()) {
+            print(f, "{}\n", exp->key());
          }
 
          fclose(f);
