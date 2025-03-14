@@ -4264,13 +4264,12 @@ public:
 // ---------------------------------------------------/
 // Files window:
 // ---------------------------------------------------/
+int FilesButtonMessage(UIElement* el, UIMessage msg, int di, void* dp);
 
 struct FilesWindow {
    char     _directory[PATH_MAX];
    UIPanel* _panel = nullptr;
    UILabel* _path  = nullptr;
-
-   bool populate_panel();
 
    const char* directory() const { return _directory; }
 
@@ -4288,6 +4287,80 @@ struct FilesWindow {
       char copy[PATH_MAX];
       realpath(_directory, copy); // resolve dir into `copy`
       strcpy(_directory, copy);   // copy resolved path into `_directory`
+   }
+   
+   bool populate_panel() {
+      size_t         oldLength;
+      DIR*           directory = opendir(_directory);
+      struct dirent* entry;
+      if (!directory)
+         return false;
+      vector<std::string> names = {};
+      while ((entry = readdir(directory)))
+         names.push_back(entry->d_name);
+      closedir(directory);
+      _panel->destroy_descendents();
+
+      std::sort(names.begin(), names.end());
+
+      for (auto name : names) {
+         if (name[0] != '.' || name[1] != 0) {
+            UIButton* button = &_panel->add_button(0, name)
+                                   .clear_flag(UIElement::tab_stop_flag)
+                                   .set_cp(this)
+                                   .set_user_proc(FilesButtonMessage);
+
+            if (S_ISDIR(get_mode(button, &oldLength))) {
+               button->set_flag(UIButton::CHECKED);
+            }
+
+            _directory[oldLength] = 0;
+         }
+      }
+
+      _panel->refresh();
+
+      char path[PATH_MAX];
+      realpath(_directory, path);
+      _path->set_label(path);
+
+      return true;
+   }
+
+   void navigate_to_cwd() {
+      getcwd(_directory, sizeof(_directory));
+      populate_panel();
+   }
+
+   void navigate_to_active_file() {
+      std_format_to_n(_directory, sizeof(_directory), "{}", currentFileFull);
+      int p = strlen(_directory);
+      while (p--) {
+         if (_directory[p] == '/') {
+            _directory[p] = 0;
+            break;
+         }
+      }
+      populate_panel();
+   }
+
+   static UIElement* Create(UIElement* parent) {
+      FilesWindow* window    = new FilesWindow;
+      UIPanel*     container = &parent->add_panel(UIPanel::EXPAND);
+      window->_panel = &container->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND | UIPanel::SCROLL | UIElement::v_fill)
+                           .set_gap(-1)
+                           .set_border(UIRectangle(1))
+                           .set_cp(window);
+      UIPanel* row = &container->add_panel(UIPanel::COLOR_2 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
+
+      row->add_button(UIButton::SMALL, "-> cwd").on_click([window](UIButton&) { window->navigate_to_cwd(); });
+      row->add_button(UIButton::SMALL, "-> active file").on_click([window](UIButton&) {
+         window->navigate_to_active_file();
+      });
+
+      window->_path = &row->add_label(UIElement::h_fill, "");
+      window->navigate_to_cwd();
+      return container;
    }
 };
 
@@ -4324,177 +4397,115 @@ int FilesButtonMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    return 0;
 }
 
-bool FilesWindow::populate_panel() {
-   size_t         oldLength;
-   DIR*           directory = opendir(_directory);
-   struct dirent* entry;
-   if (!directory)
-      return false;
-   vector<std::string> names = {};
-   while ((entry = readdir(directory)))
-      names.push_back(entry->d_name);
-   closedir(directory);
-   _panel->destroy_descendents();
-
-   std::sort(names.begin(), names.end());
-
-   for (auto name : names) {
-      if (name[0] != '.' || name[1] != 0) {
-         UIButton* button = &_panel->add_button(0, name)
-                                .clear_flag(UIElement::tab_stop_flag)
-                                .set_cp(this)
-                                .set_user_proc(FilesButtonMessage);
-
-         if (S_ISDIR(get_mode(button, &oldLength))) {
-            button->set_flag(UIButton::CHECKED);
-         }
-
-         _directory[oldLength] = 0;
-      }
-   }
-
-   _panel->refresh();
-
-   char path[PATH_MAX];
-   realpath(_directory, path);
-   _path->set_label(path);
-
-   return true;
-}
-
-void FilesNavigateToCWD(FilesWindow* window) {
-   getcwd(window->_directory, sizeof(window->_directory));
-   window->populate_panel();
-}
-
-void FilesNavigateToActiveFile(FilesWindow* window) {
-   std_format_to_n(window->_directory, sizeof(window->_directory), "{}", currentFileFull);
-   int p = strlen(window->_directory);
-   while (p--)
-      if (window->_directory[p] == '/') {
-         window->_directory[p] = 0;
-         break;
-      }
-   window->populate_panel();
-}
-
-UIElement* FilesWindowCreate(UIElement* parent) {
-   FilesWindow* window    = new FilesWindow;
-   UIPanel*     container = &parent->add_panel(UIPanel::EXPAND);
-   window->_panel = &container->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND | UIPanel::SCROLL | UIElement::v_fill)
-                        .set_gap(-1)
-                        .set_border(UIRectangle(1))
-                        .set_cp(window);
-   UIPanel* row = &container->add_panel(UIPanel::COLOR_2 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
-
-   row->add_button(UIButton::SMALL, "-> cwd").on_click([window](UIButton&) { FilesNavigateToCWD(window); });
-   row->add_button(UIButton::SMALL, "-> active file").on_click([window](UIButton&) {
-      FilesNavigateToActiveFile(window);
-   });
-
-   window->_path = &row->add_label(UIElement::h_fill, "");
-   FilesNavigateToCWD(window);
-   return container;
-}
 
 // ---------------------------------------------------/
 // Registers window:
 // ---------------------------------------------------/
+struct RegistersWindow {
+private:
+   struct RegisterData {
+      char _string[128];
+   };
 
-struct RegisterData {
-   char _string[128];
-};
-vector<RegisterData> registerData;
+   vector<RegisterData> _reg_data;
 
-UIElement* RegistersWindowCreate(UIElement* parent) {
-   return &parent->add_panel(UIPanel::SMALL_SPACING | UIPanel::COLOR_1 | UIPanel::SCROLL);
-}
+public:
+   void update(UIElement* panel) {
+      auto res = EvaluateCommand("info registers");
 
-void RegistersWindowUpdate(const char*, UIElement* panel) {
-   auto res = EvaluateCommand("info registers");
-
-   if (res.empty() || res.contains("The program has no registers now.") ||
-       res.contains("The current thread has terminated")) {
-      return;
-   }
-
-   panel->destroy_descendents();
-   const char*          position        = res.c_str();
-   vector<RegisterData> newRegisterData = {};
-   bool                 anyChanges      = false;
-
-   while (*position != '(') {
-      const char* nameStart = position;
-      while (isspace(*nameStart))
-         nameStart++;
-      const char* nameEnd = position = strchr(nameStart, ' ');
-      if (!nameEnd)
-         break;
-      const char* format1Start = position;
-      while (isspace(*format1Start))
-         format1Start++;
-      const char* format1End = position = strchr(format1Start, ' ');
-      if (!format1End)
-         break;
-      const char* format2Start = position;
-      while (isspace(*format2Start))
-         format2Start++;
-      const char* format2End = position = strchr(format2Start, '\n');
-      if (!format2End)
-         break;
-
-      const char* stringStart = nameStart;
-      const char* stringEnd   = format2End;
-
-      RegisterData data;
-      std_format_to_n(data._string, sizeof(data._string), "{}",
-                      std::string_view{stringStart, (size_t)(stringEnd - stringStart)});
-      bool modified = false;
-
-      if (registerData.size() > newRegisterData.size()) {
-         RegisterData* old = &registerData[newRegisterData.size()];
-
-         if (strcmp(old->_string, data._string)) {
-            modified = true;
-         }
+      if (res.empty() || res.contains("The program has no registers now.") ||
+          res.contains("The current thread has terminated")) {
+         return;
       }
 
-      newRegisterData.push_back(data);
+      panel->destroy_descendents();
+      const char*          position        = res.c_str();
+      vector<RegisterData> new_reg_data = {};
+      bool                 anyChanges      = false;
 
-      UIPanel* row = &panel->add_panel(UIPanel::HORIZONTAL | UIElement::h_fill);
-      if (modified)
-         row->set_user_proc(ModifiedRowMessage);
-      row->add_label(0, {stringStart, static_cast<size_t>(stringEnd - stringStart)});
+      while (*position != '(') {
+         const char* nameStart = position;
+         while (isspace(*nameStart))
+            nameStart++;
+         const char* nameEnd = position = strchr(nameStart, ' ');
+         if (!nameEnd)
+            break;
+         const char* format1Start = position;
+         while (isspace(*format1Start))
+            format1Start++;
+         const char* format1End = position = strchr(format1Start, ' ');
+         if (!format1End)
+            break;
+         const char* format2Start = position;
+         while (isspace(*format2Start))
+            format2Start++;
+         const char* format2End = position = strchr(format2Start, '\n');
+         if (!format2End)
+            break;
 
-      bool isPC = false;
-      if (nameEnd == nameStart + 3 && 0 == memcmp(nameStart, "rip", 3))
-         isPC = true;
-      if (nameEnd == nameStart + 3 && 0 == memcmp(nameStart, "eip", 3))
-         isPC = true;
-      if (nameEnd == nameStart + 2 && 0 == memcmp(nameStart, "ip", 2))
-         isPC = true;
+         const char* stringStart = nameStart;
+         const char* stringEnd   = format2End;
 
-      if (modified && showingDisassembly && !isPC) {
-         if (!anyChanges) {
-            autoPrintResult[0]  = 0;
-            autoPrintResultLine = autoPrintExpressionLine;
-            anyChanges          = true;
-         } else {
+         RegisterData data;
+         std_format_to_n(data._string, sizeof(data._string), "{}",
+                         std::string_view{stringStart, (size_t)(stringEnd - stringStart)});
+         bool modified = false;
+
+         if (_reg_data.size() > new_reg_data.size()) {
+            RegisterData* old = &_reg_data[new_reg_data.size()];
+
+            if (strcmp(old->_string, data._string)) {
+               modified = true;
+            }
+         }
+
+         new_reg_data.push_back(data);
+
+         UIPanel* row = &panel->add_panel(UIPanel::HORIZONTAL | UIElement::h_fill);
+         if (modified)
+            row->set_user_proc(ModifiedRowMessage);
+         row->add_label(0, {stringStart, static_cast<size_t>(stringEnd - stringStart)});
+
+         bool isPC = false;
+         if (nameEnd == nameStart + 3 && 0 == memcmp(nameStart, "rip", 3))
+            isPC = true;
+         if (nameEnd == nameStart + 3 && 0 == memcmp(nameStart, "eip", 3))
+            isPC = true;
+         if (nameEnd == nameStart + 2 && 0 == memcmp(nameStart, "ip", 2))
+            isPC = true;
+
+         if (modified && showingDisassembly && !isPC) {
+            if (!anyChanges) {
+               autoPrintResult[0]  = 0;
+               autoPrintResultLine = autoPrintExpressionLine;
+               anyChanges          = true;
+            } else {
+               int position = strlen(autoPrintResult);
+               std_format_to_n(autoPrintResult + position, sizeof(autoPrintResult) - position, ", ");
+            }
+
             int position = strlen(autoPrintResult);
-            std_format_to_n(autoPrintResult + position, sizeof(autoPrintResult) - position, ", ");
+            std_format_to_n(autoPrintResult + position, sizeof(autoPrintResult) - position, "{}={}",
+                            std::string_view{nameStart, (size_t)(nameEnd - nameStart)},
+                            std::string_view{format1Start, (size_t)(format1End - format1Start)});
          }
-
-         int position = strlen(autoPrintResult);
-         std_format_to_n(autoPrintResult + position, sizeof(autoPrintResult) - position, "{}={}",
-                         std::string_view{nameStart, (size_t)(nameEnd - nameStart)},
-                         std::string_view{format1Start, (size_t)(format1End - format1Start)});
       }
+
+      panel->refresh();
+      _reg_data.clear();
+      _reg_data = new_reg_data;
    }
 
-   panel->refresh();
-   registerData.clear();
-   registerData = newRegisterData;
-}
+   static void Update(const char*, UIElement* el) {
+      RegistersWindow* rw = static_cast<RegistersWindow*>(el->_cp);
+      rw->update(el);
+   }
+
+   static UIElement* Create(UIElement* parent) {
+      auto window = new RegistersWindow;
+      return &parent->add_panel(UIPanel::SMALL_SPACING | UIPanel::COLOR_1 | UIPanel::SCROLL).set_cp(window);
+   }
+};
 
 // ---------------------------------------------------/
 // Commands window:
@@ -4568,7 +4579,8 @@ UIElement* LogWindowCreate(UIElement* parent) {
 // Thread window:
 // ---------------------------------------------------/
 
-struct ThreadWindow {
+struct ThreadsWindow {
+private:
    struct Thread {
       char _frame[127];
       bool _active = false;
@@ -4577,10 +4589,11 @@ struct ThreadWindow {
 
    vector<Thread> _threads;
 
+public:
    int _table_message_proc(UITable* table, UIMessage msg, int di, void* dp);
 
-   static int ThreadWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<ThreadWindow*>(el->_cp)->_table_message_proc(static_cast<UITable*>(el), msg, di, dp);
+   static int ThreadsWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<ThreadsWindow*>(el->_cp)->_table_message_proc(static_cast<UITable*>(el), msg, di, dp);
    }
 
    void update(UITable* table) {
@@ -4626,17 +4639,17 @@ struct ThreadWindow {
 
    static UIElement* Create(UIElement* parent) {
       return &parent->add_table(0, "ID\tFrame")
-                 .set_cp(new ThreadWindow)
-                 .set_user_proc(ThreadWindow::ThreadWindowMessage);
+                 .set_cp(new ThreadsWindow)
+                 .set_user_proc(ThreadsWindow::ThreadsWindowMessage);
    }
 
    static void Update(const char*, UIElement* table) {
-      ThreadWindow* window = static_cast<ThreadWindow*>(table->_cp);
+      ThreadsWindow* window = static_cast<ThreadsWindow*>(table->_cp);
       window->update(static_cast<UITable*>(table));
    }
 };
 
-int ThreadWindow::_table_message_proc(UITable* uitable, UIMessage msg, int di, void* dp) {
+int ThreadsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m = (UITableGetItem*)dp;
       m->_is_selected   = _threads[m->_row]._active;
@@ -7266,16 +7279,16 @@ void Context::InterfaceAddBuiltinWindowsAndCommands() {
    _interface_windows["Stack"]       = {StackWindow::Create, StackWindow::Update};
    _interface_windows["Source"]      = {SourceWindowCreate, SourceWindowUpdate};
    _interface_windows["Breakpoints"] = {BreakpointsWindow::Create, BreakpointsWindow::Update};
-   _interface_windows["Registers"]   = {RegistersWindowCreate, RegistersWindowUpdate};
+   _interface_windows["Registers"]   = {RegistersWindow::Create, RegistersWindow::Update};
    _interface_windows["Watch"]       = {WatchWindowCreate, WatchWindow::Update, WatchWindow::Focus};
    _interface_windows["Locals"]      = {LocalsWindowCreate, WatchWindow::Update, WatchWindow::Focus};
    _interface_windows["Commands"]    = {CommandsWindowCreate, nullptr};
    _interface_windows["Data"]        = {DataWindowCreate, nullptr};
    _interface_windows["Struct"]      = {StructWindow::Create, nullptr};
-   _interface_windows["Files"]       = {FilesWindowCreate, nullptr};
+   _interface_windows["Files"]       = {FilesWindow::Create, nullptr};
    _interface_windows["Console"]     = {ConsoleWindowCreate, nullptr};
    _interface_windows["Log"]         = {LogWindowCreate, nullptr};
-   _interface_windows["Thread"]      = {ThreadWindow::Create, ThreadWindow::Update};
+   _interface_windows["Thread"]      = {ThreadsWindow::Create, ThreadsWindow::Update};
    _interface_windows["Exe"]         = {ExecutableWindow::Create, nullptr};
    _interface_windows["CmdSearch"]   = {CommandSearchWindowCreate, nullptr};
 
