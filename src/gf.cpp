@@ -4747,110 +4747,118 @@ public:
 // Command search window:
 // ---------------------------------------------------/
 
-struct GDBCommand {
-   char* _name              = nullptr;
-   char* _description       = nullptr;
-   char* _description_lower = nullptr;
-};
-
 struct CommandSearchWindow {
+private:
+   struct GDBCommand {
+      char* _name              = nullptr;
+      char* _description       = nullptr;
+      char* _description_lower = nullptr;
+   };
+
    UICode*            _display = nullptr;
    UITextbox*         _textbox = nullptr;
    vector<GDBCommand> _commands;
-};
 
-int TextboxSearchCommandMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-   CommandSearchWindow* window = (CommandSearchWindow*)el->_cp;
-
-   if (msg == UIMessage::KEY_TYPED) {
-      if (!window->_commands.size()) {
-         auto  res = EvaluateCommand("help all");
-         char* s   = nullptr;
-         if (!res.empty()) {
-            s = (char*)res.c_str();
-            for (int i = 0; s[i]; i++) {
-               if (s[i] == ',' && s[i + 1] == ' ' && s[i + 2] == '\n') {
-                  s[i + 2] = ' ';
-               }
-            }
-         }
-
-         char* position = s;
-
-         while (position) {
-            char* next = strchr(position, '\n');
-            if (!next)
-               break;
-            char* dash = strstr(position, "--");
-
-            if (dash && dash < next && dash > position + 1) {
-               GDBCommand command = {};
-               command._name      = (char*)calloc(1, dash - 1 - position + 1);
-
-               for (int i = 0, j = 0; i < dash - 1 - position; i++) {
-                  if (position[i] != ' ' || position[i + 1] != ' ') {
-                     command._name[j++] = position[i];
+public:
+   int _textbox_message_proc(UITextbox* textbox, UIMessage msg, int di, void* dp) {
+      if (msg == UIMessage::KEY_TYPED) {
+         if (!_commands.size()) {
+            auto  res = EvaluateCommand("help all");
+            char* s   = nullptr;
+            if (!res.empty()) {
+               s = (char*)res.c_str();
+               for (int i = 0; s[i]; i++) {
+                  if (s[i] == ',' && s[i + 1] == ' ' && s[i + 2] == '\n') {
+                     s[i + 2] = ' ';
                   }
                }
-
-               command._description       = (char*)calloc(1, next - (dash + 3) + 1);
-               command._description_lower = (char*)calloc(1, next - (dash + 3) + 1);
-               memcpy(command._description, dash + 3, next - (dash + 3));
-
-               for (int i = 0; command._description[i]; i++) {
-                  command._description_lower[i] = command._description[i] >= 'A' && command._description[i] <= 'Z'
-                                                     ? command._description[i] + 'a' - 'A'
-                                                     : command._description[i];
-               }
-
-               window->_commands.push_back(command);
             }
 
-            position = next + 1;
+            char* position = s;
+
+            while (position) {
+               char* next = strchr(position, '\n');
+               if (!next)
+                  break;
+               char* dash = strstr(position, "--");
+
+               if (dash && dash < next && dash > position + 1) {
+                  GDBCommand command = {};
+                  command._name      = (char*)calloc(1, dash - 1 - position + 1);
+
+                  for (int i = 0, j = 0; i < dash - 1 - position; i++) {
+                     if (position[i] != ' ' || position[i + 1] != ' ') {
+                        command._name[j++] = position[i];
+                     }
+                  }
+
+                  command._description       = (char*)calloc(1, next - (dash + 3) + 1);
+                  command._description_lower = (char*)calloc(1, next - (dash + 3) + 1);
+                  memcpy(command._description, dash + 3, next - (dash + 3));
+
+                  for (int i = 0; command._description[i]; i++) {
+                     command._description_lower[i] = command._description[i] >= 'A' && command._description[i] <= 'Z'
+                                                        ? command._description[i] + 'a' - 'A'
+                                                        : command._description[i];
+                  }
+
+                  _commands.push_back(command);
+               }
+
+               position = next + 1;
+            }
          }
-      }
 
-      char query[4096];
-      char buffer[4096];
-      bool firstMatch = true;
+         char query[4096];
+         char buffer[4096];
+         bool firstMatch = true;
 
-      std_format_to_n(query, sizeof(query), "{}", window->_textbox->text());
-      for (int i = 0; query[i]; i++) {
-         query[i] = query[i] >= 'A' && query[i] <= 'Z' ? query[i] + 'a' - 'A' : query[i];
-      }
-
-      for (const auto& cmd : window->_commands) {
-         if (strstr(cmd._description_lower, query)) {
-            std_format_to_n(buffer, sizeof(buffer), "{}: {}", cmd._name, cmd._description);
-            window->_display->insert_content(buffer, firstMatch);
-            firstMatch = false;
+         std_format_to_n(query, sizeof(query), "{}", _textbox->text());
+         for (int i = 0; query[i]; i++) {
+            query[i] = query[i] >= 'A' && query[i] <= 'Z' ? query[i] + 'a' - 'A' : query[i];
          }
+
+         for (const auto& cmd : _commands) {
+            if (strstr(cmd._description_lower, query)) {
+               std_format_to_n(buffer, sizeof(buffer), "{}: {}", cmd._name, cmd._description);
+               _display->insert_content(buffer, firstMatch);
+               firstMatch = false;
+            }
+         }
+
+         if (firstMatch) {
+            _display->insert_content("(no matches)", firstMatch);
+         }
+
+         _display->reset_vscroll();
+         _display->refresh();
       }
 
-      if (firstMatch) {
-         window->_display->insert_content("(no matches)", firstMatch);
-      }
-
-      window->_display->reset_vscroll();
-      window->_display->refresh();
+      return 0;
    }
 
-   return 0;
-}
+   static int SearchCommandMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+      CommandSearchWindow* window = static_cast<CommandSearchWindow*>(el->_cp);
+      return window->_textbox_message_proc(static_cast<UITextbox*>(el), msg, di, dp);
+   }
 
-UIElement* CommandSearchWindowCreate(UIElement* parent) {
-   CommandSearchWindow* win = new CommandSearchWindow;
+   static UIElement* Create(UIElement* parent) {
+      CommandSearchWindow* win = new CommandSearchWindow;
 
-   UIPanel* panel =
-      &parent->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND)
-          .add_n(
-             [&](auto& p) { win->_textbox = &p.add_textbox(0).set_user_proc(TextboxSearchCommandMessage).set_cp(win); },
-             [&](auto& p) {
-                win->_display = &p.add_code(UIElement::v_fill | UICode::NO_MARGIN | UICode::SELECTABLE)
-                                    .insert_content("Type here to search \nGDB command descriptions.", true);
-             });
-   return panel;
-}
+      UIPanel* panel =
+         &parent->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND)
+             .add_n(
+                [&](auto& p) {
+                   win->_textbox =
+                      &p.add_textbox(0).set_user_proc(CommandSearchWindow::SearchCommandMessage).set_cp(win);
+                },
+                [&](auto& p) {
+                   win->_display = &p.add_code(UIElement::v_fill | UICode::NO_MARGIN | UICode::SELECTABLE)
+                                       .insert_content("Type here to search \nGDB command descriptions.", true);
+                });
+      return panel;
+   }
+};
 
 // ----------------------------------------------------------
 // Utilities:
@@ -7289,7 +7297,7 @@ void Context::InterfaceAddBuiltinWindowsAndCommands() {
    _interface_windows["Log"]         = {LogWindowCreate, nullptr};
    _interface_windows["Thread"]      = {ThreadsWindow::Create, ThreadsWindow::Update};
    _interface_windows["Exe"]         = {ExecutableWindow::Create, nullptr};
-   _interface_windows["CmdSearch"]   = {CommandSearchWindowCreate, nullptr};
+   _interface_windows["CmdSearch"]   = {CommandSearchWindow::Create, nullptr};
 
    _interface_data_viewers.push_back({"Add bitmap...", BitmapAddDialog});
 
