@@ -3957,35 +3957,54 @@ void StackWindow::Update(const char*, UIElement* _table) {
 // Breakpoints window:
 // ---------------------------------------------------/
 
-struct BreakpointTableData {
+struct BreakpointsWindow {
+private:
    vector<int> _selected;
    int         _anchor = 0;
-};
-
-void for_all_selected_breakpoints(BreakpointTableData* data, string_view action) {
-   for (auto selected : data->_selected) {
-      for (const auto& breakpoint : breakpoints) {
-         if (breakpoint._number == selected) {
-            (void)DebuggerSend(std::format("{} {}", action, selected), true, false);
-            break;
+   
+public:
+   void for_all_selected_breakpoints(string_view action) const {
+      for (auto selected : _selected) {
+         for (const auto& breakpoint : breakpoints) {
+            if (breakpoint._number == selected) {
+               (void)DebuggerSend(std::format("{} {}", action, selected), true, false);
+               break;
+            }
          }
       }
    }
-}
 
-void CommandDeleteSelectedBreakpoints(BreakpointTableData* data) { for_all_selected_breakpoints(data, "delete"); }
+   void delete_selected_breakpoints() const { for_all_selected_breakpoints("delete"); }
 
-void CommandDisableSelectedBreakpoints(BreakpointTableData* data) { for_all_selected_breakpoints(data, "disable"); }
+   void disable_selected_breakpoints() const { for_all_selected_breakpoints("disable"); }
 
-void CommandEnableSelectedBreakpoints(BreakpointTableData* data) { for_all_selected_breakpoints(data, "enable"); }
+   void enable_selected_breakpoints() const { for_all_selected_breakpoints("enable"); }
 
-int TableBreakpointsMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-   BreakpointTableData* data = (BreakpointTableData*)el->_cp;
+   int _class_message_proc(UITable* table, UIMessage msg, int di, void* dp);
 
+   static int TableBreakpointsMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<BreakpointsWindow*>(el->_cp)->_class_message_proc(static_cast<UITable*>(el), msg, di, dp);
+   }
+
+   static UIElement* Create(UIElement* parent) {
+      return &parent->add_table(0, "File\tLine\tEnabled\tCondition\tHit")
+                 .set_cp(new BreakpointsWindow)
+                 .set_user_proc(BreakpointsWindow::TableBreakpointsMessage);
+   }
+
+   static void Update(const char*, UIElement* _table) {
+      UITable* table = (UITable*)_table;
+      table->set_num_items(breakpoints.size());
+      table->resize_columns();
+      table->refresh();
+   }
+};
+
+int BreakpointsWindow::_class_message_proc(UITable* uitable, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m     = (UITableGetItem*)dp;
       Breakpoint*     entry = &breakpoints[m->_row];
-      m->_is_selected       = rng::find(data->_selected, entry->_number) != rng::end(data->_selected);
+      m->_is_selected       = rng::find(_selected, entry->_number) != rng::end(_selected);
 
       if (m->_column == 0) {
          return m->format_to("{}", entry->_file);
@@ -4004,26 +4023,26 @@ int TableBreakpointsMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          }
       }
    } else if (msg == UIMessage::RIGHT_DOWN) {
-      int index = ((UITable*)el)->hittest(el->cursor_pos());
+      int index = ((UITable*)uitable)->hittest(uitable->cursor_pos());
 
       if (index != -1) {
          Breakpoint* entry = &breakpoints[index];
 
-         bool found = rng::find(data->_selected, entry->_number) != rng::end(data->_selected);
-         if (data->_selected.size() <= 1 || !found) {
-            if (!el->_window->_ctrl)
-               data->_selected.clear();
-            data->_selected.push_back(entry->_number);
+         bool found = rng::find(_selected, entry->_number) != rng::end(_selected);
+         if (_selected.size() <= 1 || !found) {
+            if (!uitable->_window->_ctrl)
+               _selected.clear();
+            _selected.push_back(entry->_number);
          }
 
-         UIMenu& menu = el->ui()->create_menu(el->_window, UIMenu::NO_SCROLL);
+         UIMenu& menu = uitable->ui()->create_menu(uitable->_window, UIMenu::NO_SCROLL);
 
-         if (data->_selected.size() > 1) {
+         if (_selected.size() > 1) {
             bool atLeastOneBreakpointDisabled = false;
             bool atLeastOneBreakpointEnabled  = false;
 
 
-            for (auto selected : data->_selected) {
+            for (auto selected : _selected) {
                for (const auto& breakpoint : breakpoints) {
                   if (breakpoint._number == selected) {
                      if (breakpoint._enabled)
@@ -4034,13 +4053,13 @@ int TableBreakpointsMessage(UIElement* el, UIMessage msg, int di, void* dp) {
                }
             }
 
-            menu.add_item(0, "Delete", [data](UIButton&) { CommandDeleteSelectedBreakpoints(data); });
+            menu.add_item(0, "Delete", [this](UIButton&) { delete_selected_breakpoints(); });
 
             if (atLeastOneBreakpointDisabled)
-               menu.add_item(0, "Enable", [data](UIButton&) { CommandEnableSelectedBreakpoints(data); });
+               menu.add_item(0, "Enable", [this](UIButton&) { enable_selected_breakpoints(); });
 
             if (atLeastOneBreakpointEnabled)
-               menu.add_item(0, "Disable", [data](UIButton&) { CommandDisableSelectedBreakpoints(data); });
+               menu.add_item(0, "Disable", [this](UIButton&) { disable_selected_breakpoints(); });
          } else {
             menu.add_item(0, "Delete", [index](UIButton&) { CommandDeleteBreakpoint(index); });
 
@@ -4053,15 +4072,15 @@ int TableBreakpointsMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          menu.show();
       }
    } else if (msg == UIMessage::LEFT_DOWN) {
-      int index = ((UITable*)el)->hittest(el->cursor_pos());
+      int index = ((UITable*)uitable)->hittest(uitable->cursor_pos());
 
       if (index != -1) {
          Breakpoint* entry = &breakpoints[index];
 
-         if (!el->_window->_shift)
-            data->_anchor = entry->_number;
-         if (!el->_window->_ctrl)
-            data->_selected.clear();
+         if (!uitable->_window->_shift)
+            _anchor = entry->_number;
+         if (!uitable->_window->_ctrl)
+            _selected.clear();
 
          uintptr_t from = 0, to = 0;
 
@@ -4069,7 +4088,7 @@ int TableBreakpointsMessage(UIElement* el, UIMessage msg, int di, void* dp) {
             if (breakpoints[i]._number == entry->_number) {
                from = i;
             }
-            if (breakpoints[i]._number == data->_anchor) {
+            if (breakpoints[i]._number == _anchor) {
                to = i;
             }
          }
@@ -4080,43 +4099,30 @@ int TableBreakpointsMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          }
 
          for (uintptr_t i = from; i <= to; i++) {
-            if (el->_window->_ctrl && !el->_window->_shift) {
-               if (auto it = rng::find(data->_selected, breakpoints[i]._number); it != rng::end(data->_selected))
-                  data->_selected.erase(it);
+            if (uitable->_window->_ctrl && !uitable->_window->_shift) {
+               if (auto it = rng::find(_selected, breakpoints[i]._number); it != rng::end(_selected))
+                  _selected.erase(it);
             } else {
-               data->_selected.push_back(breakpoints[i]._number);
+               _selected.push_back(breakpoints[i]._number);
             }
          }
 
-         if (!entry->_watchpoint && rng::find(data->_selected, entry->_number) != rng::end(data->_selected)) {
+         if (!entry->_watchpoint && rng::find(_selected, entry->_number) != rng::end(_selected)) {
             DisplaySetPosition(entry->_file, entry->_line - 1, false);
          }
-      } else if (!el->_window->_ctrl && !el->_window->_shift) {
-         data->_selected.clear();
+      } else if (!uitable->_window->_ctrl && !uitable->_window->_shift) {
+         _selected.clear();
       }
-      el->focus();
+      uitable->focus();
    } else if (msg == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
-      if (m->code == UIKeycode::DEL && data->_selected.size() > 0) {
-         CommandDeleteSelectedBreakpoints(data);
+      if (m->code == UIKeycode::DEL && _selected.size() > 0) {
+         delete_selected_breakpoints();
       }
    }
 
    return 0;
-}
-
-UIElement* BreakpointsWindowCreate(UIElement* parent) {
-   return &parent->add_table(0, "File\tLine\tEnabled\tCondition\tHit")
-              .set_cp(new BreakpointTableData)
-              .set_user_proc(TableBreakpointsMessage);
-}
-
-void BreakpointsWindowUpdate(const char*, UIElement* _table) {
-   UITable* table = (UITable*)_table;
-   table->set_num_items(breakpoints.size());
-   table->resize_columns();
-   table->refresh();
 }
 
 // ---------------------------------------------------/
@@ -4581,7 +4587,7 @@ struct ThreadWindow {
    }
 };
 
-int ThreadWindow::_class_message_proc(UITable* table, UIMessage msg, int di, void* dp) {
+int ThreadWindow::_class_message_proc(UITable* uitable, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m = (UITableGetItem*)dp;
       m->_is_selected   = _threads[m->_row]._active;
@@ -4592,7 +4598,7 @@ int ThreadWindow::_class_message_proc(UITable* table, UIMessage msg, int di, voi
          return m->format_to("{}", _threads[m->_row]._frame);
       }
    } else if (msg == UIMessage::LEFT_DOWN) {
-      int index = table->hittest(table->cursor_pos());
+      int index = uitable->hittest(uitable->cursor_pos());
 
       if (index != -1) {
          (void)DebuggerSend(std::format("thread {}", _threads[index]._id), true, false);
@@ -7211,7 +7217,7 @@ auto gdb_invoker(string_view cmd, int flags = 0) {
 void Context::InterfaceAddBuiltinWindowsAndCommands() {
    _interface_windows["Stack"]       = {StackWindow::Create, StackWindow::Update};
    _interface_windows["Source"]      = {SourceWindowCreate, SourceWindowUpdate};
-   _interface_windows["Breakpoints"] = {BreakpointsWindowCreate, BreakpointsWindowUpdate};
+   _interface_windows["Breakpoints"] = {BreakpointsWindow::Create, BreakpointsWindow::Update};
    _interface_windows["Registers"]   = {RegistersWindowCreate, RegistersWindowUpdate};
    _interface_windows["Watch"]       = {WatchWindowCreate, WatchWindow::Update, WatchWindow::Focus};
    _interface_windows["Locals"]      = {LocalsWindowCreate, WatchWindow::Update, WatchWindow::Focus};
