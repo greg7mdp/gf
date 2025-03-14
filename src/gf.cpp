@@ -4590,7 +4590,26 @@ private:
    vector<Thread> _threads;
 
 public:
-   int _table_message_proc(UITable* table, UIMessage msg, int di, void* dp);
+   int _table_message_proc(UITable* uitable, UIMessage msg, int di, void* dp) {
+      if (msg == UIMessage::TABLE_GET_ITEM) {
+         UITableGetItem* m = (UITableGetItem*)dp;
+         m->_is_selected   = _threads[m->_row]._active;
+
+         if (m->_column == 0) {
+            return m->format_to("{}", _threads[m->_row]._id);
+         } else if (m->_column == 1) {
+            return m->format_to("{}", _threads[m->_row]._frame);
+         }
+      } else if (msg == UIMessage::LEFT_DOWN) {
+         int index = uitable->hittest(uitable->cursor_pos());
+
+         if (index != -1) {
+            (void)DebuggerSend(std::format("thread {}", _threads[index]._id), true, false);
+         }
+      }
+
+      return 0;
+   }
 
    static int ThreadsWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<ThreadsWindow*>(el->_cp)->_table_message_proc(static_cast<UITable*>(el), msg, di, dp);
@@ -4649,37 +4668,17 @@ public:
    }
 };
 
-int ThreadsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int di, void* dp) {
-   if (msg == UIMessage::TABLE_GET_ITEM) {
-      UITableGetItem* m = (UITableGetItem*)dp;
-      m->_is_selected   = _threads[m->_row]._active;
-
-      if (m->_column == 0) {
-         return m->format_to("{}", _threads[m->_row]._id);
-      } else if (m->_column == 1) {
-         return m->format_to("{}", _threads[m->_row]._frame);
-      }
-   } else if (msg == UIMessage::LEFT_DOWN) {
-      int index = uitable->hittest(uitable->cursor_pos());
-
-      if (index != -1) {
-         (void)DebuggerSend(std::format("thread {}", _threads[index]._id), true, false);
-      }
-   }
-
-   return 0;
-}
-
-
 // ---------------------------------------------------/
 // Executable window:
 // ---------------------------------------------------/
 
 struct ExecutableWindow {
+private:
    UITextbox* _path      = nullptr;
    UITextbox* _arguments = nullptr;
    bool       _should_ask;
 
+public:
    void start_or_run(bool pause) {
       auto res = EvaluateCommand(std::format("file \"{}\"", _path->text()));
 
