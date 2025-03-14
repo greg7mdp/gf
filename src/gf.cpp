@@ -389,14 +389,20 @@ struct StackEntry {
 };
 
 struct StackWindow {
+private:
    vector<StackEntry> _stack;
    size_t             _selected;
    bool               _has_changed;
 
+public:
    void clear() { _stack.clear(); }
    void append(const StackEntry& entry) { _stack.push_back(entry); }
    bool has_selection() const { return _selected < _stack.size(); }
    bool changed() const { return _has_changed; }
+   void set_selected(size_t i) { _selected = i; }
+   void set_changed(bool b) { _has_changed = b; }
+
+   vector<StackEntry>& stack() { return _stack; }
 
    const StackEntry& operator[](size_t i) const { return _stack[i]; }
    StackEntry&       operator[](size_t i) { return _stack[i]; }
@@ -404,11 +410,17 @@ struct StackWindow {
 
    void set_frame(UIElement* el, int index);
 
+   int _class_message_proc(UITable* table, UIMessage msg, int di, void* dp);
+
+   static int StackWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<StackWindow*>(el->_cp)->_class_message_proc(static_cast<UITable*>(el), msg, di, dp);
+   }
+
    static UIElement* Create(UIElement* parent);
    static void       Update(const char*, UIElement* table);
 };
 
-StackWindow sw;
+StackWindow *sw = nullptr;
 
 // Python code:
 
@@ -849,7 +861,7 @@ void DebuggerGetStack() {
    if (res.empty())
       return;
 
-   sw.clear();
+   sw->clear();
 
    const char* position = res.c_str();
 
@@ -897,7 +909,7 @@ void DebuggerGetStack() {
          std_format_to_n(entry._location, sizeof(entry._location), "{}", std::string_view{file, (size_t)(end - file)});
       }
 
-      sw.append(entry);
+      sw->append(entry);
 
       if (!(*next))
          break;
@@ -1655,9 +1667,9 @@ bool DisplaySetPosition(const char* file, std::optional<size_t> line, bool useGD
 }
 
 void DisplaySetPositionFromStack() {
-   if (sw.has_selection()) {
+   if (sw->has_selection()) {
       char  location[sizeof(previousLocation)];
-      auto& current = sw.current();
+      auto& current = sw->current();
       strcpy(previousLocation, current._location);
       strcpy(location, current._location);
       char*                 line = strchr(location, ':');
@@ -2036,11 +2048,11 @@ void SourceWindowUpdate(const char* data, UIElement* el) {
       }
    }
 
-   if (!sw.changed() && changedSourceLine)
-      sw._selected = 0;
-   sw._has_changed = false;
+   if (!sw->changed() && changedSourceLine)
+      sw->set_selected(0);
+   sw->set_changed(false);
 
-   if (changedSourceLine && sw.has_selection() && strcmp(sw.current()._location, previousLocation)) {
+   if (changedSourceLine && sw->has_selection() && strcmp(sw->current()._location, previousLocation)) {
       DisplaySetPositionFromStack();
    }
 
@@ -3828,11 +3840,11 @@ bool WatchLoggerUpdate(std::string _data) {
       where[sizeof(entry._where) - 1] = 0;
    entry._value                     = value;
    entry._where                     = where;
-   vector<StackEntry> previousStack = sw._stack;
-   sw._stack                        = {};
+
+   std::swap(entry._trace, sw->stack());
    DebuggerGetStack();
-   entry._trace = sw._stack;
-   sw._stack    = previousStack;
+   std::swap(entry._trace, sw->stack());
+
    logger->_entries.push_back(entry);
    ++logger->_table->num_items();
    logger->_table->refresh();
@@ -3914,11 +3926,11 @@ void StackWindow::set_frame(UIElement* el, int index) {
    }
 }
 
-int TableStackMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+int StackWindow::_class_message_proc(UITable* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m       = (UITableGetItem*)dp;
-      m->_is_selected         = (size_t)m->_row == sw._selected;
-      const StackEntry& entry = sw[m->_row];
+      m->_is_selected         = (size_t)m->_row == _selected;
+      const StackEntry& entry = _stack[m->_row];
 
       if (m->_column == 0) {
          return m->format_to("{}", entry._id);
@@ -3930,12 +3942,12 @@ int TableStackMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          return m->format_to("0x{:X}", entry._address);
       }
    } else if (msg == UIMessage::LEFT_DOWN || msg == UIMessage::MOUSE_DRAG) {
-      sw.set_frame(el, ((UITable*)el)->hittest(el->cursor_pos()));
+      set_frame(el, ((UITable*)el)->hittest(el->cursor_pos()));
    } else if (msg == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
       if (m->code == UIKeycode::UP || m->code == UIKeycode::DOWN) {
-         sw.set_frame(el, sw._selected + (m->code == UIKeycode::UP ? -1 : 1));
+         set_frame(el, _selected + (m->code == UIKeycode::UP ? -1 : 1));
          // TODO Scroll the row into view if necessary.
          return 1;
       }
@@ -3945,12 +3957,16 @@ int TableStackMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 }
 
 UIElement* StackWindow::Create(UIElement* parent) {
-   return &parent->add_table(0, "Index\tFunction\tLocation\tAddress").set_user_proc(TableStackMessage);
+   sw = new StackWindow;
+   return &parent->add_table(0, "Index\tFunction\tLocation\tAddress")
+              .set_cp(sw)
+              .set_user_proc(StackWindow::StackWindowMessage);
 }
 
-void StackWindow::Update(const char*, UIElement* _table) {
-   UITable& table = *(UITable*)_table;
-   table.set_num_items(sw._stack.size()).resize_columns().refresh();
+void StackWindow::Update(const char*, UIElement* el) {
+   UITable& table = *(UITable*)el;
+   StackWindow *sw = static_cast<StackWindow*>(el->_cp);
+   table.set_num_items(sw->_stack.size()).resize_columns().refresh();
 }
 
 // ---------------------------------------------------/
@@ -3982,18 +3998,19 @@ public:
 
    int _class_message_proc(UITable* table, UIMessage msg, int di, void* dp);
 
-   static int TableBreakpointsMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+   static int BreakpointsWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<BreakpointsWindow*>(el->_cp)->_class_message_proc(static_cast<UITable*>(el), msg, di, dp);
    }
 
    static UIElement* Create(UIElement* parent) {
       return &parent->add_table(0, "File\tLine\tEnabled\tCondition\tHit")
                  .set_cp(new BreakpointsWindow)
-                 .set_user_proc(BreakpointsWindow::TableBreakpointsMessage);
+                 .set_user_proc(BreakpointsWindow::BreakpointsWindowMessage);
    }
 
-   static void Update(const char*, UIElement* _table) {
-      UITable* table = (UITable*)_table;
+   static void Update(const char*, UIElement* el) {
+      UITable* table = (UITable*)el;
+      [[maybe_unused]] BreakpointsWindow* bw = static_cast<BreakpointsWindow*>(el->_cp);
       table->set_num_items(breakpoints.size());
       table->resize_columns();
       table->refresh();
@@ -4530,7 +4547,7 @@ struct ThreadWindow {
 
    int _class_message_proc(UITable* table, UIMessage msg, int di, void* dp);
 
-   static int ThreadTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+   static int ThreadWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<ThreadWindow*>(el->_cp)->_class_message_proc(static_cast<UITable*>(el), msg, di, dp);
    }
 
@@ -4578,7 +4595,7 @@ struct ThreadWindow {
    static UIElement* Create(UIElement* parent) {
       return &parent->add_table(0, "ID\tFrame")
                  .set_cp(new ThreadWindow)
-                 .set_user_proc(ThreadWindow::ThreadTableMessage);
+                 .set_user_proc(ThreadWindow::ThreadWindowMessage);
    }
 
    static void Update(const char*, UIElement* table) {
