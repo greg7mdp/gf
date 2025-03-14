@@ -4223,9 +4223,11 @@ UIElement* DataWindowCreate(UIElement* parent) {
 // ---------------------------------------------------/
 
 struct StructWindow {
+private:
    UICode*    _display = nullptr;
    UITextbox* _textbox = nullptr;
 
+public:
    int _textbox_message_proc(UITextbox* textbox, UIMessage msg, int di, void* dp) {
       if (msg == UIMessage::KEY_TYPED) {
          UIKeyTyped* m = (UIKeyTyped*)dp;
@@ -4267,19 +4269,27 @@ struct FilesWindow {
    char     _directory[PATH_MAX];
    UIPanel* _panel = nullptr;
    UILabel* _path  = nullptr;
+
+   bool populate_panel();
+
+   const char* directory() const { return _directory; }
+
+   mode_t get_mode(UIButton* button, size_t* oldLength) {
+      const char* name = button->label().data();
+      *oldLength       = strlen(_directory);
+      strcat(_directory, "/");
+      strcat(_directory, name);
+      struct stat s;
+      stat(_directory, &s);
+      return s.st_mode;
+   }
+
+   void update_path() {
+      char copy[PATH_MAX];
+      realpath(_directory, copy); // resolve dir into `copy`
+      strcpy(_directory, copy);   // copy resolved path into `_directory`
+   }
 };
-
-bool FilesPanelPopulate(FilesWindow* window);
-
-mode_t FilesGetMode(FilesWindow* window, UIButton* button, size_t* oldLength) {
-   const char* name = button->label().data();
-   *oldLength       = strlen(window->_directory);
-   strcat(window->_directory, "/");
-   strcat(window->_directory, name);
-   struct stat s;
-   stat(window->_directory, &s);
-   return s.st_mode;
-}
 
 int FilesButtonMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    UIButton* button = (UIButton*)el;
@@ -4287,17 +4297,15 @@ int FilesButtonMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::CLICKED) {
       FilesWindow* window = (FilesWindow*)el->_cp;
       size_t       oldLength;
-      mode_t       mode = FilesGetMode(window, button, &oldLength);
+      mode_t       mode = window->get_mode(button, &oldLength);
 
       if (S_ISDIR(mode)) {
-         if (FilesPanelPopulate(window)) {
-            char copy[PATH_MAX];
-            realpath(window->_directory, copy);
-            strcpy(window->_directory, copy);
+         if (window->populate_panel()) {
+            window->update_path();
             return 0;
          }
       } else if (S_ISREG(mode)) {
-         DisplaySetPosition(window->_directory, 0, false);
+         DisplaySetPosition(window->directory(), 0, false);
       }
 
       window->_directory[oldLength] = 0;
@@ -4316,9 +4324,9 @@ int FilesButtonMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    return 0;
 }
 
-bool FilesPanelPopulate(FilesWindow* window) {
+bool FilesWindow::populate_panel() {
    size_t         oldLength;
-   DIR*           directory = opendir(window->_directory);
+   DIR*           directory = opendir(_directory);
    struct dirent* entry;
    if (!directory)
       return false;
@@ -4326,37 +4334,37 @@ bool FilesPanelPopulate(FilesWindow* window) {
    while ((entry = readdir(directory)))
       names.push_back(entry->d_name);
    closedir(directory);
-   window->_panel->destroy_descendents();
+   _panel->destroy_descendents();
 
    std::sort(names.begin(), names.end());
 
    for (auto name : names) {
       if (name[0] != '.' || name[1] != 0) {
-         UIButton* button = &window->_panel->add_button(0, name)
+         UIButton* button = &_panel->add_button(0, name)
                                 .clear_flag(UIElement::tab_stop_flag)
-                                .set_cp(window)
+                                .set_cp(this)
                                 .set_user_proc(FilesButtonMessage);
 
-         if (S_ISDIR(FilesGetMode(window, button, &oldLength))) {
+         if (S_ISDIR(get_mode(button, &oldLength))) {
             button->set_flag(UIButton::CHECKED);
          }
 
-         window->_directory[oldLength] = 0;
+         _directory[oldLength] = 0;
       }
    }
 
-   window->_panel->refresh();
+   _panel->refresh();
 
    char path[PATH_MAX];
-   realpath(window->_directory, path);
-   window->_path->set_label(path);
+   realpath(_directory, path);
+   _path->set_label(path);
 
    return true;
 }
 
 void FilesNavigateToCWD(FilesWindow* window) {
    getcwd(window->_directory, sizeof(window->_directory));
-   FilesPanelPopulate(window);
+   window->populate_panel();
 }
 
 void FilesNavigateToActiveFile(FilesWindow* window) {
@@ -4367,7 +4375,7 @@ void FilesNavigateToActiveFile(FilesWindow* window) {
          window->_directory[p] = 0;
          break;
       }
-   FilesPanelPopulate(window);
+   window->populate_panel();
 }
 
 UIElement* FilesWindowCreate(UIElement* parent) {
