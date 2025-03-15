@@ -1272,17 +1272,17 @@ int _UIDialogWrapperMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
 // -------------------------------------------------------------------------------
 // Set insertBefore to null to insert at the end.
-// Returns the element it was before in its previous parent, or NULL.
+// Returns the element it was before in its previous parent, or nullptr.
 // -------------------------------------------------------------------------------
 UIElement* UIElement::change_parent(UIElement* newParent, UIElement* insertBefore) {
    [[maybe_unused]] bool found     = false;
-   UIElement*            oldBefore = NULL;
+   UIElement*            oldBefore = nullptr;
 
-   auto num_children = _parent->_children.size();
-   for (uint32_t i = 0; i < num_children; i++) {
-      if (_parent->_children[i] == this) {
-         _parent->_children.erase(_parent->_children.begin() + i);
-         oldBefore = i == _parent->_children.size() ? NULL : _parent->_children[i];
+   auto& from = _parent->_children;
+   for (uint32_t i = 0; i < from.size(); i++) {
+      if (from[i] == this) {
+         from.erase(from.begin() + i);
+         oldBefore = (i == from.size()) ? nullptr : from[i];
          found     = true;
          break;
       }
@@ -1290,9 +1290,10 @@ UIElement* UIElement::change_parent(UIElement* newParent, UIElement* insertBefor
 
    UI_ASSERT(found && (~_flags & destroy_flag));
 
-   for (uint32_t i = 0; i <= newParent->_children.size(); i++) {
-      if (i == newParent->_children.size() || newParent->_children[i] == insertBefore) {
-         newParent->_children.insert(_parent->_children.begin() + i, this);
+   auto& to = newParent->_children;
+   for (uint32_t i = 0; i <= to.size(); i++) {
+      if (i == to.size() || to[i] == insertBefore) {
+         to.insert(to.begin() + i, this);
          found = true;
          break;
       }
