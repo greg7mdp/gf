@@ -1236,7 +1236,7 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
    return res;
 }
 
-void CommandSendToGDB(string_view s) { (void)CommandParseInternal(s, false); }
+static void CommandSendToGDB(string_view s) { (void)CommandParseInternal(s, false); }
 
 static void CommandDeleteBreakpoint(int index) { s_breakpoint_mgr.command(index, "delete"); }
 
@@ -1244,7 +1244,7 @@ static void CommandDisableBreakpoint(int index) { s_breakpoint_mgr.command(index
 
 static void CommandEnableBreakpoint(int index) { s_breakpoint_mgr.command(index, "enable"); }
 
-bool CommandSyncWithGvim() {
+static bool CommandSyncWithGvim() {
    char buffer[1024];
    std_format_to_n(buffer, sizeof(buffer), "vim --servername {} --remote-expr \"execute(\\\"ls\\\")\" | grep %%",
                    vimServerName);
@@ -1289,7 +1289,7 @@ bool CommandSyncWithGvim() {
    return true;
 }
 
-void CommandCustom(string_view command) {
+static void CommandCustom(string_view command) {
 
    if (command.starts_with("shell ")) {
       // TODO Move this into CommandParseInternal?
@@ -1339,7 +1339,7 @@ const char* themeItems[] = {
    "codeNumber",     "codeOperator", "codePreprocessor", "accent1",       "accent2",
 };
 
-void SettingsAddTrustedFolder() {
+static void SettingsAddTrustedFolder() {
    std::string config         = LoadFile(globalConfigPath);
    const char* section_string = "\n[trusted_folders]\n";
    auto        insert_pos     = config.find(section_string);
