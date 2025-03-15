@@ -2560,120 +2560,127 @@ void BitmapAddDialog() {
 // Console:
 // ---------------------------------------------------/
 
-vector<unique_ptr<char[]>> commandHistory;
-size_t                     commandHistoryIndex;
+struct ConsoleWindow {
+private:
+   vector<unique_ptr<char[]>> commandHistory;
+   size_t                     commandHistoryIndex;
 
-bool CommandPreviousCommand() {
-   if (commandHistoryIndex < commandHistory.size()) {
+   bool previous_command() {
+      if (commandHistoryIndex < commandHistory.size()) {
+         textboxInput->clear(false);
+         textboxInput->replace_text(commandHistory[commandHistoryIndex].get(), false);
+         if (commandHistoryIndex < commandHistory.size() - 1)
+            commandHistoryIndex++;
+         textboxInput->refresh();
+      }
+      return true;
+   }
+
+   bool next_command() {
       textboxInput->clear(false);
-      textboxInput->replace_text(commandHistory[commandHistoryIndex].get(), false);
-      if (commandHistoryIndex < commandHistory.size() - 1)
-         commandHistoryIndex++;
+
+      if (commandHistoryIndex > 0) {
+         commandHistoryIndex--;
+         textboxInput->replace_text(commandHistory[commandHistoryIndex].get(), false);
+      }
+
       textboxInput->refresh();
-   }
-   return true;
-}
-
-bool CommandNextCommand() {
-   textboxInput->clear(false);
-
-   if (commandHistoryIndex > 0) {
-      commandHistoryIndex--;
-      textboxInput->replace_text(commandHistory[commandHistoryIndex].get(), false);
+      return true;
    }
 
-   textboxInput->refresh();
-   return true;
-}
+   bool clear_output() {
+      displayOutput->clear();
+      displayOutput->refresh();
+      return true;
+   }
 
-bool CommandClearOutput() {
-   displayOutput->clear();
-   displayOutput->refresh();
-   return true;
-}
+   int _textbox_message_proc(UITextbox* textbox, UIMessage msg, int di, void* dp) {
+      if (msg == UIMessage::KEY_TYPED) {
+         UIKeyTyped* m = (UIKeyTyped*)dp;
 
-int TextboxInputMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-   UITextbox* textbox = (UITextbox*)el;
+         static TabCompleter tabCompleter  = {};
+         bool                lastKeyWasTab = tabCompleter._last_key_was_tab;
+         tabCompleter._last_key_was_tab    = false;
 
-   if (msg == UIMessage::KEY_TYPED) {
-      UIKeyTyped* m = (UIKeyTyped*)dp;
+         std::string_view cur_text = textbox->text();
+         auto             sz       = cur_text.size();
 
-      static TabCompleter tabCompleter  = {};
-      bool                lastKeyWasTab = tabCompleter._last_key_was_tab;
-      tabCompleter._last_key_was_tab    = false;
+         if (!m->text.empty() && !textbox->_window->_ctrl && !textbox->_window->_alt && m->text[0] == '`' && !sz) {
+            textbox->set_reject_next_key(true);
+         } else if (m->code == UIKeycode::ENTER && !textbox->_window->_shift) {
+            if (!sz) {
+               if (commandHistory.size()) {
+                  CommandSendToGDB(commandHistory[0].get());
+               }
 
-      std::string_view text = textbox->text();
-      auto             sz   = text.size();
-
-      if (!m->text.empty() && !el->_window->_ctrl && !el->_window->_alt && m->text[0] == '`' && !sz) {
-         textbox->set_reject_next_key(true);
-      } else if (m->code == UIKeycode::ENTER && !el->_window->_shift) {
-         if (!sz) {
-            if (commandHistory.size()) {
-               CommandSendToGDB(commandHistory[0].get());
+               return 1;
             }
+
+            auto buffer = std::format("{}", textbox->text());
+            if (commandLog)
+               print(commandLog, "{}\n", buffer);
+            CommandSendToGDB(buffer);
+
+
+            unique_ptr<char[]> string = std::make_unique<char[]>(sz + 1);
+            memcpy(string.get(), cur_text.data(), sz);
+            string[sz] = 0;
+            commandHistory.insert(commandHistory.cbegin(), std::move(string));
+            commandHistoryIndex = 0;
+
+            if (commandHistory.size() > 500) {
+               commandHistory.pop_back();
+            }
+
+            textbox->clear(false);
+            textbox->refresh();
 
             return 1;
-         }
-
-         auto buffer = std::format("{}", textbox->text());
-         if (commandLog)
-            print(commandLog, "{}\n", buffer);
-         CommandSendToGDB(buffer);
-
-
-         unique_ptr<char[]> string = std::make_unique<char[]>(sz + 1);
-         memcpy(string.get(), text.data(), sz);
-         string[sz] = 0;
-         commandHistory.insert(commandHistory.cbegin(), std::move(string));
-         commandHistoryIndex = 0;
-
-         if (commandHistory.size() > 500) {
-            commandHistory.pop_back();
-         }
-
-         textbox->clear(false);
-         textbox->refresh();
-
-         return 1;
-      } else if (m->code == UIKeycode::TAB && sz && !el->_window->_shift) {
-         tabCompleter.run(textbox, lastKeyWasTab, false);
-         return 1;
-      } else if (m->code == UIKeycode::UP) {
-         auto currentLine = displayCode->current_line();
-         if (el->_window->_shift) {
-            if (currentLine && *currentLine > 0) {
-               DisplaySetPosition(NULL, *currentLine - 1, false);
+         } else if (m->code == UIKeycode::TAB && sz && !textbox->_window->_shift) {
+            tabCompleter.run(textbox, lastKeyWasTab, false);
+            return 1;
+         } else if (m->code == UIKeycode::UP) {
+            auto currentLine = displayCode->current_line();
+            if (textbox->_window->_shift) {
+               if (currentLine && *currentLine > 0) {
+                  DisplaySetPosition(NULL, *currentLine - 1, false);
+               }
+            } else {
+               previous_command();
             }
-         } else {
-            CommandPreviousCommand();
-         }
-      } else if (m->code == UIKeycode::DOWN) {
-         auto currentLine = displayCode->current_line();
-         if (el->_window->_shift) {
-            if (currentLine && *currentLine + 1 < displayCode->num_lines()) {
-               DisplaySetPosition(NULL, *currentLine + 1, false);
+         } else if (m->code == UIKeycode::DOWN) {
+            auto currentLine = displayCode->current_line();
+            if (textbox->_window->_shift) {
+               if (currentLine && *currentLine + 1 < displayCode->num_lines()) {
+                  DisplaySetPosition(NULL, *currentLine + 1, false);
+               }
+            } else {
+               next_command();
             }
-         } else {
-            CommandNextCommand();
          }
       }
+
+      return 0;
    }
 
-   return 0;
-}
+public:
+   static int TextboxInputMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<ConsoleWindow*>(el->_cp)->_textbox_message_proc(static_cast<UITextbox*>(el), msg, di, dp);
+   }
 
-UIElement* ConsoleWindowCreate(UIElement* parent) {
-   UIPanel* panel2 = &parent->add_panel(UIPanel::EXPAND);
-   displayOutput   = &panel2->add_code(UICode::NO_MARGIN | UIElement::v_fill | UICode::SELECTABLE);
-   UIPanel* panel3 = &panel2->add_panel(UIPanel::HORIZONTAL | UIPanel::EXPAND | UIPanel::COLOR_1)
-                         .set_border(UIRectangle(5))
-                         .set_gap(5);
-   trafficLight = &panel3->add_spacer(0, 30, 30).set_user_proc(TrafficLightMessage);
-   panel3->add_button(0, "Menu").on_click([](UIButton& buttonMenu) { ctx.InterfaceShowMenu(&buttonMenu); });
-   textboxInput = &panel3->add_textbox(UIElement::h_fill).set_user_proc(TextboxInputMessage).focus();
-   return panel2;
-}
+   static UIElement* Create(UIElement* parent) {
+      auto w = new ConsoleWindow;
+      UIPanel* panel2 = &parent->add_panel(UIPanel::EXPAND);
+      displayOutput   = &panel2->add_code(UICode::NO_MARGIN | UIElement::v_fill | UICode::SELECTABLE);
+      UIPanel* panel3 = &panel2->add_panel(UIPanel::HORIZONTAL | UIPanel::EXPAND | UIPanel::COLOR_1)
+                            .set_border(UIRectangle(5))
+                            .set_gap(5);
+      trafficLight = &panel3->add_spacer(0, 30, 30).set_user_proc(TrafficLightMessage);
+      panel3->add_button(0, "Menu").on_click([](UIButton& buttonMenu) { ctx.InterfaceShowMenu(&buttonMenu); });
+      textboxInput = &panel3->add_textbox(UIElement::h_fill).set_user_proc(TextboxInputMessage).set_cp(w).focus();
+      return panel2;
+   }
+};
 
 // ---------------------------------------------------/
 // Watch window:
@@ -7295,7 +7302,7 @@ void Context::InterfaceAddBuiltinWindowsAndCommands() {
    _interface_windows["Data"]        = {DataWindowCreate, nullptr};
    _interface_windows["Struct"]      = {StructWindow::Create, nullptr};
    _interface_windows["Files"]       = {FilesWindow::Create, nullptr};
-   _interface_windows["Console"]     = {ConsoleWindowCreate, nullptr};
+   _interface_windows["Console"]     = {ConsoleWindow::Create, nullptr};
    _interface_windows["Log"]         = {LogWindow::Create, nullptr};
    _interface_windows["Thread"]      = {ThreadsWindow::Create, ThreadsWindow::Update};
    _interface_windows["Exe"]         = {ExecutableWindow::Create, nullptr};
@@ -7386,6 +7393,7 @@ void Context::InterfaceAddBuiltinWindowsAndCommands() {
                                        return true;
                                     }}
    });
+#if 0
    _interface_commands.push_back({
       ._label = nullptr,
       ._shortcut{.code = UI_KEYCODE_LETTER('P'), .ctrl = true, .shift = false, .invoke = CommandPreviousCommand}
@@ -7394,6 +7402,7 @@ void Context::InterfaceAddBuiltinWindowsAndCommands() {
       ._label = nullptr,
       ._shortcut{.code = UI_KEYCODE_LETTER('N'), .ctrl = true, .shift = false, .invoke = CommandNextCommand}
    });
+#endif
    _interface_commands.push_back(
       {._label = "Copy Layout to Clipboard", ._shortcut{.invoke = [&]() { return ctx.CopyLayoutToClipboard(); }}});
 #if 0
