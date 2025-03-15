@@ -3246,7 +3246,37 @@ public:
       return static_cast<WatchWindow*>(el)->_class_message_proc(msg, di, dp);
    }
 
-   static UIElement* Create(UIElement* parent, const char* name, WatchWindowMode mode);
+   static int WatchPanelMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+      WatchWindow* window = (WatchWindow*)el->_cp;
+      if (msg == UIMessage::LEFT_DOWN) {
+         window->focus();
+         window->repaint(nullptr);
+      }
+
+      return 0;
+   }
+
+   static UIElement* _Create(UIElement* parent, const char* name, WatchWindowMode mode) {
+      UIPanel*     panel = &parent->add_panel(UIPanel::SCROLL | UIPanel::COLOR_1);
+      WatchWindow* w     = new WatchWindow(panel, UIElement::h_fill | UIElement::tab_stop_flag, name);
+      panel->set_user_proc(WatchPanelMessage).set_cp(w);
+
+      w->_mode = mode;
+      if (mode == WatchWindow::WATCH_NORMAL) {
+         w->_extra_rows = 1;
+         if (!firstWatchWindow)
+            firstWatchWindow = w;
+      }
+      return panel;
+   }
+
+   static UIElement* CreateLocalsWindow(UIElement* parent) {
+      return WatchWindow::_Create(parent, "Locals", WatchWindow::WATCH_LOCALS);
+   }
+
+   static UIElement* Create(UIElement* parent) {
+      return WatchWindow::_Create(parent, "Watch", WatchWindow::WATCH_NORMAL);
+   }
 
    static void Update(const char*, UIElement* el) { static_cast<WatchWindow*>(el->_cp)->update(); }
 
@@ -3898,38 +3928,6 @@ bool CommandWatchViewSourceAtAddress() {
    if (auto w = WatchGetFocused())
       return w->view_source_at_address();
    return false;
-}
-
-int WatchPanelMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-   WatchWindow* window = (WatchWindow*)el->_cp;
-   if (msg == UIMessage::LEFT_DOWN) {
-      window->focus();
-      window->repaint(nullptr);
-   }
-
-   return 0;
-}
-
-UIElement* WatchWindow::Create(UIElement* parent, const char* name, WatchWindowMode mode) {
-   UIPanel*     panel = &parent->add_panel(UIPanel::SCROLL | UIPanel::COLOR_1);
-   WatchWindow* w     = new WatchWindow(panel, UIElement::h_fill | UIElement::tab_stop_flag, name);
-   panel->set_user_proc(WatchPanelMessage).set_cp(w);
-
-   w->_mode = mode;
-   if (mode == WatchWindow::WATCH_NORMAL) {
-      w->_extra_rows = 1;
-      if (!firstWatchWindow)
-         firstWatchWindow = w;
-   }
-   return panel;
-}
-
-UIElement* LocalsWindowCreate(UIElement* parent) {
-   return WatchWindow::Create(parent, "Locals", WatchWindow::WATCH_LOCALS);
-}
-
-UIElement* WatchWindowCreate(UIElement* parent) {
-   return WatchWindow::Create(parent, "Watch", WatchWindow::WATCH_NORMAL);
 }
 
 bool CommandAddWatch() {
@@ -7308,8 +7306,8 @@ void Context::InterfaceAddBuiltinWindowsAndCommands() {
    _interface_windows["Source"]      = {SourceWindowCreate, SourceWindowUpdate};
    _interface_windows["Breakpoints"] = {BreakpointsWindow::Create, BreakpointsWindow::Update};
    _interface_windows["Registers"]   = {RegistersWindow::Create, RegistersWindow::Update};
-   _interface_windows["Watch"]       = {WatchWindowCreate, WatchWindow::Update, WatchWindow::Focus};
-   _interface_windows["Locals"]      = {LocalsWindowCreate, WatchWindow::Update, WatchWindow::Focus};
+   _interface_windows["Watch"]       = {WatchWindow::Create, WatchWindow::Update, WatchWindow::Focus};
+   _interface_windows["Locals"]      = {WatchWindow::CreateLocalsWindow, WatchWindow::Update, WatchWindow::Focus};
    _interface_windows["Commands"]    = {CommandsWindow::Create, nullptr};
    _interface_windows["Data"]        = {DataWindow::Create, nullptr};
    _interface_windows["Struct"]      = {StructWindow::Create, nullptr};
