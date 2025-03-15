@@ -989,9 +989,9 @@ UIPainter& UIPainter::draw_control_default(UIRectangle bounds, uint32_t mode, st
                   checked         ? "*"
                   : indeterminate ? "-"
                                   : " ",
-                  textColor, UIAlign::center, NULL);
+                  textColor, UIAlign::center, nullptr);
       draw_string(bounds + UIRectangle(ui_size::checkbox_box + ui_size::checkbox_gap, 0, 0, 0), label,
-                  disabled ? theme.textDisabled : theme.text, UIAlign::left, NULL);
+                  disabled ? theme.textDisabled : theme.text, UIAlign::left, nullptr);
    } else if (which == UIControl::menu_item || which == UIControl::drop_down || which == UIControl::push_button) {
       uint32_t color = buttonColor, textColor = buttonTextColor;
       int      borderSize = which == UIControl::menu_item ? 0 : scale;
@@ -1009,20 +1009,20 @@ UIPainter& UIPainter::draw_control_default(UIRectangle bounds, uint32_t mode, st
          for (; tab < labelBytes && label[tab] != '\t'; tab++)
             ;
 
-         draw_string(innerBounds, label.substr(0, tab), textColor, UIAlign::left, NULL);
+         draw_string(innerBounds, label.substr(0, tab), textColor, UIAlign::left, nullptr);
 
          if (labelBytes > tab) {
             draw_string(innerBounds, {label.data() + tab + 1, static_cast<size_t>(labelBytes - tab - 1)}, textColor,
-                        UIAlign::right, NULL);
+                        UIAlign::right, nullptr);
          }
       } else if (which == UIControl::drop_down) {
-         draw_string(innerBounds, label, textColor, UIAlign::left, NULL);
-         draw_string(innerBounds, "\x19", textColor, UIAlign::right, NULL);
+         draw_string(innerBounds, label, textColor, UIAlign::left, nullptr);
+         draw_string(innerBounds, "\x19", textColor, UIAlign::right, nullptr);
       } else {
-         draw_string(bounds, label, textColor, UIAlign::center, NULL);
+         draw_string(bounds, label, textColor, UIAlign::center, nullptr);
       }
    } else if (which == UIControl::label) {
-      draw_string(bounds, label, theme.text, UIAlign::left, NULL);
+      draw_string(bounds, label, theme.text, UIAlign::left, nullptr);
    } else if (which == UIControl::splitter) {
       UIRectangle borders = (mode & UIControl::state_vertical) ? UIRectangle(0, 1) : UIRectangle(1, 0);
       draw_rectangle(bounds, theme.buttonNormal, theme.border, borders);
@@ -1094,13 +1094,13 @@ UIPainter& UIPainter::draw_control_default(UIRectangle bounds, uint32_t mode, st
          draw_block(bounds, theme.buttonHovered);
    } else if (which == UIControl::table_cell) {
       uint32_t textColor = selected ? theme.textSelected : theme.text;
-      draw_string(bounds, label, textColor, UIAlign::left, NULL);
+      draw_string(bounds, label, textColor, UIAlign::left, nullptr);
    } else if (which == UIControl::table_background) {
       draw_block(bounds, theme.panel2);
       draw_rectangle(UIRectangle(bounds.l, bounds.r, bounds.t, bounds.t + (int)(ui_size::table_header * scale)),
                      theme.panel1, theme.border, UIRectangle(0, 0, 0, 1));
    } else if (which == UIControl::table_header) {
-      draw_string(bounds, label, theme.text, UIAlign::left, NULL);
+      draw_string(bounds, label, theme.text, UIAlign::left, nullptr);
       if (selected)
          draw_invert(bounds);
    } else if (which == UIControl::mdi_child) {
@@ -1109,7 +1109,7 @@ UIPainter& UIPainter::draw_control_default(UIRectangle bounds, uint32_t mode, st
       draw_border(bounds, theme.buttonNormal, borders);
       draw_border(bounds, theme.border, UIRectangle((int)scale));
       draw_border(contentRect + ui_rect_1i(-1), theme.border, UIRectangle((int)scale));
-      draw_string(titleRect, label, theme.text, UIAlign::left, NULL);
+      draw_string(titleRect, label, theme.text, UIAlign::left, nullptr);
    } else if (which == UIControl::tab) {
       uint32_t    color = selected ? theme.buttonPressed : theme.buttonNormal;
       UIRectangle t     = bounds;
@@ -1118,7 +1118,7 @@ UIPainter& UIPainter::draw_control_default(UIRectangle bounds, uint32_t mode, st
       else
          t.t++;
       draw_rectangle(t, color, theme.border, UIRectangle(1));
-      draw_string(bounds, label, theme.text, UIAlign::center, NULL);
+      draw_string(bounds, label, theme.text, UIAlign::center, nullptr);
    } else if (which == UIControl::tab_band) {
       draw_rectangle(bounds, theme.panel1, theme.border, UIRectangle(0, 0, 0, 1));
    }
@@ -1236,7 +1236,7 @@ int _UIDialogWrapperMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       }
 
       UIElement* rowContainer = el->_children[0];
-      UIElement* target       = NULL;
+      UIElement* target       = nullptr;
       bool       duplicate    = false;
 
       for (auto row : rowContainer->_children) {
@@ -1440,10 +1440,10 @@ std::string_view UIWindow::show_dialog(uint32_t flags, const char* format, ...) 
    // ---------------------------
    va_list arguments;
    va_start(arguments, format);
-   UIPanel*   row           = NULL;
-   UIElement* focus         = NULL;
-   UIButton*  defaultButton = NULL;
-   UIButton*  cancelButton  = NULL;
+   UIPanel*   row           = nullptr;
+   UIElement* focus         = nullptr;
+   UIButton*  defaultButton = nullptr;
+   UIButton*  cancelButton  = nullptr;
    uint32_t   buttonCount   = 0;
 
    for (int i = 0; format[i]; i++) {
@@ -1511,7 +1511,7 @@ std::string_view UIWindow::show_dialog(uint32_t flags, const char* format, ...) 
    ui->_dialog_result   = nullptr;
    ui->_dialog_can_exit = buttonCount != 0;
    for (int i = 1; i <= 3; i++)
-      set_pressed(NULL, i);
+      set_pressed(nullptr, i);
    refresh();
    ui->update();
    while (!ui->_dialog_result && ui->platform_message_loop_single(&result))
@@ -1537,7 +1537,7 @@ std::string_view UIWindow::show_dialog(uint32_t flags, const char* format, ...) 
    // -------------------
    _children[0]->_flags &= ~disabled_flag;
    _dialog->destroy();
-   _dialog = NULL;
+   _dialog = nullptr;
    refresh();
    if (_dialog_old_focus)
       _dialog_old_focus->focus();
@@ -1800,7 +1800,7 @@ int UIPanel::_calculate_per_fill(int* _count, int hSpace, int vSpace, float scal
 
 int UIPanel::_measure(int di) {
    bool horizontal = _flags & UIPanel::HORIZONTAL;
-   int  perFill    = _calculate_per_fill(NULL, horizontal ? di : 0, horizontal ? 0 : di, _window->scale());
+   int  perFill    = _calculate_per_fill(nullptr, horizontal ? di : 0, horizontal ? 0 : di, _window->scale());
    int  size       = 0;
 
    for (auto child : _children) {
@@ -2845,7 +2845,7 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
             }
 
             painter->draw_string(marginBounds, {string + p, static_cast<size_t>(16 - p)},
-                                 marginColor ? theme.codeDefault : theme.codeComment, UIAlign::right, NULL);
+                                 marginColor ? theme.codeDefault : theme.codeComment, UIAlign::right, nullptr);
          }
 
          if (focus_line() == i) {
@@ -3620,7 +3620,7 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
       auto cur_text = text();
       if (!cur_text.empty()) {
          static_cast<UIPainter*>(dp)->draw_string(textBounds, cur_text, is_disabled() ? theme.textDisabled : theme.text,
-                                                  UIAlign::left, is_focused() ? &selection : NULL);
+                                                  UIAlign::left, is_focused() ? &selection : nullptr);
       }
    } else if (msg == UIMessage::GET_CURSOR) {
       return (int)UICursor::text;
@@ -3913,7 +3913,7 @@ int UIMDIChild::_class_message_proc(UIMessage msg, int di, void* dp) {
       UIMDIClient* client = (UIMDIClient*)_parent;
       if (client->_active == this) {
          client->_active = (UIMDIChild*)(client->_children.size() == 1
-                                            ? NULL
+                                            ? nullptr
                                             : client->_children[client->_children.size() - 2]); // todo: seems wrong
       }
    } else if (msg == UIMessage::DEALLOCATE) {
@@ -4348,7 +4348,7 @@ UIWindow& UIWindow::set_pressed(UIElement* el, int button) {
       el->message(UIMessage::UPDATE, UIUpdate::pressed, 0);
 
    UIElement* ancestor = el;
-   UIElement* child    = NULL;
+   UIElement* child    = nullptr;
 
    while (ancestor) {
       ancestor->message(UIMessage::PRESSED_DESCENDENT, 0, child);
@@ -4385,21 +4385,22 @@ bool UI::is_menu_open() const {
 
 UIElement* UIElement::next_or_previous_sibling(bool previous) {
    if (!_parent) {
-      return NULL;
+      return nullptr;
    }
 
-   for (uint32_t i = 0; i < _parent->_children.size(); i++) {
-      if (_parent->_children[i] == this) {
+   auto& children = _parent->_children;
+   for (size_t i = 0; i < children.size(); i++) {
+      if (children[i] == this) {
          if (previous) {
-            return i > 0 ? _parent->_children[i - 1] : NULL;
+            return i > 0 ? children[i - 1] : nullptr;
          } else {
-            return i < _parent->_children.size() - 1 ? _parent->_children[i + 1] : NULL;
+            return i < children.size() - 1 ? children[i + 1] : nullptr;
          }
       }
    }
 
    UI_ASSERT(false);
-   return NULL;
+   return nullptr;
 }
 
 bool UIWindow::input_event(UIMessage msg, int di, void* dp) {
@@ -4421,18 +4422,18 @@ bool UIWindow::input_event(UIMessage msg, int di, void* dp) {
             _pressed->message(UIMessage::LEFT_UP, di, dp);
             if (ui->_quit || ui->_dialog_result)
                goto end;
-            set_pressed(NULL, 1);
+            set_pressed(nullptr, 1);
          }
       } else if (msg == UIMessage::MIDDLE_UP && _pressed_button == 2) {
          _pressed->message(UIMessage::MIDDLE_UP, di, dp);
          if (ui->_quit || ui->_dialog_result)
             goto end;
-         set_pressed(NULL, 2);
+         set_pressed(nullptr, 2);
       } else if (msg == UIMessage::RIGHT_UP && _pressed_button == 3) {
          _pressed->message(UIMessage::RIGHT_UP, di, dp);
          if (ui->_quit || ui->_dialog_result)
             goto end;
-         set_pressed(NULL, 3);
+         set_pressed(nullptr, 3);
       }
    }
 
@@ -4855,7 +4856,7 @@ int _UIInspectorTableMessage(UIElement* table, UIMessage msg, int di, void* dp) 
       }
    } else if (msg == UIMessage::MOUSE_MOVE) {
       int        index = ui->_inspector->_table->hittest(table->cursor_pos());
-      UIElement* el    = NULL;
+      UIElement* el    = nullptr;
       if (index >= 0)
          el = _UIInspectorFindNthElement(ui->_inspector->_target, &index).first;
       UIWindow* window = ui->_inspector->_target;
@@ -5058,7 +5059,7 @@ int UI::message_loop() {
 #else
    int result = 0;
    while (!_quit && platform_message_loop_single(&result))
-      _dialog_result = NULL;
+      _dialog_result = nullptr;
    return result;
 #endif
 }
@@ -5120,7 +5121,7 @@ enum atom_id_t {
 int UI::_platform_message_proc(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::DEALLOCATE) {
       UIWindow* window     = (UIWindow*)el;
-      window->_image->data = NULL;
+      window->_image->data = nullptr;
       XDestroyImage(window->_image);
       XDestroyIC(window->_xic);
       XDestroyWindow(window->_ui->native_display(), window->_xwindow);
@@ -5134,7 +5135,7 @@ UIWindow& UI::_platform_create_window(UIWindow* owner, uint32_t flags, const cha
    UI* ui = this;
    ui->close_menus();
 
-   UIWindow* window = new UIWindow(ui, NULL, flags | UIElement::window_flag, UI::_platform_message_proc, "Window");
+   UIWindow* window = new UIWindow(ui, nullptr, flags | UIElement::window_flag, UI::_platform_message_proc, "Window");
    window->_init_toplevel();
    if (owner)
       window->set_scale(owner->_scale);
@@ -5199,7 +5200,7 @@ UIWindow& UI::_platform_create_window(UIWindow* owner, uint32_t flags, const cha
    }
 
    XSetWMProtocols(dpy, window->_xwindow, &ui->_atoms[windowClosedID], 1);
-   window->_image = XCreateImage(dpy, ui->_visual, 24, ZPixmap, 0, NULL, 10, 10, 32, 0);
+   window->_image = XCreateImage(dpy, ui->_visual, 24, ZPixmap, 0, nullptr, 10, 10, 32, 0);
 
    window->_xic = XCreateIC(ui->_xim, XNInputStyle, XIMPreeditNothing | XIMStatusNothing, XNClientWindow,
                             window->_xwindow, XNFocusWindow, window->_xwindow, nullptr);
@@ -5394,7 +5395,7 @@ unique_ptr<UI> UI::initialise(const UIConfig& cfg) {
 
    XInitThreads();
 
-   Display* dpy = XOpenDisplay(NULL);
+   Display* dpy = XOpenDisplay(nullptr);
    ui->_display = dpy;
    ui->_visual  = XDefaultVisual(dpy, 0);
 
@@ -5496,7 +5497,7 @@ UIMenu& UIMenu::show() {
    Window   child;
 
    // Find the screen that contains the point the menu was created at.
-   Screen* menuScreen = NULL;
+   Screen* menuScreen = nullptr;
    int     screenX, screenY;
 
    for (int i = 0; i < ScreenCount(dpy); i++) {
@@ -5842,7 +5843,7 @@ bool UI::_process_x11_event(Display *dpy, XEvent* event) {
       Atom          type   = None;
       int           format = 0;
       unsigned long count = 0, bytesLeft = 0;
-      uint8_t*      data = NULL;
+      uint8_t*      data = nullptr;
       XGetWindowProperty(_display, window->_xwindow, _atoms[primaryID], 0, 65536, False, AnyPropertyType, &type,
                          &format, &count, &bytesLeft, &data);
 
@@ -5872,7 +5873,7 @@ bool UI::_process_x11_event(Display *dpy, XEvent* event) {
                   if (s[j] == '%' && s[j + 1] && s[j + 2]) {
                      char n[3];
                      n[0] = s[j + 1], n[1] = s[j + 2], n[2] = 0;
-                     s[j] = strtol(n, NULL, 16);
+                     s[j] = strtol(n, nullptr, 16);
                      if (!s[j])
                         break;
                      std::memmove(s + j + 1, s + j + 3, strlen(s) - j - 2);
@@ -6128,11 +6129,11 @@ LRESULT CALLBACK UIWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
       return MA_NOACTIVATE;
    } else if (msg == WM_DROPFILES) {
       HDROP  drop  = (HDROP)wParam;
-      int    count = DragQueryFile(drop, 0xFFFFFFFF, NULL, 0);
+      int    count = DragQueryFile(drop, 0xFFFFFFFF, nullptr, 0);
       char** files = (char**)malloc(sizeof(char*) * count);
 
       for (int i = 0; i < count; i++) {
-         int length       = DragQueryFile(drop, i, NULL, 0);
+         int length       = DragQueryFile(drop, i, nullptr, 0);
          files[i]         = (char*)malloc(length + 1);
          files[i][length] = 0;
          DragQueryFile(drop, i, files[i], length + 1);

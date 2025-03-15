@@ -726,7 +726,7 @@ void Context::DebuggerThread() {
       // ------------------------------------------------------------
       FD_ZERO(&readfds);
       FD_SET(pipeFromGdb, &readfds);
-      int result = select(pipeFromGdb + 1, &readfds, NULL, NULL, &timeout);
+      int result = select(pipeFromGdb + 1, &readfds, nullptr, nullptr, &timeout);
 
       if (result == -1) { // "Error in select"
          std::cout << "error: " << errno << '\n';
@@ -1847,12 +1847,12 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
          buffer = std::format("    {} {}", ir._expression, ir._value);
       }
 
-      painter->draw_string(line, buffer, noInspectResults ? theme.codeOperator : theme.codeString, UIAlign::left, NULL);
+      painter->draw_string(line, buffer, noInspectResults ? theme.codeOperator : theme.codeString, UIAlign::left, nullptr);
       line = line + UIRectangle(0, lineHeight);
       ++index;
    }
 
-   painter->draw_string(line, instructions, theme.codeNumber, UIAlign::right, NULL);
+   painter->draw_string(line, instructions, theme.codeNumber, UIAlign::right, nullptr);
 }
 
 template <class F>
@@ -1978,16 +1978,16 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       if (m->index == autoPrintResultLine) {
          UIRectangle rectangle =
             UIRectangle(m->x + active_font->_glyph_width, m->bounds.r, m->y, m->y + el->ui()->string_height());
-         m->painter->draw_string(rectangle, autoPrintResult, theme.codeComment, UIAlign::left, NULL);
+         m->painter->draw_string(rectangle, autoPrintResult, theme.codeComment, UIAlign::left, nullptr);
       }
 
       if (code->hittest(el->cursor_pos()) == m->index && el->is_hovered() &&
           (el->_window->_ctrl || el->_window->_alt || el->_window->_shift) && !el->_window->textbox_modified_flag()) {
          m->painter->draw_border(m->bounds, el->_window->_ctrl ? theme.selected : theme.codeOperator, UIRectangle(2));
          m->painter->draw_string(m->bounds, el->_window->_ctrl ? "=> run until " : "=> skip to ", theme.text,
-                                 UIAlign::right, NULL);
+                                 UIAlign::right, nullptr);
       } else if (m->index == currentEndOfBlock) {
-         m->painter->draw_string(m->bounds, "[Shift+F10]", theme.codeComment, UIAlign::right, NULL);
+         m->painter->draw_string(m->bounds, "[Shift+F10]", theme.codeComment, UIAlign::right, nullptr);
       }
 
       if (m->index == ifConditionLine && ifConditionEvaluation) {
@@ -2465,7 +2465,7 @@ int BitmapViewerDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          ->create_menu(el->_window, UIMenu::NO_SCROLL)
          .add_item(0, "Save to file...",
                    [el](UIButton&) {
-                      static char* path = NULL;
+                      static char* path = nullptr;
                       auto         result =
                          windowMain->show_dialog(0, "Save to file       \nPath:\n%t\n%f%B%C", &path, "Save", "Cancel");
                       if (result != "Save")
@@ -2643,7 +2643,7 @@ private:
             auto currentLine = displayCode->current_line();
             if (textbox->_window->_shift) {
                if (currentLine && *currentLine > 0) {
-                  DisplaySetPosition(NULL, *currentLine - 1, false);
+                  DisplaySetPosition(nullptr, *currentLine - 1, false);
                }
             } else {
                previous_command();
@@ -2652,7 +2652,7 @@ private:
             auto currentLine = displayCode->current_line();
             if (textbox->_window->_shift) {
                if (currentLine && *currentLine + 1 < displayCode->num_lines()) {
-                  DisplaySetPosition(NULL, *currentLine + 1, false);
+                  DisplaySetPosition(nullptr, *currentLine + 1, false);
                }
             } else {
                next_command();
@@ -3024,7 +3024,7 @@ public:
       if (_mode != WATCH_NORMAL) {
          ctx.InterfaceWindowSwitchToAndFocus("Watch");
          auto w = WatchGetFocused();
-         assert(w != NULL);
+         assert(w != nullptr);
          return w->add_entry_for_address2(res);
       }
       return add_entry_for_address2(res);
@@ -3113,7 +3113,7 @@ public:
             // extract all the variable names into `expressions`.
             // we could use a regex here
             // -------------------------------------------------------------------------------
-            while ((end = strchr(s, '\n')) != NULL) {
+            while ((end = strchr(s, '\n')) != nullptr) {
                *end = '\0';
                if (strstr(s, "(gdb)"))
                   break;
@@ -3373,7 +3373,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
             if (focused) {
                painter->draw_string(row, buffer, thm.textSelected, UIAlign::left, nullptr);
             } else {
-               painter->draw_string_highlighted(row, buffer, 1, NULL);
+               painter->draw_string_highlighted(row, buffer, 1, nullptr);
             }
          }
       }
@@ -3489,7 +3489,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
          if (_window->_shift) {
             auto currentLine = displayCode->current_line();
             if (currentLine && *currentLine > 0) {
-               DisplaySetPosition(NULL, *currentLine - 1, false);
+               DisplaySetPosition(nullptr, *currentLine - 1, false);
             }
          } else {
             destroy_textbox();
@@ -3500,7 +3500,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
          if (_window->_shift) {
             auto currentLine = displayCode->current_line();
             if (currentLine && *currentLine + 1 < displayCode->num_lines()) {
-               DisplaySetPosition(NULL, *currentLine + 1, false);
+               DisplaySetPosition(nullptr, *currentLine + 1, false);
             }
          } else {
             destroy_textbox();
@@ -3551,7 +3551,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
           (_selected_row == _rows.size() || !_rows[_selected_row]->_parent)) {
          create_textbox_for_row(false);
          _textbox->paste(sel_target_t::primary);
-         repaint(NULL);
+         repaint(nullptr);
       }
       return 1;
    }
@@ -4397,7 +4397,7 @@ int FilesButtonMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          painter->draw_block(el->_bounds, i == 2 ? theme.buttonPressed : theme.buttonHovered);
       painter->draw_string(el->_bounds + UIRectangle(ui_size::button_padding, 0, 0, 0), button->label(),
                            button->_flags & UIButton::CHECKED ? theme.codeNumber : theme.codeDefault, UIAlign::left,
-                           NULL);
+                           nullptr);
       return 1;
    }
 
@@ -5208,7 +5208,7 @@ void* ProfFlameGraphRenderThread(void* _unused) {
 
             if (r.width() > 40) {
                auto string = std::format("{} {:f}ms", entry->_name, entry->_end_time - entry->_start_time);
-               painter->draw_string(UIRectangle(r.l + 2, r.r, r.t, r.b), string, profTextColor, UIAlign::left, NULL);
+               painter->draw_string(UIRectangle(r.l + 2, r.r, r.t, r.b), string, profTextColor, UIAlign::left, nullptr);
             }
          }
 
@@ -5295,7 +5295,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
                break;
             auto string = std::format("{:.4f}ms", i);
             painter->draw_block(UIRectangle(r.l, r.l + 1, r.t, r.b), profBorderLightColor);
-            painter->draw_string(r, string, profTextColor, UIAlign::left, NULL);
+            painter->draw_string(r, string, profTextColor, UIAlign::left, nullptr);
          }
       }
 
@@ -5407,12 +5407,12 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
       if (hover != report->hover || hover /* to repaint the tooltip */) {
          report->hover = hover;
-         el->repaint(NULL);
+         el->repaint(nullptr);
       }
    } else if (msg == UIMessage::UPDATE) {
       if (report->hover && !el->is_hovered()) {
-         report->hover = NULL;
-         el->repaint(NULL);
+         report->hover = nullptr;
+         el->repaint(nullptr);
       }
    } else if (msg == UIMessage::LEFT_DOWN) {
       auto pos = el->cursor_pos();
@@ -5473,7 +5473,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
       report->dragMode    = 0;
       report->dragStarted = false;
-      el->repaint(NULL);
+      el->repaint(nullptr);
       el->_window->set_cursor((int)UICursor::arrow);
    } else if (msg == UIMessage::MOUSE_DRAG) {
       report->dragStarted = true;
@@ -5528,7 +5528,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          report->dragCurrentPoint = pos.x;
       }
 
-      el->repaint(NULL);
+      el->repaint(nullptr);
    } else if (msg == UIMessage::MOUSE_WHEEL) {
       auto   pos         = el->cursor_pos();
       int    divisions   = di / 72;
@@ -5542,7 +5542,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       double newZoom = (report->xEnd - report->xStart) / report->totalTime * factor;
       report->xStart += mouse * (report->xEnd - report->xStart) * (1 - factor);
       report->xEnd = newZoom * report->totalTime + report->xStart;
-      el->repaint(NULL);
+      el->repaint(nullptr);
       return 1;
    } else if (msg == UIMessage::GET_CURSOR) {
       return report->dragMode == FLAME_GRAPH_DRAG_PAN              ? (int)UICursor::hand
@@ -6114,7 +6114,7 @@ int MemoryWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 void MemoryWindowUpdate(const char* data, UIElement* el) {
    MemoryWindow* window = (MemoryWindow*)el;
    window->loadedBytes.clear();
-   el->repaint(NULL);
+   el->repaint(nullptr);
 }
 
 void MemoryWindowGotoButtonInvoke(void* cp) {
@@ -6736,9 +6736,9 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       display->scrollBar->position() -= display->dragLastModification;
       display->refresh();
    } else if (msg == UIMessage::MOUSE_DRAG && el->_window->pressed_button() == 2) {
-      display->repaint(NULL);
+      display->repaint(nullptr);
    } else if (msg == UIMessage::MOUSE_MOVE) {
-      display->repaint(NULL);
+      display->repaint(nullptr);
    } else if (msg == UIMessage::MIDDLE_UP) {
       auto pos = el->cursor_pos();
       int  l = pos.x - el->_bounds.l, r = display->dragLastX - el->_bounds.l;
@@ -6873,7 +6873,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
                strcat(buffer, buffer2);
             }
 
-            painter->draw_string(stringRectangle, buffer, theme.text, UIAlign::right, NULL);
+            painter->draw_string(stringRectangle, buffer, theme.text, UIAlign::right, nullptr);
 
             int32_t x1 = (int)((float)(mouseXSample + 1) / sampleCount * client.width()) + client.l;
             WaveformDisplayDrawVerticalLineWithTranslucency(painter, UIRectangle(x1, x1 + 1, client.t, client.b),
@@ -7045,7 +7045,7 @@ int WaveformViewerRefreshMessage(UIElement* el, UIMessage msg, int di, void* dp)
 }
 
 void WaveformViewerSaveToFile(WaveformDisplay* display) {
-   static char* path = NULL;
+   static char* path = nullptr;
    auto         result =
       windowMain->show_dialog(0, "Save to file       \nPath:\n%t\n%f%b%b%b", &path, "Save", "Save and open", "Cancel");
    if (result == "Cancel")
@@ -7654,7 +7654,7 @@ void Context::GenerateLayoutString(UIElement* e, std::string& sb) {
       sb.push_back(')');
    } else {
       for (auto& [name, window] : _interface_windows) {
-         if (window._el != NULL && window._el->_id == e->_id) {
+         if (window._el != nullptr && window._el->_id == e->_id) {
             sb += name;
             return;
          }
