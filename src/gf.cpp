@@ -363,25 +363,6 @@ UIPanel*     dataTab    = nullptr;
 UIFont* code_font = nullptr;
 
 // ---------------------------------------------------
-// Breakpoints:
-// ---------------------------------------------------
-
-struct Breakpoint {
-   int      _number = 0;
-   char     _file[PATH_MAX];
-   char     _full_path[PATH_MAX];
-   int      _line       = 0;
-   int      _hit        = 0;
-   bool     _watchpoint = false;
-   bool     _enabled    = false;
-   bool     _multiple   = false;
-   char     _condition[128];
-   uint64_t _condition_hash = 0;
-};
-
-vector<Breakpoint> breakpoints;
-
-// ---------------------------------------------------
 // StackWindow
 // ---------------------------------------------------
 
@@ -921,116 +902,6 @@ void DebuggerGetStack() {
    }
 }
 
-void DebuggerGetBreakpoints() {
-   auto eval_res = EvaluateCommand("info break");
-   breakpoints.clear();
-
-   const char* position = eval_res.c_str();
-
-   while (true) {
-      while (true) {
-         position = strchr(position, '\n');
-         if (!position || isdigit(position[1]))
-            break;
-         position++;
-      }
-
-      if (!position)
-         break;
-
-      const char* next = position;
-
-      int number = sv_atoi(position);
-
-      const char* enabledString = strstr(next + 1, " y ");
-      bool        enabled       = enabledString && enabledString < strchr(next + 1, '\n');
-
-      while (true) {
-         next = strchr(next + 1, '\n');
-         if (!next || isdigit(next[1]))
-            break;
-      }
-
-      if (!next)
-         next = position + strlen(position);
-
-      const char* file = strstr(position, " at ");
-      if (file)
-         file += 4;
-
-      Breakpoint breakpoint = {};
-      breakpoint._number    = number;
-      breakpoint._enabled   = enabled;
-
-      bool recognised = true;
-
-      const char* condition = strstr(position, "stop only if ");
-
-      if (condition && condition < next) {
-         const char* end = strchr(condition, '\n');
-         condition += 13;
-         std_format_to_n(breakpoint._condition, sizeof(breakpoint._condition), "{}",
-                         std::string_view{condition, (size_t)(end - condition)});
-         breakpoint._condition_hash = Hash((const uint8_t*)condition, end - condition);
-      }
-
-      const char* hitCountNeedle = "breakpoint already hit";
-      const char* hitCount       = strstr(position, hitCountNeedle);
-      if (hitCount)
-         hitCount += strlen(hitCountNeedle);
-
-      if (hitCount && hitCount < next) {
-         breakpoint._hit = sv_atoi(hitCount);
-      }
-
-      if (file && file < next) {
-         const char* end = strchr(file, ':');
-
-         if (end && isdigit(end[1])) {
-            if (file[0] == '.' && file[1] == '/')
-               file += 2;
-            std_format_to_n(breakpoint._file, sizeof(breakpoint._file), "{}",
-                            std::string_view{file, (size_t)(end - file)});
-            breakpoint._line = sv_atoi(end, 1);
-         } else
-            recognised = false;
-      } else
-         recognised = false;
-
-      if (recognised) {
-         realpath(breakpoint._file, breakpoint._full_path);
-
-         for (auto& bp : breakpoints) {
-            if (strcmp(bp._full_path, breakpoint._full_path) == 0 && bp._condition_hash == breakpoint._condition_hash &&
-                bp._line == breakpoint._line) {
-               bp._multiple = breakpoint._multiple = true;
-               break;
-            }
-         }
-         if (!breakpoint._multiple)
-            breakpoints.push_back(std::move(breakpoint));
-      } else if (strstr(position, "watchpoint") != 0) {
-         // we have a watchpoint
-         const char* address = strstr(position, enabled ? " y  " : " n  ");
-         if (address) {
-            address += 2;
-            while (*address == ' ')
-               address++;
-            if (!isspace(*address)) {
-               const char* end = strchr(address, '\n');
-               if (end) {
-                  breakpoint._watchpoint = true;
-                  snprintf(breakpoint._file, sizeof(breakpoint._file), "%.*s", (int)(end - address), address);
-                  breakpoints.push_back(std::move(breakpoint));
-               }
-            }
-         }
-      }
-
-      position = next;
-   }
-}
-
 struct TabCompleter {
    bool _last_key_was_tab;
 private:
@@ -1085,6 +956,186 @@ public:
       }
    }
 };
+
+// ---------------------------------------------------
+// Breakpoints:
+// ---------------------------------------------------
+std::optional<std::string> DebuggerSend(string_view command, bool echo, bool synchronous);
+
+struct BreakpointMgr {
+private:
+   struct Breakpoint {
+      int      _number = 0;
+      char     _file[PATH_MAX];
+      char     _full_path[PATH_MAX];
+      int      _line       = 0;
+      int      _hit        = 0;
+      bool     _watchpoint = false;
+      bool     _enabled    = false;
+      bool     _multiple   = false;
+      char     _condition[128];
+      uint64_t _condition_hash = 0;
+
+      bool match_path(const char* p) const { return 0 == strcmp(_full_path, p); }
+      bool match(int line, const char* path) const { return _line == line && match_path(path); }
+   };
+
+   friend struct BreakpointsWindow;
+
+   vector<Breakpoint> _breakpoints;  // current debugger breakpoints
+
+public:
+   size_t num_breakpoints() const { return _breakpoints.size(); }
+
+   template <class F>
+   void for_all_matching_breakpoints(int line, const char* path, F&& f) {
+      for (size_t i = 0; i < _breakpoints.size(); i++) {
+         if (_breakpoints[i].match(line, path)) {
+            std::forward<F>(f)(i, _breakpoints[i]);
+         }
+      }
+   }
+
+   void command(int index, const char* action) {
+      Breakpoint* breakpoint = &_breakpoints[index];
+      (void)DebuggerSend(std::format("{} {}", action, breakpoint->_number), true, false);
+   }
+
+   void toggle_breakpoint(int line = 0) {
+      if (showingDisassembly) {
+         // TODO.
+         return;
+      }
+
+      if (!line) {
+         auto currentLine = displayCode->current_line();
+         if (!currentLine)
+            return;
+         line = *currentLine + 1; // gdb line numbers are 1-indexed
+      }
+
+      for (const auto& bp : _breakpoints) {
+         if (bp.match(line, currentFileFull)) {
+            (void)DebuggerSend(std::format("clear {}:{}", currentFile, line), true, false);
+            return;
+         }
+      }
+
+      (void)DebuggerSend(std::format("b {}:{}", currentFile, line), true, false);
+   }
+
+   void update_breakpoint_from_gdb() {
+      auto eval_res = EvaluateCommand("info break");
+      _breakpoints.clear();
+
+      const char* position = eval_res.c_str();
+
+      while (true) {
+         while (true) {
+            position = strchr(position, '\n');
+            if (!position || isdigit(position[1]))
+               break;
+            position++;
+         }
+
+         if (!position)
+            break;
+
+         const char* next = position;
+
+         int number = sv_atoi(position);
+
+         const char* enabledString = strstr(next + 1, " y ");
+         bool        enabled       = enabledString && enabledString < strchr(next + 1, '\n');
+
+         while (true) {
+            next = strchr(next + 1, '\n');
+            if (!next || isdigit(next[1]))
+               break;
+         }
+
+         if (!next)
+            next = position + strlen(position);
+
+         const char* file = strstr(position, " at ");
+         if (file)
+            file += 4;
+
+         Breakpoint breakpoint = {};
+         breakpoint._number    = number;
+         breakpoint._enabled   = enabled;
+
+         bool recognised = true;
+
+         const char* condition = strstr(position, "stop only if ");
+
+         if (condition && condition < next) {
+            const char* end = strchr(condition, '\n');
+            condition += 13;
+            std_format_to_n(breakpoint._condition, sizeof(breakpoint._condition), "{}",
+                            std::string_view{condition, (size_t)(end - condition)});
+            breakpoint._condition_hash = Hash((const uint8_t*)condition, end - condition);
+         }
+
+         const char* hitCountNeedle = "breakpoint already hit";
+         const char* hitCount       = strstr(position, hitCountNeedle);
+         if (hitCount)
+            hitCount += strlen(hitCountNeedle);
+
+         if (hitCount && hitCount < next) {
+            breakpoint._hit = sv_atoi(hitCount);
+         }
+
+         if (file && file < next) {
+            const char* end = strchr(file, ':');
+
+            if (end && isdigit(end[1])) {
+               if (file[0] == '.' && file[1] == '/')
+                  file += 2;
+               std_format_to_n(breakpoint._file, sizeof(breakpoint._file), "{}",
+                               std::string_view{file, (size_t)(end - file)});
+               breakpoint._line = sv_atoi(end, 1);
+            } else
+               recognised = false;
+         } else
+            recognised = false;
+
+         if (recognised) {
+            realpath(breakpoint._file, breakpoint._full_path);
+
+            for (auto& bp : _breakpoints) {
+               if (bp.match(breakpoint._line, breakpoint._full_path) &&
+                   bp._condition_hash == breakpoint._condition_hash) {
+                  bp._multiple = breakpoint._multiple = true;
+                  break;
+               }
+            }
+            if (!breakpoint._multiple)
+               _breakpoints.push_back(std::move(breakpoint));
+         } else if (strstr(position, "watchpoint") != 0) {
+            // we have a watchpoint
+            const char* address = strstr(position, enabled ? " y  " : " n  ");
+            if (address) {
+               address += 2;
+               while (*address == ' ')
+                  address++;
+               if (!isspace(*address)) {
+                  const char* end = strchr(address, '\n');
+                  if (end) {
+                     breakpoint._watchpoint = true;
+                     snprintf(breakpoint._file, sizeof(breakpoint._file), "%.*s", (int)(end - address), address);
+                     _breakpoints.push_back(std::move(breakpoint));
+                  }
+               }
+            }
+         }
+
+         position = next;
+      }
+   }
+};
+
+BreakpointMgr s_breakpoint_mgr;  // singletom
 
 // ------------------------------------------------------
 // Commands:
@@ -1187,16 +1238,11 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
 
 void CommandSendToGDB(string_view s) { (void)CommandParseInternal(s, false); }
 
-static void BreakpointCommand(int index, const char* action) {
-   Breakpoint* breakpoint = &breakpoints[index];
-   (void)DebuggerSend(std::format("{} {}", action, breakpoint->_number), true, false);
-}
+static void CommandDeleteBreakpoint(int index) { s_breakpoint_mgr.command(index, "delete"); }
 
-static void CommandDeleteBreakpoint(int index) { BreakpointCommand(index, "delete"); }
+static void CommandDisableBreakpoint(int index) { s_breakpoint_mgr.command(index, "disable"); }
 
-static void CommandDisableBreakpoint(int index) { BreakpointCommand(index, "disable"); }
-
-static void CommandEnableBreakpoint(int index) { BreakpointCommand(index, "enable"); }
+static void CommandEnableBreakpoint(int index) { s_breakpoint_mgr.command(index, "enable"); }
 
 bool CommandSyncWithGvim() {
    char buffer[1024];
@@ -1241,29 +1287,6 @@ bool CommandSyncWithGvim() {
 
    DisplaySetPosition(buffer2, lineNumber - 1, false); // lines in vi are 1-based
    return true;
-}
-
-void CommandToggleBreakpoint(int line = 0) {
-   if (showingDisassembly) {
-      // TODO.
-      return;
-   }
-
-   if (!line) {
-      auto currentLine = displayCode->current_line();
-      if (!currentLine)
-         return;
-      line = *currentLine + 1; // gdb line numbers are 1-indexed
-   }
-
-   for (const auto& bp : breakpoints) {
-      if (bp._line == line && 0 == strcmp(bp._full_path, currentFileFull)) {
-         (void)DebuggerSend(std::format("clear {}:{}", currentFile, line), true, false);
-         return;
-      }
-   }
-
-   (void)DebuggerSend(std::format("b {}:{}", currentFile, line), true, false);
 }
 
 void CommandCustom(string_view command) {
@@ -1859,25 +1882,19 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
    painter->draw_string(line, instructions, theme.codeNumber, UIAlign::right, nullptr);
 }
 
-template <class F>
-void for_all_breakpoints_on_line(int line, F&& f) {
-   for (size_t i = 0; i < breakpoints.size(); i++) {
-      if (breakpoints[i]._line == line && 0 == strcmp(breakpoints[i]._full_path, currentFileFull)) {
-         std::forward<F>(f)(i);
-      }
-   }
-}
-
 void CommandDeleteAllBreakpointsOnLine(int line) {
-   for_all_breakpoints_on_line(line, [](int line) { CommandDeleteBreakpoint(line); });
+   s_breakpoint_mgr.for_all_matching_breakpoints(line, currentFileFull,
+                                                 [](int line, auto&) { CommandDeleteBreakpoint(line); });
 }
 
 void CommandDisableAllBreakpointsOnLine(int line) {
-   for_all_breakpoints_on_line(line, [](int line) { CommandDisableBreakpoint(line); });
+   s_breakpoint_mgr.for_all_matching_breakpoints(line, currentFileFull,
+                                                 [](int line, auto&) { CommandDisableBreakpoint(line); });
 }
 
 void CommandEnableAllBreakpointsOnLine(int line) {
-   for_all_breakpoints_on_line(line, [](int line) { CommandEnableBreakpoint(line); });
+   s_breakpoint_mgr.for_all_matching_breakpoints(line, currentFileFull,
+                                                 [](int line, auto&) { CommandEnableBreakpoint(line); });
 }
 
 int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
@@ -1888,7 +1905,7 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
       if (result < 0 && code->left_down_in_margin()) {
          int line = -result;
-         CommandToggleBreakpoint(line);
+         s_breakpoint_mgr.toggle_breakpoint(line);
       } else if (result > 0 && !code->left_down_in_margin()) {
          int line = result;
 
@@ -1923,42 +1940,37 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
       bool atLeastOneBreakpointEnabled = false;
 
-      for (const auto& bp : breakpoints) {
-         if (bp._line == -result && 0 == strcmp(bp._full_path, currentFileFull) && bp._enabled) {
+      s_breakpoint_mgr.for_all_matching_breakpoints(-result, currentFileFull, [&](int line, auto& bp) {
+         if (bp._enabled)
             atLeastOneBreakpointEnabled = true;
-            break;
-         }
-      }
+      });
 
-      for (const auto& bp : breakpoints) {
-         if (bp._line == -result && 0 == strcmp(bp._full_path, currentFileFull)) {
-            UIMenu& menu = el->ui()->create_menu(el->_window, UIMenu::NO_SCROLL).add_item(0, "Delete", [=](UIButton&) {
-               CommandDeleteAllBreakpointsOnLine(-result);
-            });
-            if (atLeastOneBreakpointEnabled)
-               menu.add_item(0, "Disable", [=](UIButton&) { CommandDisableAllBreakpointsOnLine(-result); });
-            else
-               menu.add_item(0, "Enable", [=](UIButton&) { CommandEnableAllBreakpointsOnLine(-result); });
-            menu.show();
-         }
-      }
+      s_breakpoint_mgr.for_all_matching_breakpoints(-result, currentFileFull, [&](int line, auto&) {
+         UIMenu& menu = el->ui()->create_menu(el->_window, UIMenu::NO_SCROLL).add_item(0, "Delete", [=](UIButton&) {
+            CommandDeleteAllBreakpointsOnLine(-result);
+         });
+         if (atLeastOneBreakpointEnabled)
+            menu.add_item(0, "Disable", [=](UIButton&) { CommandDisableAllBreakpointsOnLine(-result); });
+         else
+            menu.add_item(0, "Enable", [=](UIButton&) { CommandEnableAllBreakpointsOnLine(-result); });
+         menu.show();
+      });
    } else if (msg == UIMessage::CODE_GET_MARGIN_COLOR && !showingDisassembly) {
       auto& theme                        = el->theme();
-      bool  atLeastOneBreakpointDisabled = false;
+      int num_enabled = 0, num_disabled = 0;
 
-      for (const auto& bp : breakpoints) {
-         if (bp._line == di && 0 == strcmp(bp._full_path, currentFileFull)) {
-            if (bp._enabled)
-               return theme.accent1;
-            else
-               atLeastOneBreakpointDisabled = true;
-         }
-      }
+      s_breakpoint_mgr.for_all_matching_breakpoints(di, currentFileFull, [&](int line, auto& bp) {
+         if (bp._enabled)
+            ++num_enabled;
+         else
+            ++num_disabled;
+      });
 
-      if (atLeastOneBreakpointDisabled) {
+      if (num_disabled) {
          return (((theme.accent1 & 0xFF0000) >> 1) & 0xFF0000) | (((theme.accent1 & 0xFF00) >> 1) & 0xFF00) |
                 ((theme.accent1 & 0xFF) >> 1);
-      }
+      } 
+      return num_enabled ? theme.accent1 : 0;
    } else if (msg == UIMessage::PAINT) {
       el->_class_proc(el, msg, di, dp);
 
@@ -4007,13 +4019,18 @@ void StackWindow::Update(const char*, UIElement* el) {
 
 struct BreakpointsWindow {
 private:
-   vector<int> _selected;
-   int         _anchor = 0;
-   
+   using Breakpoint = BreakpointMgr::Breakpoint;
+
+   vector<int>         _selected;
+   int                 _anchor = 0;
+   vector<Breakpoint>& _breakpoints;
+
 public:
+   BreakpointsWindow(vector<Breakpoint>& bp) : _breakpoints(bp) {}
+   
    void for_all_selected_breakpoints(string_view action) const {
       for (auto selected : _selected) {
-         for (const auto& breakpoint : breakpoints) {
+         for (const auto& breakpoint : _breakpoints) {
             if (breakpoint._number == selected) {
                (void)DebuggerSend(std::format("{} {}", action, selected), true, false);
                break;
@@ -4036,14 +4053,14 @@ public:
 
    static UIElement* Create(UIElement* parent) {
       return &parent->add_table(0, "File\tLine\tEnabled\tCondition\tHit")
-                 .set_cp(new BreakpointsWindow)
+                 .set_cp(new BreakpointsWindow(s_breakpoint_mgr._breakpoints))
                  .set_user_proc(BreakpointsWindow::BreakpointsWindowMessage);
    }
 
    static void Update(const char*, UIElement* el) {
       UITable* table = (UITable*)el;
       [[maybe_unused]] BreakpointsWindow* bw = static_cast<BreakpointsWindow*>(el->_cp);
-      table->set_num_items(breakpoints.size());
+      table->set_num_items(s_breakpoint_mgr.num_breakpoints());
       table->resize_columns();
       table->refresh();
    }
@@ -4052,7 +4069,7 @@ public:
 int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m     = (UITableGetItem*)dp;
-      Breakpoint*     entry = &breakpoints[m->_row];
+      Breakpoint*     entry = &_breakpoints[m->_row];
       m->_is_selected       = rng::find(_selected, entry->_number) != rng::end(_selected);
 
       if (m->_column == 0) {
@@ -4075,7 +4092,7 @@ int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int 
       int index = ((UITable*)uitable)->hittest(uitable->cursor_pos());
 
       if (index != -1) {
-         Breakpoint* entry = &breakpoints[index];
+         Breakpoint* entry = &_breakpoints[index];
 
          bool found = rng::find(_selected, entry->_number) != rng::end(_selected);
          if (_selected.size() <= 1 || !found) {
@@ -4092,7 +4109,7 @@ int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int 
 
 
             for (auto selected : _selected) {
-               for (const auto& breakpoint : breakpoints) {
+               for (const auto& breakpoint : _breakpoints) {
                   if (breakpoint._number == selected) {
                      if (breakpoint._enabled)
                         atLeastOneBreakpointEnabled = true;
@@ -4112,7 +4129,7 @@ int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int 
          } else {
             menu.add_item(0, "Delete", [index](UIButton&) { CommandDeleteBreakpoint(index); });
 
-            if (breakpoints[index]._enabled)
+            if (_breakpoints[index]._enabled)
                menu.add_item(0, "Disable", [index](UIButton&) { CommandDisableBreakpoint(index); });
             else
                menu.add_item(0, "Enable", [index](UIButton&) { CommandEnableBreakpoint(index); });
@@ -4124,7 +4141,7 @@ int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int 
       int index = ((UITable*)uitable)->hittest(uitable->cursor_pos());
 
       if (index != -1) {
-         Breakpoint* entry = &breakpoints[index];
+         Breakpoint* entry = &_breakpoints[index];
 
          if (!uitable->_window->_shift)
             _anchor = entry->_number;
@@ -4133,11 +4150,11 @@ int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int 
 
          uintptr_t from = 0, to = 0;
 
-         for (size_t i = 0; i < breakpoints.size(); i++) {
-            if (breakpoints[i]._number == entry->_number) {
+         for (size_t i = 0; i < _breakpoints.size(); i++) {
+            if (_breakpoints[i]._number == entry->_number) {
                from = i;
             }
-            if (breakpoints[i]._number == _anchor) {
+            if (_breakpoints[i]._number == _anchor) {
                to = i;
             }
          }
@@ -4149,10 +4166,10 @@ int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int 
 
          for (uintptr_t i = from; i <= to; i++) {
             if (uitable->_window->_ctrl && !uitable->_window->_shift) {
-               if (auto it = rng::find(_selected, breakpoints[i]._number); it != rng::end(_selected))
+               if (auto it = rng::find(_selected, _breakpoints[i]._number); it != rng::end(_selected))
                   _selected.erase(it);
             } else {
-               _selected.push_back(breakpoints[i]._number);
+               _selected.push_back(_breakpoints[i]._number);
             }
          }
 
@@ -7253,7 +7270,7 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
       // we don't want to call `DebuggerGetBreakpoints()` upon receiving the result of `DebuggerGetBreakpoints()`,
       // causing an infinite loop!!!
       DebuggerGetStack();
-      DebuggerGetBreakpoints();
+      s_breakpoint_mgr.update_breakpoint_from_gdb();
 
       ctx.grab_focus(textboxInput->_window); // grab focus when breakpoint is hit!
    }
@@ -7383,7 +7400,7 @@ void Context::InterfaceAddBuiltinWindowsAndCommands() {
    });
    _interface_commands.push_back({
       ._label = "Toggle breakpoint\tF9", ._shortcut{.code = UI_KEYCODE_FKEY(9), .invoke = []() {
-                                                       CommandToggleBreakpoint();
+                                                       s_breakpoint_mgr.toggle_breakpoint();
                                                        return true;
                                                     }}
    });

@@ -1314,7 +1314,7 @@ public:
    code_pos   code_pos_from_point(UIPoint pt);
 
    int        hittest(int x, int y);
-   int        hittest(UIPoint p) { return hittest(p.x, p.y); }
+   int        hittest(UIPoint p) { return hittest(p.x, p.y); }           // returns negative value if in margin
 
    UICode&    set_tab_columns(uint32_t sz) { _tab_columns = sz; return *this; }
    uint32_t   tab_columns() const { return _tab_columns; }

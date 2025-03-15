@@ -2576,6 +2576,7 @@ UICode& UICode::load_file(const char* path, std::optional<std::string_view> err 
    return pos;
 }
 
+// returns negative value if in margin
 int UICode::hittest(int x, int y) {
    UI* ui = this->ui();
    x -= _bounds.l;
