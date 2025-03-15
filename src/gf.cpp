@@ -4176,54 +4176,62 @@ int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int 
 // Data window:
 // ---------------------------------------------------/
 
-UIButton* buttonFillWindow;
+struct DataWindow {
+private:
+   UIButton* buttonFillWindow;
 
-int DataTabMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-   if (msg == UIMessage::TAB_SELECTED && autoUpdateViewersQueued) {
-      // If we've switched to the data tab, we may need to update the bitmap viewers.
+   bool toggle_fill_data_tab() {
+      if (!dataTab)
+         return false;
+      static UIElement *oldParent, *oldBefore;
+      buttonFillWindow->_flags ^= UIButton::CHECKED;
 
-      for (const auto& auw : autoUpdateViewers)
-         auw._callback(auw._el);
-
-      autoUpdateViewersQueued = false;
+      if (switcherMain->_active == dataTab) {
+         switcherMain->switch_to(switcherMain->_children[0]);
+         dataTab->change_parent(oldParent, oldBefore);
+      } else {
+         dataTab->message(UIMessage::TAB_SELECTED, 0, 0);
+         oldParent = dataTab->_parent;
+         oldBefore = dataTab->change_parent(switcherMain, nullptr);
+         switcherMain->switch_to(dataTab);
+      }
+      return true;
    }
 
-   return 0;
-}
+public:
+   static int DataTabMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+      if (msg == UIMessage::TAB_SELECTED && autoUpdateViewersQueued) {
+         // If we've switched to the data tab, we may need to update the bitmap viewers.
 
-bool CommandToggleFillDataTab() {
-   if (!dataTab)
-      return false;
-   static UIElement *oldParent, *oldBefore;
-   buttonFillWindow->_flags ^= UIButton::CHECKED;
+         for (const auto& auw : autoUpdateViewers)
+            auw._callback(auw._el);
 
-   if (switcherMain->_active == dataTab) {
-      switcherMain->switch_to(switcherMain->_children[0]);
-      dataTab->change_parent(oldParent, oldBefore);
-   } else {
-      dataTab->message(UIMessage::TAB_SELECTED, 0, 0);
-      oldParent = dataTab->_parent;
-      oldBefore = dataTab->change_parent(switcherMain, NULL);
-      switcherMain->switch_to(dataTab);
-   }
-   return true;
-}
+         autoUpdateViewersQueued = false;
+      }
 
-UIElement* DataWindowCreate(UIElement* parent) {
-   dataTab         = &parent->add_panel(UIPanel::EXPAND);
-   UIPanel* panel5 = &dataTab->add_panel(UIPanel::COLOR_1 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
-
-   panel5->add_button(UIButton::SMALL, "Fill window").on_click([](UIButton&) { CommandToggleFillDataTab(); });
-   for (const auto& idw : ctx._interface_data_viewers) {
-      panel5->add_button(UIButton::SMALL, idw._add_button_label).on_click([&](UIButton&) {
-         idw._add_button_callback();
-      });
+      return 0;
    }
 
-   dataWindow = &dataTab->add_mdiclient(UIElement::v_fill);
-   dataTab->set_user_proc(DataTabMessage);
-   return dataTab;
-}
+   static UIElement* Create(UIElement* parent) {
+      auto w = new DataWindow;
+
+      dataTab         = &parent->add_panel(UIPanel::EXPAND);
+      UIPanel* panel5 = &dataTab->add_panel(UIPanel::COLOR_1 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
+
+      w->buttonFillWindow =
+         &panel5->add_button(UIButton::SMALL, "Fill window").on_click([w](UIButton&) { w->toggle_fill_data_tab(); });
+      
+      for (const auto& idw : ctx._interface_data_viewers) {
+         panel5->add_button(UIButton::SMALL, idw._add_button_label).on_click([&](UIButton&) {
+            idw._add_button_callback();
+         });
+      }
+
+      dataWindow = &dataTab->add_mdiclient(UIElement::v_fill).set_cp(w);
+      dataTab->set_user_proc(DataTabMessage);
+      return dataTab;
+   }
+};
 
 // ---------------------------------------------------/
 // Struct window:
@@ -4518,19 +4526,23 @@ public:
 // Commands window:
 // ---------------------------------------------------/
 
-UIElement* CommandsWindowCreate(UIElement* parent) {
-   UIPanel* panel = &parent->add_panel(UIPanel::COLOR_1 | UIPanel::SMALL_SPACING | UIPanel::EXPAND | UIPanel::SCROLL);
-   if (!presetCommands.size())
-      panel->add_label(0, "No preset commands found in config file!");
+struct CommandsWindow {
 
-   for (const auto& cmd : presetCommands) {
-      panel->add_button(0, cmd._key).on_click([command = std::format("gf-command {}", cmd._key)](UIButton&) {
-         CommandSendToGDB(command);
-      });
+   static UIElement* Create(UIElement* parent) {
+      UIPanel* panel =
+         &parent->add_panel(UIPanel::COLOR_1 | UIPanel::SMALL_SPACING | UIPanel::EXPAND | UIPanel::SCROLL);
+      if (!presetCommands.size())
+         panel->add_label(0, "No preset commands found in config file!");
+
+      for (const auto& cmd : presetCommands) {
+         panel->add_button(0, cmd._key).on_click([command = std::format("gf-command {}", cmd._key)](UIButton&) {
+            CommandSendToGDB(command);
+         });
+      }
+
+      return panel;
    }
-
-   return panel;
-}
+};
 
 // ---------------------------------------------------/
 // Log window:
@@ -6779,7 +6791,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
       display->refresh();
    } else if (msg == UIMessage::SCROLLED) {
-      el->repaint(NULL);
+      el->repaint(nullptr);
    } else if (msg == UIMessage::PAINT) {
       UIRectangle client = el->_bounds;
       auto&       theme  = el->theme();
@@ -7298,8 +7310,8 @@ void Context::InterfaceAddBuiltinWindowsAndCommands() {
    _interface_windows["Registers"]   = {RegistersWindow::Create, RegistersWindow::Update};
    _interface_windows["Watch"]       = {WatchWindowCreate, WatchWindow::Update, WatchWindow::Focus};
    _interface_windows["Locals"]      = {LocalsWindowCreate, WatchWindow::Update, WatchWindow::Focus};
-   _interface_windows["Commands"]    = {CommandsWindowCreate, nullptr};
-   _interface_windows["Data"]        = {DataWindowCreate, nullptr};
+   _interface_windows["Commands"]    = {CommandsWindow::Create, nullptr};
+   _interface_windows["Data"]        = {DataWindow::Create, nullptr};
    _interface_windows["Struct"]      = {StructWindow::Create, nullptr};
    _interface_windows["Files"]       = {FilesWindow::Create, nullptr};
    _interface_windows["Console"]     = {ConsoleWindow::Create, nullptr};
