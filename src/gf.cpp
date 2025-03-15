@@ -362,7 +362,9 @@ UIPanel*     dataTab    = nullptr;
 
 UIFont* code_font = nullptr;
 
+// ---------------------------------------------------
 // Breakpoints:
+// ---------------------------------------------------
 
 struct Breakpoint {
    int      _number = 0;
@@ -379,7 +381,9 @@ struct Breakpoint {
 
 vector<Breakpoint> breakpoints;
 
-// Stack:
+// ---------------------------------------------------
+// StackWindow
+// ---------------------------------------------------
 
 struct StackEntry {
    char     _function[64];
