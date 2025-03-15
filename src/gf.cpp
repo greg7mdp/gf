@@ -4529,51 +4529,53 @@ UIElement* CommandsWindowCreate(UIElement* parent) {
 // Log window:
 // ---------------------------------------------------/
 
-void* LogWindowThread(void* context) {
-   if (!logPipePath) {
-      print(std::cerr, "Warning: The log pipe path has not been set in the configuration file!\n");
-      return nullptr;
-   }
-
-   int file = open(logPipePath, O_RDONLY | O_NONBLOCK);
-
-   if (file == -1) {
-      print(std::cerr, "Warning: Could not open the log pipe!\n");
-      return nullptr;
-   }
-
-   struct pollfd p = {.fd = file, .events = POLLIN};
-
-   while (true) {
-      poll(&p, 1, 10000);
-
-      if (p.revents & POLLHUP) {
-         struct timespec t = {.tv_nsec = 10000000};
-         nanosleep(&t, 0);
+struct LogWindow {
+   static void* _thread_fn(void* context) {
+      if (!logPipePath) {
+         print(std::cerr, "Warning: The log pipe path has not been set in the configuration file!\n");
+         return nullptr;
       }
+
+      int file = open(logPipePath, O_RDONLY | O_NONBLOCK);
+
+      if (file == -1) {
+         print(std::cerr, "Warning: Could not open the log pipe!\n");
+         return nullptr;
+      }
+
+      struct pollfd p = {.fd = file, .events = POLLIN};
 
       while (true) {
-         char input[16384];
-         int  length = read(file, input, sizeof(input) - 1);
-         if (length <= 0)
-            break;
-         input[length] = 0;
+         poll(&p, 1, 10000);
 
-         std::string* s = new std::string;
-         s->resize(sizeof(context) + length + 1);
-         memcpy(s->data(), &context, sizeof(context));
-         strcpy(s->data() + sizeof(context), input);
-         windowMain->post_message(msgReceivedLog, s);
+         if (p.revents & POLLHUP) {
+            struct timespec t = {.tv_nsec = 10000000};
+            nanosleep(&t, 0);
+         }
+
+         while (true) {
+            char input[16384];
+            int  length = read(file, input, sizeof(input) - 1);
+            if (length <= 0)
+               break;
+            input[length] = 0;
+
+            std::string* s = new std::string;
+            s->resize(sizeof(context) + length + 1);
+            memcpy(s->data(), &context, sizeof(context));
+            strcpy(s->data() + sizeof(context), input);
+            windowMain->post_message(msgReceivedLog, s);
+         }
       }
    }
-}
 
-UIElement* LogWindowCreate(UIElement* parent) {
-   UICode*   code = &parent->add_code(UICode::SELECTABLE);
-   pthread_t thread;
-   pthread_create(&thread, nullptr, LogWindowThread, code);
-   return code;
-}
+   static UIElement* Create(UIElement* parent) {
+      UICode*   code = &parent->add_code(UICode::SELECTABLE);
+      pthread_t thread;
+      pthread_create(&thread, nullptr, LogWindow::_thread_fn, code);
+      return code;
+   }
+};
 
 // ---------------------------------------------------/
 // Thread window:
@@ -4968,11 +4970,11 @@ struct ProfSourceFileEntry {
 };
 
 struct ProfFunctionEntry {
-   uint32_t callCount       = 0;
-   int      lineNumber      = 0;
-   int      sourceFileIndex = 0;
-   double   totalTime       = 0;
-   char     cName[64];
+   uint32_t _call_count       = 0;
+   int      _line_number      = 0;
+   int      _source_file_index = 0;
+   double   _total_time       = 0;
+   char     _name[64];
 };
 
 int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp);
@@ -5088,11 +5090,11 @@ void ProfShowSource(ProfFlameGraphReport* report) {
    }
    ProfFunctionEntry& function = report->functions[entry->_this_function];
 
-   if (!function.cName[0]) {
+   if (!function._name[0]) {
       windowMain->show_dialog(0, "Source information was not found for this function.\n%f%b", "OK");
       return;
    } else {
-      DisplaySetPosition(report->sourceFiles[function.sourceFileIndex]._path, function.lineNumber - 1, false);
+      DisplaySetPosition(report->sourceFiles[function._source_file_index]._path, function._line_number - 1, false);
    }
 }
 
@@ -5326,14 +5328,14 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
          char line1[256], line2[256], line3[256];
          std_format_to_n(line1, sizeof(line1), "[{}] {}:{}", report->hover->_name,
-                         function.sourceFileIndex != -1 ? report->sourceFiles[function.sourceFileIndex]._path : "??",
-                         function.lineNumber);
+                         function._source_file_index != -1 ? report->sourceFiles[function._source_file_index]._path : "??",
+                         function._line_number);
          std_format_to_n(line2, sizeof(line2), "This call: {:f}ms {:.1f}%%",
                          report->hover->_end_time - report->hover->_start_time,
                          (report->hover->_end_time - report->hover->_start_time) / report->totalTime * 100.0);
-         std_format_to_n(line3, sizeof(line3), "Total: {:f}ms in {} calls ({:f}ms avg) {:.1f}%%", function.totalTime,
-                         function.callCount, function.totalTime / function.callCount,
-                         function.totalTime / report->totalTime * 100.0);
+         std_format_to_n(line3, sizeof(line3), "Total: {:f}ms in {} calls ({:f}ms avg) {:.1f}%%", function._total_time,
+                         function._call_count, function._total_time / function._call_count,
+                         function._total_time / report->totalTime * 100.0);
 
          UI* ui         = el->ui();
          int width      = 0;
@@ -5592,12 +5594,12 @@ void ProfSwitchView(ProfFlameGraphReport* report) {
    }
 #define PROF_COMPARE_NUMBERS(a, b) (a) > (b) ? -1 : (a) < (b) ? 1 : 0
 
-PROF_FUNCTION_COMPARE(ProfFunctionCompareName, strcmp(left->cName, right->cName));
-PROF_FUNCTION_COMPARE(ProfFunctionCompareTotalTime, PROF_COMPARE_NUMBERS(left->totalTime, right->totalTime));
-PROF_FUNCTION_COMPARE(ProfFunctionCompareCallCount, PROF_COMPARE_NUMBERS(left->callCount, right->callCount));
+PROF_FUNCTION_COMPARE(ProfFunctionCompareName, strcmp(left->_name, right->_name));
+PROF_FUNCTION_COMPARE(ProfFunctionCompareTotalTime, PROF_COMPARE_NUMBERS(left->_total_time, right->_total_time));
+PROF_FUNCTION_COMPARE(ProfFunctionCompareCallCount, PROF_COMPARE_NUMBERS(left->_call_count, right->_call_count));
 PROF_FUNCTION_COMPARE(ProfFunctionCompareAverage,
-                      PROF_COMPARE_NUMBERS(left->totalTime / left->callCount, right->totalTime / right->callCount));
-PROF_FUNCTION_COMPARE(ProfFunctionComparePercentage, PROF_COMPARE_NUMBERS(left->totalTime, right->totalTime));
+                      PROF_COMPARE_NUMBERS(left->_total_time / left->_call_count, right->_total_time / right->_call_count));
+PROF_FUNCTION_COMPARE(ProfFunctionComparePercentage, PROF_COMPARE_NUMBERS(left->_total_time, right->_total_time));
 
 int ProfTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    ProfFlameGraphReport* report = (ProfFlameGraphReport*)el->_cp;
@@ -5608,15 +5610,15 @@ int ProfTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       ProfFunctionEntry* entry = &report->sortedFunctions[m->_row];
 
       if (m->_column == 0) {
-         return m->format_to("{}", entry->cName);
+         return m->format_to("{}", entry->_name);
       } else if (m->_column == 1) {
-         return m->format_to("{:f}", entry->totalTime);
+         return m->format_to("{:f}", entry->_total_time);
       } else if (m->_column == 2) {
-         return m->format_to("{}", entry->callCount);
+         return m->format_to("{}", entry->_call_count);
       } else if (m->_column == 3) {
-         return m->format_to("{:f}", entry->totalTime / entry->callCount);
+         return m->format_to("{:f}", entry->_total_time / entry->_call_count);
       } else if (m->_column == 4) {
-         return m->format_to("{:f}", entry->totalTime / report->totalTime * 100);
+         return m->format_to("{:f}", entry->_total_time / report->totalTime * 100);
       }
    } else if (msg == UIMessage::LEFT_DOWN) {
       int index = table->header_hittest(el->cursor_pos());
@@ -5725,7 +5727,7 @@ void ProfLoadProfileData(void* _window) {
          continue;
       ProfFunctionEntry& function = functions[rawEntries[i]._this_function];
 
-      function.sourceFileIndex = -1;
+      function._source_file_index = -1;
 
       std_format_to_n(buffer, sizeof(buffer), "(void *) {:p}", rawEntries[i]._this_function);
       auto cName = EvaluateExpression(buffer);
@@ -5735,31 +5737,31 @@ void ProfLoadProfileData(void* _window) {
       if (strchr(cName.c_str(), '<'))
          cName = strchr(cName.c_str(), '<') + 1;
       int length = strlen(cName.c_str());
-      if (length > (int)sizeof(function.cName) - 1)
-         length = sizeof(function.cName) - 1;
-      memcpy(function.cName, cName.c_str(), length);
-      function.cName[length] = 0;
+      if (length > (int)sizeof(function._name) - 1)
+         length = sizeof(function._name) - 1;
+      memcpy(function._name, cName.c_str(), length);
+      function._name[length] = 0;
 
       int inTemplate = 0;
 
       for (int j = 0; j < length; j++) {
-         if (function.cName[j] == '(' && !inTemplate) {
-            function.cName[j] = 0;
+         if (function._name[j] == '(' && !inTemplate) {
+            function._name[j] = 0;
             break;
-         } else if (function.cName[j] == '<') {
+         } else if (function._name[j] == '<') {
             inTemplate++;
-         } else if (function.cName[j] == '>') {
+         } else if (function._name[j] == '>') {
             if (inTemplate) {
                inTemplate--;
             } else {
-               function.cName[j] = 0;
+               function._name[j] = 0;
                break;
             }
          }
       }
 
       std_format_to_n(buffer, sizeof(buffer), "py print(gdb.lookup_global_symbol('{}').symtab.filename)",
-                      function.cName);
+                      function._name);
       auto res = EvaluateCommand(buffer);
 
       if (!res.contains("Traceback (most recent call last):")) {
@@ -5771,19 +5773,19 @@ void ProfLoadProfileData(void* _window) {
             length = sizeof(sourceFile._path) - 1;
          memcpy(sourceFile._path, cSourceFile, length);
          sourceFile._path[length] = 0;
-         std_format_to_n(buffer, sizeof(buffer), "py print(gdb.lookup_global_symbol('{}').line)", function.cName);
+         std_format_to_n(buffer, sizeof(buffer), "py print(gdb.lookup_global_symbol('{}').line)", function._name);
          res                 = EvaluateCommand(buffer);
-         function.lineNumber = sv_atoi(res);
+         function._line_number = sv_atoi(res);
 
          for (size_t i = 0; i < sourceFiles.size(); i++) {
             if (0 == strcmp(sourceFiles[i]._path, sourceFile._path)) {
-               function.sourceFileIndex = i;
+               function._source_file_index = i;
                break;
             }
          }
 
-         if (function.sourceFileIndex == -1) {
-            function.sourceFileIndex = sourceFiles.size();
+         if (function._source_file_index == -1) {
+            function._source_file_index = sourceFiles.size();
             sourceFiles.push_back(sourceFile);
          }
       }
@@ -5832,7 +5834,7 @@ void ProfLoadProfileData(void* _window) {
 
          if (0 == strcmp(entry._name, "[unknown]")) {
             if (report->functions.contains(rawEntries[i]._this_function))
-               entry._name = report->functions[rawEntries[i]._this_function].cName;
+               entry._name = report->functions[rawEntries[i]._this_function]._name;
          }
 
          entry._this_function = rawEntries[i]._this_function;
@@ -5842,9 +5844,9 @@ void ProfLoadProfileData(void* _window) {
          ProfFlameGraphEntry entry = {};
          if (report->functions.contains(rawEntries[i]._this_function)) {
             ProfFunctionEntry& function = report->functions[rawEntries[i]._this_function];
-            entry._name                 = function.cName;
+            entry._name                 = function._name;
             entry._color_index =
-               function.sourceFileIndex % (sizeof(profEntryColorPalette) / sizeof(profEntryColorPalette[0]));
+               function._source_file_index % (sizeof(profEntryColorPalette) / sizeof(profEntryColorPalette[0]));
          }
 
          entry._start_time = (double)(rawEntries[i]._time_stamp - (rawEntries[0]._time_stamp & 0x7FFFFFFFFFFFFFFFUL)) /
@@ -5890,8 +5892,8 @@ void ProfLoadProfileData(void* _window) {
       }
 
       ProfFunctionEntry& function = report->functions[entry._this_function];
-      function.callCount++;
-      function.totalTime += entry._end_time - entry._start_time;
+      function._call_count++;
+      function._total_time += entry._end_time - entry._start_time;
    }
 
    print("Found {} functions over {} source files.\n", report->functions.size(), report->sourceFiles.size());
@@ -7294,7 +7296,7 @@ void Context::InterfaceAddBuiltinWindowsAndCommands() {
    _interface_windows["Struct"]      = {StructWindow::Create, nullptr};
    _interface_windows["Files"]       = {FilesWindow::Create, nullptr};
    _interface_windows["Console"]     = {ConsoleWindowCreate, nullptr};
-   _interface_windows["Log"]         = {LogWindowCreate, nullptr};
+   _interface_windows["Log"]         = {LogWindow::Create, nullptr};
    _interface_windows["Thread"]      = {ThreadsWindow::Create, ThreadsWindow::Update};
    _interface_windows["Exe"]         = {ExecutableWindow::Create, nullptr};
    _interface_windows["CmdSearch"]   = {CommandSearchWindow::Create, nullptr};
