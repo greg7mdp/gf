@@ -341,26 +341,22 @@ UIMessage msgReceivedData, msgReceivedLog, msgReceivedControl, msgReceivedNext =
 
 // Current file and line:
 
-char   currentFile[PATH_MAX];
-char   currentFileFull[PATH_MAX];
-time_t currentFileReadTime;
-bool   showingDisassembly;
 char   previousLocation[256];
 
 // User interface:
 struct SourceWindow;
 
-UIWindow*   windowMain   = nullptr;
-UISwitcher* switcherMain = nullptr;
+UIWindow*   s_main_window   = nullptr;
+UISwitcher* s_main_switcher = nullptr;
 
 UICode*       s_display_code   = nullptr;
 SourceWindow* s_source_window  = nullptr;
 UICode*       s_display_output = nullptr;
 UITextbox*    s_input_textbox  = nullptr;
-UISpacer*     trafficLight     = nullptr;
+UISpacer*     s_trafficlight   = nullptr;
 
-UIMDIClient* dataWindow = nullptr;
-UIPanel*     dataTab    = nullptr;
+UIMDIClient* s_data_window = nullptr;
+UIPanel*     s_data_tab    = nullptr;
 
 UIFont* code_font = nullptr;
 
@@ -736,7 +732,7 @@ void Context::DebuggerThread() {
          // as we receive it, even it it is not complete.
          // ----------------------------------------------------------------------
          if (_log_window && !_evaluate_mode)
-            windowMain->post_message(msgReceivedLog, new std::string(buffer));
+            s_main_window->post_message(msgReceivedLog, new std::string(buffer));
 
          if (catBuffer.size() + count + 1 > catBuffer.capacity())
             catBuffer.reserve(catBuffer.capacity() * 2);
@@ -761,7 +757,7 @@ void Context::DebuggerThread() {
             _evaluate_result_queue.push(std::move(catBuffer));
             _evaluate_mode = false;
          } else {
-            windowMain->post_message(msgReceivedData, new std::string(std::move(catBuffer)));
+            s_main_window->post_message(msgReceivedData, new std::string(std::move(catBuffer)));
          }
 
          catBuffer = std::string{};
@@ -786,8 +782,8 @@ std::optional<std::string> DebuggerSend(string_view command, bool echo, bool syn
 
    ctx._program_running = true;
 
-   if (trafficLight)
-      trafficLight->repaint(nullptr);
+   if (s_trafficlight)
+      s_trafficlight->repaint(nullptr);
 
    // std::cout << "sending: \"" << command << "\"\n";
 
@@ -805,8 +801,8 @@ std::optional<std::string> DebuggerSend(string_view command, bool echo, bool syn
          res = std::string{}; // in synchronous mode we always return a (possibly empty) string
       } else {
          ctx._program_running = false;
-         if (!quit && trafficLight)
-            trafficLight->repaint(nullptr);
+         if (!quit && s_trafficlight)
+            s_trafficlight->repaint(nullptr);
       }
    }
    // print("{} ==> {}\n", command, res ? *res : "???"s);
@@ -836,7 +832,7 @@ void* ControlPipeThread(void*) {
       auto  s    = new std::string;
       s->resize(256);
       (*s)[fread(s->data(), 1, 255, file)] = 0;
-      windowMain->post_message(msgReceivedControl, s);
+      s_main_window->post_message(msgReceivedControl, s);
       fclose(file);
    }
 
@@ -961,6 +957,89 @@ public:
 };
 
 // ---------------------------------------------------
+// Source display:
+// ---------------------------------------------------
+
+struct SourceWindow {
+   int _auto_print_expression_line;
+   int _auto_print_result_line;
+
+   char   _current_file[PATH_MAX];
+   char   _current_file_full[PATH_MAX];
+   time_t _current_file_read_time;
+   bool   _showing_disassembly;
+
+private:
+   std::array<char, 1024> _auto_print_expression;
+   std::array<char, 1024> _auto_print_result;
+
+   int _current_end_of_block;
+   int _last_cursor_x;
+   int _last_cursor_y;
+
+   int _if_condition_evaluation;
+   int _if_condition_line;
+   int _if_condition_from;
+   int _if_condition_to;
+
+   struct InspectResult {
+      std::string _expression;
+      std::string _value;
+   };
+
+   vector<InspectResult> _inspect_results;
+   bool                  _no_inspect_results;
+   bool                  _in_inspect_line_mode;
+   int                   _inspect_mode_restore_line;
+   UIRectangle           _display_current_line_bounds;
+   const char*           _disassembly_command = "disas /s";
+
+   int _code_message_proc(UICode* code, UIMessage msg, int di, void* dp);
+   int _line_message_proc(UIElement* el, UIMessage msg, int di, void* dp);
+
+   void _update(const char* data, UICode* el);
+
+public:
+   std::array<char, 1024>& auto_print_result() { return _auto_print_result; }
+
+   bool display_set_position(const char* file, std::optional<size_t> line, bool useGDBToGetFullPath);
+   void display_set_position_from_stack();
+   void disassembly_load();
+   void disassembly_update_line();
+   bool toggle_disassembly();
+   void draw_inspect_line_mode_overlay(UIPainter* painter);
+   void inspect_current_line();
+   void exit_inspect_line_mode(UIElement* el);
+   bool inspect_line();
+   bool set_disassembly_mode();
+
+   static int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<SourceWindow*>(el->_cp)->_code_message_proc(static_cast<UICode*>(el), msg, di, dp);
+   }
+
+   static int InspectLineModeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<SourceWindow*>(el->_cp)->_line_message_proc(el, msg, di, dp);
+   }
+
+   static UIElement* Create(UIElement* parent) {
+      s_source_window = new SourceWindow;
+      s_display_code  = &parent->add_code(selectableSource ? UICode::SELECTABLE : 0)
+                           .set_font(code_font)
+                           .set_cp(s_source_window)
+                           .set_user_proc(SourceWindow::DisplayCodeMessage);
+      return s_display_code;
+   }
+
+   static void Update(const char* data, UIElement* el) {
+      static_cast<SourceWindow*>(el->_cp)->_update(data, static_cast<UICode*>(el));
+   }
+};
+
+static bool DisplaySetPosition(const char* file, std::optional<size_t> line, bool useGDBToGetFullPath) {
+   return s_source_window->display_set_position(file, line, useGDBToGetFullPath);
+}
+
+// ---------------------------------------------------
 // Breakpoints:
 // ---------------------------------------------------
 std::optional<std::string> DebuggerSend(string_view command, bool echo, bool synchronous);
@@ -1005,7 +1084,7 @@ public:
    }
 
    void toggle_breakpoint(int line = 0) {
-      if (showingDisassembly) {
+      if (s_source_window->_showing_disassembly) {
          // TODO.
          return;
       }
@@ -1018,13 +1097,13 @@ public:
       }
 
       for (const auto& bp : _breakpoints) {
-         if (bp.match(line, currentFileFull)) {
-            (void)DebuggerSend(std::format("clear {}:{}", currentFile, line), true, false);
+         if (bp.match(line, s_source_window->_current_file_full)) {
+            (void)DebuggerSend(std::format("clear {}:{}", s_source_window->_current_file, line), true, false);
             return;
          }
       }
 
-      (void)DebuggerSend(std::format("b {}:{}", currentFile, line), true, false);
+      (void)DebuggerSend(std::format("b {}:{}", s_source_window->_current_file, line), true, false);
    }
 
    void update_breakpoint_from_gdb() {
@@ -1148,10 +1227,10 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
    std::optional<std::string> res;
    if (command == "gf-step") {
       if (!ctx._program_running)
-         res = DebuggerSend(showingDisassembly ? "stepi" : "s", true, synchronous);
+         res = DebuggerSend(s_source_window->_showing_disassembly ? "stepi" : "s", true, synchronous);
    } else if (command == "gf-next") {
       if (!ctx._program_running)
-         res = DebuggerSend(showingDisassembly ? "nexti" : "n", true, synchronous);
+         res = DebuggerSend(s_source_window->_showing_disassembly ? "nexti" : "n", true, synchronous);
    } else if (command == "gf-step-out-of-block") {
       int line = SourceFindEndOfBlock();
 
@@ -1191,7 +1270,7 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
          return {};
       }
 
-      windowMain->show_dialog(0, "Couldn't get the working directory.\n%f%B", "OK");
+      s_main_window->show_dialog(0, "Couldn't get the working directory.\n%f%B", "OK");
    } else if (command.starts_with("gf-switch-to ")) {
       ctx.InterfaceWindowSwitchToAndFocus(command.substr(13));
    } else if (command.starts_with("gf-command ")) {
@@ -1229,9 +1308,9 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
    } else if (command == "gf-inspect-line") {
       CommandInspectLine();
    } else if (command == "target remote :1234" && confirmCommandConnect &&
-              windowMain->show_dialog(0, "Connect to remote target?\n%f%B%C", "Connect", "Cancel") == "Cancel") {
+              s_main_window->show_dialog(0, "Connect to remote target?\n%f%B%C", "Connect", "Cancel") == "Cancel") {
    } else if (command == "kill" && confirmCommandKill &&
-              windowMain->show_dialog(0, "Kill debugging target?\n%f%B%C", "Kill", "Cancel") == "Cancel") {
+              s_main_window->show_dialog(0, "Kill debugging target?\n%f%B%C", "Kill", "Cancel") == "Cancel") {
    } else {
       res = DebuggerSend(command, true, synchronous);
    }
@@ -1459,7 +1538,7 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
             if ((int)shortcut.code == 0) {
                print(std::cerr, "Warning: Could not register shortcut for '{}'.\n", key);
             } else {
-               windowMain->register_shortcut(std::move(shortcut));
+               s_main_window->register_shortcut(std::move(shortcut));
             }
          } else if (section == "ui" && !key.empty() && earlyPass) {
             if (key == "font_size") {
@@ -1603,85 +1682,11 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
 // Source display:
 // ---------------------------------------------------
 
-struct SourceWindow {
-   int autoPrintExpressionLine;
-   int autoPrintResultLine;
-
-private:
-   std::array<char, 1024> _auto_print_expression;
-   std::array<char, 1024> _auto_print_result;
-
-   int _current_end_of_block;
-   int _last_cursor_x;
-   int _last_cursor_y;
-
-   int _if_condition_evaluation;
-   int _if_condition_line;
-   int _if_condition_from;
-   int _if_condition_to;
-
-   struct InspectResult {
-      std::string _expression;
-      std::string _value;
-   };
-
-   vector<InspectResult> _inspect_results;
-   bool                  _no_inspect_results;
-   bool                  _in_inspect_line_mode;
-   int                   _inspect_mode_restore_line;
-   UIRectangle           _display_current_line_bounds;
-   const char*           _disassembly_command = "disas /s";
-
-   int _code_message_proc(UICode* code, UIMessage msg, int di, void* dp);
-   int _line_message_proc(UIElement* el, UIMessage msg, int di, void* dp);
-
-   void _update(const char* data, UICode* el);
-
-public:
-   std::array<char, 1024>& auto_print_result() { return _auto_print_result; }
-
-   bool display_set_position(const char* file, std::optional<size_t> line, bool useGDBToGetFullPath);
-   void display_set_position_from_stack();
-   void disassembly_load();
-   void disassembly_update_line();
-   bool toggle_disassembly();
-   void draw_inspect_line_mode_overlay(UIPainter* painter);
-   void inspect_current_line();
-   void exit_inspect_line_mode(UIElement* el);
-   bool inspect_line();
-   bool set_disassembly_mode();
-
-   static int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<SourceWindow*>(el->_cp)->_code_message_proc(static_cast<UICode*>(el), msg, di, dp);
-   }
-
-   static int InspectLineModeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<SourceWindow*>(el->_cp)->_line_message_proc(el, msg, di, dp);
-   }
-
-   static UIElement* Create(UIElement* parent) {
-      s_source_window = new SourceWindow;
-      s_display_code  = &parent->add_code(selectableSource ? UICode::SELECTABLE : 0)
-                           .set_font(code_font)
-                           .set_cp(s_source_window)
-                           .set_user_proc(SourceWindow::DisplayCodeMessage);
-      return s_display_code;
-   }
-
-   static void Update(const char* data, UIElement* el) {
-      static_cast<SourceWindow*>(el->_cp)->_update(data, static_cast<UICode*>(el));
-   }
-};
-
-static bool DisplaySetPosition(const char* file, std::optional<size_t> line, bool useGDBToGetFullPath) {
-   return s_source_window->display_set_position(file, line, useGDBToGetFullPath);
-}
-
 // --------------------------------
 // `line`, if present, is `0-based`
 // --------------------------------
 bool SourceWindow::display_set_position(const char* file, std::optional<size_t> line, bool useGDBToGetFullPath) {
-   if (showingDisassembly) {
+   if (_showing_disassembly) {
       return false;
    }
 
@@ -1709,26 +1714,26 @@ bool SourceWindow::display_set_position(const char* file, std::optional<size_t> 
    bool reloadFile = false;
 
    if (file) {
-      if (strcmp(currentFile, file)) {
+      if (strcmp(_current_file, file)) {
          reloadFile = true;
       }
 
       struct stat buf;
 
-      if (!stat(file, &buf) && buf.st_mtime != currentFileReadTime) {
+      if (!stat(file, &buf) && buf.st_mtime != _current_file_read_time) {
          reloadFile = true;
       }
 
-      currentFileReadTime = buf.st_mtime;
+      _current_file_read_time = buf.st_mtime;
    }
 
    bool changed = false;
 
    if (reloadFile) {
-      std_format_to_n(currentFile, 4096, "{}", file);
-      realpath(currentFile, currentFileFull);
+      std_format_to_n(_current_file, 4096, "{}", file);
+      realpath(_current_file, _current_file_full);
 
-      windowMain->set_name(currentFileFull);
+      s_main_window->set_name(_current_file_full);
 
       s_display_code->load_file(file,
                                 std::format("The file '{}' (from '{}') could not be loaded.", file, originalFile));
@@ -1822,7 +1827,7 @@ void SourceWindow::disassembly_update_line() {
 
             if (a == b) {
                s_display_code->set_focus_line(i);
-               autoPrintExpressionLine = i;
+               _auto_print_expression_line = i;
                found                   = true;
                break;
             }
@@ -1841,12 +1846,12 @@ void SourceWindow::disassembly_update_line() {
 }
 
 bool SourceWindow::toggle_disassembly() {
-   showingDisassembly        = !showingDisassembly;
-   autoPrintResultLine       = 0;
+   _showing_disassembly        = !_showing_disassembly;
+   _auto_print_result_line       = 0;
    _auto_print_expression[0] = 0;
    s_display_code->_flags ^= UICode::NO_MARGIN;
 
-   if (showingDisassembly) {
+   if (_showing_disassembly) {
       s_display_code->insert_content("Disassembly could not be loaded.\nPress Ctrl+D to return to source view.", true);
       s_display_code->set_tab_columns(8);
       disassembly_load();
@@ -1854,8 +1859,8 @@ bool SourceWindow::toggle_disassembly() {
    } else {
       s_display_code->set_current_line({});
       _current_end_of_block = -1;
-      currentFile[0]        = 0;
-      currentFileReadTime   = 0;
+      _current_file[0]        = 0;
+      _current_file_read_time   = 0;
       display_set_position_from_stack();
       s_display_code->set_tab_columns(4);
    }
@@ -1865,7 +1870,7 @@ bool SourceWindow::toggle_disassembly() {
 }
 
 bool SourceWindow::set_disassembly_mode() {
-   auto newMode = windowMain->show_dialog(0, "Select the disassembly mode:\n%b\n%b\n%b", "Disassembly only",
+   auto newMode = s_main_window->show_dialog(0, "Select the disassembly mode:\n%b\n%b\n%b", "Disassembly only",
                                           "With source", "Source centric");
 
    if (newMode == "Disassembly only")
@@ -1875,7 +1880,7 @@ bool SourceWindow::set_disassembly_mode() {
    else if (newMode == "Source centric")
       _disassembly_command = "disas /m";
 
-   if (showingDisassembly) {
+   if (_showing_disassembly) {
       toggle_disassembly();
       toggle_disassembly();
    }
@@ -1941,22 +1946,22 @@ void SourceWindow::draw_inspect_line_mode_overlay(UIPainter* painter) {
 }
 
 void CommandDeleteAllBreakpointsOnLine(int line) {
-   s_breakpoint_mgr.for_all_matching_breakpoints(line, currentFileFull,
+   s_breakpoint_mgr.for_all_matching_breakpoints(line, s_source_window->_current_file_full,
                                                  [](int line, auto&) { CommandDeleteBreakpoint(line); });
 }
 
 void CommandDisableAllBreakpointsOnLine(int line) {
-   s_breakpoint_mgr.for_all_matching_breakpoints(line, currentFileFull,
+   s_breakpoint_mgr.for_all_matching_breakpoints(line, s_source_window->_current_file_full,
                                                  [](int line, auto&) { CommandDisableBreakpoint(line); });
 }
 
 void CommandEnableAllBreakpointsOnLine(int line) {
-   s_breakpoint_mgr.for_all_matching_breakpoints(line, currentFileFull,
+   s_breakpoint_mgr.for_all_matching_breakpoints(line, s_source_window->_current_file_full,
                                                  [](int line, auto&) { CommandEnableBreakpoint(line); });
 }
 
 int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* dp) {
-   if (msg == UIMessage::CLICKED && !showingDisassembly) {
+   if (msg == UIMessage::CLICKED && !_showing_disassembly) {
       int result = code->hittest(code->_window->cursor_pos());
 
       if (result < 0 && code->left_down_in_margin()) {
@@ -1991,17 +1996,17 @@ int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* 
          }
          return 0;
       }
-   } else if (msg == UIMessage::RIGHT_DOWN && !showingDisassembly) {
+   } else if (msg == UIMessage::RIGHT_DOWN && !_showing_disassembly) {
       int result = code->hittest(code->cursor_pos());
 
       bool atLeastOneBreakpointEnabled = false;
 
-      s_breakpoint_mgr.for_all_matching_breakpoints(-result, currentFileFull, [&](int line, auto& bp) {
+      s_breakpoint_mgr.for_all_matching_breakpoints(-result, _current_file_full, [&](int line, auto& bp) {
          if (bp._enabled)
             atLeastOneBreakpointEnabled = true;
       });
 
-      s_breakpoint_mgr.for_all_matching_breakpoints(-result, currentFileFull, [&](int line, auto&) {
+      s_breakpoint_mgr.for_all_matching_breakpoints(-result, _current_file_full, [&](int line, auto&) {
          UIMenu& menu = code->ui()->create_menu(code->_window, UIMenu::NO_SCROLL).add_item(0, "Delete", [=](UIButton&) {
             CommandDeleteAllBreakpointsOnLine(-result);
          });
@@ -2011,11 +2016,11 @@ int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* 
             menu.add_item(0, "Enable", [=](UIButton&) { CommandEnableAllBreakpointsOnLine(-result); });
          menu.show();
       });
-   } else if (msg == UIMessage::CODE_GET_MARGIN_COLOR && !showingDisassembly) {
+   } else if (msg == UIMessage::CODE_GET_MARGIN_COLOR && !_showing_disassembly) {
       auto& theme       = code->theme();
       int   num_enabled = 0, num_disabled = 0;
 
-      s_breakpoint_mgr.for_all_matching_breakpoints(di, currentFileFull, [&](int line, auto& bp) {
+      s_breakpoint_mgr.for_all_matching_breakpoints(di, _current_file_full, [&](int line, auto& bp) {
          if (bp._enabled)
             ++num_enabled;
          else
@@ -2047,7 +2052,7 @@ int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* 
          _display_current_line_bounds = m->bounds;
       }
 
-      if (m->index == autoPrintResultLine) {
+      if (m->index == _auto_print_result_line) {
          UIRectangle rectangle =
             UIRectangle(m->x + active_font->_glyph_width, m->bounds.r, m->y, m->y + code->ui()->string_height());
          m->painter->draw_string(rectangle, _auto_print_result.data(), theme.codeComment, UIAlign::left, nullptr);
@@ -2218,7 +2223,7 @@ void SourceWindow::_update(const char* data, UICode* el) {
                          std::string_view{text + expressionStart, expressionEnd - expressionStart});
       }
 
-      autoPrintExpressionLine = *currentLine + 1;
+      _auto_print_expression_line = *currentLine + 1;
 
       // Try to evaluate simple if conditions.
 
@@ -2371,7 +2376,7 @@ bool SourceWindow::inspect_line() {
    s_display_code->refresh();
 
    // Create an element to receive key input messages.
-   windowMain->add_element(0, InspectLineModeMessage, 0).set_cp(s_display_code->_cp).focus();
+   s_main_window->add_element(0, InspectLineModeMessage, 0).set_cp(s_display_code->_cp).focus();
    return true;
 }
 
@@ -2416,7 +2421,7 @@ int DataViewerAutoUpdateButtonMessage(UIElement* el, UIMessage msg, int di, void
 }
 
 void DataViewersUpdateAll() {
-   if (~dataTab->_flags & UIElement::hide_flag) {
+   if (~s_data_tab->_flags & UIElement::hide_flag) {
       for (const auto& auv : autoUpdateViewers) {
          auv._callback(auv._el);
       }
@@ -2535,7 +2540,7 @@ int BitmapViewerDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
                    [el](UIButton&) {
                       static char* path = nullptr;
                       auto         result =
-                         windowMain->show_dialog(0, "Save to file       \nPath:\n%t\n%f%B%C", &path, "Save", "Cancel");
+                         s_main_window->show_dialog(0, "Save to file       \nPath:\n%t\n%f%B%C", &path, "Save", "Cancel");
                       if (result != "Save")
                          return;
 
@@ -2577,7 +2582,7 @@ void BitmapViewerUpdate(std::string pointerString, std::string widthString, std:
       bitmap->_height  = std::move(heightString);
       bitmap->_stride  = std::move(strideString);
 
-      UIMDIChild* window = &dataWindow->add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Bitmap")
+      UIMDIChild* window = &s_data_window->add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Bitmap")
                                .set_user_proc(BitmapViewerWindowMessage)
                                .set_cp(bitmap);
       bitmap->_auto_toggle = &window->add_button(UIButton::SMALL | UIElement::non_client_flag, "Auto")
@@ -2606,7 +2611,7 @@ void BitmapViewerUpdate(std::string pointerString, std::string widthString, std:
       bitmap->_label_panel->_flags |= UIElement::hide_flag, bitmap->_display->_flags &= ~UIElement::hide_flag;
    bitmap->_label_panel->_parent->refresh();
    owner->refresh();
-   dataWindow->refresh();
+   s_data_window->refresh();
 
    free(bits);
 }
@@ -2614,7 +2619,7 @@ void BitmapViewerUpdate(std::string pointerString, std::string widthString, std:
 void BitmapAddDialog() {
    static char *pointer = nullptr, *width = nullptr, *height = nullptr, *stride = nullptr;
 
-   auto result = windowMain->show_dialog(0,
+   auto result = s_main_window->show_dialog(0,
                                          "Add bitmap\n\n%l\n\nPointer to bits: (32bpp, RR GG BB "
                                          "AA)\n%t\nWidth:\n%t\nHeight:\n%t\nStride: (optional)\n%t\n\n%l\n\n%f%B%C",
                                          &pointer, &width, &height, &stride, "Add", "Cancel");
@@ -2743,7 +2748,7 @@ public:
       UIPanel* panel3  = &panel2->add_panel(UIPanel::HORIZONTAL | UIPanel::EXPAND | UIPanel::COLOR_1)
                             .set_border(UIRectangle(5))
                             .set_gap(5);
-      trafficLight = &panel3->add_spacer(0, 30, 30).set_user_proc(TrafficLightMessage);
+      s_trafficlight = &panel3->add_spacer(0, 30, 30).set_user_proc(TrafficLightMessage);
       panel3->add_button(0, "Menu").on_click([](UIButton& buttonMenu) { ctx.InterfaceShowMenu(&buttonMenu); });
       s_input_textbox = &panel3->add_textbox(UIElement::h_fill).set_user_proc(TextboxInputMessage).set_cp(w).focus();
       return panel2;
@@ -2861,13 +2866,13 @@ public:
       auto res = evaluate("gf_addressof");
 
       if (strstr(res.c_str(), "??")) {
-         windowMain->show_dialog(0, "Couldn't get the address of the variable.\n%f%B", "OK");
+         s_main_window->show_dialog(0, "Couldn't get the address of the variable.\n%f%B", "OK");
          return {};
       }
 
       auto end = res.find_first_of(' ');
       if (end == npos) {
-         windowMain->show_dialog(0, "Couldn't get the address of the variable.\n%f%B", "OK");
+         s_main_window->show_dialog(0, "Couldn't get the address of the variable.\n%f%B", "OK");
          return {};
       }
       res.resize(end);
@@ -3128,7 +3133,7 @@ public:
 
       if (res.contains("No line number")) {
          resize_to_lf(res);
-         windowMain->show_dialog(0, "%s\n%f%B", res.c_str(), "OK");
+         s_main_window->show_dialog(0, "%s\n%f%B", res.c_str(), "OK");
          return false;
       }
 
@@ -3289,7 +3294,7 @@ public:
          return;
 
       char* filePath = nullptr;
-      auto  result   = windowMain->show_dialog(0, "Path:            \n%t\n%f%B%C", &filePath, "Save", "Cancel");
+      auto  result   = s_main_window->show_dialog(0, "Path:            \n%t\n%f%B%C", &filePath, "Save", "Cancel");
 
       if (result == "Cancel") {
          free(filePath);
@@ -3300,7 +3305,7 @@ public:
       free(filePath);
 
       if (!f) {
-         windowMain->show_dialog(0, "Could not open the file for writing!\n%f%B", "OK");
+         s_main_window->show_dialog(0, "Could not open the file for writing!\n%f%B", "OK");
          return;
       }
 
@@ -3816,8 +3821,8 @@ void WatchWindow::WatchChangeLoggerCreate() {
       return;
    }
 
-   if (!dataTab) {
-      windowMain->show_dialog(0, "The data window is not open.\nThe watch log cannot be created.\n%f%B", "OK");
+   if (!s_data_tab) {
+      s_main_window->show_dialog(0, "The data window is not open.\nThe watch log cannot be created.\n%f%B", "OK");
       return;
    }
 
@@ -3828,7 +3833,7 @@ void WatchWindow::WatchChangeLoggerCreate() {
 
    char* expressionsToEvaluate = nullptr;
 
-   auto result = windowMain->show_dialog(
+   auto result = s_main_window->show_dialog(
       0, "-- Watch logger settings --\nExpressions to evaluate (separate with semicolons):\n%t\n\n%l\n\n%f%B%C",
       &expressionsToEvaluate, "Start", "Cancel");
 
@@ -3837,13 +3842,13 @@ void WatchWindow::WatchChangeLoggerCreate() {
       return;
    }
 
-   UIMDIChild* child = &dataWindow->add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(0), std::format("Log {}", res));
+   UIMDIChild* child = &s_data_window->add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(0), std::format("Log {}", res));
 
    res                = EvaluateCommand(std::format("watch * {}", res));
    const char* number = strstr(res.c_str(), "point ");
 
    if (!number) {
-      windowMain->show_dialog(0, "Couldn't set the watchpoint.\n%f%B", "OK");
+      s_main_window->show_dialog(0, "Couldn't set the watchpoint.\n%f%B", "OK");
       return;
    }
 
@@ -3885,10 +3890,10 @@ void WatchWindow::WatchChangeLoggerCreate() {
    table->set_user_proc(WatchLoggerTableMessage).set_cp(logger);
    trace->set_user_proc(WatchLoggerTraceMessage).set_cp(logger);
    watchLoggers.push_back(logger);
-   dataWindow->refresh();
+   s_data_window->refresh();
    WatchLoggerResizeColumns(logger);
 
-   windowMain->show_dialog(0, "The log has been setup in the data window.\n%f%B", "OK");
+   s_main_window->show_dialog(0, "The log has been setup in the data window.\n%f%B", "OK");
    return;
 }
 
@@ -3981,8 +3986,8 @@ bool WatchLoggerUpdate(std::string _data) {
 }
 
 WatchWindow* WatchGetFocused() {
-   return windowMain->focused()->_class_proc == WatchWindow::WatchWindowMessage
-             ? (WatchWindow*)windowMain->focused()->_cp
+   return s_main_window->focused()->_class_proc == WatchWindow::WatchWindowMessage
+             ? (WatchWindow*)s_main_window->focused()->_cp
              : nullptr;
 }
 
@@ -4253,19 +4258,19 @@ private:
    UIButton* buttonFillWindow;
 
    bool toggle_fill_data_tab() {
-      if (!dataTab)
+      if (!s_data_tab)
          return false;
       static UIElement *oldParent, *oldBefore;
       buttonFillWindow->_flags ^= UIButton::CHECKED;
 
-      if (switcherMain->_active == dataTab) {
-         switcherMain->switch_to(switcherMain->_children[0]);
-         dataTab->change_parent(oldParent, oldBefore);
+      if (s_main_switcher->_active == s_data_tab) {
+         s_main_switcher->switch_to(s_main_switcher->_children[0]);
+         s_data_tab->change_parent(oldParent, oldBefore);
       } else {
-         dataTab->message(UIMessage::TAB_SELECTED, 0, 0);
-         oldParent = dataTab->_parent;
-         oldBefore = dataTab->change_parent(switcherMain, nullptr);
-         switcherMain->switch_to(dataTab);
+         s_data_tab->message(UIMessage::TAB_SELECTED, 0, 0);
+         oldParent = s_data_tab->_parent;
+         oldBefore = s_data_tab->change_parent(s_main_switcher, nullptr);
+         s_main_switcher->switch_to(s_data_tab);
       }
       return true;
    }
@@ -4287,8 +4292,8 @@ public:
    static UIElement* Create(UIElement* parent) {
       auto w = new DataWindow;
 
-      dataTab         = &parent->add_panel(UIPanel::EXPAND);
-      UIPanel* panel5 = &dataTab->add_panel(UIPanel::COLOR_1 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
+      s_data_tab         = &parent->add_panel(UIPanel::EXPAND);
+      UIPanel* panel5 = &s_data_tab->add_panel(UIPanel::COLOR_1 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
 
       w->buttonFillWindow =
          &panel5->add_button(UIButton::SMALL, "Fill window").on_click([w](UIButton&) { w->toggle_fill_data_tab(); });
@@ -4299,9 +4304,9 @@ public:
          });
       }
 
-      dataWindow = &dataTab->add_mdiclient(UIElement::v_fill).set_cp(w);
-      dataTab->set_user_proc(DataTabMessage);
-      return dataTab;
+      s_data_window = &s_data_tab->add_mdiclient(UIElement::v_fill).set_cp(w);
+      s_data_tab->set_user_proc(DataTabMessage);
+      return s_data_tab;
    }
 };
 
@@ -4420,7 +4425,7 @@ struct FilesWindow {
    }
 
    void navigate_to_active_file() {
-      std_format_to_n(_directory, sizeof(_directory), "{}", currentFileFull);
+      std_format_to_n(_directory, sizeof(_directory), "{}", s_source_window->_current_file_full);
       int p = strlen(_directory);
       while (p--) {
          if (_directory[p] == '/') {
@@ -4564,10 +4569,10 @@ public:
          auto  sw        = static_cast<SourceWindow*>(s_display_code->_cp);
          auto& ap_result = sw->auto_print_result();
 
-         if (modified && showingDisassembly && !isPC) {
+         if (modified && s_source_window->_showing_disassembly && !isPC) {
             if (!anyChanges) {
                ap_result[0]            = 0;
-               sw->autoPrintResultLine = sw->autoPrintExpressionLine;
+               sw->_auto_print_result_line = sw->_auto_print_expression_line;
                anyChanges              = true;
             } else {
                int position = strlen(ap_result.data());
@@ -4658,7 +4663,7 @@ struct LogWindow {
             s->resize(sizeof(context) + length + 1);
             memcpy(s->data(), &context, sizeof(context));
             strcpy(s->data() + sizeof(context), input);
-            windowMain->post_message(msgReceivedLog, s);
+            s_main_window->post_message(msgReceivedLog, s);
          }
       }
    }
@@ -4779,7 +4784,7 @@ public:
       auto res = EvaluateCommand(std::format("file \"{}\"", _path->text()));
 
       if (res.contains("No such file or directory.")) {
-         windowMain->show_dialog(0, "The executable path is invalid.\n%f%B", "OK");
+         s_main_window->show_dialog(0, "The executable path is invalid.\n%f%B", "OK");
          return;
       }
 
@@ -4800,7 +4805,7 @@ public:
    void save() {
       FILE* f = fopen(localConfigPath, "rb");
       if (f) {
-         auto result = windowMain->show_dialog(0, ".project.gf already exists in the current directory.\n%f%B%C",
+         auto result = s_main_window->show_dialog(0, ".project.gf already exists in the current directory.\n%f%B%C",
                                                "Overwrite", "Cancel");
          if (result != "Overwrite")
             return;
@@ -4812,7 +4817,7 @@ public:
             _should_ask ? '1' : '0');
       fclose(f);
       SettingsAddTrustedFolder();
-      windowMain->show_dialog(0, "Saved executable settings!\n%f%B", "OK");
+      s_main_window->show_dialog(0, "Saved executable settings!\n%f%B", "OK");
    }
 
    static UIElement* Create(UIElement* parent) {
@@ -5179,13 +5184,13 @@ int ProfFlameGraphEntryCompare(const void* _a, const void* _b) {
 void ProfShowSource(ProfFlameGraphReport* report) {
    ProfFlameGraphEntry* entry = report->menuItem;
    if (!report->functions.contains(entry->_this_function)) {
-      windowMain->show_dialog(0, "Source information was not found for this function.\n%f%b", "OK");
+      s_main_window->show_dialog(0, "Source information was not found for this function.\n%f%b", "OK");
       return;
    }
    ProfFunctionEntry& function = report->functions[entry->_this_function];
 
    if (!function._name[0]) {
-      windowMain->show_dialog(0, "Source information was not found for this function.\n%f%b", "OK");
+      s_main_window->show_dialog(0, "Source information was not found for this function.\n%f%b", "OK");
       return;
    } else {
       DisplaySetPosition(report->sourceFiles[function._source_file_index]._path, function._line_number - 1, false);
@@ -5754,7 +5759,7 @@ void ProfLoadProfileData(void* _window) {
    data->_ticks_per_ms          = ticksPerMsString ? sv_atoi(ticksPerMsString, 2) : 0;
 
    if (!ticksPerMsString || !data->_ticks_per_ms) {
-      windowMain->show_dialog(0, "Profile data could not be loaded (1).\nConsult the guide.\n%f%b", "OK");
+      s_main_window->show_dialog(0, "Profile data could not be loaded (1).\nConsult the guide.\n%f%b", "OK");
       return;
    }
 
@@ -5768,7 +5773,7 @@ void ProfLoadProfileData(void* _window) {
 
    if (rawEntryCount > 10000000) {
       // Show a loading message.
-      UIWindow* window = windowMain;
+      UIWindow* window = s_main_window;
       UIPainter painter(window);
       char      string[256];
       std_format_to_n(string, sizeof(string), "Loading data... (estimated time: {} seconds)",
@@ -5791,7 +5796,7 @@ void ProfLoadProfileData(void* _window) {
    FILE* f = fopen(path, "rb");
 
    if (!f) {
-      windowMain->show_dialog(0, "Profile data could not be loaded (2).\nConsult the guide.\n%f%b", "OK");
+      s_main_window->show_dialog(0, "Profile data could not be loaded (2).\nConsult the guide.\n%f%b", "OK");
       free(rawEntries);
       return;
    }
@@ -5886,7 +5891,7 @@ void ProfLoadProfileData(void* _window) {
       }
    }
 
-   UIMDIChild* window = &dataWindow->add_mdichild(UIMDIChild::CLOSE_BUTTON, ui_rect_2s(800, 600), "Flame graph");
+   UIMDIChild* window = &s_data_window->add_mdichild(UIMDIChild::CLOSE_BUTTON, ui_rect_2s(800, 600), "Flame graph");
    ProfFlameGraphReport* report = new ProfFlameGraphReport(window, 0);
 
    report->switchViewButton = &window->add_button(UIButton::SMALL | UIElement::non_client_flag, "Table view")
@@ -6037,7 +6042,7 @@ void ProfWindowUpdate(const char* data, UIElement* el) {
       (void)EvaluateCommand("call GfProfilingStop()");
       ProfLoadProfileData(window);
       ctx.InterfaceWindowSwitchToAndFocus("Data");
-      dataWindow->refresh();
+      s_data_window->refresh();
       window->_in_step_over_profiled = false;
    }
 }
@@ -6209,7 +6214,7 @@ void MemoryWindowGotoButtonInvoke(void* cp) {
    MemoryWindow* window     = (MemoryWindow*)cp;
    char*         expression = nullptr;
 
-   if (windowMain->show_dialog(0, "Enter address expression:\n%t\n%f%b%b", &expression, "Goto", "Cancel") == "Goto") {
+   if (s_main_window->show_dialog(0, "Enter address expression:\n%t\n%f%b%b", &expression, "Goto", "Cancel") == "Goto") {
       char buffer[4096];
       std_format_to_n(buffer, sizeof(buffer), "py gf_valueof(['{}'],' ')", expression);
       auto        res    = EvaluateCommand(buffer);
@@ -6225,10 +6230,10 @@ void MemoryWindowGotoButtonInvoke(void* cp) {
             window->offset = address & ~0xF;
             window->repaint(nullptr);
          } else {
-            windowMain->show_dialog(0, "Cannot access memory at address 0.\n%f%b", "OK");
+            s_main_window->show_dialog(0, "Cannot access memory at address 0.\n%f%b", "OK");
          }
       } else {
-         windowMain->show_dialog(0, "Expression did not evaluate to an address.\n%f%b", "OK");
+         s_main_window->show_dialog(0, "Expression did not evaluate to an address.\n%f%b", "OK");
       }
    }
 
@@ -7135,12 +7140,12 @@ int WaveformViewerRefreshMessage(UIElement* el, UIMessage msg, int di, void* dp)
 void WaveformViewerSaveToFile(WaveformDisplay* display) {
    static char* path = nullptr;
    auto         result =
-      windowMain->show_dialog(0, "Save to file       \nPath:\n%t\n%f%b%b%b", &path, "Save", "Save and open", "Cancel");
+      s_main_window->show_dialog(0, "Save to file       \nPath:\n%t\n%f%b%b%b", &path, "Save", "Save and open", "Cancel");
    if (result == "Cancel")
       return;
    FILE* f = fopen(path, "wb");
    if (!f) {
-      windowMain->show_dialog(0, "Unable to open file for writing.\n%f%b", "OK");
+      s_main_window->show_dialog(0, "Unable to open file for writing.\n%f%b", "OK");
       return;
    }
    int32_t i;
@@ -7205,7 +7210,7 @@ void WaveformViewerUpdate(const char* pointerString, const char* sampleCountStri
       if (channelsString)
          std_format_to_n(viewer->channels, sizeof(viewer->channels), "{}", channelsString);
 
-      UIMDIChild* window = &dataWindow->add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Waveform")
+      UIMDIChild* window = &s_data_window->add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Waveform")
                                .set_user_proc(WaveformViewerWindowMessage)
                                .set_cp(viewer);
       viewer->autoToggle = &window->add_button(UIButton::SMALL | UIElement::non_client_flag, "Auto")
@@ -7239,7 +7244,7 @@ void WaveformViewerUpdate(const char* pointerString, const char* sampleCountStri
    viewer->label->refresh();
    viewer->labelPanel->_parent->refresh();
    owner->refresh();
-   dataWindow->refresh();
+   s_data_window->refresh();
 
    free(samples);
 }
@@ -7247,7 +7252,7 @@ void WaveformViewerUpdate(const char* pointerString, const char* sampleCountStri
 void WaveformAddDialog() {
    static char *pointer = nullptr, *sampleCount = nullptr, *channels = nullptr;
 
-   auto result = windowMain->show_dialog(
+   auto result = s_main_window->show_dialog(
       0,
       "Add waveform\n\n%l\n\nPointer to samples: (float *)\n%t\nSample count (per channel):\n%t\n"
       "Channels (interleaved):\n%t\n\n%l\n\n%f%b%b",
@@ -7320,7 +7325,7 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
 
    if (WatchLoggerUpdate(*input))
       return;
-   if (showingDisassembly)
+   if (s_source_window->_showing_disassembly)
       s_source_window->disassembly_update_line();
 
    if (!ctx._dbg_re->match_stack_or_breakpoint_output(*input)) {
@@ -7349,8 +7354,8 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
       s_display_output->refresh();
    }
 
-   if (trafficLight)
-      trafficLight->repaint(nullptr);
+   if (s_trafficlight)
+      s_trafficlight->repaint(nullptr);
 }
 
 void MsgReceivedControl(std::unique_ptr<std::string> input) {
@@ -7564,13 +7569,13 @@ UIElement* Context::InterfaceWindowSwitchToAndFocus(string_view target_name) {
       return w._el;
    }
 
-   windowMain->show_dialog(0, "Couldn't find the window '%s'.\n%f%B", target_name, "OK");
+   s_main_window->show_dialog(0, "Couldn't find the window '%s'.\n%f%B", target_name, "OK");
    return nullptr;
 }
 
 int MainWindowMessageProc(UIElement*, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::WINDOW_ACTIVATE) {
-      DisplaySetPosition(currentFileFull, s_display_code->current_line(), false);
+      DisplaySetPosition(s_source_window->_current_file_full, s_display_code->current_line(), false);
    } else {
       for (const auto& msgtype : receiveMessageTypes) {
          if (msgtype._msg == msg) {
@@ -7754,8 +7759,8 @@ void Context::GenerateLayoutString(UIElement* e, std::string& sb) {
 bool Context::CopyLayoutToClipboard() {
    std::string sb;
    sb.reserve(512);
-   GenerateLayoutString(switcherMain->_children[0]->_children[0], sb);
-   _ui->write_clipboard_text(sb, windowMain, sel_target_t::clipboard);
+   GenerateLayoutString(s_main_switcher->_children[0]->_children[0], sb);
+   _ui->write_clipboard_text(sb, s_main_window, sel_target_t::clipboard);
    return true;
 }
 
@@ -7819,20 +7824,20 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
       window_width  = (int)((float)dims.x * 0.78f);
       window_height = (int)((float)dims.y * 0.78f);
    }
-   windowMain = &(ui->create_window(0, maximize ? UIWindow::MAXIMIZE : 0, "gf", window_width, window_height)
+   s_main_window = &(ui->create_window(0, maximize ? UIWindow::MAXIMIZE : 0, "gf", window_width, window_height)
                      .set_scale(ui_scale)
                      .set_user_proc(MainWindowMessageProc));
 
    for (const auto& ic : _interface_commands) {
       if (!(int)ic._shortcut.code)
          continue;
-      windowMain->register_shortcut(ic._shortcut);
+      s_main_window->register_shortcut(ic._shortcut);
    }
 
-   switcherMain                      = &windowMain->add_switcher(0);
+   s_main_switcher                      = &s_main_window->add_switcher(0);
    const char* layout_string_current = gfc._layout_string.c_str();
-   InterfaceLayoutCreate(&switcherMain->add_panel(UIPanel::EXPAND), layout_string_current);
-   switcherMain->switch_to(switcherMain->_children[0]);
+   InterfaceLayoutCreate(&s_main_switcher->add_panel(UIPanel::EXPAND), layout_string_current);
+   s_main_switcher->switch_to(s_main_switcher->_children[0]);
 
    if (*InterfaceLayoutNextToken(layout_string_current)) {
       print(std::cerr, "Warning: Layout string has additional text after the end of the top-level entry.\n");
