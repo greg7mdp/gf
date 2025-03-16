@@ -57,45 +57,45 @@ template <typename T>
 class SPSCQueue {
 public:
    SPSCQueue()
-      : quit_(false) {}
+      : _quit(false) {}
 
    void push(T&& item) {
-      std::unique_lock<std::mutex> lock(mutex_);
-      queue_.push(std::move(item));
-      cv_.notify_one();
+      std::unique_lock lock(_mutex);
+      _queue.push(std::move(item));
+      _cv.notify_one();
    }
 
    bool pop(std::optional<T>& value) {
-      std::unique_lock<std::mutex> lock(mutex_);
-      bool res = cv_.wait_for(lock, std::chrono::seconds(15), [this] { return !queue_.empty() || quit_; });
+      std::unique_lock lock(_mutex);
+      bool res = _cv.wait_for(lock, std::chrono::seconds(15), [this] { return !_queue.empty() || _quit; });
 
-      if (!res || quit_) { // !res means we hit the timeout
+      if (!res || _quit) { // !res means we hit the timeout
          value = std::optional<T>{};
          return false;
       }
 
-      value = std::move(queue_.front());
-      queue_.pop();
+      value = std::move(_queue.front());
+      _queue.pop();
       return true;
    }
 
    size_t size() const {
-      std::unique_lock<std::mutex> lock(mutex_);
-      return queue_.size();
+      std::unique_lock lock(_mutex);
+      return _queue.size();
    }
 
    void signal_quit() {
-      quit_ = true;
-      cv_.notify_one();
+      _quit = true;
+      _cv.notify_one();
    }
 
-   bool is_quitting() { return quit_; }
+   bool is_quitting() { return _quit; }
 
 private:
-   std::queue<T>           queue_;
-   mutable std::mutex      mutex_;
-   std::condition_variable cv_;
-   std::atomic<bool>       quit_;
+   std::queue<T>           _queue;
+   mutable std::mutex      _mutex;
+   std::condition_variable _cv;
+   std::atomic<bool>       _quit;
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -245,13 +245,13 @@ struct Context {
    Context();
 
    // make private
-   void SendToGdb(string_view sv) const {
+   void send_to_gdb(string_view sv) const {
       char newline = '\n';
       write(_pipe_to_gdb, sv.data(), sv.size());
       write(_pipe_to_gdb, &newline, 1);
    }
 
-   void InterruptGdb(size_t wait_time_us = 20 * 1000) {
+   void interrupt_gdb(size_t wait_time_us = 20 * 1000) {
       if (_program_running) {
          kill(_gdb_pid, SIGINT);
          std::this_thread::sleep_for(std::chrono::microseconds{wait_time_us});
@@ -259,15 +259,15 @@ struct Context {
       }
    }
 
-   void KillGdbThread() {
+   void kill_gdb_thread() {
       print(std::cerr, "killing gdb thread.\n");
       _kill_gdb_thread = true;
       _gdb_thread.join();
       _kill_gdb_thread = false;
    }
 
-   void KillGdb() {
-      KillGdbThread();
+   void kill_gdb() {
+      kill_gdb_thread();
       print(std::cerr, "killing gdb process {}.\n", _gdb_pid);
       kill(_gdb_pid, SIGKILL);
    }
@@ -286,17 +286,17 @@ struct Context {
       }
    }
 
-   void           DebuggerThread();
-   UIConfig       SettingsLoad(bool earlyPass);
-   void           InterfaceAddBuiltinWindowsAndCommands();
-   void           RegisterExtensions();
-   void           InterfaceShowMenu(UIButton* self);
-   void           InterfaceLayoutCreate(UIElement* parent, const char*& current);
-   void           GenerateLayoutString(UIElement* e, std::string& sb);
-   bool           CopyLayoutToClipboard();
-   void           InterfaceAdditionalSetup();
-   UIElement*     InterfaceWindowSwitchToAndFocus(string_view name);
-   unique_ptr<UI> GfMain(int argc, char** argv);
+   void           debugger_thread_fn();
+   UIConfig       load_settings(bool earlyPass);
+   void           add_builtin_windows_and_commands();
+   void           register_extensions();
+   void           show_menu(UIButton* self);
+   void           create_layout(UIElement* parent, const char*& current);
+   void           generate_layout_string(UIElement* e, std::string& sb);
+   bool           copy_layout_to_clipboard();
+   void           additional_setup();
+   UIElement*     switch_to_window_and_focus(string_view name);
+   unique_ptr<UI> gf_main(int argc, char** argv);
 };
 
 Context ctx;
@@ -339,8 +339,6 @@ bool                       confirmCommandConnect = true, confirmCommandKill = tr
 int                        backtraceCountLimit = 50;
 UIMessage msgReceivedData, msgReceivedLog, msgReceivedControl, msgReceivedNext = (UIMessage)(UIMessage::USER_PLUS_1);
 
-// Current file and line:
-
 char   previousLocation[256];
 
 // User interface:
@@ -357,8 +355,6 @@ UISpacer*     s_trafficlight   = nullptr;
 
 UIMDIClient* s_data_window = nullptr;
 UIPanel*     s_data_tab    = nullptr;
-
-UIFont* code_font = nullptr;
 
 // ---------------------------------------------------
 // StackWindow
@@ -650,7 +646,7 @@ UIMessage ReceiveMessageRegister(std::function<void(std::unique_ptr<std::string>
    return receiveMessageTypes.back()._msg;
 }
 
-void Context::DebuggerThread() {
+void Context::debugger_thread_fn() {
    int outputPipe[2];
    int inputPipe[2];
 
@@ -694,7 +690,7 @@ void Context::DebuggerThread() {
 
    _pipe_to_gdb = inputPipe[1];
 
-   SendToGdb(_initial_gdb_command);
+   send_to_gdb(_initial_gdb_command);
 
    int pipeFromGdb = outputPipe[0];
 
@@ -768,14 +764,14 @@ void Context::DebuggerThread() {
 }
 
 void DebuggerStartThread() {
-   ctx._gdb_thread = std::thread([]() { ctx.DebuggerThread(); });
+   ctx._gdb_thread = std::thread([]() { ctx.debugger_thread_fn(); });
 }
 
 // can be called by: SourceWindowUpdate -> EvaluateExpresion -> EvaluateCommand
 // synchronous means we will wait for the debugger output
 std::optional<std::string> DebuggerSend(string_view command, bool echo, bool synchronous) {
    std::optional<std::string> res;
-   ctx.InterruptGdb();
+   ctx.interrupt_gdb();
 
    if (synchronous)
       ctx._evaluate_mode = true;
@@ -792,7 +788,7 @@ std::optional<std::string> DebuggerSend(string_view command, bool echo, bool syn
       s_display_output->refresh();
    }
 
-   ctx.SendToGdb(command);
+   ctx.send_to_gdb(command);
 
    if (synchronous) {
       bool quit = !ctx._evaluate_result_queue.pop(res);
@@ -961,8 +957,12 @@ public:
 // ---------------------------------------------------
 
 struct SourceWindow {
-   int _auto_print_expression_line;
-   int _auto_print_result_line;
+   static UIFont* s_code_font;
+   
+   int                    _auto_print_expression_line;
+   int                    _auto_print_result_line;
+   std::array<char, 1024> _auto_print_expression;
+   std::array<char, 1024> _auto_print_result;
 
    char   _current_file[PATH_MAX];
    char   _current_file_full[PATH_MAX];
@@ -970,9 +970,6 @@ struct SourceWindow {
    bool   _showing_disassembly;
 
 private:
-   std::array<char, 1024> _auto_print_expression;
-   std::array<char, 1024> _auto_print_result;
-
    int _current_end_of_block;
    int _last_cursor_x;
    int _last_cursor_y;
@@ -1024,7 +1021,7 @@ public:
    static UIElement* Create(UIElement* parent) {
       s_source_window = new SourceWindow;
       s_display_code  = &parent->add_code(selectableSource ? UICode::SELECTABLE : 0)
-                           .set_font(code_font)
+                           .set_font(s_code_font)
                            .set_cp(s_source_window)
                            .set_user_proc(SourceWindow::DisplayCodeMessage);
       return s_display_code;
@@ -1034,6 +1031,8 @@ public:
       static_cast<SourceWindow*>(el->_cp)->_update(data, static_cast<UICode*>(el));
    }
 };
+
+UIFont* SourceWindow::s_code_font = nullptr;
 
 static bool DisplaySetPosition(const char* file, std::optional<size_t> line, bool useGDBToGetFullPath) {
    return s_source_window->display_set_position(file, line, useGDBToGetFullPath);
@@ -1248,7 +1247,7 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
       }
    } else if (command == "gf-restart-gdb") {
       ctx._first_update = true;
-      ctx.KillGdb();
+      ctx.kill_gdb();
       DebuggerStartThread();
    } else if (command == "gf-get-pwd") {
       auto        res    = EvaluateCommand("info source");
@@ -1272,7 +1271,7 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
 
       s_main_window->show_dialog(0, "Couldn't get the working directory.\n%f%B", "OK");
    } else if (command.starts_with("gf-switch-to ")) {
-      ctx.InterfaceWindowSwitchToAndFocus(command.substr(13));
+      ctx.switch_to_window_and_focus(command.substr(13));
    } else if (command.starts_with("gf-command ")) {
       for (const auto& cmd : presetCommands) {
          if (!cmd._key.starts_with(command.substr(11)))
@@ -1459,7 +1458,7 @@ static void SettingsAddTrustedFolder() {
 //   +  "gdb"
 //   +  "theme"
 // ------------------------------------------------------------------------------
-UIConfig Context::SettingsLoad(bool earlyPass) {
+UIConfig Context::load_settings(bool earlyPass) {
    bool        currentFolderIsTrusted = false;
    static bool cwdConfigNotTrusted    = false;
    UIConfig    ui_config;
@@ -2749,7 +2748,7 @@ public:
                             .set_border(UIRectangle(5))
                             .set_gap(5);
       s_trafficlight = &panel3->add_spacer(0, 30, 30).set_user_proc(TrafficLightMessage);
-      panel3->add_button(0, "Menu").on_click([](UIButton& buttonMenu) { ctx.InterfaceShowMenu(&buttonMenu); });
+      panel3->add_button(0, "Menu").on_click([](UIButton& buttonMenu) { ctx.show_menu(&buttonMenu); });
       s_input_textbox = &panel3->add_textbox(UIElement::h_fill).set_user_proc(TextboxInputMessage).set_cp(w).focus();
       return panel2;
    }
@@ -3095,7 +3094,7 @@ public:
          return false;
 
       if (_mode != WATCH_NORMAL) {
-         ctx.InterfaceWindowSwitchToAndFocus("Watch");
+         ctx.switch_to_window_and_focus("Watch");
          auto w = WatchGetFocused();
          assert(w != nullptr);
          return w->add_entry_for_address2(res);
@@ -3713,7 +3712,7 @@ int WatchTextboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 }
 
 void WatchAddExpression(string_view sv) {
-   UIElement* el = ctx.InterfaceWindowSwitchToAndFocus("Watch");
+   UIElement* el = ctx.switch_to_window_and_focus("Watch");
    static_cast<WatchWindow*>(el->_cp)->append_expression(sv);
 }
 
@@ -4004,7 +4003,7 @@ bool CommandWatchViewSourceAtAddress() {
 }
 
 bool CommandAddWatch() {
-   if (auto el = ctx.InterfaceWindowSwitchToAndFocus("Watch"))
+   if (auto el = ctx.switch_to_window_and_focus("Watch"))
       return static_cast<WatchWindow*>(el)->add_watch();
    return false;
 }
@@ -6041,7 +6040,7 @@ void ProfWindowUpdate(const char* data, UIElement* el) {
    if (window->_in_step_over_profiled) {
       (void)EvaluateCommand("call GfProfilingStop()");
       ProfLoadProfileData(window);
-      ctx.InterfaceWindowSwitchToAndFocus("Data");
+      ctx.switch_to_window_and_focus("Data");
       s_data_window->refresh();
       window->_in_step_over_profiled = false;
    }
@@ -6521,7 +6520,7 @@ int ViewWindowStringMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
 void ViewWindowView(void* cp) {
    // Get the selected watch expression.
-   UIElement* watchElement = ctx.InterfaceWindowSwitchToAndFocus("Watch");
+   UIElement* watchElement = ctx.switch_to_window_and_focus("Watch");
    if (!watchElement)
       return;
 
@@ -6533,7 +6532,7 @@ void ViewWindowView(void* cp) {
    const shared_ptr<Watch>& watch = *w_opt;
 
    if (!cp)
-      cp = ctx.InterfaceWindowSwitchToAndFocus("View");
+      cp = ctx.switch_to_window_and_focus("View");
    if (!cp)
       return;
 
@@ -7267,7 +7266,7 @@ void WaveformAddDialog() {
 // Registration:
 // ----------------------------------------------------------
 
-void Context::RegisterExtensions() {
+void Context::register_extensions() {
    _interface_windows["Prof"]   = {._create = ProfWindowCreate, ._update = ProfWindowUpdate, ._always_update = true};
    _interface_windows["Memory"] = {MemoryWindowCreate, MemoryWindowUpdate};
    _interface_windows["View"]   = {ViewWindowCreate, ViewWindowUpdate};
@@ -7384,7 +7383,7 @@ auto gdb_invoker(string_view cmd, int flags = 0) {
    };
 }
 
-void Context::InterfaceAddBuiltinWindowsAndCommands() {
+void Context::add_builtin_windows_and_commands() {
    _interface_windows["Stack"]       = {StackWindow::Create, StackWindow::Update};
    _interface_windows["Source"]      = {SourceWindow::Create, SourceWindow::Update};
    _interface_windows["Breakpoints"] = {BreakpointsWindow::Create, BreakpointsWindow::Update};
@@ -7456,7 +7455,7 @@ void Context::InterfaceAddBuiltinWindowsAndCommands() {
    });
    _interface_commands.push_back({
       ._label = "Break\tF8", ._shortcut{.code = UI_KEYCODE_FKEY(8), .invoke = [&]() {
-                                           ctx.InterruptGdb(0);
+                                           ctx.interrupt_gdb(0);
                                            return true;
                                         }}
    });
@@ -7497,7 +7496,7 @@ void Context::InterfaceAddBuiltinWindowsAndCommands() {
    });
 #endif
    _interface_commands.push_back(
-      {._label = "Copy Layout to Clipboard", ._shortcut{.invoke = [&]() { return ctx.CopyLayoutToClipboard(); }}});
+      {._label = "Copy Layout to Clipboard", ._shortcut{.invoke = [&]() { return ctx.copy_layout_to_clipboard(); }}});
 #if 0
    // conflicts with textbox readlime bindings
    // -----------------------------------------
@@ -7530,7 +7529,7 @@ void Context::InterfaceAddBuiltinWindowsAndCommands() {
    });
 }
 
-void Context::InterfaceShowMenu(UIButton* self) {
+void Context::show_menu(UIButton* self) {
    UIMenu& menu = self->ui()->create_menu((UIElement*)self, UIMenu::PLACE_ABOVE | UIMenu::NO_SCROLL);
 
    for (const auto& ic : _interface_commands) {
@@ -7540,7 +7539,7 @@ void Context::InterfaceShowMenu(UIButton* self) {
    menu.show();
 }
 
-UIElement* Context::InterfaceWindowSwitchToAndFocus(string_view target_name) {
+UIElement* Context::switch_to_window_and_focus(string_view target_name) {
    for (auto& [name, w] : _interface_windows) {
       if (!w._el)
          continue;
@@ -7661,13 +7660,13 @@ const char* InterfaceLayoutNextToken(const char*& current, const char* expected 
    return buffer;
 }
 
-void Context::InterfaceAdditionalSetup() {
+void Context::additional_setup() {
    if (s_display_code && firstWatchWindow) {
       s_display_code->add_selection_menu_item("Add watch", [&](std::string_view sel) { WatchAddExpression(sel); });
    }
 }
 
-void Context::InterfaceLayoutCreate(UIElement* parent, const char*& layout_string_current) {
+void Context::create_layout(UIElement* parent, const char*& layout_string_current) {
    const char* token = InterfaceLayoutNextToken(layout_string_current);
 
    if (0 == strcmp("h", token) || 0 == strcmp("v", token)) {
@@ -7678,9 +7677,9 @@ void Context::InterfaceLayoutCreate(UIElement* parent, const char*& layout_strin
       UIElement* container =
          &parent->add_splitpane(flags, sv_atoi(InterfaceLayoutNextToken(layout_string_current, "#")) * 0.01f);
       InterfaceLayoutNextToken(layout_string_current, ",");
-      InterfaceLayoutCreate(container, layout_string_current);
+      create_layout(container, layout_string_current);
       InterfaceLayoutNextToken(layout_string_current, ",");
-      InterfaceLayoutCreate(container, layout_string_current);
+      create_layout(container, layout_string_current);
       InterfaceLayoutNextToken(layout_string_current, ")");
    } else if (0 == strcmp("t", token)) {
       InterfaceLayoutNextToken(layout_string_current, "(");
@@ -7693,13 +7692,13 @@ void Context::InterfaceLayoutCreate(UIElement* parent, const char*& layout_strin
       UIElement* container =
          &parent->add_tabpane(UIElement::v_fill | UIElement::h_fill, copy).set_user_proc(InterfaceTabPaneMessage);
       free(copy);
-      InterfaceLayoutCreate(container, layout_string_current);
+      create_layout(container, layout_string_current);
 
       while (true) {
          token = InterfaceLayoutNextToken(layout_string_current);
 
          if (0 == strcmp(token, ",")) {
-            InterfaceLayoutCreate(container, layout_string_current);
+            create_layout(container, layout_string_current);
          } else if (0 == strcmp(token, ")")) {
             break;
          } else {
@@ -7719,7 +7718,7 @@ void Context::InterfaceLayoutCreate(UIElement* parent, const char*& layout_strin
    }
 }
 
-void Context::GenerateLayoutString(UIElement* e, std::string& sb) {
+void Context::generate_layout_string(UIElement* e, std::string& sb) {
    char buf[32];
 
    if (strcmp(e->_class_name, "Split Pane") == 0) {
@@ -7733,16 +7732,16 @@ void Context::GenerateLayoutString(UIElement* e, std::string& sb) {
       int n = snprintf(buf, sizeof(buf), "%d", (int)std::round(((UISplitPane*)e)->weight() * 100));
       sb.insert(sb.end(), buf, buf + n);
       sb.push_back(',');
-      GenerateLayoutString(e->_children[1], sb);
+      generate_layout_string(e->_children[1], sb);
       sb.push_back(',');
-      GenerateLayoutString(e->_children[2], sb);
+      generate_layout_string(e->_children[2], sb);
       sb.push_back(')');
    } else if (strcmp(e->_class_name, "Tab Pane") == 0) {
       sb += "t(";
       for (size_t i = 0; i < e->_children.size(); ++i) {
          if (i > 0)
             sb.push_back(',');
-         GenerateLayoutString(e->_children[i], sb);
+         generate_layout_string(e->_children[i], sb);
       }
       sb.push_back(')');
    } else {
@@ -7756,15 +7755,15 @@ void Context::GenerateLayoutString(UIElement* e, std::string& sb) {
    }
 }
 
-bool Context::CopyLayoutToClipboard() {
+bool Context::copy_layout_to_clipboard() {
    std::string sb;
    sb.reserve(512);
-   GenerateLayoutString(s_main_switcher->_children[0]->_children[0], sb);
+   generate_layout_string(s_main_switcher->_children[0]->_children[0], sb);
    _ui->write_clipboard_text(sb, s_main_window, sel_target_t::clipboard);
    return true;
 }
 
-unique_ptr<UI> Context::GfMain(int argc, char** argv) {
+unique_ptr<UI> Context::gf_main(int argc, char** argv) {
    if (argc == 2 && (0 == strcmp(argv[1], "-?") || 0 == strcmp(argv[1], "-h") || 0 == strcmp(argv[1], "--help"))) {
       print(std::cerr,
             "Usage: {} [GDB args]\n\n"
@@ -7777,7 +7776,7 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
    // catch some signals
    // ------------------
    std::signal(SIGINT, [](int) {
-      ctx.KillGdb();
+      ctx.kill_gdb();
       exit(0);
    });
    std::signal(SIGPIPE, [](int) { print(std::cerr, "SIGPIPE Received - ignored.\n"); });
@@ -7801,7 +7800,7 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
    std_format_to_n(globalConfigPath, sizeof(globalConfigPath), "{}/.config/gf2_config.ini", getenv("HOME"));
    std_format_to_n(localConfigPath, sizeof(localConfigPath), "{}/.project.gf", localConfigDirectory);
 
-   UIConfig ui_config = ctx.SettingsLoad(true);
+   UIConfig ui_config = ctx.load_settings(true);
 
    ui_config.default_font_size = interface_font_size;
 
@@ -7812,8 +7811,8 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
 
    // create fonts for interface and code
    // -----------------------------------
-   const auto& font_path = ui->default_font_path();
-   code_font             = ui->create_font(font_path, code_font_size);
+   const auto& font_path     = ui->default_font_path();
+   SourceWindow::s_code_font = ui->create_font(font_path, code_font_size);
    ui->create_font(font_path, interface_font_size)->activate();
 
    if (window_width == -1 || window_height == -1) {
@@ -7836,16 +7835,16 @@ unique_ptr<UI> Context::GfMain(int argc, char** argv) {
 
    s_main_switcher                      = &s_main_window->add_switcher(0);
    const char* layout_string_current = gfc._layout_string.c_str();
-   InterfaceLayoutCreate(&s_main_switcher->add_panel(UIPanel::EXPAND), layout_string_current);
+   create_layout(&s_main_switcher->add_panel(UIPanel::EXPAND), layout_string_current);
    s_main_switcher->switch_to(s_main_switcher->_children[0]);
 
    if (*InterfaceLayoutNextToken(layout_string_current)) {
       print(std::cerr, "Warning: Layout string has additional text after the end of the top-level entry.\n");
    }
 
-   InterfaceAdditionalSetup();
+   additional_setup();
 
-   ui_config = ctx.SettingsLoad(false);
+   ui_config = ctx.load_settings(false);
    if (ui_config._has_theme)
       ui->theme() = ui_config._theme;
 
@@ -7858,17 +7857,17 @@ Context::Context() {
    _dbg_re  = std::make_unique<regexp::gdb>();
    _lang_re = std::make_unique<regexp::cpp>();
 
-   InterfaceAddBuiltinWindowsAndCommands();
-   RegisterExtensions();
+   add_builtin_windows_and_commands();
+   register_extensions();
 }
 
 int main(int argc, char** argv) {
-   auto ui_ptr = ctx.GfMain(argc, argv);
+   auto ui_ptr = ctx.gf_main(argc, argv);
    if (!ui_ptr)
       return 1;
 
    ui_ptr->message_loop();
-   ctx.KillGdb();
+   ctx.kill_gdb();
 
    if (restoreWatchWindow && firstWatchWindow) {
       std_format_to_n(globalConfigPath, sizeof(globalConfigPath), "{}/.config/gf2_watch.txt", getenv("HOME"));
