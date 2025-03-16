@@ -348,14 +348,16 @@ bool   showingDisassembly;
 char   previousLocation[256];
 
 // User interface:
+struct SourceWindow;
 
 UIWindow*   windowMain   = nullptr;
 UISwitcher* switcherMain = nullptr;
 
-UICode*    displayCode   = nullptr;
-UICode*    displayOutput = nullptr;
-UITextbox* textboxInput  = nullptr;
-UISpacer*  trafficLight  = nullptr;
+UICode*       s_display_code   = nullptr;
+SourceWindow* s_source_window  = nullptr;
+UICode*       s_display_output = nullptr;
+UITextbox*    s_input_textbox  = nullptr;
+UISpacer*     trafficLight     = nullptr;
 
 UIMDIClient* dataWindow = nullptr;
 UIPanel*     dataTab    = nullptr;
@@ -405,7 +407,7 @@ public:
    static void       Update(const char*, UIElement* table);
 };
 
-StackWindow *sw = nullptr;
+StackWindow* sw = nullptr;
 
 // Python code:
 
@@ -505,9 +507,9 @@ end
 
 // Forward declarations:
 
-bool DisplaySetPosition(const char* file, std::optional<size_t> line, bool useGDBToGetFullPath);
-void WatchAddExpression(string_view string);
-bool CommandInspectLine();
+static bool DisplaySetPosition(const char* file, std::optional<size_t> line, bool useGDBToGetFullPath);
+void        WatchAddExpression(string_view string);
+bool        CommandInspectLine();
 
 // ------------------------------------------------------
 // Utilities:
@@ -539,14 +541,14 @@ int TrafficLightMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 }
 
 int SourceFindEndOfBlock() {
-   auto currentLine = displayCode->current_line();
+   auto currentLine = s_display_code->current_line();
 
    if (!currentLine)
       return -1;
 
    int tabs = 0;
 
-   auto line = displayCode->line(*currentLine);
+   auto line = s_display_code->line(*currentLine);
    for (size_t i = 0; i < line.size(); i++) {
       if (isspace(line[i]))
          tabs++;
@@ -554,11 +556,11 @@ int SourceFindEndOfBlock() {
          break;
    }
 
-   size_t num_lines = displayCode->num_lines();
+   size_t num_lines = s_display_code->num_lines();
    for (size_t j = *currentLine + 1; j < num_lines; j++) {
       int t = 0;
 
-      auto line = displayCode->line(j);
+      auto line = s_display_code->line(j);
       if (line.empty())
          continue;
 
@@ -578,23 +580,23 @@ int SourceFindEndOfBlock() {
 }
 
 bool SourceFindOuterFunctionCall(const char** start, const char** end) {
-   int  num_lines   = (int)displayCode->num_lines();
-   auto currentLine = displayCode->current_line();
+   int  num_lines   = (int)s_display_code->num_lines();
+   auto currentLine = s_display_code->current_line();
 
    if (!currentLine)
       return false;
 
-   size_t offset = displayCode->line_offset(*currentLine);
+   size_t offset = s_display_code->line_offset(*currentLine);
    bool   found  = false;
 
    // Look forwards for the end of the call ");".
 
-   size_t num_chars = displayCode->size();
+   size_t num_chars = s_display_code->size();
    while (offset < num_chars - 1) {
-      if ((*displayCode)[offset] == ')' && (*displayCode)[offset + 1] == ';') {
+      if ((*s_display_code)[offset] == ')' && (*s_display_code)[offset + 1] == ';') {
          found = true;
          break;
-      } else if ((*displayCode)[offset] == ';' || (*displayCode)[offset] == '{') {
+      } else if ((*s_display_code)[offset] == ';' || (*s_display_code)[offset] == '{') {
          break;
       }
 
@@ -609,9 +611,9 @@ bool SourceFindOuterFunctionCall(const char** start, const char** end) {
    int level = 0;
 
    while (offset > 0) {
-      if ((*displayCode)[offset] == ')') {
+      if ((*s_display_code)[offset] == ')') {
          level++;
-      } else if ((*displayCode)[offset] == '(') {
+      } else if ((*s_display_code)[offset] == '(') {
          level--;
          if (level == 0)
             break;
@@ -623,7 +625,7 @@ bool SourceFindOuterFunctionCall(const char** start, const char** end) {
    if (level)
       return false;
 
-   *start = *end = &(*displayCode)[offset];
+   *start = *end = &(*s_display_code)[offset];
    found         = false;
    offset--;
 
@@ -631,13 +633,13 @@ bool SourceFindOuterFunctionCall(const char** start, const char** end) {
    // TODO Support function pointers.
 
    while (offset > 0) {
-      char c = (*displayCode)[offset];
+      char c = (*s_display_code)[offset];
 
       if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c == ' ' || (c >= '0' && c <= '9')) {
          // Part of the function name.
          offset--;
       } else {
-         *start = &(*displayCode)[offset + 1];
+         *start = &(*s_display_code)[offset + 1];
          found  = true;
          break;
       }
@@ -789,9 +791,9 @@ std::optional<std::string> DebuggerSend(string_view command, bool echo, bool syn
 
    // std::cout << "sending: \"" << command << "\"\n";
 
-   if (echo && displayOutput) {
-      displayOutput->insert_content(command, false);
-      displayOutput->refresh();
+   if (echo && s_display_output) {
+      s_display_output->insert_content(command, false);
+      s_display_output->refresh();
    }
 
    ctx.SendToGdb(command);
@@ -904,9 +906,10 @@ void DebuggerGetStack() {
 
 struct TabCompleter {
    bool _last_key_was_tab;
+
 private:
-   int  _consecutive_tab_count;
-   int  _last_tab_bytes;
+   int _consecutive_tab_count;
+   int _last_tab_bytes;
 
 public:
    void run(UITextbox* textbox, bool lastKeyWasTab, bool addPrintPrefix) {
@@ -982,7 +985,7 @@ private:
 
    friend struct BreakpointsWindow;
 
-   vector<Breakpoint> _breakpoints;  // current debugger breakpoints
+   vector<Breakpoint> _breakpoints; // current debugger breakpoints
 
 public:
    size_t num_breakpoints() const { return _breakpoints.size(); }
@@ -1008,7 +1011,7 @@ public:
       }
 
       if (!line) {
-         auto currentLine = displayCode->current_line();
+         auto currentLine = s_display_code->current_line();
          if (!currentLine)
             return;
          line = *currentLine + 1; // gdb line numbers are 1-indexed
@@ -1135,7 +1138,7 @@ public:
    }
 };
 
-BreakpointMgr s_breakpoint_mgr;  // singletom
+BreakpointMgr s_breakpoint_mgr; // singletom
 
 // ------------------------------------------------------
 // Commands:
@@ -1180,9 +1183,9 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
             *end = 0;
 
          if (!chdir(pwd)) {
-            if (displayOutput) {
-               displayOutput->insert_content(std::format("New working directory: {}", pwd), false);
-               displayOutput->refresh();
+            if (s_display_output) {
+               s_display_output->insert_content(std::format("New working directory: {}", pwd), false);
+               s_display_output->refresh();
             }
          }
          return {};
@@ -1210,16 +1213,16 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
             if (synchronous)
                async = nullptr; // Trim the '&' character, but run synchronously anyway.
             res = CommandParseInternal(position, !async);
-            if (displayOutput && res)
-               displayOutput->insert_content(*res, false);
+            if (s_display_output && res)
+               s_display_output->insert_content(*res, false);
             if (end)
                position = end + 1;
             else
                break;
          }
 
-         if (displayOutput)
-            displayOutput->refresh();
+         if (s_display_output)
+            s_display_output->refresh();
          free(copy);
          break;
       }
@@ -1294,8 +1297,8 @@ static void CommandCustom(string_view command) {
    if (command.starts_with("shell ")) {
       // TODO Move this into CommandParseInternal?
 
-      if (displayOutput)
-         displayOutput->insert_content(std::format("Running shell command \"{}\"...\n", command), false);
+      if (s_display_output)
+         s_display_output->insert_content(std::format("Running shell command \"{}\"...\n", command), false);
       int         start  = time(nullptr);
       int         result = system(std::format("{} > .output.gf 2>&1", command).c_str());
       std::string output = LoadFile(".output.gf");
@@ -1317,11 +1320,11 @@ static void CommandCustom(string_view command) {
          }
       }
 
-      if (displayOutput) {
-         displayOutput->insert_content({copy.data(), j}, false);
-         displayOutput->insert_content(
+      if (s_display_output) {
+         s_display_output->insert_content({copy.data(), j}, false);
+         s_display_output->insert_content(
             std::format("(exit code: {}; time: {}s)\n", result, (int)(time(nullptr) - start)), false);
-         displayOutput->refresh();
+         s_display_output->refresh();
       }
    } else {
       (void)CommandParseInternal(command, false);
@@ -1600,33 +1603,84 @@ UIConfig Context::SettingsLoad(bool earlyPass) {
 // Source display:
 // ---------------------------------------------------
 
-char autoPrintExpression[1024];
-char autoPrintResult[1024];
-int  autoPrintExpressionLine;
-int  autoPrintResultLine;
+struct SourceWindow {
+   int autoPrintExpressionLine;
+   int autoPrintResultLine;
 
-int currentEndOfBlock;
-int lastCursorX, lastCursorY;
+private:
+   std::array<char, 1024> _auto_print_expression;
+   std::array<char, 1024> _auto_print_result;
 
-int ifConditionEvaluation, ifConditionLine;
-int ifConditionFrom, ifConditionTo;
+   int _current_end_of_block;
+   int _last_cursor_x;
+   int _last_cursor_y;
 
-struct InspectResult {
-   std::string _expression;
-   std::string _value;
+   int _if_condition_evaluation;
+   int _if_condition_line;
+   int _if_condition_from;
+   int _if_condition_to;
+
+   struct InspectResult {
+      std::string _expression;
+      std::string _value;
+   };
+
+   vector<InspectResult> _inspect_results;
+   bool                  _no_inspect_results;
+   bool                  _in_inspect_line_mode;
+   int                   _inspect_mode_restore_line;
+   UIRectangle           _display_current_line_bounds;
+   const char*           _disassembly_command = "disas /s";
+
+   int _code_message_proc(UICode* code, UIMessage msg, int di, void* dp);
+   int _line_message_proc(UIElement* el, UIMessage msg, int di, void* dp);
+
+   void _update(const char* data, UICode* el);
+
+public:
+   std::array<char, 1024>& auto_print_result() { return _auto_print_result; }
+
+   bool display_set_position(const char* file, std::optional<size_t> line, bool useGDBToGetFullPath);
+   void display_set_position_from_stack();
+   void disassembly_load();
+   void disassembly_update_line();
+   bool toggle_disassembly();
+   void draw_inspect_line_mode_overlay(UIPainter* painter);
+   void inspect_current_line();
+   void exit_inspect_line_mode(UIElement* el);
+   bool inspect_line();
+   bool set_disassembly_mode();
+
+   static int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<SourceWindow*>(el->_cp)->_code_message_proc(static_cast<UICode*>(el), msg, di, dp);
+   }
+
+   static int InspectLineModeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<SourceWindow*>(el->_cp)->_line_message_proc(el, msg, di, dp);
+   }
+
+   static UIElement* Create(UIElement* parent) {
+      s_source_window = new SourceWindow;
+      s_display_code  = &parent->add_code(selectableSource ? UICode::SELECTABLE : 0)
+                           .set_font(code_font)
+                           .set_cp(s_source_window)
+                           .set_user_proc(SourceWindow::DisplayCodeMessage);
+      return s_display_code;
+   }
+
+   static void Update(const char* data, UIElement* el) {
+      static_cast<SourceWindow*>(el->_cp)->_update(data, static_cast<UICode*>(el));
+   }
 };
 
-vector<InspectResult> inspectResults;
-bool                  noInspectResults;
-bool                  inInspectLineMode;
-int                   inspectModeRestoreLine;
-UIRectangle           displayCurrentLineBounds;
-const char*           disassemblyCommand = "disas /s";
+static bool DisplaySetPosition(const char* file, std::optional<size_t> line, bool useGDBToGetFullPath) {
+   return s_source_window->display_set_position(file, line, useGDBToGetFullPath);
+}
 
 // --------------------------------
 // `line`, if present, is `0-based`
 // --------------------------------
-bool DisplaySetPosition(const char* file, std::optional<size_t> line, bool useGDBToGetFullPath) {
+bool SourceWindow::display_set_position(const char* file, std::optional<size_t> line, bool useGDBToGetFullPath) {
    if (showingDisassembly) {
       return false;
    }
@@ -1676,26 +1730,27 @@ bool DisplaySetPosition(const char* file, std::optional<size_t> line, bool useGD
 
       windowMain->set_name(currentFileFull);
 
-      displayCode->load_file(file, std::format("The file '{}' (from '{}') could not be loaded.", file, originalFile));
+      s_display_code->load_file(file,
+                                std::format("The file '{}' (from '{}') could not be loaded.", file, originalFile));
 
-      changed            = true;
-      autoPrintResult[0] = 0;
+      changed               = true;
+      _auto_print_result[0] = 0;
    }
 
-   auto currentLine = displayCode->current_line();
+   auto currentLine = s_display_code->current_line();
    if (line && (!currentLine || currentLine != line)) {
-      displayCode->set_current_line(*line);
-      displayCode->set_focus_line(*line);
+      s_display_code->set_current_line(*line);
+      s_display_code->set_focus_line(*line);
       changed = true;
    }
 
-   currentEndOfBlock = SourceFindEndOfBlock();
-   displayCode->refresh();
+   _current_end_of_block = SourceFindEndOfBlock();
+   s_display_code->refresh();
 
    return changed;
 }
 
-void DisplaySetPositionFromStack() {
+void SourceWindow::display_set_position_from_stack() {
    if (sw->has_selection()) {
       char  location[sizeof(previousLocation)];
       auto& current = sw->current();
@@ -1707,12 +1762,12 @@ void DisplaySetPositionFromStack() {
          *line    = 0;
          position = sv_atoul(line + 1) - 1; // lines in gdb are 1-based
       }
-      DisplaySetPosition(location, position, true);
+      display_set_position(location, position, true);
    }
 }
 
-void DisassemblyLoad() {
-   auto res = EvaluateCommand(disassemblyCommand);
+void SourceWindow::disassembly_load() {
+   auto res = EvaluateCommand(_disassembly_command);
 
    if (!res.contains("Dump of assembler code for function")) {
       res = EvaluateCommand("disas $pc,+1000");
@@ -1746,10 +1801,10 @@ void DisassemblyLoad() {
       pointer[1] = ' ';
    }
 
-   displayCode->insert_content({start, static_cast<size_t>(end - start)}, true);
+   s_display_code->insert_content({start, static_cast<size_t>(end - start)}, true);
 }
 
-void DisassemblyUpdateLine() {
+void SourceWindow::disassembly_update_line() {
    auto        res     = EvaluateCommand("p $pc");
    const char* address = strstr(res.c_str(), "0x");
 
@@ -1761,12 +1816,12 @@ void DisassemblyUpdateLine() {
 
          bool found = false;
 
-         size_t num_lines = displayCode->num_lines();
+         size_t num_lines = s_display_code->num_lines();
          for (size_t i = 0; i < num_lines; i++) {
-            uint64_t b = sv_atoul(displayCode->line(i), 3);
+            uint64_t b = sv_atoul(s_display_code->line(i), 3);
 
             if (a == b) {
-               displayCode->set_focus_line(i);
+               s_display_code->set_focus_line(i);
                autoPrintExpressionLine = i;
                found                   = true;
                break;
@@ -1775,77 +1830,79 @@ void DisassemblyUpdateLine() {
 
          if (!found) {
             // Reload the disassembly.
-            DisassemblyLoad();
+            disassembly_load();
          } else {
             break;
          }
       }
 
-      displayCode->refresh();
+      s_display_code->refresh();
    }
 }
 
-bool CommandToggleDisassembly() {
-   showingDisassembly     = !showingDisassembly;
-   autoPrintResultLine    = 0;
-   autoPrintExpression[0] = 0;
-   displayCode->_flags ^= UICode::NO_MARGIN;
+bool SourceWindow::toggle_disassembly() {
+   showingDisassembly        = !showingDisassembly;
+   autoPrintResultLine       = 0;
+   _auto_print_expression[0] = 0;
+   s_display_code->_flags ^= UICode::NO_MARGIN;
 
    if (showingDisassembly) {
-      displayCode->insert_content("Disassembly could not be loaded.\nPress Ctrl+D to return to source view.", true);
-      displayCode->set_tab_columns(8);
-      DisassemblyLoad();
-      DisassemblyUpdateLine();
+      s_display_code->insert_content("Disassembly could not be loaded.\nPress Ctrl+D to return to source view.", true);
+      s_display_code->set_tab_columns(8);
+      disassembly_load();
+      disassembly_update_line();
    } else {
-      displayCode->set_current_line({});
-      currentEndOfBlock   = -1;
-      currentFile[0]      = 0;
-      currentFileReadTime = 0;
-      DisplaySetPositionFromStack();
-      displayCode->set_tab_columns(4);
+      s_display_code->set_current_line({});
+      _current_end_of_block = -1;
+      currentFile[0]        = 0;
+      currentFileReadTime   = 0;
+      display_set_position_from_stack();
+      s_display_code->set_tab_columns(4);
    }
 
-   displayCode->refresh();
+   s_display_code->refresh();
    return true;
 }
 
-bool CommandSetDisassemblyMode() {
+bool SourceWindow::set_disassembly_mode() {
    auto newMode = windowMain->show_dialog(0, "Select the disassembly mode:\n%b\n%b\n%b", "Disassembly only",
                                           "With source", "Source centric");
 
    if (newMode == "Disassembly only")
-      disassemblyCommand = "disas";
+      _disassembly_command = "disas";
    else if (newMode == "With source")
-      disassemblyCommand = "disas /s";
+      _disassembly_command = "disas /s";
    else if (newMode == "Source centric")
-      disassemblyCommand = "disas /m";
+      _disassembly_command = "disas /m";
 
    if (showingDisassembly) {
-      CommandToggleDisassembly();
-      CommandToggleDisassembly();
+      toggle_disassembly();
+      toggle_disassembly();
    }
    return true;
 }
 
-void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
+bool CommandSetDisassemblyMode() { return s_source_window->set_disassembly_mode(); }
+
+void SourceWindow::draw_inspect_line_mode_overlay(UIPainter* painter) {
    auto& theme       = painter->theme();
    auto  active_font = painter->active_font();
 
    const char* instructions = "(Press Esc to exit inspect line mode.)";
    int         width        = (strlen(instructions) + 8) * active_font->_glyph_width;
 
-   for (const auto& ir : inspectResults) {
+   for (const auto& ir : _inspect_results) {
       int w = (ir._expression.size() + ir._value.size() + 8) * active_font->_glyph_width;
       if (w > width)
          width = w;
    }
 
    int  xOffset     = 0;
-   auto currentLine = displayCode->current_line();
+   auto currentLine = s_display_code->current_line();
    if (!currentLine)
       return;
 
-   std::string_view cur_line = displayCode->line(*currentLine);
+   std::string_view cur_line = s_display_code->line(*currentLine);
    for (auto c : cur_line) {
       if (c == '\t' || c == ' ') {
          xOffset += (c == '\t' ? 4 : 1) * active_font->_glyph_width;
@@ -1855,8 +1912,8 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
    }
 
    int         lineHeight = painter->ui()->string_height();
-   UIRectangle bounds =
-      displayCurrentLineBounds + UIRectangle(xOffset, 0, lineHeight, 8 + lineHeight * (inspectResults.size() / 2 + 1));
+   UIRectangle bounds     = _display_current_line_bounds +
+                        UIRectangle(xOffset, 0, lineHeight, 8 + lineHeight * (_inspect_results.size() / 2 + 1));
    bounds.r = bounds.l + width;
    painter->draw_block(bounds + UIRectangle(3), theme.border);
    painter->draw_rectangle(bounds, theme.codeBackground, theme.border, UIRectangle(2));
@@ -1865,8 +1922,8 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
    std::string buffer;
 
    size_t index = 0;
-   for (const auto& ir : inspectResults) {
-      if (noInspectResults) {
+   for (const auto& ir : _inspect_results) {
+      if (_no_inspect_results) {
          buffer = ir._expression;
       } else if (index < 9) {
          buffer = std::format("[{}] {} {}", index + 1, ir._expression, ir._value);
@@ -1874,7 +1931,8 @@ void DisplayCodeDrawInspectLineModeOverlay(UIPainter* painter) {
          buffer = std::format("    {} {}", ir._expression, ir._value);
       }
 
-      painter->draw_string(line, buffer, noInspectResults ? theme.codeOperator : theme.codeString, UIAlign::left, nullptr);
+      painter->draw_string(line, buffer, _no_inspect_results ? theme.codeOperator : theme.codeString, UIAlign::left,
+                           nullptr);
       line = line + UIRectangle(0, lineHeight);
       ++index;
    }
@@ -1897,11 +1955,9 @@ void CommandEnableAllBreakpointsOnLine(int line) {
                                                  [](int line, auto&) { CommandEnableBreakpoint(line); });
 }
 
-int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-   UICode* code = (UICode*)el;
-
+int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::CLICKED && !showingDisassembly) {
-      int result = code->hittest(el->_window->cursor_pos());
+      int result = code->hittest(code->_window->cursor_pos());
 
       if (result < 0 && code->left_down_in_margin()) {
          int line = -result;
@@ -1909,9 +1965,9 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       } else if (result > 0 && !code->left_down_in_margin()) {
          int line = result;
 
-         if (el->_window->_ctrl) {
+         if (code->_window->_ctrl) {
             (void)DebuggerSend(std::format("until {}", line), true, false);
-         } else if (el->_window->_alt || el->_window->_shift) {
+         } else if (code->_window->_alt || code->_window->_shift) {
             EvaluateCommand(std::format("tbreak {}", line));
             (void)DebuggerSend(std::format("jump {}", line), true, false);
          }
@@ -1936,7 +1992,7 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          return 0;
       }
    } else if (msg == UIMessage::RIGHT_DOWN && !showingDisassembly) {
-      int result = code->hittest(el->cursor_pos());
+      int result = code->hittest(code->cursor_pos());
 
       bool atLeastOneBreakpointEnabled = false;
 
@@ -1946,7 +2002,7 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       });
 
       s_breakpoint_mgr.for_all_matching_breakpoints(-result, currentFileFull, [&](int line, auto&) {
-         UIMenu& menu = el->ui()->create_menu(el->_window, UIMenu::NO_SCROLL).add_item(0, "Delete", [=](UIButton&) {
+         UIMenu& menu = code->ui()->create_menu(code->_window, UIMenu::NO_SCROLL).add_item(0, "Delete", [=](UIButton&) {
             CommandDeleteAllBreakpointsOnLine(-result);
          });
          if (atLeastOneBreakpointEnabled)
@@ -1956,8 +2012,8 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          menu.show();
       });
    } else if (msg == UIMessage::CODE_GET_MARGIN_COLOR && !showingDisassembly) {
-      auto& theme                        = el->theme();
-      int num_enabled = 0, num_disabled = 0;
+      auto& theme       = code->theme();
+      int   num_enabled = 0, num_disabled = 0;
 
       s_breakpoint_mgr.for_all_matching_breakpoints(di, currentFileFull, [&](int line, auto& bp) {
          if (bp._enabled)
@@ -1969,73 +2025,67 @@ int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       if (num_disabled) {
          return (((theme.accent1 & 0xFF0000) >> 1) & 0xFF0000) | (((theme.accent1 & 0xFF00) >> 1) & 0xFF00) |
                 ((theme.accent1 & 0xFF) >> 1);
-      } 
+      }
       return num_enabled ? theme.accent1 : 0;
    } else if (msg == UIMessage::PAINT) {
-      el->_class_proc(el, msg, di, dp);
+      code->_class_proc(code, msg, di, dp);
 
-      if (inInspectLineMode) {
+      if (_in_inspect_line_mode) {
          UIFont* previousFont = code->font()->activate();
-         DisplayCodeDrawInspectLineModeOverlay((UIPainter*)dp);
+         draw_inspect_line_mode_overlay((UIPainter*)dp);
          previousFont->activate();
       }
 
       return 1;
    } else if (msg == UIMessage::CODE_DECORATE_LINE) {
-      auto&               theme       = el->theme();
-      auto                active_font = el->active_font();
+      auto&               theme       = code->theme();
+      auto                active_font = code->active_font();
       UICodeDecorateLine* m           = (UICodeDecorateLine*)dp;
-      auto                currentLine = displayCode->current_line();
+      auto                currentLine = s_display_code->current_line();
 
       if (currentLine && m->index == (int)*currentLine) {
-         displayCurrentLineBounds = m->bounds;
+         _display_current_line_bounds = m->bounds;
       }
 
       if (m->index == autoPrintResultLine) {
          UIRectangle rectangle =
-            UIRectangle(m->x + active_font->_glyph_width, m->bounds.r, m->y, m->y + el->ui()->string_height());
-         m->painter->draw_string(rectangle, autoPrintResult, theme.codeComment, UIAlign::left, nullptr);
+            UIRectangle(m->x + active_font->_glyph_width, m->bounds.r, m->y, m->y + code->ui()->string_height());
+         m->painter->draw_string(rectangle, _auto_print_result.data(), theme.codeComment, UIAlign::left, nullptr);
       }
 
-      if (code->hittest(el->cursor_pos()) == m->index && el->is_hovered() &&
-          (el->_window->_ctrl || el->_window->_alt || el->_window->_shift) && !el->_window->textbox_modified_flag()) {
-         m->painter->draw_border(m->bounds, el->_window->_ctrl ? theme.selected : theme.codeOperator, UIRectangle(2));
-         m->painter->draw_string(m->bounds, el->_window->_ctrl ? "=> run until " : "=> skip to ", theme.text,
+      if (code->hittest(code->cursor_pos()) == m->index && code->is_hovered() &&
+          (code->_window->_ctrl || code->_window->_alt || code->_window->_shift) &&
+          !code->_window->textbox_modified_flag()) {
+         m->painter->draw_border(m->bounds, code->_window->_ctrl ? theme.selected : theme.codeOperator, UIRectangle(2));
+         m->painter->draw_string(m->bounds, code->_window->_ctrl ? "=> run until " : "=> skip to ", theme.text,
                                  UIAlign::right, nullptr);
-      } else if (m->index == currentEndOfBlock) {
+      } else if (m->index == _current_end_of_block) {
          m->painter->draw_string(m->bounds, "[Shift+F10]", theme.codeComment, UIAlign::right, nullptr);
       }
 
-      if (m->index == ifConditionLine && ifConditionEvaluation) {
-         int columnFrom = code->byte_to_column(ifConditionLine, ifConditionFrom);
-         int columnTo   = code->byte_to_column(ifConditionLine, ifConditionTo);
+      if (m->index == _if_condition_line && _if_condition_evaluation) {
+         int columnFrom = code->byte_to_column(_if_condition_line, _if_condition_from);
+         int columnTo   = code->byte_to_column(_if_condition_line, _if_condition_to);
          m->painter->draw_block(UIRectangle(m->bounds.l + columnFrom * active_font->_glyph_width,
                                             m->bounds.l + columnTo * active_font->_glyph_width, m->bounds.b - 2,
                                             m->bounds.b),
-                                ifConditionEvaluation == 2 ? theme.accent2 : theme.accent1);
+                                _if_condition_evaluation == 2 ? theme.accent2 : theme.accent1);
       }
    } else if (msg == UIMessage::MOUSE_MOVE || msg == UIMessage::UPDATE) {
-      auto pos = el->cursor_pos();
-      if (pos.x != lastCursorX || pos.y != lastCursorY) {
-         lastCursorX = pos.x;
-         lastCursorY = pos.y;
-         el->_window->set_textbox_modified_flag(false);
+      auto pos = code->cursor_pos();
+      if (pos.x != _last_cursor_x || pos.y != _last_cursor_y) {
+         _last_cursor_x = pos.x;
+         _last_cursor_y = pos.y;
+         code->_window->set_textbox_modified_flag(false);
       }
 
-      el->refresh();
+      code->refresh();
    }
 
    return 0;
 }
 
-UIElement* SourceWindowCreate(UIElement* parent) {
-   displayCode = &parent->add_code(selectableSource ? UICode::SELECTABLE : 0)
-                     .set_font(code_font)
-                     .set_user_proc(DisplayCodeMessage);
-   return displayCode;
-}
-
-void SourceWindowUpdate(const char* data, UIElement* el) {
+void SourceWindow::_update(const char* data, UICode* el) {
    bool changedSourceLine = false;
 
    const char* line = data;
@@ -2071,10 +2121,10 @@ void SourceWindowUpdate(const char* data, UIElement* el) {
    sw->set_changed(false);
 
    if (changedSourceLine && sw->has_selection() && strcmp(sw->current()._location, previousLocation)) {
-      DisplaySetPositionFromStack();
+      display_set_position_from_stack();
    }
 
-   auto currentLine = displayCode->current_line();
+   auto currentLine = s_display_code->current_line();
    if (changedSourceLine && currentLine) {
       // If there is an auto-print expression from the previous line, evaluate it.
 #if 0
@@ -2097,7 +2147,7 @@ void SourceWindowUpdate(const char* data, UIElement* el) {
 #endif
 
       // Parse the new source line.
-      std::string_view text_sv  = displayCode->line(*currentLine);
+      std::string_view text_sv  = s_display_code->line(*currentLine);
       size_t           bytes    = text_sv.size();
       const char*      text     = &text_sv[0];
       uintptr_t        position = 0;
@@ -2164,7 +2214,7 @@ void SourceWindowUpdate(const char* data, UIElement* el) {
       }
 
       if (position != bytes && text[position] == '=') {
-         std_format_to_n(autoPrintExpression, sizeof(autoPrintExpression), "{}",
+         std_format_to_n(&_auto_print_expression[0], sizeof(_auto_print_expression), "{}",
                          std::string_view{text + expressionStart, expressionEnd - expressionStart});
       }
 
@@ -2172,7 +2222,7 @@ void SourceWindowUpdate(const char* data, UIElement* el) {
 
       // Try to evaluate simple if conditions.
 
-      ifConditionEvaluation = 0;
+      _if_condition_evaluation = 0;
 
       for (uintptr_t i = 0, phase = 0, expressionStart = 0, depth = 0; i < bytes; i++) {
          if (phase == 0) {
@@ -2237,13 +2287,13 @@ void SourceWindowUpdate(const char* data, UIElement* el) {
 
 bool InspectIsTokenCharacter(char c) { return isalpha(c) || c == '_'; }
 
-void InspectCurrentLine() {
-   inspectResults.clear();
-   auto currentLine = displayCode->current_line();
+void SourceWindow::inspect_current_line() {
+   _inspect_results.clear();
+   auto currentLine = s_display_code->current_line();
    if (!currentLine)
       return;
 
-   auto code = displayCode->line(*currentLine);
+   auto code = s_display_code->line(*currentLine);
 
    auto expressions = ctx._lang_re->extract_debuggable_expressions(code);
    for (auto e : expressions) {
@@ -2256,51 +2306,51 @@ void InspectCurrentLine() {
       if (0 == memcmp(res.c_str(), "= {", 3) && !strchr(res.c_str() + 3, '='))
          continue;
 
-      inspectResults.emplace_back(std::string{e}, res);
+      _inspect_results.emplace_back(std::string{e}, res);
    }
 
-   if (!inspectResults.size()) {
-      inspectResults.emplace_back("No expressions to display.", "");
+   if (!_inspect_results.size()) {
+      _inspect_results.emplace_back("No expressions to display.", "");
    } else {
-      noInspectResults = false;
+      _no_inspect_results = false;
    }
 }
 
-void InspectLineModeExit(UIElement* el) {
+void SourceWindow::exit_inspect_line_mode(UIElement* el) {
    el->destroy();
-   textboxInput->focus();
-   inInspectLineMode = false;
-   displayCode->set_current_line(inspectModeRestoreLine);
-   displayCode->set_focus_line(inspectModeRestoreLine);
-   displayCode->refresh();
+   s_input_textbox->focus();
+   _in_inspect_line_mode = false;
+   s_display_code->set_current_line(_inspect_mode_restore_line);
+   s_display_code->set_focus_line(_inspect_mode_restore_line);
+   s_display_code->refresh();
 }
 
-int InspectLineModeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+int SourceWindow::_line_message_proc(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::UPDATE && !el->is_focused()) {
-      InspectLineModeExit(el);
+      exit_inspect_line_mode(el);
    } else if (msg == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
       if ((m->text == "`") || m->code == UIKeycode::ESCAPE) {
-         InspectLineModeExit(el);
+         exit_inspect_line_mode(el);
       } else if (m->code >= UI_KEYCODE_DIGIT('1') && m->code <= UI_KEYCODE_DIGIT('9')) {
          int index = ((int)m->code - (int)UI_KEYCODE_DIGIT('1'));
 
-         if (index < (int)inspectResults.size()) {
-            InspectLineModeExit(el);
-            WatchAddExpression(inspectResults[index]._expression);
+         if (index < (int)_inspect_results.size()) {
+            exit_inspect_line_mode(el);
+            WatchAddExpression(_inspect_results[index]._expression);
          }
       } else {
-         auto currentLine = displayCode->current_line();
+         auto currentLine = s_display_code->current_line();
          if (!currentLine)
             return 0;
          if ((m->code == UIKeycode::UP && *currentLine != 0) ||
-             (m->code == UIKeycode::DOWN && *currentLine + 1 < displayCode->num_lines())) {
+             (m->code == UIKeycode::DOWN && *currentLine + 1 < s_display_code->num_lines())) {
             *currentLine += m->code == UIKeycode::UP ? -1 : 1;
-            displayCode->set_current_line(*currentLine);
-            displayCode->set_focus_line(*currentLine);
-            InspectCurrentLine();
-            displayCode->refresh();
+            s_display_code->set_current_line(*currentLine);
+            s_display_code->set_focus_line(*currentLine);
+            inspect_current_line();
+            s_display_code->refresh();
          }
       }
 
@@ -2310,20 +2360,22 @@ int InspectLineModeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    return 0;
 }
 
-bool CommandInspectLine() {
-   auto currentLine = displayCode->current_line();
+bool SourceWindow::inspect_line() {
+   auto currentLine = s_display_code->current_line();
    if (!currentLine)
       return false;
 
-   inspectModeRestoreLine = *currentLine;
-   inInspectLineMode      = true;
-   InspectCurrentLine();
-   displayCode->refresh();
+   _inspect_mode_restore_line = *currentLine;
+   _in_inspect_line_mode      = true;
+   inspect_current_line();
+   s_display_code->refresh();
 
    // Create an element to receive key input messages.
-   windowMain->add_element(0, InspectLineModeMessage, 0).focus();
+   windowMain->add_element(0, InspectLineModeMessage, 0).set_cp(s_display_code->_cp).focus();
    return true;
 }
+
+bool CommandInspectLine() { return static_cast<SourceWindow*>(s_display_code->_cp)->inspect_line(); }
 
 // ---------------------------------------------------/
 // Data viewers:
@@ -2583,30 +2635,30 @@ private:
 
    bool previous_command() {
       if (commandHistoryIndex < commandHistory.size()) {
-         textboxInput->clear(false);
-         textboxInput->replace_text(commandHistory[commandHistoryIndex].get(), false);
+         s_input_textbox->clear(false);
+         s_input_textbox->replace_text(commandHistory[commandHistoryIndex].get(), false);
          if (commandHistoryIndex < commandHistory.size() - 1)
             commandHistoryIndex++;
-         textboxInput->refresh();
+         s_input_textbox->refresh();
       }
       return true;
    }
 
    bool next_command() {
-      textboxInput->clear(false);
+      s_input_textbox->clear(false);
 
       if (commandHistoryIndex > 0) {
          commandHistoryIndex--;
-         textboxInput->replace_text(commandHistory[commandHistoryIndex].get(), false);
+         s_input_textbox->replace_text(commandHistory[commandHistoryIndex].get(), false);
       }
 
-      textboxInput->refresh();
+      s_input_textbox->refresh();
       return true;
    }
 
    bool clear_output() {
-      displayOutput->clear();
-      displayOutput->refresh();
+      s_display_output->clear();
+      s_display_output->refresh();
       return true;
    }
 
@@ -2656,7 +2708,7 @@ private:
             tabCompleter.run(textbox, lastKeyWasTab, false);
             return 1;
          } else if (m->code == UIKeycode::UP) {
-            auto currentLine = displayCode->current_line();
+            auto currentLine = s_display_code->current_line();
             if (textbox->_window->_shift) {
                if (currentLine && *currentLine > 0) {
                   DisplaySetPosition(nullptr, *currentLine - 1, false);
@@ -2665,9 +2717,9 @@ private:
                previous_command();
             }
          } else if (m->code == UIKeycode::DOWN) {
-            auto currentLine = displayCode->current_line();
+            auto currentLine = s_display_code->current_line();
             if (textbox->_window->_shift) {
-               if (currentLine && *currentLine + 1 < displayCode->num_lines()) {
+               if (currentLine && *currentLine + 1 < s_display_code->num_lines()) {
                   DisplaySetPosition(nullptr, *currentLine + 1, false);
                }
             } else {
@@ -2685,15 +2737,15 @@ public:
    }
 
    static UIElement* Create(UIElement* parent) {
-      auto w = new ConsoleWindow;
-      UIPanel* panel2 = &parent->add_panel(UIPanel::EXPAND);
-      displayOutput   = &panel2->add_code(UICode::NO_MARGIN | UIElement::v_fill | UICode::SELECTABLE);
-      UIPanel* panel3 = &panel2->add_panel(UIPanel::HORIZONTAL | UIPanel::EXPAND | UIPanel::COLOR_1)
+      auto     w       = new ConsoleWindow;
+      UIPanel* panel2  = &parent->add_panel(UIPanel::EXPAND);
+      s_display_output = &panel2->add_code(UICode::NO_MARGIN | UIElement::v_fill | UICode::SELECTABLE);
+      UIPanel* panel3  = &panel2->add_panel(UIPanel::HORIZONTAL | UIPanel::EXPAND | UIPanel::COLOR_1)
                             .set_border(UIRectangle(5))
                             .set_gap(5);
       trafficLight = &panel3->add_spacer(0, 30, 30).set_user_proc(TrafficLightMessage);
       panel3->add_button(0, "Menu").on_click([](UIButton& buttonMenu) { ctx.InterfaceShowMenu(&buttonMenu); });
-      textboxInput = &panel3->add_textbox(UIElement::h_fill).set_user_proc(TextboxInputMessage).set_cp(w).focus();
+      s_input_textbox = &panel3->add_textbox(UIElement::h_fill).set_user_proc(TextboxInputMessage).set_cp(w).focus();
       return panel2;
    }
 };
@@ -2728,8 +2780,8 @@ public:
    friend struct WatchWindow;
    static constexpr int WATCH_ARRAY_MAX_FIELDS = 10000000;
 
-   char& format() { return _format; }
-   const std::string&  key() const { return _key; };
+   char&              format() { return _format; }
+   const std::string& key() const { return _key; };
 
    std::string evaluate(std::string_view function) const {
       char      buffer[4096];
@@ -2878,7 +2930,7 @@ private:
 
 public:
    friend struct Watch;
-   
+
    WatchWindow(UIElement* parent, uint32_t flags, const char* name)
       : UIElement(parent, flags, WatchWindow::WatchWindowMessage, name)
       , _textbox(nullptr)
@@ -3094,7 +3146,7 @@ public:
       if (!end)
          return false;
       *end = 0;
-      DisplaySetPosition(file, line - 1, false);
+      s_source_window->display_set_position(file, line - 1, false);
       return true;
    }
 
@@ -3533,7 +3585,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
          destroy_textbox();
       } else if (m->code == UIKeycode::UP) {
          if (_window->_shift) {
-            auto currentLine = displayCode->current_line();
+            auto currentLine = s_display_code->current_line();
             if (currentLine && *currentLine > 0) {
                DisplaySetPosition(nullptr, *currentLine - 1, false);
             }
@@ -3544,8 +3596,8 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
          }
       } else if (m->code == UIKeycode::DOWN) {
          if (_window->_shift) {
-            auto currentLine = displayCode->current_line();
-            if (currentLine && *currentLine + 1 < displayCode->num_lines()) {
+            auto currentLine = s_display_code->current_line();
+            if (currentLine && *currentLine + 1 < s_display_code->num_lines()) {
                DisplaySetPosition(nullptr, *currentLine + 1, false);
             }
          } else {
@@ -3914,8 +3966,8 @@ bool WatchLoggerUpdate(std::string _data) {
       value[sizeof(entry._value) - 1] = 0;
    if (strlen(where) >= sizeof(entry._where))
       where[sizeof(entry._where) - 1] = 0;
-   entry._value                     = value;
-   entry._where                     = where;
+   entry._value = value;
+   entry._where = where;
 
    std::swap(entry._trace, sw->stack());
    DebuggerGetStack();
@@ -3964,8 +4016,8 @@ void StackWindow::set_frame(UIElement* el, int index) {
          _selected = index;
          el->repaint(nullptr);
       } else {
-         displayCode->set_current_line({}); // force the update in DisplayPosition as we may have scrolled away
-         DisplaySetPositionFromStack();
+         s_display_code->set_current_line({}); // force the update in DisplayPosition as we may have scrolled away
+         s_source_window->display_set_position_from_stack();
       }
    }
 }
@@ -4008,8 +4060,8 @@ UIElement* StackWindow::Create(UIElement* parent) {
 }
 
 void StackWindow::Update(const char*, UIElement* el) {
-   UITable& table = *(UITable*)el;
-   StackWindow *sw = static_cast<StackWindow*>(el->_cp);
+   UITable&     table = *(UITable*)el;
+   StackWindow* sw    = static_cast<StackWindow*>(el->_cp);
    table.set_num_items(sw->_stack.size()).resize_columns().refresh();
 }
 
@@ -4026,8 +4078,9 @@ private:
    vector<Breakpoint>& _breakpoints;
 
 public:
-   BreakpointsWindow(vector<Breakpoint>& bp) : _breakpoints(bp) {}
-   
+   BreakpointsWindow(vector<Breakpoint>& bp)
+      : _breakpoints(bp) {}
+
    void for_all_selected_breakpoints(string_view action) const {
       for (auto selected : _selected) {
          for (const auto& breakpoint : _breakpoints) {
@@ -4058,8 +4111,8 @@ public:
    }
 
    static void Update(const char*, UIElement* el) {
-      UITable* table = (UITable*)el;
-      [[maybe_unused]] BreakpointsWindow* bw = static_cast<BreakpointsWindow*>(el->_cp);
+      UITable*                            table = (UITable*)el;
+      [[maybe_unused]] BreakpointsWindow* bw    = static_cast<BreakpointsWindow*>(el->_cp);
       table->set_num_items(s_breakpoint_mgr.num_breakpoints());
       table->resize_columns();
       table->refresh();
@@ -4239,7 +4292,7 @@ public:
 
       w->buttonFillWindow =
          &panel5->add_button(UIButton::SMALL, "Fill window").on_click([w](UIButton&) { w->toggle_fill_data_tab(); });
-      
+
       for (const auto& idw : ctx._interface_data_viewers) {
          panel5->add_button(UIButton::SMALL, idw._add_button_label).on_click([&](UIButton&) {
             idw._add_button_callback();
@@ -4293,7 +4346,7 @@ public:
                              .insert_content("Type the name of a struct to view its layout.", false);
       return panel;
    }
- };
+};
 
 // ---------------------------------------------------/
 // Files window:
@@ -4322,7 +4375,7 @@ struct FilesWindow {
       realpath(_directory, copy); // resolve dir into `copy`
       strcpy(_directory, copy);   // copy resolved path into `_directory`
    }
-   
+
    bool populate_panel() {
       size_t         oldLength;
       DIR*           directory = opendir(_directory);
@@ -4453,9 +4506,9 @@ public:
       }
 
       panel->destroy_descendents();
-      const char*          position        = res.c_str();
+      const char*          position     = res.c_str();
       vector<RegisterData> new_reg_data = {};
-      bool                 anyChanges      = false;
+      bool                 anyChanges   = false;
 
       while (*position != '(') {
          const char* nameStart = position;
@@ -4508,18 +4561,21 @@ public:
          if (nameEnd == nameStart + 2 && 0 == memcmp(nameStart, "ip", 2))
             isPC = true;
 
+         auto  sw        = static_cast<SourceWindow*>(s_display_code->_cp);
+         auto& ap_result = sw->auto_print_result();
+
          if (modified && showingDisassembly && !isPC) {
             if (!anyChanges) {
-               autoPrintResult[0]  = 0;
-               autoPrintResultLine = autoPrintExpressionLine;
-               anyChanges          = true;
+               ap_result[0]            = 0;
+               sw->autoPrintResultLine = sw->autoPrintExpressionLine;
+               anyChanges              = true;
             } else {
-               int position = strlen(autoPrintResult);
-               std_format_to_n(autoPrintResult + position, sizeof(autoPrintResult) - position, ", ");
+               int position = strlen(ap_result.data());
+               std_format_to_n(&ap_result[position], sizeof(ap_result) - position, ", ");
             }
 
-            int position = strlen(autoPrintResult);
-            std_format_to_n(autoPrintResult + position, sizeof(autoPrintResult) - position, "{}={}",
+            int position = strlen(ap_result.data());
+            std_format_to_n(&ap_result[position], sizeof(ap_result) - position, "{}={}",
                             std::string_view{nameStart, (size_t)(nameEnd - nameStart)},
                             std::string_view{format1Start, (size_t)(format1End - format1Start)});
          }
@@ -4737,7 +4793,7 @@ public:
          (void)CommandParseInternal("run", false);
       } else {
          DebuggerGetStack();
-         DisplaySetPositionFromStack();
+         s_source_window->display_set_position_from_stack();
       }
    }
 
@@ -5008,10 +5064,10 @@ struct ProfSourceFileEntry {
 };
 
 struct ProfFunctionEntry {
-   uint32_t _call_count       = 0;
-   int      _line_number      = 0;
+   uint32_t _call_count        = 0;
+   int      _line_number       = 0;
    int      _source_file_index = 0;
-   double   _total_time       = 0;
+   double   _total_time        = 0;
    char     _name[64];
 };
 
@@ -5366,7 +5422,8 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
          char line1[256], line2[256], line3[256];
          std_format_to_n(line1, sizeof(line1), "[{}] {}:{}", report->hover->_name,
-                         function._source_file_index != -1 ? report->sourceFiles[function._source_file_index]._path : "??",
+                         function._source_file_index != -1 ? report->sourceFiles[function._source_file_index]._path
+                                                           : "??",
                          function._line_number);
          std_format_to_n(line2, sizeof(line2), "This call: {:f}ms {:.1f}%%",
                          report->hover->_end_time - report->hover->_start_time,
@@ -5635,8 +5692,8 @@ void ProfSwitchView(ProfFlameGraphReport* report) {
 PROF_FUNCTION_COMPARE(ProfFunctionCompareName, strcmp(left->_name, right->_name));
 PROF_FUNCTION_COMPARE(ProfFunctionCompareTotalTime, PROF_COMPARE_NUMBERS(left->_total_time, right->_total_time));
 PROF_FUNCTION_COMPARE(ProfFunctionCompareCallCount, PROF_COMPARE_NUMBERS(left->_call_count, right->_call_count));
-PROF_FUNCTION_COMPARE(ProfFunctionCompareAverage,
-                      PROF_COMPARE_NUMBERS(left->_total_time / left->_call_count, right->_total_time / right->_call_count));
+PROF_FUNCTION_COMPARE(ProfFunctionCompareAverage, PROF_COMPARE_NUMBERS(left->_total_time / left->_call_count,
+                                                                       right->_total_time / right->_call_count));
 PROF_FUNCTION_COMPARE(ProfFunctionComparePercentage, PROF_COMPARE_NUMBERS(left->_total_time, right->_total_time));
 
 int ProfTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
@@ -5812,7 +5869,7 @@ void ProfLoadProfileData(void* _window) {
          memcpy(sourceFile._path, cSourceFile, length);
          sourceFile._path[length] = 0;
          std_format_to_n(buffer, sizeof(buffer), "py print(gdb.lookup_global_symbol('{}').line)", function._name);
-         res                 = EvaluateCommand(buffer);
+         res                   = EvaluateCommand(buffer);
          function._line_number = sv_atoi(res);
 
          for (size_t i = 0; i < sourceFiles.size(); i++) {
@@ -6462,12 +6519,12 @@ void ViewWindowView(void* cp) {
    UIElement* watchElement = ctx.InterfaceWindowSwitchToAndFocus("Watch");
    if (!watchElement)
       return;
-   
-   WatchWindow* w = (WatchWindow*)watchElement->_cp;
-   auto w_opt = w->get_selected_watch();
+
+   WatchWindow* w     = (WatchWindow*)watchElement->_cp;
+   auto         w_opt = w->get_selected_watch();
    if (!w_opt)
       return;
-   
+
    const shared_ptr<Watch>& watch = *w_opt;
 
    if (!cp)
@@ -6482,7 +6539,7 @@ void ViewWindowView(void* cp) {
 
    // Get information about the watch expression.
    char type[256], buffer[256];
-   char oldFormat = watch->format();
+   char oldFormat  = watch->format();
    watch->format() = 0;
 
    auto res = watch->evaluate("gf_typeof");
@@ -7264,7 +7321,7 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
    if (WatchLoggerUpdate(*input))
       return;
    if (showingDisassembly)
-      DisassemblyUpdateLine();
+      s_source_window->disassembly_update_line();
 
    if (!ctx._dbg_re->match_stack_or_breakpoint_output(*input)) {
       // we don't want to call `DebuggerGetBreakpoints()` upon receiving the result of `DebuggerGetBreakpoints()`,
@@ -7272,7 +7329,7 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
       DebuggerGetStack();
       s_breakpoint_mgr.update_breakpoint_from_gdb();
 
-      ctx.grab_focus(textboxInput->_window); // grab focus when breakpoint is hit!
+      ctx.grab_focus(s_input_textbox->_window); // grab focus when breakpoint is hit!
    }
 
    for (auto& [name, iw] : ctx._interface_windows) {
@@ -7287,9 +7344,9 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
 
    DataViewersUpdateAll();
 
-   if (displayOutput) {
-      displayOutput->insert_content(*input, false);
-      displayOutput->refresh();
+   if (s_display_output) {
+      s_display_output->insert_content(*input, false);
+      s_display_output->refresh();
    }
 
    if (trafficLight)
@@ -7324,7 +7381,7 @@ auto gdb_invoker(string_view cmd, int flags = 0) {
 
 void Context::InterfaceAddBuiltinWindowsAndCommands() {
    _interface_windows["Stack"]       = {StackWindow::Create, StackWindow::Update};
-   _interface_windows["Source"]      = {SourceWindowCreate, SourceWindowUpdate};
+   _interface_windows["Source"]      = {SourceWindow::Create, SourceWindow::Update};
    _interface_windows["Breakpoints"] = {BreakpointsWindow::Create, BreakpointsWindow::Update};
    _interface_windows["Registers"]   = {RegistersWindow::Create, RegistersWindow::Update};
    _interface_windows["Watch"]       = {WatchWindow::Create, WatchWindow::Update, WatchWindow::Focus};
@@ -7513,7 +7570,7 @@ UIElement* Context::InterfaceWindowSwitchToAndFocus(string_view target_name) {
 
 int MainWindowMessageProc(UIElement*, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::WINDOW_ACTIVATE) {
-      DisplaySetPosition(currentFileFull, displayCode->current_line(), false);
+      DisplaySetPosition(currentFileFull, s_display_code->current_line(), false);
    } else {
       for (const auto& msgtype : receiveMessageTypes) {
          if (msgtype._msg == msg) {
@@ -7600,8 +7657,8 @@ const char* InterfaceLayoutNextToken(const char*& current, const char* expected 
 }
 
 void Context::InterfaceAdditionalSetup() {
-   if (displayCode && firstWatchWindow) {
-      displayCode->add_selection_menu_item("Add watch", [&](std::string_view sel) { WatchAddExpression(sel); });
+   if (s_display_code && firstWatchWindow) {
+      s_display_code->add_selection_menu_item("Add watch", [&](std::string_view sel) { WatchAddExpression(sel); });
    }
 }
 
