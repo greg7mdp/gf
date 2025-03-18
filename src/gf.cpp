@@ -67,7 +67,7 @@ public:
 
    bool pop(std::optional<T>& value) {
       std::unique_lock lock(_mutex);
-      bool res = _cv.wait_for(lock, std::chrono::seconds(15), [this] { return !_queue.empty() || _quit; });
+      bool             res = _cv.wait_for(lock, std::chrono::seconds(15), [this] { return !_queue.empty() || _quit; });
 
       if (!res || _quit) { // !res means we hit the timeout
          value = std::optional<T>{};
@@ -229,17 +229,17 @@ struct GF_Config {
    char            _global_config_path[PATH_MAX];
    char            _local_config_dir[PATH_MAX];
    char            _local_config_path[PATH_MAX];
-   int             _code_font_size = 13;
+   int             _code_font_size      = 13;
    int             _interface_font_size = 11;
    int             _window_width        = -1;
    int             _window_height       = -1;
    float           _ui_scale            = 1;
    bool            _maximize;
-   bool            _selectable_source    = true;
-   bool            _restore_watch_window  = false;
-   bool            _confirm_command_connect = true;
-   bool            _confirm_command_kill    = true;
-   int             _backtrace_count_limit   = 50;
+   bool            _selectable_source        = true;
+   bool            _restore_watch_window     = false;
+   bool            _confirm_command_connect  = true;
+   bool            _confirm_command_kill     = true;
+   int             _backtrace_count_limit    = 50;
    bool            _grab_focus_on_breakpoint = true;
 };
 
@@ -256,10 +256,10 @@ struct Context {
 #else
    const char* _gdb_path = "gdb";
 #endif
-   std::string _initial_gdb_command      = "set prompt (gdb) ";
-   bool        _first_update             = true;
-   UICode*     _log_window               = nullptr; // if sent, log all debugger output there
-   ui_handle   _prev_focus_win           = 0;
+   std::string _initial_gdb_command = "set prompt (gdb) ";
+   bool        _first_update        = true;
+   UICode*     _log_window          = nullptr; // if sent, log all debugger output there
+   ui_handle   _prev_focus_win      = 0;
    UI*         _ui; // non-owning pointer
 
    unique_ptr<regexp::debugger_base> _dbg_re;
@@ -347,7 +347,7 @@ UIMessage                  msgReceivedLog;
 UIMessage                  msgReceivedControl;
 UIMessage                  msgReceivedNext = (UIMessage)(UIMessage::USER_PLUS_1);
 
-char   previousLocation[256];
+char previousLocation[256];
 
 // ---------------------------------------------------
 // User interface:
@@ -966,7 +966,7 @@ public:
 
 struct SourceWindow {
    static UIFont* s_code_font;
-   
+
    int                    _auto_print_expression_line;
    int                    _auto_print_result_line;
    std::array<char, 1024> _auto_print_expression;
@@ -1835,7 +1835,7 @@ void SourceWindow::disassembly_update_line() {
             if (a == b) {
                s_display_code->set_focus_line(i);
                _auto_print_expression_line = i;
-               found                   = true;
+               found                       = true;
                break;
             }
          }
@@ -1853,8 +1853,8 @@ void SourceWindow::disassembly_update_line() {
 }
 
 bool SourceWindow::toggle_disassembly() {
-   _showing_disassembly        = !_showing_disassembly;
-   _auto_print_result_line       = 0;
+   _showing_disassembly      = !_showing_disassembly;
+   _auto_print_result_line   = 0;
    _auto_print_expression[0] = 0;
    s_display_code->_flags ^= UICode::NO_MARGIN;
 
@@ -1865,9 +1865,9 @@ bool SourceWindow::toggle_disassembly() {
       disassembly_update_line();
    } else {
       s_display_code->set_current_line({});
-      _current_end_of_block = -1;
+      _current_end_of_block   = -1;
       _current_file[0]        = 0;
-      _current_file_read_time   = 0;
+      _current_file_read_time = 0;
       display_set_position_from_stack();
       s_display_code->set_tab_columns(4);
    }
@@ -1878,7 +1878,7 @@ bool SourceWindow::toggle_disassembly() {
 
 bool SourceWindow::set_disassembly_mode() {
    auto newMode = s_main_window->show_dialog(0, "Select the disassembly mode:\n%b\n%b\n%b", "Disassembly only",
-                                          "With source", "Source centric");
+                                             "With source", "Source centric");
 
    if (newMode == "Disassembly only")
       _disassembly_command = "disas";
@@ -1897,8 +1897,8 @@ bool SourceWindow::set_disassembly_mode() {
 bool CommandSetDisassemblyMode() { return s_source_window->set_disassembly_mode(); }
 
 void SourceWindow::draw_inspect_line_mode_overlay(UIPainter* painter) {
-   auto& theme       = painter->theme();
-   auto  active_font = painter->active_font();
+   const auto& theme       = painter->theme();
+   auto        active_font = painter->active_font();
 
    const char* instructions = "(Press Esc to exit inspect line mode.)";
    int         width        = (strlen(instructions) + 8) * active_font->_glyph_width;
@@ -2024,8 +2024,8 @@ int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* 
          menu.show();
       });
    } else if (msg == UIMessage::CODE_GET_MARGIN_COLOR && !_showing_disassembly) {
-      auto& theme       = code->theme();
-      int   num_enabled = 0, num_disabled = 0;
+      const auto& theme       = code->theme();
+      int         num_enabled = 0, num_disabled = 0;
 
       s_breakpoint_mgr.for_all_matching_breakpoints(di, _current_file_full, [&](int line, auto& bp) {
          if (bp._enabled)
@@ -2546,8 +2546,8 @@ int BitmapViewerDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          .add_item(0, "Save to file...",
                    [el](UIButton&) {
                       static char* path = nullptr;
-                      auto         result =
-                         s_main_window->show_dialog(0, "Save to file       \nPath:\n%t\n%f%B%C", &path, "Save", "Cancel");
+                      auto result       = s_main_window->show_dialog(0, "Save to file       \nPath:\n%t\n%f%B%C", &path,
+                                                                     "Save", "Cancel");
                       if (result != "Save")
                          return;
 
@@ -2627,9 +2627,9 @@ void BitmapAddDialog() {
    static char *pointer = nullptr, *width = nullptr, *height = nullptr, *stride = nullptr;
 
    auto result = s_main_window->show_dialog(0,
-                                         "Add bitmap\n\n%l\n\nPointer to bits: (32bpp, RR GG BB "
-                                         "AA)\n%t\nWidth:\n%t\nHeight:\n%t\nStride: (optional)\n%t\n\n%l\n\n%f%B%C",
-                                         &pointer, &width, &height, &stride, "Add", "Cancel");
+                                            "Add bitmap\n\n%l\n\nPointer to bits: (32bpp, RR GG BB "
+                                            "AA)\n%t\nWidth:\n%t\nHeight:\n%t\nStride: (optional)\n%t\n\n%l\n\n%f%B%C",
+                                            &pointer, &width, &height, &stride, "Add", "Cancel");
 
    if (result == "Add") {
       BitmapViewerUpdate(pointer ?: "", width ?: "", height ?: "", (stride && stride[0]) ? stride : "");
@@ -3428,8 +3428,8 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
    int result    = 0;
 
    if (msg == UIMessage::PAINT) {
-      UIPainter* painter = (UIPainter*)dp;
-      auto&      thm     = theme();
+      UIPainter*  painter = (UIPainter*)dp;
+      const auto& thm     = theme();
 
       for (size_t i = (painter->_clip.t - _bounds.t) / rowHeight; i <= last_row(); i++) {
          UIRectangle row = _bounds;
@@ -3850,7 +3850,8 @@ void WatchWindow::WatchChangeLoggerCreate() {
       return;
    }
 
-   UIMDIChild* child = &s_data_window->add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(0), std::format("Log {}", res));
+   UIMDIChild* child =
+      &s_data_window->add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(0), std::format("Log {}", res));
 
    res                = EvaluateCommand(std::format("watch * {}", res));
    const char* number = strstr(res.c_str(), "point ");
@@ -4300,7 +4301,7 @@ public:
    static UIElement* Create(UIElement* parent) {
       auto w = new DataWindow;
 
-      s_data_tab         = &parent->add_panel(UIPanel::EXPAND);
+      s_data_tab      = &parent->add_panel(UIPanel::EXPAND);
       UIPanel* panel5 = &s_data_tab->add_panel(UIPanel::COLOR_1 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
 
       w->_fill_window_button =
@@ -4444,8 +4445,8 @@ struct FilesWindow {
 
    int _button_message_proc(UIButton* button, UIMessage msg, int di, void* dp) {
       if (msg == UIMessage::CLICKED) {
-         size_t       oldLength;
-         mode_t       mode = get_mode(button, &oldLength);
+         size_t oldLength;
+         mode_t mode = get_mode(button, &oldLength);
 
          if (S_ISDIR(mode)) {
             if (populate_panel()) {
@@ -4458,9 +4459,9 @@ struct FilesWindow {
 
          _directory[oldLength] = 0;
       } else if (msg == UIMessage::PAINT) {
-         UIPainter* painter = (UIPainter*)dp;
-         int        i       = button->is_pressed() + button->is_hovered();
-         auto&      theme   = button->theme();
+         UIPainter*  painter = (UIPainter*)dp;
+         int         i       = button->is_pressed() + button->is_hovered();
+         const auto& theme   = button->theme();
          if (i)
             painter->draw_block(button->_bounds, i == 2 ? theme.buttonPressed : theme.buttonHovered);
          painter->draw_string(button->_bounds + UIRectangle(ui_size::button_padding, 0, 0, 0), button->label(),
@@ -4475,7 +4476,7 @@ struct FilesWindow {
    static int FilesButtonMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<FilesWindow*>(el->_cp)->_button_message_proc(static_cast<UIButton*>(el), msg, di, dp);
    }
-   
+
    static UIElement* Create(UIElement* parent) {
       FilesWindow* window    = new FilesWindow;
       UIPanel*     container = &parent->add_panel(UIPanel::EXPAND);
@@ -4577,9 +4578,9 @@ public:
 
          if (modified && s_source_window->_showing_disassembly && !isPC) {
             if (!anyChanges) {
-               ap_result[0]            = 0;
+               ap_result[0]                = 0;
                sw->_auto_print_result_line = sw->_auto_print_expression_line;
-               anyChanges              = true;
+               anyChanges                  = true;
             } else {
                int position = strlen(ap_result.data());
                std_format_to_n(&ap_result[position], sizeof(ap_result) - position, ", ");
@@ -4812,7 +4813,7 @@ public:
       FILE* f = fopen(gfc._local_config_path, "rb");
       if (f) {
          auto result = s_main_window->show_dialog(0, ".project.gf already exists in the current directory.\n%f%B%C",
-                                               "Overwrite", "Cancel");
+                                                  "Overwrite", "Cancel");
          if (result != "Overwrite")
             return;
          fclose(f);
@@ -5085,63 +5086,65 @@ struct ProfFunctionEntry {
 int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp);
 
 struct ProfFlameGraphReport : public UIElement {
-   UIRectangle  client;
-   UIFont*      font;
-   UITable*     table;
-   UIButton*    switchViewButton;
-   UIScrollBar* vScroll;
-   bool         showingTable;
+   UIRectangle  _client;
+   UIFont*      _font;
+   UITable*     _table;
+   UIButton*    _switch_view_button;
+   UIScrollBar* _v_scroll;
+   bool         _showing_table;
 
-   vector<ProfFlameGraphEntry>             entries;
-   vector<ProfFlameGraphEntryTime>         entryTimes;
-   vector<ProfFunctionEntry>               sortedFunctions;
-   unordered_map<void*, ProfFunctionEntry> functions;
-   vector<ProfSourceFileEntry>             sourceFiles;
+   vector<ProfFlameGraphEntry>             _entries;
+   vector<ProfFlameGraphEntryTime>         _entry_times;
+   vector<ProfFunctionEntry>               _sorted_functions;
+   unordered_map<void*, ProfFunctionEntry> _functions;
+   vector<ProfSourceFileEntry>             _source_files;
 
-   uint32_t* thumbnail;
-   int       thumbnailWidth, thumbnailHeight;
+   uint32_t* _thumbnail;
+   int       _thumbnail_width;
+   int       _thumbnail_height;
 
-   double totalTime;
-   double xStart, xEnd;
+   double _total_time;
+   double _x_start;
+   int    _x_end;
 
-   ProfFlameGraphEntry* hover;
-   ProfFlameGraphEntry* menuItem;
+   ProfFlameGraphEntry* _hover;
+   ProfFlameGraphEntry* _menu_item;
 
 #define FLAME_GRAPH_DRAG_ZOOM_RANGE (1)
 #define FLAME_GRAPH_DRAG_PAN (2)
 #define FLAME_GRAPH_DRAG_X_PAN_AND_ZOOM (3)
 #define FLAME_GRAPH_DRAG_X_SCROLL (4)
-   bool   dragStarted;
-   int    dragMode;
-   double dragInitialValue, dragInitialValue2;
-   int    dragInitialPoint, dragInitialPoint2;
-   int    dragCurrentPoint;
-   double dragScrollRate;
+   bool   _drag_started;
+   int    _drag_mode;
+   double _drag_initial_value, _drag_initial_value2;
+   int    _drag_initial_point, _drag_initial_point2;
+   int    _drag_current_point;
+   double _drag_scroll_rate;
 
    ProfFlameGraphReport(UIElement* parent, uint32_t flags)
       : UIElement(parent, flags, ProfFlameGraphMessage, "flame graph")
-      , client(0)
-      , font(nullptr)
-      , table(nullptr)
-      , switchViewButton(nullptr)
-      , vScroll(nullptr)
-      , showingTable(false)
-      , thumbnail(nullptr)
-      , thumbnailWidth(0)
-      , thumbnailHeight(0)
-      , totalTime(0)
-      , xStart(0)
-      , xEnd(0)
-      , hover(nullptr)
-      , menuItem(nullptr)
-      , dragStarted(false)
-      , dragMode(0)
-      , dragInitialValue(0)
-      , dragInitialValue2(0)
-      , dragInitialPoint(0)
-      , dragInitialPoint2(0)
-      , dragCurrentPoint(0)
-      , dragScrollRate(0) {}
+      , _client(0)
+      , _font(nullptr)
+      , _table(nullptr)
+      , _switch_view_button(nullptr)
+      , _v_scroll(nullptr)
+      , _showing_table(false)
+      , _thumbnail(nullptr)
+      , _thumbnail_width(0)
+      , _thumbnail_height(0)
+      , _total_time(0)
+      , _x_start(0)
+      , _x_end(0)
+      , _hover(nullptr)
+      , _menu_item(nullptr)
+      , _drag_started(false)
+      , _drag_mode(0)
+      , _drag_initial_value(0)
+      , _drag_initial_value2(0)
+      , _drag_initial_point(0)
+      , _drag_initial_point2(0)
+      , _drag_current_point(0)
+      , _drag_scroll_rate(0) {}
 };
 
 const uint32_t profMainColor        = 0xFFBFC1C3;
@@ -5188,27 +5191,27 @@ int ProfFlameGraphEntryCompare(const void* _a, const void* _b) {
 }
 
 void ProfShowSource(ProfFlameGraphReport* report) {
-   ProfFlameGraphEntry* entry = report->menuItem;
-   if (!report->functions.contains(entry->_this_function)) {
+   ProfFlameGraphEntry* entry = report->_menu_item;
+   if (!report->_functions.contains(entry->_this_function)) {
       s_main_window->show_dialog(0, "Source information was not found for this function.\n%f%b", "OK");
       return;
    }
-   ProfFunctionEntry& function = report->functions[entry->_this_function];
+   ProfFunctionEntry& function = report->_functions[entry->_this_function];
 
    if (!function._name[0]) {
       s_main_window->show_dialog(0, "Source information was not found for this function.\n%f%b", "OK");
       return;
    } else {
-      DisplaySetPosition(report->sourceFiles[function._source_file_index]._path, function._line_number - 1, false);
+      DisplaySetPosition(report->_source_files[function._source_file_index]._path, function._line_number - 1, false);
    }
 }
 
 void ProfAddBreakpoint(ProfFlameGraphEntry* entry) { CommandSendToGDB(std::format("b {}", entry->_name)); }
 
 void ProfFillView(ProfFlameGraphReport* report) {
-   ProfFlameGraphEntry* entry = report->menuItem;
-   report->xStart             = entry->_start_time;
-   report->xEnd               = entry->_end_time;
+   ProfFlameGraphEntry* entry = report->_menu_item;
+   report->_x_start           = entry->_start_time;
+   report->_x_end             = entry->_end_time;
    report->repaint(0);
 }
 
@@ -5234,14 +5237,6 @@ void ProfDrawTransparentOverlay(UIPainter* painter, UIRectangle rectangle, uint3
    }
 }
 
-#define PROFILER_ENTRY_RECTANGLE_EARLY() \
-   int64_t rr = report->client.l + (int64_t)((time->_end - report->xStart) * zoomX + 0.999);
-
-#define PROFILER_ENTRY_RECTANGLE_OTHER()                                                                         \
-   int64_t rl = report->client.l + (int64_t)((time->_start - report->xStart) * zoomX);                           \
-   int64_t rt = report->client.t + time->_depth * profRowHeight + profScaleHeight - report->vScroll->position(); \
-   int64_t rb = rt + profRowHeight;
-
 void* ProfFlameGraphRenderThread(void* _unused) {
    (void)_unused;
    int threadIndex = __sync_fetch_and_add(&profRenderThreadIndexAllocator, 1);
@@ -5252,54 +5247,60 @@ void* ProfFlameGraphRenderThread(void* _unused) {
       ProfFlameGraphReport* report = profRenderReport;
       UIElement*            el     = report;
 
-      double     zoomX    = (double)report->client.width() / (report->xEnd - report->xStart);
+      double     zoomX    = (double)report->_client.width() / (report->_x_end - report->_x_start);
       UIPainter  _painter = *profRenderPainter; // Some of the draw functions modify the painter's clip, so make a copy.
       UIPainter* painter  = &_painter;
 
       int64_t pr = 0, pd = 0;
-      float   xStartF = (float)report->xStart;
-      float   xEndF   = (float)report->xEnd;
+      float   xStartF = (float)report->_x_start;
+      float   xEndF   = (float)report->_x_end;
 
-      size_t startIndex = report->entries.size() / profRenderThreadIndexAllocator * threadIndex;
-      size_t endIndex   = report->entries.size() / profRenderThreadIndexAllocator * (threadIndex + 1);
+      size_t startIndex = report->_entries.size() / profRenderThreadIndexAllocator * threadIndex;
+      size_t endIndex   = report->_entries.size() / profRenderThreadIndexAllocator * (threadIndex + 1);
 
       if (profRenderThreadCount == threadIndex + 1) {
-         endIndex = report->entries.size();
+         endIndex = report->_entries.size();
       }
 
       // printf("render on thread %d from %d to %d\n", threadIndex, startIndex, endIndex);
 
       for (size_t i = startIndex; i < endIndex; i++) {
-         ProfFlameGraphEntryTime* time = &report->entryTimes[i];
+         ProfFlameGraphEntryTime* time = &report->_entry_times[i];
 
          if (time->_end < xStartF || time->_start > xEndF) {
             continue;
          }
 
-         PROFILER_ENTRY_RECTANGLE_EARLY();
+         int64_t rr = report->_client.l + (int64_t)((time->_end - report->_x_start) * zoomX + 0.999); // RECTANGLE_EARLY
 
          if (pr == rr && pd == time->_depth) {
             continue;
          }
 
-         ProfFlameGraphEntry* entry = &report->entries[i];
-         PROFILER_ENTRY_RECTANGLE_OTHER();
+         ProfFlameGraphEntry* entry = &report->_entries[i];
+
+         // RECTANGLE_OTHER
+         int64_t rl = report->_client.l + (int64_t)((time->_start - report->_x_start) * zoomX);
+         int64_t rt =
+            report->_client.t + time->_depth * profRowHeight + profScaleHeight - report->_v_scroll->position();
+         int64_t rb = rt + profRowHeight;
 
          if (rl <= el->_clip.r && rr >= el->_clip.l && rt <= el->_clip.b && rb >= el->_clip.t) {
             // Carefully convert 64-bit integers to 32-bit integers for UIRectangle,
             // since the rectangle may be really large when zoomed in.
             UIRectangle r;
-            r.l = rl < report->client.l ? report->client.l : rl;
-            r.r = rr > report->client.r ? report->client.r : rr;
-            r.t = rt < report->client.t ? report->client.t : rt;
-            r.b = rb > report->client.b ? report->client.b : rb;
+            r.l = rl < report->_client.l ? report->_client.l : rl;
+            r.r = rr > report->_client.r ? report->_client.r : rr;
+            r.t = rt < report->_client.t ? report->_client.t : rt;
+            r.b = rb > report->_client.b ? report->_client.b : rb;
 
             painter->draw_block(UIRectangle(r.r - 1, r.r, r.t, r.b - 1), profBorderDarkColor);
             painter->draw_block(UIRectangle(r.l, r.r, r.b - 1, r.b), profBorderDarkColor);
             painter->draw_block(UIRectangle(r.l, r.r - 1, r.t, r.t + 1), profBorderLightColor);
             painter->draw_block(UIRectangle(r.l, r.l + 1, r.t + 1, r.b - 1), profBorderLightColor);
 
-            bool hovered = report->hover && report->hover->_this_function == entry->_this_function && !report->dragMode;
+            bool hovered =
+               report->_hover && report->_hover->_this_function == entry->_this_function && !report->_drag_mode;
             uint32_t color = hovered ? profHoverColor : profEntryColorPalette[entry->_color_index];
             /// uint32_t color = hovered ? profHoverColor : profMainColor;
             painter->draw_block(UIRectangle(r.l + 1, r.r - 1, r.t + 1, r.b - 1), color);
@@ -5314,8 +5315,8 @@ void* ProfFlameGraphRenderThread(void* _unused) {
 
          float nextDrawTime = 0.99f / zoomX + time->_end;
 
-         for (; i < report->entries.size(); i++) {
-            if (report->entryTimes[i]._end >= nextDrawTime || report->entryTimes[i]._depth != time->_depth) {
+         for (; i < report->_entries.size(); i++) {
+            if (report->_entry_times[i]._end >= nextDrawTime || report->_entry_times[i]._depth != time->_depth) {
                i--;
                break;
             }
@@ -5331,16 +5332,16 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    ProfFlameGraphReport* report = (ProfFlameGraphReport*)el;
 
    if (msg == UIMessage::PAINT) {
-      UIFont* previousFont = report->font->activate();
+      UIFont* previousFont = report->_font->activate();
 
-      if (report->xStart < 0)
-         report->xStart = 0;
-      if (report->xEnd > report->totalTime)
-         report->xEnd = report->totalTime;
-      if (report->xEnd < report->xStart + 1e-7)
-         report->xEnd = report->xStart + 1e-7;
+      if (report->_x_start < 0)
+         report->_x_start = 0;
+      if (report->_x_end > report->_total_time)
+         report->_x_end = report->_total_time;
+      if (report->_x_end < report->_x_start + 1e-7)
+         report->_x_end = report->_x_start + 1e-7;
 
-      double zoomX = (double)report->client.width() / (report->xEnd - report->xStart);
+      double zoomX = (double)report->_client.width() / (report->_x_end - report->_x_start);
 
       if (!profRenderThreadCount) {
          profRenderThreadCount = sysconf(_SC_NPROCESSORS_CONF);
@@ -5359,7 +5360,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       }
 
       UIPainter* painter = (UIPainter*)dp;
-      painter->draw_block(report->client, profBackgroundColor);
+      painter->draw_block(report->_client, profBackgroundColor);
 
       profRenderReport        = report;
       profRenderPainter       = painter;
@@ -5373,21 +5374,21 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
       {
          UIRectangle r =
-            UIRectangle(report->client.l, report->client.r, report->client.t, report->client.t + profScaleHeight);
+            UIRectangle(report->_client.l, report->_client.r, report->_client.t, report->_client.t + profScaleHeight);
          painter->draw_rectangle(r, profMainColor, profBorderDarkColor, UIRectangle(0, 0, 0, 1));
 
          double increment = 1000.0;
          while (increment > 1e-6 && increment * zoomX > 600.0)
             increment *= 0.1;
 
-         double start = (painter->_clip.l - report->client.l) / zoomX + report->xStart;
+         double start = (painter->_clip.l - report->_client.l) / zoomX + report->_x_start;
          start -= fmod(start, increment) + increment;
 
-         for (double i = start; i < report->totalTime; i += increment) {
+         for (double i = start; i < report->_total_time; i += increment) {
             UIRectangle r;
-            r.t = report->client.t;
+            r.t = report->_client.t;
             r.b = r.t + profScaleHeight;
-            r.l = report->client.l + (int)((i - report->xStart) * zoomX);
+            r.l = report->_client.l + (int)((i - report->_x_start) * zoomX);
             r.r = r.l + (int)(increment * zoomX);
             if (r.l > painter->_clip.r)
                break;
@@ -5397,29 +5398,29 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          }
       }
 
-      if (report->dragMode == FLAME_GRAPH_DRAG_ZOOM_RANGE) {
-         UIRectangle r = report->client;
-         r.l = report->dragInitialPoint, r.r = report->dragCurrentPoint;
+      if (report->_drag_mode == FLAME_GRAPH_DRAG_ZOOM_RANGE) {
+         UIRectangle r = report->_client;
+         r.l = report->_drag_initial_point, r.r = report->_drag_current_point;
          if (r.l > r.r)
-            r.r = report->dragInitialPoint, r.l = report->dragCurrentPoint;
+            r.r = report->_drag_initial_point, r.l = report->_drag_current_point;
          painter->draw_invert(r);
       }
 
-      if (report->thumbnail) {
+      if (report->_thumbnail) {
          UIRectangle zoomBar =
-            UIRectangle(report->client.l, report->client.r, report->client.b - profZoomBarHeight, report->client.b);
+            UIRectangle(report->_client.l, report->_client.r, report->_client.b - profZoomBarHeight, report->_client.b);
          UIRectangle zoomBarThumb = zoomBar;
-         zoomBarThumb.l           = zoomBar.l + zoomBar.width() * (report->xStart / report->totalTime);
-         zoomBarThumb.r           = zoomBar.l + zoomBar.width() * (report->xEnd / report->totalTime);
+         zoomBarThumb.l           = zoomBar.l + zoomBar.width() * (report->_x_start / report->_total_time);
+         zoomBarThumb.r           = zoomBar.l + zoomBar.width() * (report->_x_end / report->_total_time);
          UIRectangle drawBounds   = intersection(zoomBar, painter->_clip);
 
          for (int i = drawBounds.t; i < drawBounds.b; i++) {
             for (int j = drawBounds.l; j < drawBounds.r; j++) {
-               int si = (i - zoomBar.t) * report->thumbnailHeight / zoomBar.height();
-               int sj = (j - zoomBar.l) * report->thumbnailWidth / zoomBar.width();
+               int si = (i - zoomBar.t) * report->_thumbnail_height / zoomBar.height();
+               int sj = (j - zoomBar.l) * report->_thumbnail_width / zoomBar.width();
 
-               if (si >= 0 && si < report->thumbnailHeight && sj >= 0 && sj < report->thumbnailWidth) {
-                  painter->_bits[i * painter->_width + j] = report->thumbnail[si * report->thumbnailWidth + sj];
+               if (si >= 0 && si < report->_thumbnail_height && sj >= 0 && sj < report->_thumbnail_width) {
+                  painter->_bits[i * painter->_width + j] = report->_thumbnail[si * report->_thumbnail_width + sj];
                }
             }
          }
@@ -5428,20 +5429,20 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          painter->draw_border(zoomBarThumb, profBorderLightColor, UIRectangle(4));
       }
 
-      if (report->hover && !report->dragMode) {
-         const ProfFunctionEntry& function = report->functions[report->hover->_this_function];
+      if (report->_hover && !report->_drag_mode) {
+         const ProfFunctionEntry& function = report->_functions[report->_hover->_this_function];
 
          char line1[256], line2[256], line3[256];
-         std_format_to_n(line1, sizeof(line1), "[{}] {}:{}", report->hover->_name,
-                         function._source_file_index != -1 ? report->sourceFiles[function._source_file_index]._path
+         std_format_to_n(line1, sizeof(line1), "[{}] {}:{}", report->_hover->_name,
+                         function._source_file_index != -1 ? report->_source_files[function._source_file_index]._path
                                                            : "??",
                          function._line_number);
          std_format_to_n(line2, sizeof(line2), "This call: {:f}ms {:.1f}%%",
-                         report->hover->_end_time - report->hover->_start_time,
-                         (report->hover->_end_time - report->hover->_start_time) / report->totalTime * 100.0);
+                         report->_hover->_end_time - report->_hover->_start_time,
+                         (report->_hover->_end_time - report->_hover->_start_time) / report->_total_time * 100.0);
          std_format_to_n(line3, sizeof(line3), "Total: {:f}ms in {} calls ({:f}ms avg) {:.1f}%%", function._total_time,
                          function._call_count, function._total_time / function._call_count,
-                         function._total_time / report->totalTime * 100.0);
+                         function._total_time / report->_total_time * 100.0);
 
          UI* ui         = el->ui();
          int width      = 0;
@@ -5477,154 +5478,160 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
       previousFont->activate();
    } else if (msg == UIMessage::MOUSE_MOVE) {
-      double               zoomX = (double)report->client.width() / (report->xEnd - report->xStart);
+      double               zoomX = (double)report->_client.width() / (report->_x_end - report->_x_start);
       ProfFlameGraphEntry* hover = nullptr;
       auto                 pos   = el->cursor_pos();
 
-      int   depth   = (pos.y - report->client.t + report->vScroll->position() - profScaleHeight) / profRowHeight;
-      float xStartF = (float)report->xStart;
-      float xEndF   = (float)report->xEnd;
+      int   depth   = (pos.y - report->_client.t + report->_v_scroll->position() - profScaleHeight) / profRowHeight;
+      float xStartF = (float)report->_x_start;
+      float xEndF   = (float)report->_x_end;
 
-      for (size_t i = 0; i < report->entries.size(); i++) {
-         ProfFlameGraphEntryTime* time = &report->entryTimes[i];
+      for (size_t i = 0; i < report->_entries.size(); i++) {
+         ProfFlameGraphEntryTime* time = &report->_entry_times[i];
 
          if (time->_depth != depth || time->_end < xStartF || time->_start > xEndF) {
             continue;
          }
 
-         PROFILER_ENTRY_RECTANGLE_EARLY();
-         PROFILER_ENTRY_RECTANGLE_OTHER();
+         int64_t rr = report->_client.l + (int64_t)((time->_end - report->_x_start) * zoomX + 0.999); // RECTANGLE_EARLY
+         // RECTANGLE_OTHER
+         int64_t rl = report->_client.l + (int64_t)((time->_start - report->_x_start) * zoomX);
+         int64_t rt =
+            report->_client.t + time->_depth * profRowHeight + profScaleHeight - report->_v_scroll->position();
+         int64_t rb = rt + profRowHeight;
 
          (void)rt;
          (void)rb;
 
          if (pos.x >= rl && pos.x < rr) {
-            hover = &report->entries[i];
+            hover = &report->_entries[i];
             break;
          }
       }
 
-      if (hover != report->hover || hover /* to repaint the tooltip */) {
-         report->hover = hover;
+      if (hover != report->_hover || hover /* to repaint the tooltip */) {
+         report->_hover = hover;
          el->repaint(nullptr);
       }
    } else if (msg == UIMessage::UPDATE) {
-      if (report->hover && !el->is_hovered()) {
-         report->hover = nullptr;
+      if (report->_hover && !el->is_hovered()) {
+         report->_hover = nullptr;
          el->repaint(nullptr);
       }
    } else if (msg == UIMessage::LEFT_DOWN) {
       auto pos = el->cursor_pos();
-      if (pos.y < report->client.b - profZoomBarHeight) {
-         report->dragMode          = FLAME_GRAPH_DRAG_PAN;
-         report->dragInitialValue  = report->xStart;
-         report->dragInitialPoint  = pos.x;
-         report->dragInitialValue2 = report->vScroll->position();
-         report->dragInitialPoint2 = pos.y;
+      if (pos.y < report->_client.b - profZoomBarHeight) {
+         report->_drag_mode           = FLAME_GRAPH_DRAG_PAN;
+         report->_drag_initial_value  = report->_x_start;
+         report->_drag_initial_point  = pos.x;
+         report->_drag_initial_value2 = report->_v_scroll->position();
+         report->_drag_initial_point2 = pos.y;
          el->_window->set_cursor((int)UICursor::hand);
       } else {
-         report->dragMode         = FLAME_GRAPH_DRAG_X_SCROLL;
-         report->dragInitialValue = report->xStart;
-         report->dragInitialPoint = pos.x;
-         report->dragScrollRate   = 1.0;
+         report->_drag_mode          = FLAME_GRAPH_DRAG_X_SCROLL;
+         report->_drag_initial_value = report->_x_start;
+         report->_drag_initial_point = pos.x;
+         report->_drag_scroll_rate   = 1.0;
 
-         if (pos.x < report->client.l + report->client.width() * (report->xStart / report->totalTime) ||
-             pos.y >= report->client.l + report->client.width() * (report->xEnd / report->totalTime)) {
-            report->dragScrollRate = 0.2;
+         if (pos.x < report->_client.l + report->_client.width() * (report->_x_start / report->_total_time) ||
+             pos.y >= report->_client.l + report->_client.width() * (report->_x_end / report->_total_time)) {
+            report->_drag_scroll_rate = 0.2;
          }
       }
    } else if (msg == UIMessage::MIDDLE_DOWN) {
       auto pos = el->cursor_pos();
-      if (pos.y < report->client.b - profZoomBarHeight) {
-         report->dragMode          = FLAME_GRAPH_DRAG_X_PAN_AND_ZOOM;
-         report->dragInitialValue  = report->xStart;
-         report->dragInitialPoint  = pos.x;
-         report->dragInitialPoint2 = pos.y;
+      if (pos.y < report->_client.b - profZoomBarHeight) {
+         report->_drag_mode           = FLAME_GRAPH_DRAG_X_PAN_AND_ZOOM;
+         report->_drag_initial_value  = report->_x_start;
+         report->_drag_initial_point  = pos.x;
+         report->_drag_initial_point2 = pos.y;
          el->_window->set_cursor((int)UICursor::cross_hair);
       }
    } else if (msg == UIMessage::RIGHT_DOWN) {
       auto pos = el->cursor_pos();
-      if (pos.y < report->client.b - profZoomBarHeight) {
-         report->dragMode         = FLAME_GRAPH_DRAG_ZOOM_RANGE;
-         report->dragInitialPoint = pos.x;
+      if (pos.y < report->_client.b - profZoomBarHeight) {
+         report->_drag_mode          = FLAME_GRAPH_DRAG_ZOOM_RANGE;
+         report->_drag_initial_point = pos.x;
       }
    } else if (msg == UIMessage::LEFT_UP || msg == UIMessage::RIGHT_UP || msg == UIMessage::MIDDLE_UP) {
-      if (report->dragMode == FLAME_GRAPH_DRAG_ZOOM_RANGE && report->dragStarted) {
-         UIRectangle r = report->client;
-         r.l = report->dragInitialPoint, r.r = report->dragCurrentPoint;
+      if (report->_drag_mode == FLAME_GRAPH_DRAG_ZOOM_RANGE && report->_drag_started) {
+         UIRectangle r = report->_client;
+         r.l = report->_drag_initial_point, r.r = report->_drag_current_point;
          if (r.l > r.r)
-            r.r = report->dragInitialPoint, r.l = report->dragCurrentPoint;
-         double zoomX   = (double)report->client.width() / (report->xEnd - report->xStart);
-         report->xEnd   = (r.r - report->client.l) / zoomX + report->xStart;
-         report->xStart = (r.l - report->client.l) / zoomX + report->xStart;
-      } else if (!report->dragStarted && msg == UIMessage::RIGHT_UP && report->hover) {
-         report->menuItem = report->hover;
+            r.r = report->_drag_initial_point, r.l = report->_drag_current_point;
+         double zoomX     = (double)report->_client.width() / (report->_x_end - report->_x_start);
+         report->_x_end   = (r.r - report->_client.l) / zoomX + report->_x_start;
+         report->_x_start = (r.l - report->_client.l) / zoomX + report->_x_start;
+      } else if (!report->_drag_started && msg == UIMessage::RIGHT_UP && report->_hover) {
+         report->_menu_item = report->_hover;
          el->ui()
             ->create_menu(el->_window, UIMenu::NO_SCROLL)
             .add_item(0, "Show source", [report](UIButton&) { ProfShowSource(report); })
-            .add_item(0, "Add breakpoint", [report](UIButton&) { ProfAddBreakpoint(report->hover); })
+            .add_item(0, "Add breakpoint", [report](UIButton&) { ProfAddBreakpoint(report->_hover); })
             .add_item(0, "Fill view", [report](UIButton&) { ProfFillView(report); })
             .show();
-      } else if (!report->dragStarted && msg == UIMessage::MIDDLE_UP && report->hover) {
-         report->menuItem = report->hover;
+      } else if (!report->_drag_started && msg == UIMessage::MIDDLE_UP && report->_hover) {
+         report->_menu_item = report->_hover;
          ProfFillView(report);
       }
 
-      report->dragMode    = 0;
-      report->dragStarted = false;
+      report->_drag_mode    = 0;
+      report->_drag_started = false;
       el->repaint(nullptr);
       el->_window->set_cursor((int)UICursor::arrow);
    } else if (msg == UIMessage::MOUSE_DRAG) {
-      report->dragStarted = true;
-      auto pos            = el->cursor_pos();
+      report->_drag_started = true;
+      auto pos              = el->cursor_pos();
 
-      if (report->dragMode == FLAME_GRAPH_DRAG_PAN) {
-         double delta   = report->xEnd - report->xStart;
-         report->xStart = report->dragInitialValue - (double)(pos.x - report->dragInitialPoint) * report->totalTime /
-                                                        report->client.width() * delta / report->totalTime;
-         report->xEnd = report->xStart + delta;
-         if (report->xStart < 0) {
-            report->xEnd -= report->xStart;
-            report->xStart = 0;
+      if (report->_drag_mode == FLAME_GRAPH_DRAG_PAN) {
+         double delta     = report->_x_end - report->_x_start;
+         report->_x_start = report->_drag_initial_value - (double)(pos.x - report->_drag_initial_point) *
+                                                             report->_total_time / report->_client.width() * delta /
+                                                             report->_total_time;
+         report->_x_end = report->_x_start + delta;
+         if (report->_x_start < 0) {
+            report->_x_end -= report->_x_start;
+            report->_x_start = 0;
          }
-         if (report->xEnd > report->totalTime) {
-            report->xStart += report->totalTime - report->xEnd;
-            report->xEnd = report->totalTime;
+         if (report->_x_end > report->_total_time) {
+            report->_x_start += report->_total_time - report->_x_end;
+            report->_x_end = report->_total_time;
          }
-         report->vScroll->position() = report->dragInitialValue2 - (double)(pos.y - report->dragInitialPoint2);
-         report->vScroll->refresh();
-      } else if (report->dragMode == FLAME_GRAPH_DRAG_X_SCROLL) {
-         double delta   = report->xEnd - report->xStart;
-         report->xStart = report->dragInitialValue + (double)(pos.x - report->dragInitialPoint) * report->totalTime /
-                                                        report->client.width() * report->dragScrollRate;
-         report->xEnd = report->xStart + delta;
-         if (report->xStart < 0) {
-            report->xEnd -= report->xStart;
-            report->xStart = 0;
+         report->_v_scroll->position() = report->_drag_initial_value2 - (double)(pos.y - report->_drag_initial_point2);
+         report->_v_scroll->refresh();
+      } else if (report->_drag_mode == FLAME_GRAPH_DRAG_X_SCROLL) {
+         double delta     = report->_x_end - report->_x_start;
+         report->_x_start = report->_drag_initial_value + (double)(pos.x - report->_drag_initial_point) *
+                                                             report->_total_time / report->_client.width() *
+                                                             report->_drag_scroll_rate;
+         report->_x_end = report->_x_start + delta;
+         if (report->_x_start < 0) {
+            report->_x_end -= report->_x_start;
+            report->_x_start = 0;
          }
-         if (report->xEnd > report->totalTime) {
-            report->xStart += report->totalTime - report->xEnd;
-            report->xEnd = report->totalTime;
+         if (report->_x_end > report->_total_time) {
+            report->_x_start += report->_total_time - report->_x_end;
+            report->_x_end = report->_total_time;
          }
-      } else if (report->dragMode == FLAME_GRAPH_DRAG_X_PAN_AND_ZOOM) {
-         double delta = report->xEnd - report->xStart;
-         report->xStart += (double)(pos.x - report->dragInitialPoint) * report->totalTime / report->client.width() *
-                           delta / report->totalTime * 3.0;
-         report->xEnd  = report->xStart + delta;
-         double factor = powf(1.02, pos.y - report->dragInitialPoint2);
-         double mouse  = (double)(pos.x - report->client.l) / report->client.width();
+      } else if (report->_drag_mode == FLAME_GRAPH_DRAG_X_PAN_AND_ZOOM) {
+         double delta = report->_x_end - report->_x_start;
+         report->_x_start += (double)(pos.x - report->_drag_initial_point) * report->_total_time /
+                             report->_client.width() * delta / report->_total_time * 3.0;
+         report->_x_end = report->_x_start + delta;
+         double factor  = powf(1.02, pos.y - report->_drag_initial_point2);
+         double mouse   = (double)(pos.x - report->_client.l) / report->_client.width();
 #if 0
          mouse = 0.5;
          XWarpPointer(ui->display, None, windowMain->window, 0, 0, 0, 0, report->dragInitialPoint, report->dragInitialPoint2);
 #else
-         report->dragInitialPoint  = pos.x;
-         report->dragInitialPoint2 = pos.y;
+         report->_drag_initial_point  = pos.x;
+         report->_drag_initial_point2 = pos.y;
 #endif
-         double newZoom = (report->xEnd - report->xStart) / report->totalTime * factor;
-         report->xStart += mouse * (report->xEnd - report->xStart) * (1 - factor);
-         report->xEnd = newZoom * report->totalTime + report->xStart;
-      } else if (report->dragMode == FLAME_GRAPH_DRAG_ZOOM_RANGE) {
-         report->dragCurrentPoint = pos.x;
+         double newZoom = (report->_x_end - report->_x_start) / report->_total_time * factor;
+         report->_x_start += mouse * (report->_x_end - report->_x_start) * (1 - factor);
+         report->_x_end = newZoom * report->_total_time + report->_x_start;
+      } else if (report->_drag_mode == FLAME_GRAPH_DRAG_ZOOM_RANGE) {
+         report->_drag_current_point = pos.x;
       }
 
       el->repaint(nullptr);
@@ -5637,31 +5644,31 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          factor *= perDivision, divisions--;
       while (divisions < 0)
          factor /= perDivision, divisions++;
-      double mouse   = (double)(pos.x - report->client.l) / report->client.width();
-      double newZoom = (report->xEnd - report->xStart) / report->totalTime * factor;
-      report->xStart += mouse * (report->xEnd - report->xStart) * (1 - factor);
-      report->xEnd = newZoom * report->totalTime + report->xStart;
+      double mouse   = (double)(pos.x - report->_client.l) / report->_client.width();
+      double newZoom = (report->_x_end - report->_x_start) / report->_total_time * factor;
+      report->_x_start += mouse * (report->_x_end - report->_x_start) * (1 - factor);
+      report->_x_end = newZoom * report->_total_time + report->_x_start;
       el->repaint(nullptr);
       return 1;
    } else if (msg == UIMessage::GET_CURSOR) {
-      return report->dragMode == FLAME_GRAPH_DRAG_PAN              ? (int)UICursor::hand
-             : report->dragMode == FLAME_GRAPH_DRAG_X_PAN_AND_ZOOM ? (int)UICursor::cross_hair
-                                                                   : (int)UICursor::arrow;
+      return report->_drag_mode == FLAME_GRAPH_DRAG_PAN              ? (int)UICursor::hand
+             : report->_drag_mode == FLAME_GRAPH_DRAG_X_PAN_AND_ZOOM ? (int)UICursor::cross_hair
+                                                                     : (int)UICursor::arrow;
    } else if (msg == UIMessage::LAYOUT) {
       UIRectangle scrollBarBounds = el->_bounds;
       scrollBarBounds.l           = scrollBarBounds.r - ui_size::scroll_bar * el->_window->scale();
-      report->vScroll->set_page(el->_bounds.height() - profZoomBarHeight);
-      report->vScroll->move(scrollBarBounds, true);
-      report->client   = el->_bounds;
-      report->client.r = scrollBarBounds.l;
+      report->_v_scroll->set_page(el->_bounds.height() - profZoomBarHeight);
+      report->_v_scroll->move(scrollBarBounds, true);
+      report->_client   = el->_bounds;
+      report->_client.r = scrollBarBounds.l;
    } else if (msg == UIMessage::SCROLLED) {
       el->refresh();
    } else if (msg == UIMessage::DESTROY) {
-      report->entries.clear();
-      report->functions.clear();
-      report->sourceFiles.clear();
-      report->entryTimes.clear();
-      free(report->thumbnail);
+      report->_entries.clear();
+      report->_functions.clear();
+      report->_source_files.clear();
+      report->_entry_times.clear();
+      free(report->_thumbnail);
    }
 
    return 0;
@@ -5671,15 +5678,15 @@ int ProfReportWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    ProfFlameGraphReport* report = (ProfFlameGraphReport*)el->_cp;
 
    if (msg == UIMessage::LAYOUT) {
-      if (report->showingTable) {
+      if (report->_showing_table) {
          report->_flags |= UIElement::hide_flag;
-         report->table->_flags &= ~UIElement::hide_flag;
+         report->_table->_flags &= ~UIElement::hide_flag;
       } else {
          report->_flags &= ~UIElement::hide_flag;
-         report->table->_flags |= UIElement::hide_flag;
+         report->_table->_flags |= UIElement::hide_flag;
       }
       el->_class_proc(el, msg, di, dp);
-      report->table->move(report->_bounds, false);
+      report->_table->move(report->_bounds, false);
       return 1;
    }
 
@@ -5687,8 +5694,8 @@ int ProfReportWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 }
 
 void ProfSwitchView(ProfFlameGraphReport* report) {
-   report->showingTable = !report->showingTable;
-   report->switchViewButton->set_label(report->showingTable ? "Graph view" : "Table view");
+   report->_showing_table = !report->_showing_table;
+   report->_switch_view_button->set_label(report->_showing_table ? "Graph view" : "Table view");
    report->_parent->refresh();
 }
 
@@ -5709,11 +5716,11 @@ PROF_FUNCTION_COMPARE(ProfFunctionComparePercentage, PROF_COMPARE_NUMBERS(left->
 
 int ProfTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    ProfFlameGraphReport* report = (ProfFlameGraphReport*)el->_cp;
-   UITable*              table  = report->table;
+   UITable*              table  = report->_table;
 
    if (msg == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem*    m     = (UITableGetItem*)dp;
-      ProfFunctionEntry* entry = &report->sortedFunctions[m->_row];
+      ProfFunctionEntry* entry = &report->_sorted_functions[m->_row];
 
       if (m->_column == 0) {
          return m->format_to("{}", entry->_name);
@@ -5724,26 +5731,26 @@ int ProfTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       } else if (m->_column == 3) {
          return m->format_to("{:f}", entry->_total_time / entry->_call_count);
       } else if (m->_column == 4) {
-         return m->format_to("{:f}", entry->_total_time / report->totalTime * 100);
+         return m->format_to("{:f}", entry->_total_time / report->_total_time * 100);
       }
    } else if (msg == UIMessage::LEFT_DOWN) {
       int index = table->header_hittest(el->cursor_pos());
 
       if (index != -1) {
          if (index == 0) {
-            qsort(report->sortedFunctions.data(), report->sortedFunctions.size(), sizeof(ProfFunctionEntry),
+            qsort(report->_sorted_functions.data(), report->_sorted_functions.size(), sizeof(ProfFunctionEntry),
                   ProfFunctionCompareName);
          } else if (index == 1) {
-            qsort(report->sortedFunctions.data(), report->sortedFunctions.size(), sizeof(ProfFunctionEntry),
+            qsort(report->_sorted_functions.data(), report->_sorted_functions.size(), sizeof(ProfFunctionEntry),
                   ProfFunctionCompareTotalTime);
          } else if (index == 2) {
-            qsort(report->sortedFunctions.data(), report->sortedFunctions.size(), sizeof(ProfFunctionEntry),
+            qsort(report->_sorted_functions.data(), report->_sorted_functions.size(), sizeof(ProfFunctionEntry),
                   ProfFunctionCompareCallCount);
          } else if (index == 3) {
-            qsort(report->sortedFunctions.data(), report->sortedFunctions.size(), sizeof(ProfFunctionEntry),
+            qsort(report->_sorted_functions.data(), report->_sorted_functions.size(), sizeof(ProfFunctionEntry),
                   ProfFunctionCompareAverage);
          } else if (index == 4) {
-            qsort(report->sortedFunctions.data(), report->sortedFunctions.size(), sizeof(ProfFunctionEntry),
+            qsort(report->_sorted_functions.data(), report->_sorted_functions.size(), sizeof(ProfFunctionEntry),
                   ProfFunctionComparePercentage);
          }
 
@@ -5900,22 +5907,22 @@ void ProfLoadProfileData(void* _window) {
    UIMDIChild* window = &s_data_window->add_mdichild(UIMDIChild::CLOSE_BUTTON, ui_rect_2s(800, 600), "Flame graph");
    ProfFlameGraphReport* report = new ProfFlameGraphReport(window, 0);
 
-   report->switchViewButton = &window->add_button(UIButton::SMALL | UIElement::non_client_flag, "Table view")
-                                  .set_cp(report)
-                                  .on_click([report](UIButton&) { ProfSwitchView(report); });
-   UITable* table = report->table = &window->add_table(0, "Name\tTime spent (ms)\tCall count\tAverage per call (ms)")
-                                        .set_cp(report)
-                                        .set_user_proc(ProfTableMessage);
+   report->_switch_view_button = &window->add_button(UIButton::SMALL | UIElement::non_client_flag, "Table view")
+                                     .set_cp(report)
+                                     .on_click([report](UIButton&) { ProfSwitchView(report); });
+   UITable* table = report->_table = &window->add_table(0, "Name\tTime spent (ms)\tCall count\tAverage per call (ms)")
+                                         .set_cp(report)
+                                         .set_user_proc(ProfTableMessage);
 
-   report->vScroll = &report->add_scrollbar(0);
-   report->font    = data->_font_flame_graph;
+   report->_v_scroll = &report->add_scrollbar(0);
+   report->_font     = data->_font_flame_graph;
 
    window->set_cp(report).set_user_proc(ProfReportWindowMessage);
 
-   report->functions   = functions;
-   functions           = {};
-   report->sourceFiles = sourceFiles;
-   sourceFiles         = {};
+   report->_functions    = functions;
+   functions             = {};
+   report->_source_files = sourceFiles;
+   sourceFiles           = {};
 
    vector<ProfFlameGraphEntry> stack = {};
 
@@ -5939,17 +5946,17 @@ void ProfLoadProfileData(void* _window) {
                            data->_ticks_per_ms;
 
          if (0 == strcmp(entry._name, "[unknown]")) {
-            if (report->functions.contains(rawEntries[i]._this_function))
-               entry._name = report->functions[rawEntries[i]._this_function]._name;
+            if (report->_functions.contains(rawEntries[i]._this_function))
+               entry._name = report->_functions[rawEntries[i]._this_function]._name;
          }
 
          entry._this_function = rawEntries[i]._this_function;
          stack.pop_back();
-         report->entries.push_back(entry);
+         report->_entries.push_back(entry);
       } else {
          ProfFlameGraphEntry entry = {};
-         if (report->functions.contains(rawEntries[i]._this_function)) {
-            ProfFunctionEntry& function = report->functions[rawEntries[i]._this_function];
+         if (report->_functions.contains(rawEntries[i]._this_function)) {
+            ProfFunctionEntry& function = report->_functions[rawEntries[i]._this_function];
             entry._name                 = function._name;
             entry._color_index =
                function._source_file_index % (sizeof(profEntryColorPalette) / sizeof(profEntryColorPalette[0]));
@@ -5963,52 +5970,52 @@ void ProfLoadProfileData(void* _window) {
       }
    }
 
-   for (const auto& entry : report->entries) {
-      if (entry._end_time > report->totalTime) {
-         report->totalTime = entry._end_time;
+   for (const auto& entry : report->_entries) {
+      if (entry._end_time > report->_total_time) {
+         report->_total_time = entry._end_time;
       }
    }
 
    while (stack.size()) {
       ProfFlameGraphEntry entry = stack.back();
-      entry._end_time           = report->totalTime;
+      entry._end_time           = report->_total_time;
       stack.pop_back();
-      report->entries.push_back(entry);
+      report->_entries.push_back(entry);
    }
 
-   if (!report->totalTime) {
-      report->totalTime = 1;
+   if (!report->_total_time) {
+      report->_total_time = 1;
    }
 
    stack.clear();
-   report->xEnd = report->totalTime;
-   qsort(report->entries.data(), report->entries.size(), sizeof(ProfFlameGraphEntry), ProfFlameGraphEntryCompare);
+   report->_x_end = report->_total_time;
+   qsort(report->_entries.data(), report->_entries.size(), sizeof(ProfFlameGraphEntry), ProfFlameGraphEntryCompare);
 
    int maxDepth = 0;
 
-   for (const auto& entry : report->entries) {
+   for (const auto& entry : report->_entries) {
       ProfFlameGraphEntryTime time;
       time._start = entry._start_time;
       time._end   = entry._end_time;
       time._depth = entry._depth;
-      report->entryTimes.push_back(time);
+      report->_entry_times.push_back(time);
 
       if (entry._depth > maxDepth) {
          maxDepth = entry._depth;
       }
 
-      ProfFunctionEntry& function = report->functions[entry._this_function];
+      ProfFunctionEntry& function = report->_functions[entry._this_function];
       function._call_count++;
       function._total_time += entry._end_time - entry._start_time;
    }
 
-   print("Found {} functions over {} source files.\n", report->functions.size(), report->sourceFiles.size());
+   print("Found {} functions over {} source files.\n", report->_functions.size(), report->_source_files.size());
 
-   report->vScroll->set_maximum((maxDepth + 2) * 30);
+   report->_v_scroll->set_maximum((maxDepth + 2) * 30);
 
-   for (const auto& [k, v] : report->functions) {
+   for (const auto& [k, v] : report->_functions) {
       if (k)
-         report->sortedFunctions.push_back(v);
+         report->_sorted_functions.push_back(v);
    }
 
    {
@@ -6017,17 +6024,17 @@ void ProfLoadProfileData(void* _window) {
       uint32_t  height = maxDepth * 30 + 30;
       UIPainter painter(report->ui(), width, height, (uint32_t*)malloc(width * height * 4));
 
-      report->client = report->_bounds = report->_clip = painter._clip;
+      report->_client = report->_bounds = report->_clip = painter._clip;
       ProfFlameGraphMessage(report, UIMessage::PAINT, 0, &painter);
       int newHeight = 30;
       ThumbnailResize(painter._bits, painter._width, painter._height, painter._width, newHeight);
-      report->thumbnail       = (uint32_t*)realloc(painter._bits, painter._width * newHeight * 4);
-      report->thumbnailWidth  = width;
-      report->thumbnailHeight = newHeight;
+      report->_thumbnail        = (uint32_t*)realloc(painter._bits, painter._width * newHeight * 4);
+      report->_thumbnail_width  = width;
+      report->_thumbnail_height = newHeight;
    }
 
-   table->set_num_items(report->sortedFunctions.size());
-   qsort(report->sortedFunctions.data(), report->sortedFunctions.size(), sizeof(ProfFunctionEntry),
+   table->set_num_items(report->_sorted_functions.size());
+   qsort(report->_sorted_functions.data(), report->_sorted_functions.size(), sizeof(ProfFunctionEntry),
          ProfFunctionCompareTotalTime);
    table->set_column_highlight(1);
    table->resize_columns();
@@ -6091,128 +6098,127 @@ static int  MemoryWindowMessage(UIElement* el, UIMessage msg, int di, void* dp);
 static void MemoryWindowGotoButtonInvoke(void* cp);
 
 struct MemoryWindow : public UIElement {
-   UIButton*       gotoButton;
-   vector<int16_t> loadedBytes;
-   uint64_t        offset;
+   UIButton*       _goto_button;
+   vector<int16_t> _loaded_bytes;
+   uint64_t        _offset;
 
    MemoryWindow(UIElement* parent)
       : UIElement(parent, 0, MemoryWindowMessage, "memory window")
-      , gotoButton(
+      , _goto_button(
            &add_button(UIButton::SMALL, "&").on_click([this](UIButton&) { MemoryWindowGotoButtonInvoke(this); })) {}
-};
 
-int MemoryWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-   MemoryWindow* window = (MemoryWindow*)el;
+   int _message_proc(UIMessage msg, int di, void* dp) {
+      if (msg == UIMessage::PAINT) {
+         const auto& thm     = theme();
+         UIPainter*  painter = (UIPainter*)dp;
+         painter->draw_block(_bounds, thm.panel1);
 
-   if (msg == UIMessage::PAINT) {
-      auto&      theme   = el->theme();
-      UIPainter* painter = (UIPainter*)dp;
-      painter->draw_block(el->_bounds, theme.panel1);
+         char        buffer[64];
+         uint64_t    address   = _offset;
+         const int   rowHeight = ui()->string_height();
+         UIRectangle row       = _bounds + ui_rect_1i(10);
+         size_t      rowCount  = (painter->_clip.b - row.t) / rowHeight;
+         row.b                 = row.t + rowHeight;
 
-      char        buffer[64];
-      uint64_t    address   = window->offset;
-      const int   rowHeight = el->ui()->string_height();
-      UIRectangle row       = el->_bounds + ui_rect_1i(10);
-      size_t      rowCount  = (painter->_clip.b - row.t) / rowHeight;
-      row.b                 = row.t + rowHeight;
+         {
+            std_format_to_n(buffer, sizeof(buffer), "Inspecting memory @{:p}", (void*)_offset);
+            painter->draw_string(row, buffer, thm.codeString, UIAlign::left, 0);
+            row.t += rowHeight;
+            row.b += rowHeight;
+            const char* header = "         0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F   0123456789ABCDEF";
+            painter->draw_string(row, header, thm.codeComment, UIAlign::left, 0);
+            row.t += rowHeight;
+            row.b += rowHeight;
+         }
 
-      {
-         std_format_to_n(buffer, sizeof(buffer), "Inspecting memory @{:p}", (void*)window->offset);
-         painter->draw_string(row, buffer, theme.codeString, UIAlign::left, 0);
-         row.t += rowHeight;
-         row.b += rowHeight;
-         const char* header = "         0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F   0123456789ABCDEF";
-         painter->draw_string(row, header, theme.codeComment, UIAlign::left, 0);
-         row.t += rowHeight;
-         row.b += rowHeight;
-      }
+         if (rowCount > 0 && rowCount * 16 > _loaded_bytes.size()) {
+            _loaded_bytes.clear();
 
-      if (rowCount > 0 && rowCount * 16 > window->loadedBytes.size()) {
-         window->loadedBytes.clear();
+            for (size_t i = 0; i < (size_t)rowCount * 16 / 8; i++) {
+               std_format_to_n(buffer, sizeof(buffer), "x/8xb 0x{:x}", _offset + i * 8);
+               auto res = EvaluateCommand(buffer);
 
-         for (size_t i = 0; i < (size_t)rowCount * 16 / 8; i++) {
-            std_format_to_n(buffer, sizeof(buffer), "x/8xb 0x{:x}", window->offset + i * 8);
-            auto res = EvaluateCommand(buffer);
+               bool error = true;
 
-            bool error = true;
+               if (!res.contains("Cannot access memory")) {
+                  const char* position = strchr(res.c_str(), ':');
 
-            if (!res.contains("Cannot access memory")) {
-               const char* position = strchr(res.c_str(), ':');
+                  if (position) {
+                     position++;
 
-               if (position) {
-                  position++;
+                     for (int i = 0; i < 8; i++) {
+                        _loaded_bytes.push_back(strtol(position, nullptr, 0));
+                     }
 
-                  for (int i = 0; i < 8; i++) {
-                     window->loadedBytes.push_back(strtol(position, nullptr, 0));
+                     error = false;
                   }
-
-                  error = false;
                }
-            }
 
-            if (error) {
-               for (int i = 0; i < 8; i++) {
-                  window->loadedBytes.push_back(-1);
+               if (error) {
+                  for (int i = 0; i < 8; i++) {
+                     _loaded_bytes.push_back(-1);
+                  }
                }
             }
          }
-      }
 
-      while (row.t < painter->_clip.b) {
-         int position = 0;
+         while (row.t < painter->_clip.b) {
+            int position = 0;
 
-         UI*   ui    = el->ui();
-         auto& theme = el->theme();
-         std_format_to_n(buffer, sizeof(buffer), "{:8X} ", (uint32_t)(address & 0xFFFFFFFF));
-         painter->draw_string(row, buffer, theme.codeComment, UIAlign::left, 0);
-         UIRectangle r          = row + UIRectangle(ui->string_width(buffer), 0, 0, 0);
-         int         glyphWidth = ui->string_width("a");
+            const auto& thm = theme();
+            std_format_to_n(buffer, sizeof(buffer), "{:8X} ", (uint32_t)(address & 0xFFFFFFFF));
+            painter->draw_string(row, buffer, thm.codeComment, UIAlign::left, 0);
+            UIRectangle r          = row + UIRectangle(ui()->string_width(buffer), 0, 0, 0);
+            int         glyphWidth = ui()->string_width("a");
 
-         for (int i = 0; i < 16; i++) {
-            if (address + i >= window->offset + window->loadedBytes.size() ||
-                window->loadedBytes[address + i - window->offset] < 0) {
-               painter->draw_glyph(r.l + position, r.t, '?', theme.codeOperator);
-               position += glyphWidth;
-               painter->draw_glyph(r.l + position, r.t, '?', theme.codeOperator);
-               position += glyphWidth;
-            } else {
-               const char* hexChars = "0123456789ABCDEF";
-               uint8_t     byte     = window->loadedBytes[address + i - window->offset];
-               painter->draw_glyph(r.l + position, r.t, hexChars[(byte & 0xF0) >> 4], theme.codeNumber);
-               position += glyphWidth;
-               painter->draw_glyph(r.l + position, r.t, hexChars[(byte & 0x0F) >> 0], theme.codeNumber);
-               position += glyphWidth;
+            for (int i = 0; i < 16; i++) {
+               if (address + i >= _offset + _loaded_bytes.size() || _loaded_bytes[address + i - _offset] < 0) {
+                  painter->draw_glyph(r.l + position, r.t, '?', thm.codeOperator);
+                  position += glyphWidth;
+                  painter->draw_glyph(r.l + position, r.t, '?', thm.codeOperator);
+                  position += glyphWidth;
+               } else {
+                  const char* hexChars = "0123456789ABCDEF";
+                  uint8_t     byte     = _loaded_bytes[address + i - _offset];
+                  painter->draw_glyph(r.l + position, r.t, hexChars[(byte & 0xF0) >> 4], thm.codeNumber);
+                  position += glyphWidth;
+                  painter->draw_glyph(r.l + position, r.t, hexChars[(byte & 0x0F) >> 0], thm.codeNumber);
+                  position += glyphWidth;
 
-               if (byte >= 0x20 && byte < 0x7F) {
-                  painter->draw_glyph(r.l + (49 + i) * glyphWidth, r.t, byte, theme.codeString);
+                  if (byte >= 0x20 && byte < 0x7F) {
+                     painter->draw_glyph(r.l + (49 + i) * glyphWidth, r.t, byte, thm.codeString);
+                  }
                }
+
+               position += glyphWidth;
             }
 
-            position += glyphWidth;
+            row.t += rowHeight;
+            row.b += rowHeight;
+            address += 0x10;
          }
-
-         row.t += rowHeight;
-         row.b += rowHeight;
-         address += 0x10;
+      } else if (msg == UIMessage::LAYOUT) {
+         UIRectangle bounds = _bounds + ui_rect_1i(10);
+         _goto_button->move(UIRectangle(bounds.r - _goto_button->message(UIMessage::GET_WIDTH, 0, 0), bounds.r,
+                                        bounds.t, bounds.t + _goto_button->message(UIMessage::GET_HEIGHT, 0, 0)),
+                            false);
+      } else if (msg == UIMessage::MOUSE_WHEEL) {
+         _offset += di / 72 * 0x10;
+         _loaded_bytes.clear();
+         repaint(nullptr);
       }
-   } else if (msg == UIMessage::LAYOUT) {
-      UIRectangle bounds = el->_bounds + ui_rect_1i(10);
-      window->gotoButton->move(UIRectangle(bounds.r - window->gotoButton->message(UIMessage::GET_WIDTH, 0, 0), bounds.r,
-                                           bounds.t,
-                                           bounds.t + window->gotoButton->message(UIMessage::GET_HEIGHT, 0, 0)),
-                               false);
-   } else if (msg == UIMessage::MOUSE_WHEEL) {
-      window->offset += di / 72 * 0x10;
-      window->loadedBytes.clear();
-      window->repaint(nullptr);
+
+      return 0;
    }
 
-   return 0;
-}
+   static int MemoryWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<MemoryWindow*>(el)->_message_proc(msg, di, dp);
+   }
+};
 
 void MemoryWindowUpdate(const char* data, UIElement* el) {
    MemoryWindow* window = (MemoryWindow*)el;
-   window->loadedBytes.clear();
+   window->_loaded_bytes.clear();
    el->repaint(nullptr);
 }
 
@@ -6220,7 +6226,8 @@ void MemoryWindowGotoButtonInvoke(void* cp) {
    MemoryWindow* window     = (MemoryWindow*)cp;
    char*         expression = nullptr;
 
-   if (s_main_window->show_dialog(0, "Enter address expression:\n%t\n%f%b%b", &expression, "Goto", "Cancel") == "Goto") {
+   if (s_main_window->show_dialog(0, "Enter address expression:\n%t\n%f%b%b", &expression, "Goto", "Cancel") ==
+       "Goto") {
       char buffer[4096];
       std_format_to_n(buffer, sizeof(buffer), "py gf_valueof(['{}'],' ')", expression);
       auto        res    = EvaluateCommand(buffer);
@@ -6232,8 +6239,8 @@ void MemoryWindowGotoButtonInvoke(void* cp) {
          uint64_t address = strtol(result, nullptr, 0);
 
          if (address) {
-            window->loadedBytes.clear();
-            window->offset = address & ~0xF;
+            window->_loaded_bytes.clear();
+            window->_offset = address & ~0xF;
             window->repaint(nullptr);
          } else {
             s_main_window->show_dialog(0, "Cannot access memory at address 0.\n%f%b", "OK");
@@ -6342,12 +6349,12 @@ int ViewWindowColorSwatchMessage(UIElement* el, UIMessage msg, int di, void* dp)
    if (msg == UIMessage::GET_HEIGHT) {
       return el->ui()->string_height();
    } else if (msg == UIMessage::PAINT) {
-      auto&       theme   = el->theme();
+      const auto& thm     = el->theme();
       uint32_t    color   = ((ViewWindowColorSwatch*)el)->color;
       UIPainter*  painter = (UIPainter*)dp;
       const char* message = "Col: ";
 
-      painter->draw_string(el->_bounds, message, theme.text, UIAlign::left, nullptr);
+      painter->draw_string(el->_bounds, message, thm.text, UIAlign::left, nullptr);
       UIRectangle swatch =
          UIRectangle(el->_bounds.l + el->ui()->string_width(message), 0, el->_bounds.t + 2, el->_bounds.b - 2);
       swatch.r = swatch.l + 50;
@@ -6392,8 +6399,8 @@ int ViewWindowMatrixGridMessage(UIElement* el, UIMessage msg, int di, void* dp) 
    if (msg == UIMessage::PAINT) {
       // TODO Optimise for really large arrays.
       // TODO Calculate eigenvectors/values.
-      UI*   ui                       = el->ui();
-      auto& theme                    = el->theme();
+      UI*         ui                 = el->ui();
+      const auto& thm                = el->theme();
       auto [glyphWidth, glyphHeight] = ui->string_dims("A");
       UIPainter* painter             = (UIPainter*)dp;
 
@@ -6404,7 +6411,7 @@ int ViewWindowMatrixGridMessage(UIElement* el, UIMessage msg, int di, void* dp) 
                if (!c)
                   continue;
                painter->draw_glyph(el->_bounds.l + j * glyphWidth - grid->hScroll->position(),
-                                   el->_bounds.t + i * glyphHeight - grid->vScroll->position(), c, theme.text);
+                                   el->_bounds.t + i * glyphHeight - grid->vScroll->position(), c, thm.text);
             } else if (grid->grid_type == grid_type_t::float_t || grid->grid_type == grid_type_t::double_t) {
                double f = grid->grid_type == grid_type_t::double_t ? ((double*)grid->data())[i * grid->w + j]
                                                                    : (double)((float*)grid->data())[i * grid->w + j];
@@ -6414,7 +6421,7 @@ int ViewWindowMatrixGridMessage(UIElement* el, UIMessage msg, int di, void* dp) 
                   UIRectangle(j * glyphWidth * 14, (j + 1) * glyphWidth * 14, i * glyphHeight, (i + 1) * glyphHeight);
                UIRectangle offset = UIRectangle(el->_bounds.l - (int)grid->hScroll->position(),
                                                 el->_bounds.t - (int)grid->vScroll->position());
-               painter->draw_string(rectangle + offset, buffer, theme.text, UIAlign::right, nullptr);
+               painter->draw_string(rectangle + offset, buffer, thm.text, UIAlign::right, nullptr);
             }
          }
       }
@@ -6422,7 +6429,7 @@ int ViewWindowMatrixGridMessage(UIElement* el, UIMessage msg, int di, void* dp) 
       int scrollBarSize = ui_size::scroll_bar * el->_window->scale();
       painter->draw_block(
          UIRectangle(el->_bounds.r - scrollBarSize, el->_bounds.r, el->_bounds.b - scrollBarSize, el->_bounds.b),
-         theme.panel1);
+         thm.panel1);
    } else if (msg == UIMessage::LAYOUT) {
       UIRectangle scrollBarBounds = el->_bounds;
       scrollBarBounds.l           = scrollBarBounds.r - ui_size::scroll_bar * el->_window->scale();
@@ -6448,50 +6455,50 @@ int ViewWindowStringLayout(ViewWindowString* display, UIPainter* painter, int of
    UI* ui = painter->ui();
 
    auto [glyphWidth, glyphHeight] = ui->string_dims("a");
-   auto& theme                    = ui->theme();
+   const auto& thm                = ui->theme();
 
    for (int i = 0; i < display->length; i++) {
       if (x + glyphWidth > clientBounds.r) {
          x = clientBounds.l + glyphWidth;
          y += glyphHeight;
          if (painter)
-            painter->draw_glyph(clientBounds.l, y, '>', theme.codeComment);
+            painter->draw_glyph(clientBounds.l, y, '>', thm.codeComment);
       }
 
       if (display->data[i] < 0x20 || display->data[i] >= 0x7F) {
          if (display->data[i] == '\n') {
             if (painter)
-               painter->draw_glyph(x, y, '\\', theme.codeComment);
+               painter->draw_glyph(x, y, '\\', thm.codeComment);
             x += glyphWidth;
             if (painter)
-               painter->draw_glyph(x, y, 'n', theme.codeComment);
+               painter->draw_glyph(x, y, 'n', thm.codeComment);
             x = clientBounds.l;
             y += glyphHeight;
          } else if (display->data[i] == '\t') {
             if (painter)
-               painter->draw_glyph(x, y, '\\', theme.codeNumber);
+               painter->draw_glyph(x, y, '\\', thm.codeNumber);
             x += glyphWidth;
             if (painter)
-               painter->draw_glyph(x, y, 't', theme.codeNumber);
+               painter->draw_glyph(x, y, 't', thm.codeNumber);
             x += glyphWidth;
          } else {
             const char* hexChars = "0123456789ABCDEF";
             if (painter)
-               painter->draw_glyph(x, y, '<', theme.codeNumber);
+               painter->draw_glyph(x, y, '<', thm.codeNumber);
             x += glyphWidth;
             if (painter)
-               painter->draw_glyph(x, y, hexChars[(display->data[i] & 0xF0) >> 4], theme.codeNumber);
+               painter->draw_glyph(x, y, hexChars[(display->data[i] & 0xF0) >> 4], thm.codeNumber);
             x += glyphWidth;
             if (painter)
-               painter->draw_glyph(x, y, hexChars[(display->data[i] & 0x0F) >> 0], theme.codeNumber);
+               painter->draw_glyph(x, y, hexChars[(display->data[i] & 0x0F) >> 0], thm.codeNumber);
             x += glyphWidth;
             if (painter)
-               painter->draw_glyph(x, y, '>', theme.codeNumber);
+               painter->draw_glyph(x, y, '>', thm.codeNumber);
             x += glyphWidth;
          }
       } else {
          if (painter)
-            painter->draw_glyph(x, y, display->data[i], theme.codeDefault);
+            painter->draw_glyph(x, y, display->data[i], thm.codeDefault);
          x += glyphWidth;
       }
    }
@@ -6513,8 +6520,8 @@ int ViewWindowStringMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       display->vScroll->set_page(el->_bounds.height());
       display->vScroll->move(scrollBarBounds, true);
    } else if (msg == UIMessage::PAINT) {
-      auto& theme = el->theme();
-      static_cast<UIPainter*>(dp)->draw_block(el->_bounds, theme.codeBackground);
+      const auto& thm = el->theme();
+      static_cast<UIPainter*>(dp)->draw_block(el->_bounds, thm.codeBackground);
       ViewWindowStringLayout(display, (UIPainter*)dp, display->vScroll->position());
    } else if (msg == UIMessage::MOUSE_WHEEL) {
       return display->vScroll->message(msg, di, dp);
@@ -6881,7 +6888,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       el->repaint(nullptr);
    } else if (msg == UIMessage::PAINT) {
       UIRectangle client = el->_bounds;
-      auto&       theme  = el->theme();
+      const auto& thm    = el->theme();
       client.b -= display->scrollBar->_bounds.height();
 
       UIPainter*  painter = (UIPainter*)dp;
@@ -6890,7 +6897,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       int ym              = (client.t + client.b) / 2;
       int h2              = (client.b - client.t) / 2;
       int yp              = ym;
-      painter->draw_block(painter->_clip, theme.panel1);
+      painter->draw_block(painter->_clip, thm.panel1);
       painter->draw_block(UIRectangle(client.l, client.r, ym, ym + 1), 0x707070);
 
       float yScale =
@@ -6925,7 +6932,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
                }
 
                UIRectangle r = UIRectangle(x, x + 1, ym - (int)(yt * h2 * yScale), ym + (int)(yf * h2 * yScale));
-               WaveformDisplayDrawVerticalLineWithTranslucency(painter, r, theme.text, alpha);
+               WaveformDisplayDrawVerticalLineWithTranslucency(painter, r, thm.text, alpha);
             }
          }
       } else {
@@ -6936,7 +6943,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
                int32_t x0 = (int)((float)i / sampleCount * client.width()) + client.l;
                int32_t x1 = (int)((float)(i + 1) / sampleCount * client.width()) + client.l;
                int32_t y  = ym + h2 * yScale * samples[channel + display->channels * (int)i];
-               painter->draw_line(x0, yp, x1, y, theme.text);
+               painter->draw_line(x0, yp, x1, y, thm.text);
                yp = y;
             }
          }
@@ -6972,7 +6979,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
                strcat(buffer, buffer2);
             }
 
-            painter->draw_string(stringRectangle, buffer, theme.text, UIAlign::right, nullptr);
+            painter->draw_string(stringRectangle, buffer, thm.text, UIAlign::right, nullptr);
 
             int32_t x1 = (int)((float)(mouseXSample + 1) / sampleCount * client.width()) + client.l;
             WaveformDisplayDrawVerticalLineWithTranslucency(painter, UIRectangle(x1, x1 + 1, client.t, client.b),
@@ -7144,9 +7151,9 @@ int WaveformViewerRefreshMessage(UIElement* el, UIMessage msg, int di, void* dp)
 }
 
 void WaveformViewerSaveToFile(WaveformDisplay* display) {
-   static char* path = nullptr;
-   auto         result =
-      s_main_window->show_dialog(0, "Save to file       \nPath:\n%t\n%f%b%b%b", &path, "Save", "Save and open", "Cancel");
+   static char* path   = nullptr;
+   auto         result = s_main_window->show_dialog(0, "Save to file       \nPath:\n%t\n%f%b%b%b", &path, "Save",
+                                                    "Save and open", "Cancel");
    if (result == "Cancel")
       return;
    FILE* f = fopen(path, "wb");
@@ -7804,7 +7811,8 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
    // load settings and initialize ui
    // -------------------------------
    getcwd(gfc._local_config_dir, sizeof(gfc._local_config_dir));
-   std_format_to_n(gfc._global_config_path, sizeof(gfc._global_config_path), "{}/.config/gf2_config.ini", getenv("HOME"));
+   std_format_to_n(gfc._global_config_path, sizeof(gfc._global_config_path), "{}/.config/gf2_config.ini",
+                   getenv("HOME"));
    std_format_to_n(gfc._local_config_path, sizeof(gfc._local_config_path), "{}/.project.gf", gfc._local_config_dir);
 
    UIConfig ui_config = ctx.load_settings(true);
@@ -7841,7 +7849,7 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
       s_main_window->register_shortcut(ic._shortcut);
    }
 
-   s_main_switcher                      = &s_main_window->add_switcher(0);
+   s_main_switcher                   = &s_main_window->add_switcher(0);
    const char* layout_string_current = gfc._layout_string.c_str();
    create_layout(&s_main_switcher->add_panel(UIPanel::EXPAND), layout_string_current);
    s_main_switcher->switch_to(s_main_switcher->_children[0]);
@@ -7878,7 +7886,8 @@ int main(int argc, char** argv) {
    ctx.kill_gdb();
 
    if (gfc._restore_watch_window && firstWatchWindow) {
-      std_format_to_n(gfc._global_config_path, sizeof(gfc._global_config_path), "{}/.config/gf2_watch.txt", getenv("HOME"));
+      std_format_to_n(gfc._global_config_path, sizeof(gfc._global_config_path), "{}/.config/gf2_watch.txt",
+                      getenv("HOME"));
       FILE* f = fopen(gfc._global_config_path, "wb");
 
       if (f) {
