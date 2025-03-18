@@ -6101,7 +6101,7 @@ private:
    uint64_t        _offset;
 
    void _add_memory_window() {
-      char*         expression = nullptr;
+      char* expression = nullptr;
 
       if (s_main_window->show_dialog(0, "Enter address expression:\n%t\n%f%b%b", &expression, "Goto", "Cancel") ==
           "Goto") {
@@ -6234,7 +6234,7 @@ private:
       return 0;
    }
 
-   void _update(const char* ) {
+   void _update(const char*) {
       _loaded_bytes.clear();
       repaint(nullptr);
    }
@@ -6248,9 +6248,7 @@ public:
       return static_cast<MemoryWindow*>(el)->_message_proc(msg, di, dp);
    }
 
-   static void Update(const char* data, UIElement* el) {
-      return static_cast<MemoryWindow*>(el)->_update(data);
-   }
+   static void Update(const char* data, UIElement* el) { return static_cast<MemoryWindow*>(el)->_update(data); }
 
    static UIElement* Create(UIElement* parent) { return new MemoryWindow(parent); }
 };
@@ -6265,11 +6263,11 @@ static int ViewWindowColorSwatchMessage(UIElement* el, UIMessage msg, int di, vo
 static int ViewWindowMatrixGridMessage(UIElement* el, UIMessage msg, int di, void* dp);
 
 struct ViewWindowColorSwatch : public UIElement {
-   uint32_t color;
+   uint32_t _color;
 
    ViewWindowColorSwatch(UIElement* parent, uint32_t color)
       : UIElement(parent, 0, ViewWindowColorSwatchMessage, "Color swatch")
-      , color(color) {}
+      , _color(color) {}
 };
 
 enum class grid_type_t { char_t, float_t, double_t };
@@ -6282,69 +6280,69 @@ struct storage_t {
 
 template <class T>
 struct storage_impl_t : public storage_t {
-   int       w, h;
-   vector<T> storage;
+   int       _w, _h;
+   vector<T> _storage;
 
    storage_impl_t(int w, int h)
-      : w(w)
-      , h(h)
-      , storage(w * h) {}
+      : _w(w)
+      , _h(h)
+      , _storage(w * h) {}
 
-   void read(FILE* f) final { fread(storage.data(), 1, w * h * sizeof(T), f); }
+   void read(FILE* f) final { fread(_storage.data(), 1, _w * _h * sizeof(T), f); }
 
-   const char* data() const final { return (const char*)storage.data(); }
+   const char* data() const final { return (const char*)_storage.data(); }
 };
 
 struct ViewWindowMatrixGrid : public UIElement {
-   UIScrollBar* hScroll;
-   UIScrollBar* vScroll;
+   UIScrollBar* _h_scroll;
+   UIScrollBar* _v_scroll;
 
-   int                   w, h;
-   int                   itemCharacters;
-   unique_ptr<storage_t> storage;
-   grid_type_t           grid_type;
+   int                   _w, _h;
+   int                   _item_characters;
+   unique_ptr<storage_t> _storage;
+   grid_type_t           _grid_type;
 
    ViewWindowMatrixGrid(UIElement* parent, int w, int h, char type)
       : UIElement(parent, UIElement::h_fill | UIElement::v_fill, ViewWindowMatrixGridMessage, "Matrix grid")
-      , w(w)
-      , h(h) {
-      hScroll = &add_scrollbar(UIScrollBar::HORIZONTAL);
-      vScroll = &add_scrollbar(0);
-      hScroll->set_maximum(w * parent->ui()->string_width("A") * itemCharacters);
-      vScroll->set_maximum(h * parent->ui()->string_height());
+      , _w(w)
+      , _h(h) {
+      _h_scroll = &add_scrollbar(UIScrollBar::HORIZONTAL);
+      _v_scroll = &add_scrollbar(0);
+      _h_scroll->set_maximum(w * parent->ui()->string_width("A") * _item_characters);
+      _v_scroll->set_maximum(h * parent->ui()->string_height());
 
       if (type == 'c') {
-         grid_type      = grid_type_t::char_t;
-         itemCharacters = 1;
-         storage        = make_unique<storage_impl_t<char>>(w, h);
+         _grid_type       = grid_type_t::char_t;
+         _item_characters = 1;
+         _storage         = make_unique<storage_impl_t<char>>(w, h);
       } else if (type == 'f') {
-         grid_type      = grid_type_t::float_t;
-         itemCharacters = 14;
-         storage        = make_unique<storage_impl_t<float>>(w, h);
+         _grid_type       = grid_type_t::float_t;
+         _item_characters = 14;
+         _storage         = make_unique<storage_impl_t<float>>(w, h);
       } else {
-         grid_type      = grid_type_t::double_t;
-         itemCharacters = 14;
-         storage        = make_unique<storage_impl_t<double>>(w, h);
+         _grid_type       = grid_type_t::double_t;
+         _item_characters = 14;
+         _storage         = make_unique<storage_impl_t<double>>(w, h);
       }
    }
 
-   void read(FILE* f) { storage->read(f); }
+   void read(FILE* f) { _storage->read(f); }
 
-   const char* data() const { return storage->data(); }
+   const char* data() const { return _storage->data(); }
 };
 
 int ViewWindowStringMessage(UIElement* el, UIMessage msg, int di, void* dp);
 
 struct ViewWindowString : public UIElement {
-   UIScrollBar*       vScroll;
-   unique_ptr<char[]> data;
-   int                length;
+   UIScrollBar*       _v_scroll;
+   unique_ptr<char[]> _data;
+   int                _length;
 
    ViewWindowString(UIElement* parent, unique_ptr<char[]> data, int length)
       : UIElement(parent, UIElement::h_fill | UIElement::v_fill, ViewWindowStringMessage, "String display")
-      , vScroll(&add_scrollbar(0))
-      , data(std::move(data))
-      , length(length) {}
+      , _v_scroll(&add_scrollbar(0))
+      , _data(std::move(data))
+      , _length(length) {}
 };
 
 int ViewWindowColorSwatchMessage(UIElement* el, UIMessage msg, int di, void* dp) {
@@ -6352,7 +6350,7 @@ int ViewWindowColorSwatchMessage(UIElement* el, UIMessage msg, int di, void* dp)
       return el->ui()->string_height();
    } else if (msg == UIMessage::PAINT) {
       const auto& thm     = el->theme();
-      uint32_t    color   = ((ViewWindowColorSwatch*)el)->color;
+      uint32_t    color   = ((ViewWindowColorSwatch*)el)->_color;
       UIPainter*  painter = (UIPainter*)dp;
       const char* message = "Col: ";
 
@@ -6406,23 +6404,23 @@ int ViewWindowMatrixGridMessage(UIElement* el, UIMessage msg, int di, void* dp) 
       auto [glyphWidth, glyphHeight] = ui->string_dims("A");
       UIPainter* painter             = (UIPainter*)dp;
 
-      for (int i = 0; i < grid->h; i++) {
-         for (int j = 0; j < grid->w; j++) {
-            if (grid->grid_type == grid_type_t::char_t) {
-               char c = grid->data()[i * grid->w + j];
+      for (int i = 0; i < grid->_h; i++) {
+         for (int j = 0; j < grid->_w; j++) {
+            if (grid->_grid_type == grid_type_t::char_t) {
+               char c = grid->data()[i * grid->_w + j];
                if (!c)
                   continue;
-               painter->draw_glyph(el->_bounds.l + j * glyphWidth - grid->hScroll->position(),
-                                   el->_bounds.t + i * glyphHeight - grid->vScroll->position(), c, thm.text);
-            } else if (grid->grid_type == grid_type_t::float_t || grid->grid_type == grid_type_t::double_t) {
-               double f = grid->grid_type == grid_type_t::double_t ? ((double*)grid->data())[i * grid->w + j]
-                                                                   : (double)((float*)grid->data())[i * grid->w + j];
+               painter->draw_glyph(el->_bounds.l + j * glyphWidth - grid->_h_scroll->position(),
+                                   el->_bounds.t + i * glyphHeight - grid->_v_scroll->position(), c, thm.text);
+            } else if (grid->_grid_type == grid_type_t::float_t || grid->_grid_type == grid_type_t::double_t) {
+               double f = grid->_grid_type == grid_type_t::double_t ? ((double*)grid->data())[i * grid->_w + j]
+                                                                    : (double)((float*)grid->data())[i * grid->_w + j];
                char   buffer[64];
                std_format_to_n(buffer, sizeof(buffer), "{:f}", f);
                UIRectangle rectangle =
                   UIRectangle(j * glyphWidth * 14, (j + 1) * glyphWidth * 14, i * glyphHeight, (i + 1) * glyphHeight);
-               UIRectangle offset = UIRectangle(el->_bounds.l - (int)grid->hScroll->position(),
-                                                el->_bounds.t - (int)grid->vScroll->position());
+               UIRectangle offset = UIRectangle(el->_bounds.l - (int)grid->_h_scroll->position(),
+                                                el->_bounds.t - (int)grid->_v_scroll->position());
                painter->draw_string(rectangle + offset, buffer, thm.text, UIAlign::right, nullptr);
             }
          }
@@ -6436,13 +6434,13 @@ int ViewWindowMatrixGridMessage(UIElement* el, UIMessage msg, int di, void* dp) 
       UIRectangle scrollBarBounds = el->_bounds;
       scrollBarBounds.l           = scrollBarBounds.r - ui_size::scroll_bar * el->_window->scale();
       scrollBarBounds.b -= ui_size::scroll_bar * el->_window->scale();
-      grid->vScroll->set_page(scrollBarBounds.height());
-      grid->vScroll->move(scrollBarBounds, true);
+      grid->_v_scroll->set_page(scrollBarBounds.height());
+      grid->_v_scroll->move(scrollBarBounds, true);
       scrollBarBounds   = el->_bounds;
       scrollBarBounds.t = scrollBarBounds.b - ui_size::scroll_bar * el->_window->scale();
       scrollBarBounds.r -= ui_size::scroll_bar * el->_window->scale();
-      grid->hScroll->set_page(scrollBarBounds.width());
-      grid->hScroll->move(scrollBarBounds, true);
+      grid->_h_scroll->set_page(scrollBarBounds.width());
+      grid->_h_scroll->move(scrollBarBounds, true);
    } else if (msg == UIMessage::SCROLLED) {
       el->repaint(nullptr);
    }
@@ -6459,7 +6457,7 @@ int ViewWindowStringLayout(ViewWindowString* display, UIPainter* painter, int of
    auto [glyphWidth, glyphHeight] = ui->string_dims("a");
    const auto& thm                = ui->theme();
 
-   for (int i = 0; i < display->length; i++) {
+   for (int i = 0; i < display->_length; i++) {
       if (x + glyphWidth > clientBounds.r) {
          x = clientBounds.l + glyphWidth;
          y += glyphHeight;
@@ -6467,8 +6465,8 @@ int ViewWindowStringLayout(ViewWindowString* display, UIPainter* painter, int of
             painter->draw_glyph(clientBounds.l, y, '>', thm.codeComment);
       }
 
-      if (display->data[i] < 0x20 || display->data[i] >= 0x7F) {
-         if (display->data[i] == '\n') {
+      if (display->_data[i] < 0x20 || display->_data[i] >= 0x7F) {
+         if (display->_data[i] == '\n') {
             if (painter)
                painter->draw_glyph(x, y, '\\', thm.codeComment);
             x += glyphWidth;
@@ -6476,7 +6474,7 @@ int ViewWindowStringLayout(ViewWindowString* display, UIPainter* painter, int of
                painter->draw_glyph(x, y, 'n', thm.codeComment);
             x = clientBounds.l;
             y += glyphHeight;
-         } else if (display->data[i] == '\t') {
+         } else if (display->_data[i] == '\t') {
             if (painter)
                painter->draw_glyph(x, y, '\\', thm.codeNumber);
             x += glyphWidth;
@@ -6489,10 +6487,10 @@ int ViewWindowStringLayout(ViewWindowString* display, UIPainter* painter, int of
                painter->draw_glyph(x, y, '<', thm.codeNumber);
             x += glyphWidth;
             if (painter)
-               painter->draw_glyph(x, y, hexChars[(display->data[i] & 0xF0) >> 4], thm.codeNumber);
+               painter->draw_glyph(x, y, hexChars[(display->_data[i] & 0xF0) >> 4], thm.codeNumber);
             x += glyphWidth;
             if (painter)
-               painter->draw_glyph(x, y, hexChars[(display->data[i] & 0x0F) >> 0], thm.codeNumber);
+               painter->draw_glyph(x, y, hexChars[(display->_data[i] & 0x0F) >> 0], thm.codeNumber);
             x += glyphWidth;
             if (painter)
                painter->draw_glyph(x, y, '>', thm.codeNumber);
@@ -6500,7 +6498,7 @@ int ViewWindowStringLayout(ViewWindowString* display, UIPainter* painter, int of
          }
       } else {
          if (painter)
-            painter->draw_glyph(x, y, display->data[i], thm.codeDefault);
+            painter->draw_glyph(x, y, display->_data[i], thm.codeDefault);
          x += glyphWidth;
       }
    }
@@ -6512,21 +6510,21 @@ int ViewWindowStringMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    ViewWindowString* display = (ViewWindowString*)el;
 
    if (msg == UIMessage::DESTROY) {
-      display->data.reset();
+      display->_data.reset();
    } else if (msg == UIMessage::LAYOUT) {
       UIRectangle scrollBarBounds = el->_bounds;
       scrollBarBounds.l           = scrollBarBounds.r - ui_size::scroll_bar * el->_window->scale();
       UIRectangle clientBounds    = el->_bounds;
       clientBounds.r -= ui_size::scroll_bar * el->_window->scale();
-      display->vScroll->set_maximum(ViewWindowStringLayout(display, nullptr, 0));
-      display->vScroll->set_page(el->_bounds.height());
-      display->vScroll->move(scrollBarBounds, true);
+      display->_v_scroll->set_maximum(ViewWindowStringLayout(display, nullptr, 0));
+      display->_v_scroll->set_page(el->_bounds.height());
+      display->_v_scroll->move(scrollBarBounds, true);
    } else if (msg == UIMessage::PAINT) {
       const auto& thm = el->theme();
       static_cast<UIPainter*>(dp)->draw_block(el->_bounds, thm.codeBackground);
-      ViewWindowStringLayout(display, (UIPainter*)dp, display->vScroll->position());
+      ViewWindowStringLayout(display, (UIPainter*)dp, display->_v_scroll->position());
    } else if (msg == UIMessage::MOUSE_WHEEL) {
-      return display->vScroll->message(msg, di, dp);
+      return display->_v_scroll->message(msg, di, dp);
    } else if (msg == UIMessage::SCROLLED) {
       el->repaint(nullptr);
    }
@@ -6703,13 +6701,13 @@ void ViewWindowView(void* cp) {
          unlink(tempPath);
       }
 
-      if ((grid->grid_type == grid_type_t::float_t || grid->grid_type == grid_type_t::double_t) && w == h && w <= 4 &&
+      if ((grid->_grid_type == grid_type_t::float_t || grid->_grid_type == grid_type_t::double_t) && w == h && w <= 4 &&
           w >= 2) {
          double matrix[16];
 
          for (int i = 0; i < w; i++) {
             for (int j = 0; j < w; j++) {
-               if (grid->grid_type == grid_type_t::float_t) {
+               if (grid->_grid_type == grid_type_t::float_t) {
                   matrix[i * w + j] = ((float*)grid->data())[i * w + j];
                } else {
                   matrix[i * w + j] = ((double*)grid->data())[i * w + j];
@@ -6752,31 +6750,31 @@ int WaveformDisplayZoomButtonMessage(UIElement* el, UIMessage msg, int di, void*
 int WaveformDisplayNormalizeButtonMessage(UIElement* el, UIMessage msg, int di, void* dp);
 
 struct WaveformDisplay : public UIElement {
-   float*       samples;
-   size_t       sampleCount, channels;
-   int          samplesOnScreen, minimumZoom;
-   UIScrollBar* scrollBar;
-   UIButton *   zoomOut, *zoomIn, *normalize;
-   int          dragLastX, dragLastModification;
-   float        peak;
+   float*       _samples;
+   size_t       _sample_count, _channels;
+   int          _samples_on_screen, _minimum_zoom;
+   UIScrollBar* _scrollbar;
+   UIButton *   _zoomout, *_zoomin, *_normalize;
+   int          _drag_last_x, _drag_last_modification;
+   float        _peak;
 
    WaveformDisplay(UIElement* parent, uint32_t flags)
       : UIElement(parent, flags, WaveformDisplayMessage, "WaveformDisplay")
-      , samples(nullptr)
-      , sampleCount(0)
-      , channels(0)
-      , samplesOnScreen(0)
-      , minimumZoom(0)
-      , scrollBar(new UIScrollBar(this, UIElement::non_client_flag | UIScrollBar::HORIZONTAL))
-      , zoomOut(new UIButton(this, UIButton::SMALL, "-"))
-      , zoomIn(new UIButton(this, UIButton::SMALL, "+"))
-      , normalize(new UIButton(this, UIButton::SMALL, "Norm"))
-      , dragLastX(0)
-      , dragLastModification(0)
-      , peak(0) {
-      zoomOut->set_user_proc(WaveformDisplayZoomButtonMessage);
-      zoomIn->set_user_proc(WaveformDisplayZoomButtonMessage);
-      normalize->set_user_proc(WaveformDisplayNormalizeButtonMessage);
+      , _samples(nullptr)
+      , _sample_count(0)
+      , _channels(0)
+      , _samples_on_screen(0)
+      , _minimum_zoom(0)
+      , _scrollbar(new UIScrollBar(this, UIElement::non_client_flag | UIScrollBar::HORIZONTAL))
+      , _zoomout(new UIButton(this, UIButton::SMALL, "-"))
+      , _zoomin(new UIButton(this, UIButton::SMALL, "+"))
+      , _normalize(new UIButton(this, UIButton::SMALL, "Norm"))
+      , _drag_last_x(0)
+      , _drag_last_modification(0)
+      , _peak(0) {
+      _zoomout->set_user_proc(WaveformDisplayZoomButtonMessage);
+      _zoomin->set_user_proc(WaveformDisplayZoomButtonMessage);
+      _normalize->set_user_proc(WaveformDisplayNormalizeButtonMessage);
    }
 };
 
@@ -6803,45 +6801,46 @@ void WaveformDisplayDrawVerticalLineWithTranslucency(UIPainter* painter, UIRecta
 int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    WaveformDisplay* display = (WaveformDisplay*)el;
 
-   if (display->sampleCount == 0 && msg != UIMessage::DESTROY) {
+   if (display->_sample_count == 0 && msg != UIMessage::DESTROY) {
       return 0;
    }
 
    if (msg == UIMessage::DESTROY) {
-      free(display->samples);
-      display->samples = nullptr;
+      free(display->_samples);
+      display->_samples = nullptr;
    } else if (msg == UIMessage::LAYOUT) {
-      if (display->samplesOnScreen > (int)display->sampleCount) {
-         display->samplesOnScreen = display->sampleCount;
+      if (display->_samples_on_screen > (int)display->_sample_count) {
+         display->_samples_on_screen = display->_sample_count;
       }
 
       int         scrollBarHeight = ui_size::scroll_bar * el->_window->scale();
       UIRectangle scrollBarBounds = el->_bounds;
       scrollBarBounds.t           = scrollBarBounds.b - scrollBarHeight;
-      display->scrollBar->set_maximum(display->sampleCount);
-      display->scrollBar->set_page(display->samplesOnScreen);
-      display->scrollBar->move(scrollBarBounds, true);
+      display->_scrollbar->set_maximum(display->_sample_count);
+      display->_scrollbar->set_page(display->_samples_on_screen);
+      display->_scrollbar->move(scrollBarBounds, true);
 
-      display->zoomOut->move(UIRectangle(el->_bounds.l + (int)(15 * el->_window->scale()),
-                                         el->_bounds.l + (int)(45 * el->_window->scale()),
+      display->_zoomout->move(UIRectangle(el->_bounds.l + (int)(15 * el->_window->scale()),
+                                          el->_bounds.l + (int)(45 * el->_window->scale()),
+                                          el->_bounds.t + (int)(15 * el->_window->scale()),
+                                          el->_bounds.t + (int)(45 * el->_window->scale())),
+                              true);
+      display->_zoomin->move(UIRectangle(el->_bounds.l + (int)(45 * el->_window->scale()),
+                                         el->_bounds.l + (int)(75 * el->_window->scale()),
                                          el->_bounds.t + (int)(15 * el->_window->scale()),
                                          el->_bounds.t + (int)(45 * el->_window->scale())),
                              true);
-      display->zoomIn->move(UIRectangle(el->_bounds.l + (int)(45 * el->_window->scale()),
-                                        el->_bounds.l + (int)(75 * el->_window->scale()),
-                                        el->_bounds.t + (int)(15 * el->_window->scale()),
-                                        el->_bounds.t + (int)(45 * el->_window->scale())),
-                            true);
-      display->normalize->move(UIRectangle(el->_bounds.l + (int)(75 * el->_window->scale()),
-                                           el->_bounds.l + (int)(135 * el->_window->scale()),
-                                           el->_bounds.t + (int)(15 * el->_window->scale()),
-                                           el->_bounds.t + (int)(45 * el->_window->scale())),
-                               true);
+      display->_normalize->move(UIRectangle(el->_bounds.l + (int)(75 * el->_window->scale()),
+                                            el->_bounds.l + (int)(135 * el->_window->scale()),
+                                            el->_bounds.t + (int)(15 * el->_window->scale()),
+                                            el->_bounds.t + (int)(45 * el->_window->scale())),
+                                true);
    } else if (msg == UIMessage::MOUSE_DRAG && el->_window->pressed_button() == 1) {
       auto pos = el->cursor_pos();
-      display->scrollBar->position() += display->dragLastModification;
-      display->dragLastModification = (pos.x - display->dragLastX) * display->samplesOnScreen / el->_bounds.width();
-      display->scrollBar->position() -= display->dragLastModification;
+      display->_scrollbar->position() += display->_drag_last_modification;
+      display->_drag_last_modification =
+         (pos.x - display->_drag_last_x) * display->_samples_on_screen / el->_bounds.width();
+      display->_scrollbar->position() -= display->_drag_last_modification;
       display->refresh();
    } else if (msg == UIMessage::MOUSE_DRAG && el->_window->pressed_button() == 2) {
       display->repaint(nullptr);
@@ -6849,25 +6848,25 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       display->repaint(nullptr);
    } else if (msg == UIMessage::MIDDLE_UP) {
       auto pos = el->cursor_pos();
-      int  l = pos.x - el->_bounds.l, r = display->dragLastX - el->_bounds.l;
+      int  l = pos.x - el->_bounds.l, r = display->_drag_last_x - el->_bounds.l;
       if (r < l) {
          int t = l;
          l     = r;
          r     = t;
       }
-      float lf = (float)l / el->_bounds.width() * display->samplesOnScreen + display->scrollBar->position();
-      float rf = (float)r / el->_bounds.width() * display->samplesOnScreen + display->scrollBar->position();
+      float lf = (float)l / el->_bounds.width() * display->_samples_on_screen + display->_scrollbar->position();
+      float rf = (float)r / el->_bounds.width() * display->_samples_on_screen + display->_scrollbar->position();
 
-      if (rf - lf >= display->minimumZoom) {
-         display->scrollBar->position() = lf;
-         display->samplesOnScreen       = rf - lf;
+      if (rf - lf >= display->_minimum_zoom) {
+         display->_scrollbar->position() = lf;
+         display->_samples_on_screen     = rf - lf;
       }
 
       display->refresh();
    } else if (msg == UIMessage::LEFT_DOWN || msg == UIMessage::MIDDLE_DOWN) {
-      auto pos                      = el->cursor_pos();
-      display->dragLastX            = pos.x;
-      display->dragLastModification = 0;
+      auto pos                         = el->cursor_pos();
+      display->_drag_last_x            = pos.x;
+      display->_drag_last_modification = 0;
    } else if (msg == UIMessage::MOUSE_WHEEL) {
       auto   pos         = el->cursor_pos();
       int    divisions   = di / 72;
@@ -6878,11 +6877,11 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       while (divisions < 0)
          factor /= perDivision, divisions++;
       double mouse   = (double)(pos.x - el->_bounds.l) / el->_bounds.width();
-      double newZoom = (double)display->samplesOnScreen / display->sampleCount * factor;
+      double newZoom = (double)display->_samples_on_screen / display->_sample_count * factor;
 
-      if (newZoom * display->sampleCount >= display->minimumZoom) {
-         display->scrollBar->position() += mouse * display->samplesOnScreen * (1 - factor);
-         display->samplesOnScreen = newZoom * display->sampleCount;
+      if (newZoom * display->_sample_count >= display->_minimum_zoom) {
+         display->_scrollbar->position() += mouse * display->_samples_on_screen * (1 - factor);
+         display->_samples_on_screen = newZoom * display->_sample_count;
       }
 
       display->refresh();
@@ -6891,7 +6890,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::PAINT) {
       UIRectangle client = el->_bounds;
       const auto& thm    = el->theme();
-      client.b -= display->scrollBar->_bounds.height();
+      client.b -= display->_scrollbar->_bounds.height();
 
       UIPainter*  painter = (UIPainter*)dp;
       UIRectangle oldClip = painter->_clip;
@@ -6903,19 +6902,19 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       painter->draw_block(UIRectangle(client.l, client.r, ym, ym + 1), 0x707070);
 
       float yScale =
-         (display->normalize->_flags & UIButton::CHECKED) && display->peak > 0.00001f ? 1.0f / display->peak : 1.0f;
+         (display->_normalize->_flags & UIButton::CHECKED) && display->_peak > 0.00001f ? 1.0f / display->_peak : 1.0f;
 
-      int    sampleOffset = (int)display->scrollBar->position();
-      float* samples      = &display->samples[display->channels * sampleOffset];
-      int    sampleCount  = display->samplesOnScreen;
-      UI_ASSERT(sampleOffset + sampleCount <= (int)display->sampleCount);
+      int    sampleOffset = (int)display->_scrollbar->position();
+      float* samples      = &display->_samples[display->_channels * sampleOffset];
+      int    sampleCount  = display->_samples_on_screen;
+      UI_ASSERT(sampleOffset + sampleCount <= (int)display->_sample_count);
 
       auto pos = el->cursor_pos();
 
       if (sampleCount > client.width()) {
-         uint32_t alpha = 255 - 80 * (display->channels - 1);
+         uint32_t alpha = 255 - 80 * (display->_channels - 1);
 
-         for (size_t channel = 0; channel < display->channels; channel++) {
+         for (size_t channel = 0; channel < display->_channels; channel++) {
             for (int32_t x = painter->_clip.l; x < painter->_clip.r; x++) {
                int32_t x0  = x - client.l;
                float   xf0 = (float)x0 / (client.r - client.l);
@@ -6926,7 +6925,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
                int     is = 1 + (i1 - i0) / 1000; // Skip samples if we're zoomed really far out.
 
                for (int k = i0; k < i1; k += is) {
-                  float t = samples[channel + display->channels * (int)k];
+                  float t = samples[channel + display->_channels * (int)k];
                   if (t < 0 && yt < -t)
                      yt = -t;
                   else if (t > 0 && yf < t)
@@ -6938,42 +6937,42 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
             }
          }
       } else {
-         for (size_t channel = 0; channel < display->channels; channel++) {
+         for (size_t channel = 0; channel < display->_channels; channel++) {
             yp = ym + h2 * yScale * samples[channel + 0];
 
             for (int32_t i = 0; i < sampleCount; i++) {
                int32_t x0 = (int)((float)i / sampleCount * client.width()) + client.l;
                int32_t x1 = (int)((float)(i + 1) / sampleCount * client.width()) + client.l;
-               int32_t y  = ym + h2 * yScale * samples[channel + display->channels * (int)i];
+               int32_t y  = ym + h2 * yScale * samples[channel + display->_channels * (int)i];
                painter->draw_line(x0, yp, x1, y, thm.text);
                yp = y;
             }
          }
 
          if (sampleCount < client.width() / 4) {
-            for (size_t channel = 0; channel < display->channels; channel++) {
+            for (size_t channel = 0; channel < display->_channels; channel++) {
                for (int32_t i = 0; i < sampleCount; i++) {
                   int32_t x1 = (int)((float)(i + 1) / sampleCount * client.width()) + client.l;
-                  int32_t y  = ym + h2 * yScale * samples[channel + display->channels * (int)i];
+                  int32_t y  = ym + h2 * yScale * samples[channel + display->_channels * (int)i];
                   painter->draw_block(UIRectangle(x1 - 2, x1 + 2, y - 2, y + 2), channel % 2 ? 0xFFFF00FF : 0xFF00FFFF);
                }
             }
          }
 
-         int mouseXSample = (float)(pos.x - client.l) / el->_bounds.width() * display->samplesOnScreen - 0.5f;
+         int mouseXSample = (float)(pos.x - client.l) / el->_bounds.width() * display->_samples_on_screen - 0.5f;
 
          if (mouseXSample >= 0 && mouseXSample < sampleCount && el->_clip.contains(pos) &&
-             !display->scrollBar->_clip.contains(pos)) {
+             !display->_scrollbar->_clip.contains(pos)) {
             int         stringOffset = 20 * el->_window->scale();
             UIRectangle stringRectangle =
                UIRectangle(client.l + stringOffset, client.r - stringOffset, client.t + stringOffset,
                            client.t + stringOffset + el->ui()->string_height());
             char buffer[100];
-            std_format_to_n(buffer, sizeof(buffer), "{}: ", (int)(mouseXSample + display->scrollBar->position()));
+            std_format_to_n(buffer, sizeof(buffer), "{}: ", (int)(mouseXSample + display->_scrollbar->position()));
 
-            for (size_t channel = 0; channel < display->channels; channel++) {
+            for (size_t channel = 0; channel < display->_channels; channel++) {
                char  buffer2[30];
-               float sample = samples[channel + display->channels * mouseXSample];
+               float sample = samples[channel + display->_channels * mouseXSample];
                std_format_to_n(buffer2, sizeof(buffer2), "{}{}{:.5f}", channel ? ", " : "", sample >= 0.0f ? "+" : "",
                                sample);
                if (strlen(buffer) + strlen(buffer2) > sizeof(buffer) - 1)
@@ -6990,7 +6989,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       }
 
       if (el->_window->pressed_button() == 2 && el->_window->pressed()) {
-         int l = pos.x, r = display->dragLastX;
+         int l = pos.x, r = display->_drag_last_x;
          painter->draw_invert(UIRectangle(l > r ? r : l, l > r ? l : r, el->_bounds.t, el->_bounds.r));
       }
 
@@ -7004,12 +7003,12 @@ int WaveformDisplayZoomButtonMessage(UIElement* el, UIMessage msg, int di, void*
    WaveformDisplay* display = (WaveformDisplay*)el->_parent;
 
    if (msg == UIMessage::CLICKED) {
-      if (el == display->zoomOut) {
-         display->scrollBar->position() -= display->samplesOnScreen / 2;
-         display->samplesOnScreen *= 2;
-      } else if (el == display->zoomIn && display->samplesOnScreen >= display->minimumZoom) {
-         display->samplesOnScreen /= 2;
-         display->scrollBar->position() += display->samplesOnScreen / 2;
+      if (el == display->_zoomout) {
+         display->_scrollbar->position() -= display->_samples_on_screen / 2;
+         display->_samples_on_screen *= 2;
+      } else if (el == display->_zoomin && display->_samples_on_screen >= display->_minimum_zoom) {
+         display->_samples_on_screen /= 2;
+         display->_scrollbar->position() += display->_samples_on_screen / 2;
       }
 
       display->refresh();
@@ -7033,13 +7032,13 @@ WaveformDisplay* WaveformDisplayCreate(UIElement* parent, uint32_t flags) { retu
 
 void WaveformDisplaySetContent(WaveformDisplay* display, float* samples, size_t sampleCount, size_t channels) {
    UI_ASSERT(channels >= 1);
-   free(display->samples);
-   display->samples = (float*)malloc(sizeof(float) * sampleCount * channels);
-   memcpy(display->samples, samples, sizeof(float) * sampleCount * channels);
-   display->sampleCount     = sampleCount;
-   display->channels        = channels;
-   display->samplesOnScreen = sampleCount;
-   display->minimumZoom     = 40 > sampleCount ? sampleCount : 40;
+   free(display->_samples);
+   display->_samples = (float*)malloc(sizeof(float) * sampleCount * channels);
+   memcpy(display->_samples, samples, sizeof(float) * sampleCount * channels);
+   display->_sample_count      = sampleCount;
+   display->_channels          = channels;
+   display->_samples_on_screen = sampleCount;
+   display->_minimum_zoom      = 40 > sampleCount ? sampleCount : 40;
 
    float peak = 0.0f;
 
@@ -7051,7 +7050,7 @@ void WaveformDisplaySetContent(WaveformDisplay* display, float* samples, size_t 
       }
    }
 
-   display->peak = peak;
+   display->_peak = peak;
 }
 
 // ----------------------------------------------------------
@@ -7059,15 +7058,15 @@ void WaveformDisplaySetContent(WaveformDisplay* display, float* samples, size_t 
 // ----------------------------------------------------------
 
 struct WaveformViewer {
-   char             pointer[256];
-   char             sampleCount[256];
-   char             channels[256];
-   int              parsedSampleCount = 0;
-   int              parsedChannels    = 0;
-   UIButton*        autoToggle        = nullptr;
-   UIPanel*         labelPanel        = nullptr;
-   UILabel*         label             = nullptr;
-   WaveformDisplay* display           = nullptr;
+   char             _pointer[256];
+   char             _sample_count[256];
+   char             _channels[256];
+   int              _parsed_sample_count = 0;
+   int              _parsed_channels     = 0;
+   UIButton*        _auto_toggle         = nullptr;
+   UIPanel*         _label_panel         = nullptr;
+   UILabel*         _label               = nullptr;
+   WaveformDisplay* _display             = nullptr;
 };
 
 void WaveformViewerUpdate(const char* pointerString, const char* sampleCountString, const char* channelsString,
@@ -7141,7 +7140,7 @@ int WaveformViewerWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) 
 
 void WaveformViewerAutoUpdateCallback(UIElement* el) {
    WaveformViewer* viewer = (WaveformViewer*)el->_cp;
-   WaveformViewerUpdate(viewer->pointer, viewer->sampleCount, viewer->channels, el);
+   WaveformViewerUpdate(viewer->_pointer, viewer->_sample_count, viewer->_channels, el);
 }
 
 int WaveformViewerRefreshMessage(UIElement* el, UIMessage msg, int di, void* dp) {
@@ -7166,7 +7165,7 @@ void WaveformViewerSaveToFile(WaveformDisplay* display) {
    int32_t i;
    int16_t s;
    fwrite("RIFF", 1, 4, f);
-   i = 36 + display->channels * 4 * display->sampleCount;
+   i = 36 + display->_channels * 4 * display->_sample_count;
    fwrite(&i, 1, 4, f); // Total file size, minus 8.
    fwrite("WAVE", 1, 4, f);
    fwrite("fmt ", 1, 4, f);
@@ -7174,20 +7173,20 @@ void WaveformViewerSaveToFile(WaveformDisplay* display) {
    fwrite(&i, sizeof(i), 1, f); // Format chunk size.
    s = 3;
    fwrite(&s, sizeof(s), 1, f); // Format tag (float).
-   s = display->channels;
+   s = display->_channels;
    fwrite(&s, sizeof(s), 1, f); // Channels.
    i = 48000;
    fwrite(&i, sizeof(i), 1, f); // Sample rate (guessed).
-   i = 48000 * display->channels * sizeof(float);
+   i = 48000 * display->_channels * sizeof(float);
    fwrite(&i, sizeof(i), 1, f); // Average bytes per second.
-   s = display->channels * sizeof(float);
+   s = display->_channels * sizeof(float);
    fwrite(&s, sizeof(s), 1, f); // Block align.
    s = sizeof(float) * 8;
    fwrite(&s, sizeof(s), 1, f); // Bits per sample.
    fwrite("data", 1, 4, f);
-   i = display->channels * sizeof(float) * display->sampleCount;
-   fwrite(&i, sizeof(i), 1, f);                                              // Bytes of sample data.
-   fwrite(display->samples, display->channels * 4, display->sampleCount, f); // Sample data.
+   i = display->_channels * sizeof(float) * display->_sample_count;
+   fwrite(&i, sizeof(i), 1, f);                                                  // Bytes of sample data.
+   fwrite(display->_samples, display->_channels * 4, display->_sample_count, f); // Sample data.
    fclose(f);
 
    if (result == "Save and open") {
@@ -7219,45 +7218,45 @@ void WaveformViewerUpdate(const char* pointerString, const char* sampleCountStri
    if (!owner) {
       WaveformViewer* viewer = new WaveformViewer;
       if (pointerString)
-         std_format_to_n(viewer->pointer, sizeof(viewer->pointer), "{}", pointerString);
+         std_format_to_n(viewer->_pointer, sizeof(viewer->_pointer), "{}", pointerString);
       if (sampleCountString)
-         std_format_to_n(viewer->sampleCount, sizeof(viewer->sampleCount), "{}", sampleCountString);
+         std_format_to_n(viewer->_sample_count, sizeof(viewer->_sample_count), "{}", sampleCountString);
       if (channelsString)
-         std_format_to_n(viewer->channels, sizeof(viewer->channels), "{}", channelsString);
+         std_format_to_n(viewer->_channels, sizeof(viewer->_channels), "{}", channelsString);
 
       UIMDIChild* window = &s_data_window->add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Waveform")
                                .set_user_proc(WaveformViewerWindowMessage)
                                .set_cp(viewer);
-      viewer->autoToggle = &window->add_button(UIButton::SMALL | UIElement::non_client_flag, "Auto")
-                               .set_cp((void*)WaveformViewerAutoUpdateCallback)
-                               .set_user_proc(DataViewerAutoUpdateButtonMessage);
+      viewer->_auto_toggle = &window->add_button(UIButton::SMALL | UIElement::non_client_flag, "Auto")
+                                 .set_cp((void*)WaveformViewerAutoUpdateCallback)
+                                 .set_user_proc(DataViewerAutoUpdateButtonMessage);
       window->add_button(UIButton::SMALL | UIElement::non_client_flag, "Refresh")
          .set_user_proc(WaveformViewerRefreshMessage);
       owner = window;
 
-      UIPanel* panel     = &owner->add_panel(UIPanel::EXPAND);
-      viewer->labelPanel = &panel->add_panel(UIPanel::COLOR_1 | UIElement::v_fill);
-      viewer->label      = &viewer->labelPanel->add_label(UIElement::h_fill, {});
-      viewer->display    = WaveformDisplayCreate(panel, UIElement::v_fill);
-      viewer->display->set_user_proc(WaveformViewerDisplayMessage);
+      UIPanel* panel       = &owner->add_panel(UIPanel::EXPAND);
+      viewer->_label_panel = &panel->add_panel(UIPanel::COLOR_1 | UIElement::v_fill);
+      viewer->_label       = &viewer->_label_panel->add_label(UIElement::h_fill, {});
+      viewer->_display     = WaveformDisplayCreate(panel, UIElement::v_fill);
+      viewer->_display->set_user_proc(WaveformViewerDisplayMessage);
    }
 
-   WaveformViewer* viewer    = (WaveformViewer*)owner->_cp;
-   viewer->parsedSampleCount = sampleCount, viewer->parsedChannels = channels;
+   WaveformViewer* viewer       = (WaveformViewer*)owner->_cp;
+   viewer->_parsed_sample_count = sampleCount, viewer->_parsed_channels = channels;
 
    if (error) {
-      viewer->label->set_label(error);
-      viewer->labelPanel->_flags &= ~UIElement::hide_flag;
-      viewer->display->_flags |= UIElement::hide_flag;
+      viewer->_label->set_label(error);
+      viewer->_label_panel->_flags &= ~UIElement::hide_flag;
+      viewer->_display->_flags |= UIElement::hide_flag;
    } else {
-      viewer->labelPanel->_flags |= UIElement::hide_flag;
-      viewer->display->_flags &= ~UIElement::hide_flag;
-      WaveformDisplaySetContent(viewer->display, samples, sampleCount, channels);
+      viewer->_label_panel->_flags |= UIElement::hide_flag;
+      viewer->_display->_flags &= ~UIElement::hide_flag;
+      WaveformDisplaySetContent(viewer->_display, samples, sampleCount, channels);
    }
 
-   viewer->display->refresh();
-   viewer->label->refresh();
-   viewer->labelPanel->_parent->refresh();
+   viewer->_display->refresh();
+   viewer->_label->refresh();
+   viewer->_label_panel->_parent->refresh();
    owner->refresh();
    s_data_window->refresh();
 
