@@ -6094,18 +6094,41 @@ UIElement* ProfWindowCreate(UIElement* parent) {
 // TODO Set data breakpoints.
 // TODO Highlight modified bytes.
 
-static int  MemoryWindowMessage(UIElement* el, UIMessage msg, int di, void* dp);
-static void MemoryWindowGotoButtonInvoke(void* cp);
-
 struct MemoryWindow : public UIElement {
+private:
    UIButton*       _goto_button;
    vector<int16_t> _loaded_bytes;
    uint64_t        _offset;
 
-   MemoryWindow(UIElement* parent)
-      : UIElement(parent, 0, MemoryWindowMessage, "memory window")
-      , _goto_button(
-           &add_button(UIButton::SMALL, "&").on_click([this](UIButton&) { MemoryWindowGotoButtonInvoke(this); })) {}
+   void _add_memory_window() {
+      char*         expression = nullptr;
+
+      if (s_main_window->show_dialog(0, "Enter address expression:\n%t\n%f%b%b", &expression, "Goto", "Cancel") ==
+          "Goto") {
+         char buffer[4096];
+         std_format_to_n(buffer, sizeof(buffer), "py gf_valueof(['{}'],' ')", expression);
+         auto        res    = EvaluateCommand(buffer);
+         const char* result = res.c_str();
+
+         if (result && ((*result == '(' && isdigit(result[1])) || isdigit(*result))) {
+            if (*result == '(')
+               result++;
+            uint64_t address = strtol(result, nullptr, 0);
+
+            if (address) {
+               _loaded_bytes.clear();
+               _offset = address & ~0xF;
+               repaint(nullptr);
+            } else {
+               s_main_window->show_dialog(0, "Cannot access memory at address 0.\n%f%b", "OK");
+            }
+         } else {
+            s_main_window->show_dialog(0, "Expression did not evaluate to an address.\n%f%b", "OK");
+         }
+      }
+
+      free(expression);
+   }
 
    int _message_proc(UIMessage msg, int di, void* dp) {
       if (msg == UIMessage::PAINT) {
@@ -6211,49 +6234,28 @@ struct MemoryWindow : public UIElement {
       return 0;
    }
 
+   void _update(const char* ) {
+      _loaded_bytes.clear();
+      repaint(nullptr);
+   }
+
+public:
+   MemoryWindow(UIElement* parent)
+      : UIElement(parent, 0, MemoryWindowMessage, "memory window")
+      , _goto_button(&add_button(UIButton::SMALL, "&").on_click([this](UIButton&) { _add_memory_window(); })) {}
+
    static int MemoryWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<MemoryWindow*>(el)->_message_proc(msg, di, dp);
    }
-};
 
-void MemoryWindowUpdate(const char* data, UIElement* el) {
-   MemoryWindow* window = (MemoryWindow*)el;
-   window->_loaded_bytes.clear();
-   el->repaint(nullptr);
-}
-
-void MemoryWindowGotoButtonInvoke(void* cp) {
-   MemoryWindow* window     = (MemoryWindow*)cp;
-   char*         expression = nullptr;
-
-   if (s_main_window->show_dialog(0, "Enter address expression:\n%t\n%f%b%b", &expression, "Goto", "Cancel") ==
-       "Goto") {
-      char buffer[4096];
-      std_format_to_n(buffer, sizeof(buffer), "py gf_valueof(['{}'],' ')", expression);
-      auto        res    = EvaluateCommand(buffer);
-      const char* result = res.c_str();
-
-      if (result && ((*result == '(' && isdigit(result[1])) || isdigit(*result))) {
-         if (*result == '(')
-            result++;
-         uint64_t address = strtol(result, nullptr, 0);
-
-         if (address) {
-            window->_loaded_bytes.clear();
-            window->_offset = address & ~0xF;
-            window->repaint(nullptr);
-         } else {
-            s_main_window->show_dialog(0, "Cannot access memory at address 0.\n%f%b", "OK");
-         }
-      } else {
-         s_main_window->show_dialog(0, "Expression did not evaluate to an address.\n%f%b", "OK");
-      }
+   static void Update(const char* data, UIElement* el) {
+      return static_cast<MemoryWindow*>(el)->_update(data);
    }
 
-   free(expression);
-}
+   static UIElement* Create(UIElement* parent) { return new MemoryWindow(parent); }
+};
 
-UIElement* MemoryWindowCreate(UIElement* parent) { return new MemoryWindow(parent); }
+
 
 /////////////////////////////////////////////////////
 // View window:
@@ -7282,7 +7284,7 @@ void WaveformAddDialog() {
 
 void Context::register_extensions() {
    _interface_windows["Prof"]   = {._create = ProfWindowCreate, ._update = ProfWindowUpdate, ._always_update = true};
-   _interface_windows["Memory"] = {MemoryWindowCreate, MemoryWindowUpdate};
+   _interface_windows["Memory"] = {MemoryWindow::Create, MemoryWindow::Update};
    _interface_windows["View"]   = {ViewWindowCreate, ViewWindowUpdate};
 
    _interface_data_viewers.push_back({"Add waveform...", WaveformAddDialog});
