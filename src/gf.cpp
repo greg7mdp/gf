@@ -2642,16 +2642,16 @@ void BitmapAddDialog() {
 
 struct ConsoleWindow {
 private:
-   vector<unique_ptr<char[]>> commandHistory;
-   size_t                     commandHistoryIndex = 0;
-   FILE*                      commandLog = nullptr;
+   vector<unique_ptr<char[]>> _command_history;
+   size_t                     _command_history_index = 0;
+   FILE*                      _command_log           = nullptr;
 
    bool previous_command() {
-      if (commandHistoryIndex < commandHistory.size()) {
+      if (_command_history_index < _command_history.size()) {
          s_input_textbox->clear(false);
-         s_input_textbox->replace_text(commandHistory[commandHistoryIndex].get(), false);
-         if (commandHistoryIndex < commandHistory.size() - 1)
-            commandHistoryIndex++;
+         s_input_textbox->replace_text(_command_history[_command_history_index].get(), false);
+         if (_command_history_index < _command_history.size() - 1)
+            _command_history_index++;
          s_input_textbox->refresh();
       }
       return true;
@@ -2660,9 +2660,9 @@ private:
    bool next_command() {
       s_input_textbox->clear(false);
 
-      if (commandHistoryIndex > 0) {
-         commandHistoryIndex--;
-         s_input_textbox->replace_text(commandHistory[commandHistoryIndex].get(), false);
+      if (_command_history_index > 0) {
+         _command_history_index--;
+         s_input_textbox->replace_text(_command_history[_command_history_index].get(), false);
       }
 
       s_input_textbox->refresh();
@@ -2690,27 +2690,27 @@ private:
             textbox->set_reject_next_key(true);
          } else if (m->code == UIKeycode::ENTER && !textbox->_window->_shift) {
             if (!sz) {
-               if (commandHistory.size()) {
-                  CommandSendToGDB(commandHistory[0].get());
+               if (_command_history.size()) {
+                  CommandSendToGDB(_command_history[0].get());
                }
 
                return 1;
             }
 
             auto buffer = std::format("{}", textbox->text());
-            if (commandLog)
-               print(commandLog, "{}\n", buffer);
+            if (_command_log)
+               print(_command_log, "{}\n", buffer);
             CommandSendToGDB(buffer);
 
 
             unique_ptr<char[]> string = std::make_unique<char[]>(sz + 1);
             memcpy(string.get(), cur_text.data(), sz);
             string[sz] = 0;
-            commandHistory.insert(commandHistory.cbegin(), std::move(string));
-            commandHistoryIndex = 0;
+            _command_history.insert(_command_history.cbegin(), std::move(string));
+            _command_history_index = 0;
 
-            if (commandHistory.size() > 500) {
-               commandHistory.pop_back();
+            if (_command_history.size() > 500) {
+               _command_history.pop_back();
             }
 
             textbox->clear(false);
@@ -4263,13 +4263,13 @@ int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int 
 
 struct DataWindow {
 private:
-   UIButton* buttonFillWindow;
+   UIButton* _fill_window_button;
 
    bool toggle_fill_data_tab() {
       if (!s_data_tab)
          return false;
       static UIElement *oldParent, *oldBefore;
-      buttonFillWindow->_flags ^= UIButton::CHECKED;
+      _fill_window_button->_flags ^= UIButton::CHECKED;
 
       if (s_main_switcher->_active == s_data_tab) {
          s_main_switcher->switch_to(s_main_switcher->_children[0]);
@@ -4303,7 +4303,7 @@ public:
       s_data_tab         = &parent->add_panel(UIPanel::EXPAND);
       UIPanel* panel5 = &s_data_tab->add_panel(UIPanel::COLOR_1 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
 
-      w->buttonFillWindow =
+      w->_fill_window_button =
          &panel5->add_button(UIButton::SMALL, "Fill window").on_click([w](UIButton&) { w->toggle_fill_data_tab(); });
 
       for (const auto& idw : ctx._interface_data_viewers) {
@@ -4364,8 +4364,6 @@ public:
 // ---------------------------------------------------/
 // Files window:
 // ---------------------------------------------------/
-int FilesButtonMessage(UIElement* el, UIMessage msg, int di, void* dp);
-
 struct FilesWindow {
    char     _directory[PATH_MAX];
    UIPanel* _panel = nullptr;
@@ -4444,6 +4442,40 @@ struct FilesWindow {
       populate_panel();
    }
 
+   int _button_message_proc(UIButton* button, UIMessage msg, int di, void* dp) {
+      if (msg == UIMessage::CLICKED) {
+         size_t       oldLength;
+         mode_t       mode = get_mode(button, &oldLength);
+
+         if (S_ISDIR(mode)) {
+            if (populate_panel()) {
+               update_path();
+               return 0;
+            }
+         } else if (S_ISREG(mode)) {
+            DisplaySetPosition(directory(), 0, false);
+         }
+
+         _directory[oldLength] = 0;
+      } else if (msg == UIMessage::PAINT) {
+         UIPainter* painter = (UIPainter*)dp;
+         int        i       = button->is_pressed() + button->is_hovered();
+         auto&      theme   = button->theme();
+         if (i)
+            painter->draw_block(button->_bounds, i == 2 ? theme.buttonPressed : theme.buttonHovered);
+         painter->draw_string(button->_bounds + UIRectangle(ui_size::button_padding, 0, 0, 0), button->label(),
+                              button->_flags & UIButton::CHECKED ? theme.codeNumber : theme.codeDefault, UIAlign::left,
+                              nullptr);
+         return 1;
+      }
+
+      return 0;
+   }
+
+   static int FilesButtonMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<FilesWindow*>(el->_cp)->_button_message_proc(static_cast<UIButton*>(el), msg, di, dp);
+   }
+   
    static UIElement* Create(UIElement* parent) {
       FilesWindow* window    = new FilesWindow;
       UIPanel*     container = &parent->add_panel(UIPanel::EXPAND);
@@ -4463,40 +4495,6 @@ struct FilesWindow {
       return container;
    }
 };
-
-int FilesButtonMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-   UIButton* button = (UIButton*)el;
-
-   if (msg == UIMessage::CLICKED) {
-      FilesWindow* window = (FilesWindow*)el->_cp;
-      size_t       oldLength;
-      mode_t       mode = window->get_mode(button, &oldLength);
-
-      if (S_ISDIR(mode)) {
-         if (window->populate_panel()) {
-            window->update_path();
-            return 0;
-         }
-      } else if (S_ISREG(mode)) {
-         DisplaySetPosition(window->directory(), 0, false);
-      }
-
-      window->_directory[oldLength] = 0;
-   } else if (msg == UIMessage::PAINT) {
-      UIPainter* painter = (UIPainter*)dp;
-      int        i       = el->is_pressed() + el->is_hovered();
-      auto&      theme   = el->theme();
-      if (i)
-         painter->draw_block(el->_bounds, i == 2 ? theme.buttonPressed : theme.buttonHovered);
-      painter->draw_string(el->_bounds + UIRectangle(ui_size::button_padding, 0, 0, 0), button->label(),
-                           button->_flags & UIButton::CHECKED ? theme.codeNumber : theme.codeDefault, UIAlign::left,
-                           nullptr);
-      return 1;
-   }
-
-   return 0;
-}
-
 
 // ---------------------------------------------------/
 // Registers window:
