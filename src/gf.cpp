@@ -207,6 +207,46 @@ struct ReceiveMessageType {
    std::function<void(std::unique_ptr<std::string>)> _callback;
 };
 
+// --------------------------------------------------------------------------------------------
+//                      Config (mostly read from `gf2_config.ini` file)
+// --------------------------------------------------------------------------------------------
+struct GF_Config {
+   std::string _layout_string = "v(75,h(50,Source,v(50,t(Exe,Breakpoints,Commands,Struct),t(Stack,Files,Thread,"
+                                "CmdSearch))),h(40,Console,t(Watch,Locals,Registers,Data,Log,Prof,Memory,View)))";
+
+   // executable window
+   // -----------------
+   std::string _exe_path;
+   std::string _exe_args;
+   bool        _exe_ask_dir = true;
+
+   // misc
+   // ----
+   const char*     _control_pipe_path = nullptr;
+   const char*     _vim_server_name   = "GVIM";
+   const char*     _log_pipe_path     = nullptr;
+   vector<Command> _preset_commands;
+   char            _global_config_path[PATH_MAX];
+   char            _local_config_dir[PATH_MAX];
+   char            _local_config_path[PATH_MAX];
+   int             _code_font_size = 13;
+   int             _interface_font_size = 11;
+   int             _window_width        = -1;
+   int             _window_height       = -1;
+   float           _ui_scale            = 1;
+   bool            _maximize;
+   bool            _selectable_source    = true;
+   bool            _restore_watch_window  = false;
+   bool            _confirm_command_connect = true;
+   bool            _confirm_command_kill    = true;
+   int             _backtrace_count_limit   = 50;
+   bool            _grab_focus_on_breakpoint = true;
+};
+
+GF_Config gfc;
+
+// --------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------
 struct WatchWindow;
 
 struct Context {
@@ -219,7 +259,6 @@ struct Context {
    std::string _initial_gdb_command      = "set prompt (gdb) ";
    bool        _first_update             = true;
    UICode*     _log_window               = nullptr; // if sent, log all debugger output there
-   bool        _grab_focus_on_breakpoint = true;
    ui_handle   _prev_focus_win           = 0;
    UI*         _ui; // non-owning pointer
 
@@ -280,7 +319,7 @@ struct Context {
    }
 
    void grab_focus(UIWindow* win) {
-      if (win && _grab_focus_on_breakpoint) {
+      if (win && gfc._grab_focus_on_breakpoint) {
          _prev_focus_win = _ui->get_focus();
          win->grab_focus(); // grab focus when breakpoint is hit!
       }
@@ -301,60 +340,29 @@ struct Context {
 
 Context ctx;
 
-// --------------------------------------------------------------------------------------------
-struct GF_Config {
-   std::string _layout_string = "v(75,h(50,Source,v(50,t(Exe,Breakpoints,Commands,Struct),t(Stack,Files,Thread,"
-                                "CmdSearch))),h(40,Console,t(Watch,Locals,Registers,Data,Log,Prof,Memory,View)))";
-
-   // executable window
-   // -----------------
-   std::string _exe_path;
-   std::string _exe_args;
-   bool        _exe_ask_dir = true;
-};
-
-
-GF_Config gfc;
-
-FILE*                      commandLog      = nullptr;
-char                       emptyString     = 0;
-const char*                vimServerName   = "GVIM";
-const char*                logPipePath     = nullptr;
-const char*                controlPipePath = nullptr;
-vector<Command>            presetCommands;
-char                       globalConfigPath[PATH_MAX];
-char                       localConfigDirectory[PATH_MAX];
-char                       localConfigPath[PATH_MAX];
 vector<ReceiveMessageType> receiveMessageTypes;
-int                        code_font_size      = 13;
-int                        interface_font_size = 11;
-int                        window_width        = -1;
-int                        window_height       = -1;
-float                      ui_scale            = 1;
-bool                       selectableSource    = true;
-bool                       restoreWatchWindow;
 WatchWindow*               firstWatchWindow = nullptr;
-bool                       maximize;
-bool                       confirmCommandConnect = true, confirmCommandKill = true;
-int                        backtraceCountLimit = 50;
-UIMessage msgReceivedData, msgReceivedLog, msgReceivedControl, msgReceivedNext = (UIMessage)(UIMessage::USER_PLUS_1);
+UIMessage                  msgReceivedData;
+UIMessage                  msgReceivedLog;
+UIMessage                  msgReceivedControl;
+UIMessage                  msgReceivedNext = (UIMessage)(UIMessage::USER_PLUS_1);
 
 char   previousLocation[256];
 
+// ---------------------------------------------------
 // User interface:
+// ---------------------------------------------------
 struct SourceWindow;
 
-UIWindow*   s_main_window   = nullptr;
-UISwitcher* s_main_switcher = nullptr;
-
+UIWindow*     s_main_window    = nullptr;
+UISwitcher*   s_main_switcher  = nullptr;
 UICode*       s_display_code   = nullptr;
 SourceWindow* s_source_window  = nullptr;
 UICode*       s_display_output = nullptr;
 UITextbox*    s_input_textbox  = nullptr;
 UISpacer*     s_trafficlight   = nullptr;
-
-UIMDIClient* s_data_window = nullptr;
-UIPanel*     s_data_tab    = nullptr;
+UIMDIClient*  s_data_window    = nullptr;
+UIPanel*      s_data_tab       = nullptr;
 
 // ---------------------------------------------------
 // StackWindow
@@ -824,7 +832,7 @@ std::string EvaluateExpression(string_view expression, string_view format = {}) 
 
 void* ControlPipeThread(void*) {
    while (true) {
-      FILE* file = fopen(controlPipePath, "rb");
+      FILE* file = fopen(gfc._control_pipe_path, "rb");
       auto  s    = new std::string;
       s->resize(256);
       (*s)[fread(s->data(), 1, 255, file)] = 0;
@@ -836,7 +844,7 @@ void* ControlPipeThread(void*) {
 }
 
 void DebuggerGetStack() {
-   auto res = EvaluateCommand(std::format("bt {}", backtraceCountLimit));
+   auto res = EvaluateCommand(std::format("bt {}", gfc._backtrace_count_limit));
    if (res.empty())
       return;
 
@@ -1020,7 +1028,7 @@ public:
 
    static UIElement* Create(UIElement* parent) {
       s_source_window = new SourceWindow;
-      s_display_code  = &parent->add_code(selectableSource ? UICode::SELECTABLE : 0)
+      s_display_code  = &parent->add_code(gfc._selectable_source ? UICode::SELECTABLE : 0)
                            .set_font(s_code_font)
                            .set_cp(s_source_window)
                            .set_user_proc(SourceWindow::DisplayCodeMessage);
@@ -1273,7 +1281,7 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
    } else if (command.starts_with("gf-switch-to ")) {
       ctx.switch_to_window_and_focus(command.substr(13));
    } else if (command.starts_with("gf-command ")) {
-      for (const auto& cmd : presetCommands) {
+      for (const auto& cmd : gfc._preset_commands) {
          if (!cmd._key.starts_with(command.substr(11)))
             continue;
          char* copy     = strdup(cmd._value.c_str());
@@ -1306,9 +1314,9 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
       }
    } else if (command == "gf-inspect-line") {
       CommandInspectLine();
-   } else if (command == "target remote :1234" && confirmCommandConnect &&
+   } else if (command == "target remote :1234" && gfc._confirm_command_connect &&
               s_main_window->show_dialog(0, "Connect to remote target?\n%f%B%C", "Connect", "Cancel") == "Cancel") {
-   } else if (command == "kill" && confirmCommandKill &&
+   } else if (command == "kill" && gfc._confirm_command_kill &&
               s_main_window->show_dialog(0, "Kill debugging target?\n%f%B%C", "Kill", "Cancel") == "Cancel") {
    } else {
       res = DebuggerSend(command, true, synchronous);
@@ -1328,7 +1336,7 @@ static void CommandEnableBreakpoint(int index) { s_breakpoint_mgr.command(index,
 static bool CommandSyncWithGvim() {
    char buffer[1024];
    std_format_to_n(buffer, sizeof(buffer), "vim --servername {} --remote-expr \"execute(\\\"ls\\\")\" | grep %%",
-                   vimServerName);
+                   gfc._vim_server_name);
    FILE* file = popen(buffer, "r");
    if (!file)
       return false;
@@ -1352,7 +1360,7 @@ static bool CommandSyncWithGvim() {
    if (name[0] != '/' && name[0] != '~') {
       char buffer[1024];
       std_format_to_n(buffer, sizeof(buffer), "vim --servername {} --remote-expr \"execute(\\\"pwd\\\")\" | grep '/'",
-                      vimServerName);
+                      gfc._vim_server_name);
       FILE* file = popen(buffer, "r");
       if (!file)
          return false;
@@ -1421,7 +1429,7 @@ const char* themeItems[] = {
 };
 
 static void SettingsAddTrustedFolder() {
-   std::string config         = LoadFile(globalConfigPath);
+   std::string config         = LoadFile(gfc._global_config_path);
    const char* section_string = "\n[trusted_folders]\n";
    auto        insert_pos     = config.find(section_string);
 
@@ -1432,12 +1440,12 @@ static void SettingsAddTrustedFolder() {
       insert_pos += strlen(section_string);
    }
 
-   std::ofstream ofs(globalConfigPath, std::ofstream::out | std::ofstream::binary);
+   std::ofstream ofs(gfc._global_config_path, std::ofstream::out | std::ofstream::binary);
    if (!ofs)
       print(std::cerr, "Error: Could not modify the global config file!\n");
    else {
       ofs << config.substr(0, insert_pos);
-      ofs << localConfigDirectory << '\n';
+      ofs << gfc._local_config_dir << '\n';
       ofs << config.substr(insert_pos, config.size());
    }
 }
@@ -1465,7 +1473,7 @@ UIConfig Context::load_settings(bool earlyPass) {
 
    // load global config first (from ~/.config/gf2_config.ini), and then local config
    for (int i = 0; i < 2; i++) {
-      const auto config = LoadFile(i ? localConfigPath : globalConfigPath);
+      const auto config = LoadFile(i ? gfc._local_config_path : gfc._global_config_path);
 
       if (earlyPass && i && !currentFolderIsTrusted && !config.empty()) {
          print(std::cerr, "Would you like to load the config file .project.gf from your current directory?\n");
@@ -1541,20 +1549,20 @@ UIConfig Context::load_settings(bool earlyPass) {
             }
          } else if (section == "ui" && !key.empty() && earlyPass) {
             if (key == "font_size") {
-               interface_font_size = code_font_size = sv_atoi(value);
+               gfc._interface_font_size = gfc._code_font_size = sv_atoi(value);
             } else {
                // clang-format off
                parse_res.parse_str  ("font_path", ui_config.font_path) ||
-               parse_res.parse_int  ("font_size_code", code_font_size) ||
-               parse_res.parse_int  ("font_size_interface", interface_font_size) ||
-               parse_res.parse_float("scale", ui_scale) ||
+               parse_res.parse_int  ("font_size_code", gfc._code_font_size) ||
+               parse_res.parse_int  ("font_size_interface", gfc._interface_font_size) ||
+               parse_res.parse_float("scale", gfc._ui_scale) ||
                parse_res.parse_str  ("layout", gfc._layout_string) ||
-               parse_res.parse_bool ("maximize", maximize) ||
-               parse_res.parse_bool ("restore_watch_window", restoreWatchWindow) ||
-               parse_res.parse_bool ("selectable_source", selectableSource) ||
-               parse_res.parse_int  ("window_width", window_width) ||
-               parse_res.parse_int  ("window_height", window_height) ||
-               parse_res.parse_bool ("grab_focus_on_breakpoint", ctx._grab_focus_on_breakpoint);
+               parse_res.parse_bool ("maximize", gfc._maximize) ||
+               parse_res.parse_bool ("restore_watch_window", gfc._restore_watch_window) ||
+               parse_res.parse_bool ("selectable_source", gfc._selectable_source) ||
+               parse_res.parse_int  ("window_width", gfc._window_width) ||
+               parse_res.parse_int  ("window_height", gfc._window_height) ||
+               parse_res.parse_bool ("grab_focus_on_breakpoint", gfc._grab_focus_on_breakpoint);
                // clang-format on
             }
          } else if (section == "gdb" && !key.empty() && !earlyPass) {
@@ -1621,15 +1629,15 @@ UIConfig Context::load_settings(bool earlyPass) {
                }
             } else {
                // clang-format off
-               parse_res.parse_bool("confirm_command_kill", confirmCommandKill) ||
-               parse_res.parse_bool("confirm_command_connect", confirmCommandConnect) ||
-               parse_res.parse_int ("backtrace_count_limit", backtraceCountLimit);
+               parse_res.parse_bool("confirm_command_kill", gfc._confirm_command_kill) ||
+               parse_res.parse_bool("confirm_command_connect", gfc._confirm_command_connect) ||
+               parse_res.parse_int ("backtrace_count_limit", gfc._backtrace_count_limit);
                // clang-format on
             }
          } else if (section == "commands" && earlyPass && !key.empty() && !value.empty()) {
-            presetCommands.push_back(Command{._key = std::string(key), ._value = std::string(value)});
+            gfc._preset_commands.push_back(Command{._key = std::string(key), ._value = std::string(value)});
          } else if (section == "trusted_folders" && earlyPass && !key.empty()) {
-            if (key == localConfigDirectory)
+            if (key == gfc._local_config_dir)
                currentFolderIsTrusted = true;
          } else if (section == "theme" && !earlyPass && !key.empty() && !value.empty()) {
             for (uintptr_t i = 0; i < sizeof(themeItems) / sizeof(themeItems[0]); i++) {
@@ -1645,13 +1653,13 @@ UIConfig Context::load_settings(bool earlyPass) {
                }
             }
          } else if (section == "vim" && earlyPass && key == "server_name") {
-            vimServerName = mk_cstring(value);
+            gfc._vim_server_name = mk_cstring(value);
          } else if (section == "pipe" && earlyPass && key == "log") {
-            logPipePath = mk_cstring(value);
-            mkfifo(logPipePath, 6 + 6 * 8 + 6 * 64);
+            gfc._log_pipe_path = mk_cstring(value);
+            mkfifo(gfc._log_pipe_path, 6 + 6 * 8 + 6 * 64);
          } else if (section == "pipe" && earlyPass && key == "control") {
-            controlPipePath = mk_cstring(value);
-            mkfifo(controlPipePath, 6 + 6 * 8 + 6 * 64);
+            gfc._control_pipe_path = mk_cstring(value);
+            mkfifo(gfc._control_pipe_path, 6 + 6 * 8 + 6 * 64);
             pthread_t thread;
             pthread_create(&thread, nullptr, ControlPipeThread, nullptr);
          } else if (section == "executable" && !key.empty() && earlyPass) {
@@ -2635,7 +2643,8 @@ void BitmapAddDialog() {
 struct ConsoleWindow {
 private:
    vector<unique_ptr<char[]>> commandHistory;
-   size_t                     commandHistoryIndex;
+   size_t                     commandHistoryIndex = 0;
+   FILE*                      commandLog = nullptr;
 
    bool previous_command() {
       if (commandHistoryIndex < commandHistory.size()) {
@@ -4610,10 +4619,10 @@ struct CommandsWindow {
    static UIElement* Create(UIElement* parent) {
       UIPanel* panel =
          &parent->add_panel(UIPanel::COLOR_1 | UIPanel::SMALL_SPACING | UIPanel::EXPAND | UIPanel::SCROLL);
-      if (!presetCommands.size())
+      if (!gfc._preset_commands.size())
          panel->add_label(0, "No preset commands found in config file!");
 
-      for (const auto& cmd : presetCommands) {
+      for (const auto& cmd : gfc._preset_commands) {
          panel->add_button(0, cmd._key).on_click([command = std::format("gf-command {}", cmd._key)](UIButton&) {
             CommandSendToGDB(command);
          });
@@ -4629,12 +4638,12 @@ struct CommandsWindow {
 
 struct LogWindow {
    static void* _thread_fn(void* context) {
-      if (!logPipePath) {
+      if (!gfc._log_pipe_path) {
          print(std::cerr, "Warning: The log pipe path has not been set in the configuration file!\n");
          return nullptr;
       }
 
-      int file = open(logPipePath, O_RDONLY | O_NONBLOCK);
+      int file = open(gfc._log_pipe_path, O_RDONLY | O_NONBLOCK);
 
       if (file == -1) {
          print(std::cerr, "Warning: Could not open the log pipe!\n");
@@ -4802,7 +4811,7 @@ public:
    }
 
    void save() {
-      FILE* f = fopen(localConfigPath, "rb");
+      FILE* f = fopen(gfc._local_config_path, "rb");
       if (f) {
          auto result = s_main_window->show_dialog(0, ".project.gf already exists in the current directory.\n%f%B%C",
                                                "Overwrite", "Cancel");
@@ -4811,7 +4820,7 @@ public:
          fclose(f);
       }
 
-      f = fopen(localConfigPath, "wb");
+      f = fopen(gfc._local_config_path, "wb");
       print(f, "[executable]\npath={}\narguments={}\nask_directory={}\n", _path->text(), _arguments->text(),
             _should_ask ? '1' : '0');
       fclose(f);
@@ -7311,7 +7320,7 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
       std::string s    = LoadFile(path);
       const char* data = s.c_str();
 
-      while (data && restoreWatchWindow) {
+      while (data && gfc._restore_watch_window) {
          const char* end = strchr(data, '\n');
          if (!end)
             break;
@@ -7796,13 +7805,13 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
 
    // load settings and initialize ui
    // -------------------------------
-   getcwd(localConfigDirectory, sizeof(localConfigDirectory));
-   std_format_to_n(globalConfigPath, sizeof(globalConfigPath), "{}/.config/gf2_config.ini", getenv("HOME"));
-   std_format_to_n(localConfigPath, sizeof(localConfigPath), "{}/.project.gf", localConfigDirectory);
+   getcwd(gfc._local_config_dir, sizeof(gfc._local_config_dir));
+   std_format_to_n(gfc._global_config_path, sizeof(gfc._global_config_path), "{}/.config/gf2_config.ini", getenv("HOME"));
+   std_format_to_n(gfc._local_config_path, sizeof(gfc._local_config_path), "{}/.project.gf", gfc._local_config_dir);
 
    UIConfig ui_config = ctx.load_settings(true);
 
-   ui_config.default_font_size = interface_font_size;
+   ui_config.default_font_size = gfc._interface_font_size;
 
    auto ui = UI::initialise(ui_config); // sets `ui.default_font_path`
    ctx._ui = ui.get();
@@ -7812,20 +7821,21 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
    // create fonts for interface and code
    // -----------------------------------
    const auto& font_path     = ui->default_font_path();
-   SourceWindow::s_code_font = ui->create_font(font_path, code_font_size);
-   ui->create_font(font_path, interface_font_size)->activate();
+   SourceWindow::s_code_font = ui->create_font(font_path, gfc._code_font_size);
+   ui->create_font(font_path, gfc._interface_font_size)->activate();
 
-   if (window_width == -1 || window_height == -1) {
+   if (gfc._window_width == -1 || gfc._window_height == -1) {
       auto dims  = ui->screen_size();
       auto ratio = (float)dims.x / dims.y;
       if (ratio > 2.5f)
          dims.x /= 2; // superwide or two screens
-      window_width  = (int)((float)dims.x * 0.78f);
-      window_height = (int)((float)dims.y * 0.78f);
+      gfc._window_width  = (int)((float)dims.x * 0.78f);
+      gfc._window_height = (int)((float)dims.y * 0.78f);
    }
-   s_main_window = &(ui->create_window(0, maximize ? UIWindow::MAXIMIZE : 0, "gf", window_width, window_height)
-                     .set_scale(ui_scale)
-                     .set_user_proc(MainWindowMessageProc));
+   s_main_window =
+      &(ui->create_window(0, gfc._maximize ? UIWindow::MAXIMIZE : 0, "gf", gfc._window_width, gfc._window_height)
+           .set_scale(gfc._ui_scale)
+           .set_user_proc(MainWindowMessageProc));
 
    for (const auto& ic : _interface_commands) {
       if (!(int)ic._shortcut.code)
@@ -7869,9 +7879,9 @@ int main(int argc, char** argv) {
    ui_ptr->message_loop();
    ctx.kill_gdb();
 
-   if (restoreWatchWindow && firstWatchWindow) {
-      std_format_to_n(globalConfigPath, sizeof(globalConfigPath), "{}/.config/gf2_watch.txt", getenv("HOME"));
-      FILE* f = fopen(globalConfigPath, "wb");
+   if (gfc._restore_watch_window && firstWatchWindow) {
+      std_format_to_n(gfc._global_config_path, sizeof(gfc._global_config_path), "{}/.config/gf2_watch.txt", getenv("HOME"));
+      FILE* f = fopen(gfc._global_config_path, "wb");
 
       if (f) {
          for (const auto& exp : firstWatchWindow->base_expressions()) {
@@ -7881,7 +7891,7 @@ int main(int argc, char** argv) {
          fclose(f);
       } else {
          print(std::cerr, "Warning: Could not save the contents of the watch window; '{}' was not accessible.\n",
-               globalConfigPath);
+               gfc._global_config_path);
       }
    }
 
