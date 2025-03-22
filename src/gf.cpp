@@ -418,7 +418,8 @@ import gdb.types
 def _gf_hook_string(basic_type):
     hook_string = str(basic_type)
     template_start = hook_string.find('<')
-    if template_start != -1: hook_string = hook_string[0:template_start]
+    if template_start != -1:
+       hook_string = hook_string[0:template_start]
     return hook_string
 
 def _gf_basic_type(value):
@@ -433,7 +434,8 @@ def _gf_value(expression):
         for index in expression[1:]:
             if isinstance(index, str) and index[0] == '[':
                 value = gf_hooks[_gf_hook_string(_gf_basic_type(value))](value, index)
-            else: value = value[index]
+            else:
+                value = value[index]
         return value
     except gdb.error:
         print('??')
@@ -441,37 +443,45 @@ def _gf_value(expression):
 
 def gf_typeof(expression):
     value = _gf_value(expression)
-    if value == None: return
+    if value == None:
+       return
     print(value.type)
 
 def gf_valueof(expression, format):
     value = _gf_value(expression)
-    if value == None: return
+    if value == None:
+       return
     result = ''
     while True:
         basic_type = gdb.types.get_basic_type(value.type)
-        if basic_type.code != gdb.TYPE_CODE_PTR: break
+        if basic_type.code != gdb.TYPE_CODE_PTR:
+           break
         try:
-            result = result + '(' + str(value) + ') '
-            value = value.dereference()
+           result = result + '(' + str(value) + ') '
+           value = value.dereference()
         except: break
     try:
-        if format[0] != ' ': result = result + value.format_string(max_elements=10,max_depth=3,format=format)[0:200]
-        else: result = result + value.format_string(max_elements=10,max_depth=3)[0:200]
+        if format[0] != ' ':
+           result = result + value.format_string(max_elements=15,max_depth=3,format=format)[0:400]
+        else:
+           result = result + value.format_string(max_elements=15,max_depth=3)[0:400]
     except:
         result = result + '??'
     print(result)
 
 def gf_addressof(expression):
     value = _gf_value(expression)
-    if value == None: return
+    if value == None:
+       return
     print(value.address)
 
 def __gf_fields_recurse(type):
     if type.code == gdb.TYPE_CODE_STRUCT or type.code == gdb.TYPE_CODE_UNION:
         for field in gdb.types.deep_items(type):
-            if field[1].is_base_class: __gf_fields_recurse(field[1].type)
-            else: print(field[0])
+            if field[1].is_base_class:
+               __gf_fields_recurse(field[1].type)
+            else:
+               print(field[0])
     elif type.code == gdb.TYPE_CODE_ARRAY:
         print('(array) %d' % (type.range()[1]+1))
 
@@ -481,11 +491,14 @@ def _gf_fields_recurse(value):
 
 def gf_fields(expression):
     value = _gf_value(expression)
-    if value == None: return
+    if value == None:
+       return
     basic_type = _gf_basic_type(value)
     hook_string = _gf_hook_string(basic_type)
-    try: gf_hooks[hook_string](value, None)
-    except: __gf_fields_recurse(basic_type)
+    try:
+       gf_hooks[hook_string](value, None)
+    except:
+       __gf_fields_recurse(basic_type)
 
 def gf_locals():
     try:
@@ -2873,7 +2886,7 @@ public:
    std::string get_address() {
       auto res = evaluate("gf_addressof");
 
-      if (strstr(res.c_str(), "??")) {
+      if (res.contains("??")) {
          s_main_window->show_dialog(0, "Couldn't get the address of the variable.\n%f%B", "OK");
          return {};
       }
@@ -2884,6 +2897,25 @@ public:
          return {};
       }
       res.resize(end);
+      resize_to_lf(res);
+      return res;
+   }
+
+   // returns something like:
+   // "std::vector of length 2, capacity 2 = {{\n    x = 2,\n    s = \"two\"\n  }, {\n    x = 3,\n    s = \"three\"\n
+   // }}\n(gdb) "
+   // -----------------------------------------------------------------------------------------------------------------
+   std::string get_value() {
+      auto res = evaluate("gf_valueof");
+      resize_to_lf(res);
+      return res;
+   }
+
+   // returns something like:
+   // "std::vector<int, std::allocator<int> >"
+   // -----------------------------------------------------------------------------------------------------------------
+   std::string get_type() {
+      auto res = evaluate("gf_typeof");
       resize_to_lf(res);
       return res;
    }
@@ -3062,10 +3094,9 @@ public:
       _base_expressions.push_back(watch);
       _selected_row++;
 
-      auto res = watch->evaluate("gf_typeof");
+      auto res = watch->get_type();
 
       if (!res.contains("??")) {
-         resize_to_lf(res);
          watch->_type       = std::move(res);
          watch->_has_fields = watch->has_fields();
       }
@@ -3114,10 +3145,9 @@ public:
    bool add_entry_for_address2(std::string& res) {
       auto        address = res;
       const auto& watch   = _rows[_selected_row];
-      res                 = watch->evaluate("gf_typeof");
+      res                 = watch->get_type();
       if (res.empty() || res.contains("??"))
          return false;
-      resize_to_lf(res);
 
       auto buffer = std::format("({}*){}", res, address);
       add_expression(buffer);
@@ -3169,11 +3199,9 @@ public:
 
       const shared_ptr<Watch>& watch = _rows[_selected_row];
 
-      auto res = watch->evaluate("gf_valueof");
-      if (!res.empty()) {
-         resize_to_lf(res);
+      auto res = watch->get_value();
+      if (!res.empty())
          _window->write_clipboard_text(strdup(res.c_str()), sel_target_t::clipboard);
-      }
    }
 
    void update() {
@@ -3244,8 +3272,7 @@ public:
 
       for (size_t i = 0; i < _base_expressions.size(); i++) {
          const shared_ptr<Watch>& watch = _base_expressions[i];
-         auto                     res   = watch->evaluate("gf_typeof");
-         resize_to_lf(res);
+         auto                     res   = watch->get_type();
 
          if (res != watch->_type && res != "??") {
             watch->_type = std::move(res);
@@ -3455,9 +3482,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
             if ((watch->_value.empty() || watch->_update_index != _update_index) && !watch->_open) {
                if (!ctx._program_running) {
                   watch->_update_index = _update_index;
-                  auto res             = watch->evaluate("gf_valueof");
-                  resize_to_lf(res);
-                  watch->_value = std::move(res);
+                  watch->_value        = watch->get_value();
                } else {
                   watch->_value = "..";
                }
@@ -6560,14 +6585,12 @@ void ViewWindowView(void* cp) {
    char oldFormat  = watch->format();
    watch->format() = 0;
 
-   auto res = watch->evaluate("gf_typeof");
-   resize_to_lf(res);
+   auto res = watch->get_type();
    std_format_to_n(type, sizeof(type), "{}", res);
    std_format_to_n(buffer, sizeof(buffer), "Type: {}", type);
    panel->add_label(0, buffer);
 
-   res = watch->evaluate("gf_valueof");
-   resize_to_lf(res);
+   res = watch->get_value();
    watch->format() = oldFormat;
    // print("valueof: {}\n", ctx.evaluateResult);
 

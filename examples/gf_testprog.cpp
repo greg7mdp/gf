@@ -21,8 +21,21 @@ struct C {
    A                a;
 };
 
+void check_variants() {
+    std::variant<int, float> v, w;
+    v = 42; // v contains int
+    int i = std::get<int>(v);
+    w = std::get<int>(v);
+
+    std::variant<std::string> x("abc");
+    x = "def";
+}
+
 int main(int argc, char **argv)
 {
+   check_variants();
+   std::vector<int> v { 2, 3, 4 };
+   std::vector<A> v2 { {2, "two"}, {3, "three"} };
    int i = 1;
    A a;
    C c;
