@@ -1029,7 +1029,7 @@ private:
 
    vector<InspectResult> _inspect_results;
    bool                  _no_inspect_results;
-   bool                  _in_inspect_line_mode;
+   bool                  _in_inspect_line_mode = false;
    int                   _inspect_mode_restore_line;
    UIRectangle           _display_current_line_bounds;
    const char*           _disassembly_command = "disas /s";
@@ -2019,6 +2019,13 @@ int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* 
             (void)DebuggerSend(std::format("jump {}", line), true, false);
          }
       }
+   } else if (msg == UIMessage::KEY_TYPED) {
+      UIKeyTyped* m = (UIKeyTyped*)dp;
+
+      if (m->text == "`") {
+         inspect_line();
+         return 0;
+      }
    } else if (msg == UIMessage::LEFT_DBLCLICK && !code->empty()) {
       int hitTest = code->hittest(code->cursor_pos());
 
@@ -2356,11 +2363,11 @@ void SourceWindow::inspect_current_line() {
       _inspect_results.emplace_back(std::string{e}, res);
    }
 
-   if (_inspect_results.empty()) {
+   _no_inspect_results = _inspect_results.empty();
+   if (_no_inspect_results) {
+      // so we execute the loop in `draw_inspect_line_mode_overlay()`
       _inspect_results.emplace_back("No expressions to display.", "");
-   } else {
-      _no_inspect_results = false;
-   }
+   } 
 }
 
 void SourceWindow::exit_inspect_line_mode(UIElement* el) {
@@ -2993,17 +3000,21 @@ struct WatchWindow : public UIElement {
    };
 
 private:
-   WatchVector     _rows;
-   WatchVector     _base_expressions;
-   WatchVector     _dynamic_arrays;
-   UITextbox*      _textbox;
-   std::string     _last_local_list;
-   size_t          _selected_row;
-   int             _extra_rows;
-   WatchWindowMode _mode;
-   uint64_t        _update_index;
-   bool            _waiting_for_format_character;
+   WatchVector         _rows;
+   WatchVector         _base_expressions;
+   WatchVector         _dynamic_arrays;
+   UITextbox*          _textbox;
+   std::string         _last_local_list;
+   size_t              _selected_row;
+   int                 _extra_rows;
+   WatchWindowMode     _mode;
+   uint64_t            _update_index;
+   bool                _waiting_for_format_character;
+   vector<string_view> _inspect_results;
+   bool                _in_inspect_line_mode;
+   int                 _inspect_mode_restore_line;
 
+   void inspect_current_line() {}
 public:
    friend struct Watch;
 
@@ -3637,7 +3648,12 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
       } else if (!m->text.empty() && m->text[0] == '/' && _selected_row != _rows.size()) {
          _waiting_for_format_character = true;
       } else if (!m->text.empty() && m->text[0] == '`') {
-         result = 0;
+         if (_in_inspect_line_mode)
+            result = 0;
+         else {
+            destroy_textbox();
+            inspect_current_line();
+         }
       } else if (_mode == WATCH_NORMAL && !m->text.empty() && m->code != UIKeycode::TAB && !_textbox &&
                  !_window->_ctrl && !_window->_alt &&
                  (_selected_row == _rows.size() || !_rows[_selected_row]->_parent)) {

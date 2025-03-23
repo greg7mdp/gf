@@ -948,7 +948,7 @@ public:
 
    void        post_message(UIMessage msg, void* _dp) const;
 
-   UIWindow&   set_name(std::string_view name);
+   UIWindow&   set_name(std::string_view name); // must be null terminated
    
    UI*         ui() const { assert(_ui == _window->_ui); return _window->_ui; }
 
