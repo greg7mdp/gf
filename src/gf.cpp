@@ -50,6 +50,8 @@ using namespace ctre::literals;
 #include "luigi.hpp"
 #include <re/re.hpp>
 
+enum class multiline_t { off, on };
+
 // ---------------------------------------------------------------------------------------------
 //                              Generic Data structures
 // ---------------------------------------------------------------------------------------------
@@ -101,13 +103,33 @@ private:
 // ---------------------------------------------------------------------------------------------
 //                              Utilities
 // ---------------------------------------------------------------------------------------------
-static inline bool resize_to_lf(std::string& s, char c = '\n') {
+static inline void resize_to_lf(std::string& s, char c = '\n') {
    auto end = s.find_first_of(c);
-   if (end != npos) {
+   if (end != npos)
       s.resize(end);
-      return true;
+}
+
+static inline void resize_to_ending_lf(std::string& s, char c = '\n') {
+   auto end = s.find_last_of(c);
+   if (end != npos)
+      s.resize(end);
+}
+
+static inline void remove_all_lf(std::string& s) {
+   // replace included `{\n   ` and `\n` patterns (regexp not very efficient for this)
+   // --------------------------------------------------------------------------------
+   while (true) {
+      auto lf_pos = s.find_last_of('\n');
+      if (lf_pos == npos)
+         break;
+
+      int rm_count = 1;
+      while (s[lf_pos + rm_count] == ' ')
+         ++rm_count;
+      if (rm_count > 1)
+         --rm_count; // keep one space
+      s.erase(lf_pos, rm_count);
    }
-   return false;
 }
 
 template <typename T>
@@ -184,7 +206,7 @@ struct InterfaceWindow {
    UIElement* (*_create)(UIElement* parent)            = nullptr;
    void (*_update)(const char* data, UIElement* el)    = nullptr;
    void (*_focus)(UIElement* el)                       = nullptr;
-   UIElement* _el                                      = nullptr;
+   UIElement* _el                                      = nullptr; // UIElement returned by `_create` fn
    bool       _queued_update                           = false;
    bool       _always_update                           = false;
    void (*_config)(string_view key, string_view value) = nullptr;
@@ -2334,7 +2356,7 @@ void SourceWindow::inspect_current_line() {
       _inspect_results.emplace_back(std::string{e}, res);
    }
 
-   if (!_inspect_results.size()) {
+   if (_inspect_results.empty()) {
       _inspect_results.emplace_back("No expressions to display.", "");
    } else {
       _no_inspect_results = false;
@@ -2905,29 +2927,17 @@ public:
    // "std::vector of length 2, capacity 2 = {{\n    x = 2,\n    s = \"two\"\n  }, {\n    x = 3,\n    s = \"three\"\n
    // }}\n(gdb) "
    // -----------------------------------------------------------------------------------------------------------------
-   std::string get_value() {
+   std::string get_value(multiline_t ml) {
       auto res = evaluate("gf_valueof");
 
       // remove `\n(gdb) ` at the end
       // ----------------------------
-      auto end = res.find_last_of('\n');
-      if (end != npos)
-         res.resize(end);
+      resize_to_ending_lf(res);
 
       // replace included `{\n   ` and `\n` patterns (regexp not very efficient for this)
       // --------------------------------------------------------------------------------
-      while(true) {
-         auto lf_pos = res.find_last_of('\n');
-         if (lf_pos == npos)
-            break;
-
-         int rm_count = 1;
-         while(res[lf_pos + rm_count] == ' ')
-            ++rm_count;
-         if (rm_count > 1)
-            --rm_count; // keep one space
-         res.erase(lf_pos, rm_count); 
-      }
+      if (ml == multiline_t::off)
+         remove_all_lf(res);
             
       return res;
    }
@@ -3220,7 +3230,7 @@ public:
 
       const shared_ptr<Watch>& watch = _rows[_selected_row];
 
-      auto res = watch->get_value();
+      auto res = watch->get_value(multiline_t::on);
       if (!res.empty())
          _window->write_clipboard_text(strdup(res.c_str()), sel_target_t::clipboard);
    }
@@ -3503,7 +3513,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
             if ((watch->_value.empty() || watch->_update_index != _update_index) && !watch->_open) {
                if (!ctx._program_running) {
                   watch->_update_index = _update_index;
-                  watch->_value        = watch->get_value();
+                  watch->_value        = watch->get_value(multiline_t::off);
                } else {
                   watch->_value = "..";
                }
@@ -6611,7 +6621,7 @@ void ViewWindowView(void* cp) {
    std_format_to_n(buffer, sizeof(buffer), "Type: {}", type);
    panel->add_label(0, buffer);
 
-   res = watch->get_value();
+   res = watch->get_value(multiline_t::off);
    watch->format() = oldFormat;
    // print("valueof: {}\n", ctx.evaluateResult);
 
