@@ -13,6 +13,7 @@ enum expr_flags {
    allow_function_calls = 1
 };
 
+// --------
 // debugger
 // --------
 struct debugger_base {
@@ -26,6 +27,7 @@ struct gdb : public debugger_base {
    bool evaluation_error(std::string_view s) const final;
 };
 
+// --------
 // language
 // --------
 struct language_base {
@@ -40,5 +42,13 @@ struct cpp : public language_base {
                                                                 expr_flags       e = expr_flags_none) const final;
    std::optional<bounds>         find_symbol_at_pos(std::string_view code, size_t pos) const final;
 };
+
+// ----
+// misc
+// ----
+struct misc {
+
+};
+
 
 }

@@ -2907,7 +2907,28 @@ public:
    // -----------------------------------------------------------------------------------------------------------------
    std::string get_value() {
       auto res = evaluate("gf_valueof");
-      resize_to_lf(res);
+
+      // remove `\n(gdb) ` at the end
+      // ----------------------------
+      auto end = res.find_last_of('\n');
+      if (end != npos)
+         res.resize(end);
+
+      // replace included `{\n   ` and `\n` patterns (regexp not very efficient for this)
+      // --------------------------------------------------------------------------------
+      while(true) {
+         auto lf_pos = res.find_last_of('\n');
+         if (lf_pos == npos)
+            break;
+
+         int rm_count = 1;
+         while(res[lf_pos + rm_count] == ' ')
+            ++rm_count;
+         if (rm_count > 1)
+            --rm_count; // keep one space
+         res.erase(lf_pos, rm_count); 
+      }
+            
       return res;
    }
 
