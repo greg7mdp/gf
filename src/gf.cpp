@@ -2385,7 +2385,7 @@ int SourceWindow::_line_message_proc(UIElement* el, UIMessage msg, int di, void*
    } else if (msg == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
-      if ((m->text == "`") || m->code == UIKeycode::ESCAPE) {
+      if (m->text == "`" || m->code == UIKeycode::ESCAPE) {
          exit_inspect_line_mode(el);
       } else if (m->code >= UI_KEYCODE_DIGIT('1') && m->code <= UI_KEYCODE_DIGIT('9')) {
          int index = ((int)m->code - (int)UI_KEYCODE_DIGIT('1'));
@@ -2425,11 +2425,11 @@ bool SourceWindow::inspect_line() {
    s_display_code->refresh();
 
    // Create an element to receive key input messages.
-   s_main_window->add_element(0, InspectLineModeMessage, 0).set_cp(s_display_code->_cp).focus();
+   s_main_window->add_element(0, InspectLineModeMessage, 0).set_cp(this).focus();
    return true;
 }
 
-bool CommandInspectLine() { return static_cast<SourceWindow*>(s_display_code->_cp)->inspect_line(); }
+bool CommandInspectLine() { return s_source_window->inspect_line(); }
 
 // ---------------------------------------------------/
 // Data viewers:
@@ -2728,7 +2728,7 @@ private:
          std::string_view cur_text = textbox->text();
          auto             sz       = cur_text.size();
 
-         if (!m->text.empty() && !textbox->_window->_ctrl && !textbox->_window->_alt && m->text[0] == '`' && !sz) {
+         if (m->text == "`"  && !textbox->_window->_ctrl && !textbox->_window->_alt && !sz) {
             textbox->set_reject_next_key(true);
          } else if (m->code == UIKeycode::ENTER && !textbox->_window->_shift) {
             if (!sz) {
@@ -2825,6 +2825,7 @@ private:
    char        _format           = 0;
    uintptr_t   _array_index      = 0;
    std::string _key;
+   std::string _value_with_nl;
    std::string _value;
    std::string _type;
    WatchVector _fields;
@@ -3014,7 +3015,11 @@ private:
    bool                _in_inspect_line_mode;
    int                 _inspect_mode_restore_line;
 
-   void inspect_current_line() {}
+   bool inspect_line();
+   void inspect_current_line();
+   void exit_inspect_line_mode(UIElement* el);
+   int _line_message_proc(UIElement* el, UIMessage msg, int di, void* dp);
+   
 public:
    friend struct Watch;
 
@@ -3390,6 +3395,10 @@ public:
       fclose(f);
    }
 
+   static int InspectLineModeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<WatchWindow*>(el->_cp)->_line_message_proc(el, msg, di, dp);
+   }
+
    int _class_message_proc(UIMessage msg, int di, void* dp);
 
    static int WatchWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
@@ -3523,10 +3532,12 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
 
             if ((watch->_value.empty() || watch->_update_index != _update_index) && !watch->_open) {
                if (!ctx._program_running) {
-                  watch->_update_index = _update_index;
-                  watch->_value        = watch->get_value(multiline_t::off);
+                  watch->_update_index  = _update_index;
+                  watch->_value_with_nl = watch->get_value(multiline_t::on);
+                  watch->_value         = watch->_value_with_nl;
+                  remove_all_lf(watch->_value);
                } else {
-                  watch->_value = "..";
+                  watch->_value = watch->_value_with_nl = "..";
                }
             }
 
@@ -3637,6 +3648,17 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
          }
 
          _waiting_for_format_character = false;
+      } else if (m->text == "`") {
+         if (_in_inspect_line_mode)
+            result = 0;
+         else if (_selected_row < _rows.size()) {
+            auto watch = _rows[_selected_row];
+            if (!watch->_value_with_nl.empty()) {
+               destroy_textbox();
+               ensure_row_visible(_selected_row);
+               inspect_current_line();
+            }
+         }
       } else if (_mode == WATCH_NORMAL && _selected_row != _rows.size() && !_textbox &&
                  (m->code == UIKeycode::ENTER || m->code == UIKeycode::BACKSPACE ||
                   (m->code == UIKeycode::LEFT && !_rows[_selected_row]->_open)) &&
@@ -3645,15 +3667,8 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
       } else if (m->code == UIKeycode::DEL && !_textbox && _selected_row != _rows.size() &&
                  !_rows[_selected_row]->_parent) {
          delete_expression();
-      } else if (!m->text.empty() && m->text[0] == '/' && _selected_row != _rows.size()) {
+      } else if (m->text == "/" && _selected_row != _rows.size()) {
          _waiting_for_format_character = true;
-      } else if (!m->text.empty() && m->text[0] == '`') {
-         if (_in_inspect_line_mode)
-            result = 0;
-         else {
-            destroy_textbox();
-            inspect_current_line();
-         }
       } else if (_mode == WATCH_NORMAL && !m->text.empty() && m->code != UIKeycode::TAB && !_textbox &&
                  !_window->_ctrl && !_window->_alt &&
                  (_selected_row == _rows.size() || !_rows[_selected_row]->_parent)) {
@@ -3744,6 +3759,52 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
    }
 
    return result;
+}
+
+int WatchWindow::_line_message_proc(UIElement* el, UIMessage msg, int di, void* dp) {
+   if (msg == UIMessage::UPDATE && !el->is_focused()) {
+      exit_inspect_line_mode(el);
+   } else if (msg == UIMessage::KEY_TYPED) {
+      UIKeyTyped* m = (UIKeyTyped*)dp;
+
+      if (m->text == "`" || m->code == UIKeycode::ESCAPE) {
+         exit_inspect_line_mode(el);
+      } else {
+         if ((m->code == UIKeycode::UP && _selected_row > 0) ||
+             (m->code == UIKeycode::DOWN && _selected_row + 1 < _rows.size())) {
+            _selected_row += m->code == UIKeycode::UP ? -1 : 1;
+            inspect_current_line();
+            s_display_code->refresh();
+         }
+      }
+
+      return 1;
+   }
+   return 0;
+}
+
+void WatchWindow::exit_inspect_line_mode(UIElement* el) {
+   el->destroy();
+   focus();
+   _in_inspect_line_mode = false;
+   refresh();
+}
+
+void WatchWindow::inspect_current_line() {
+   
+}
+
+bool WatchWindow::inspect_line() {
+   if (_selected_row >= _rows.size())
+      return false;
+
+   _in_inspect_line_mode = true;
+   inspect_current_line();
+   refresh();
+
+   // Create an element to receive key input messages.
+   s_main_window->add_element(0, InspectLineModeMessage, 0).set_cp(this).focus();
+   return true;
 }
 
 struct WatchLogEvaluated {
@@ -4645,7 +4706,7 @@ public:
          if (nameEnd == nameStart + 2 && 0 == memcmp(nameStart, "ip", 2))
             isPC = true;
 
-         auto  sw        = static_cast<SourceWindow*>(s_display_code->_cp);
+         auto  sw        = s_source_window;
          auto& ap_result = sw->auto_print_result();
 
          if (modified && s_source_window->_showing_disassembly && !isPC) {
@@ -7645,9 +7706,10 @@ UIElement* Context::switch_to_window_and_focus(string_view target_name) {
       }
 
       if (w._focus) {
-         w._focus(w._el);
+         w._focus(w._el); // interface window  has a `focus()` function... call it
       } else if (w._el->_flags & UIElement::tab_stop_flag) {
-         w._el->focus();
+         w._el->focus(); // focus on associated window (if it has the `tab_stop_flag` flag. currently only WatchWindow
+                         // panels.)
       }
 
       return w._el;
