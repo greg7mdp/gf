@@ -6585,7 +6585,7 @@ int ViewWindowStringLayout(ViewWindowString* display, UIPainter* painter, int of
    UIRectangle clientBounds = display->_bounds;
    clientBounds.r -= ui_size::scroll_bar * display->_window->scale();
    int x = clientBounds.l, y = clientBounds.t - offset;
-   UI* ui = painter->ui();
+   UI* ui = display->ui();
 
    auto [glyphWidth, glyphHeight] = ui->string_dims("a");
    const auto& thm                = ui->theme();
@@ -6767,7 +6767,7 @@ void ViewWindowView(void* cp) {
 
       char tempPath[PATH_MAX];
       realpath(".temp.gf", tempPath);
-      auto res = EvaluateExpression(std::format("(size_t)strlen((const char *)({})", address));
+      res = EvaluateExpression(std::format("(size_t)strlen((const char *)({}))", address));
       print("'{}' -> '{}'\n", buffer, res);
       const char* lengthString = res.c_str() ? strstr(res.c_str(), "= ") : nullptr;
       size_t      length       = lengthString ? sv_atoi(lengthString, 2) : 0;
@@ -6812,7 +6812,7 @@ void ViewWindowView(void* cp) {
          goto unrecognised;
       if (w <= 1 || h <= 1)
          goto unrecognised;
-      auto res = watch->get_address();
+      res = watch->get_address();
       if (res.empty())
          goto unrecognised;
 
