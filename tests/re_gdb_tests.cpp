@@ -7,9 +7,9 @@
 namespace rng   = std::ranges;
 namespace views = rng::views;
 
-regexp::gdb gdb;
+regexp::gdb_impl gdb;
 
 TEST_CASE("match_stack_or_breakpoint_output") {
-   CHECK(gdb.match_stack_or_breakpoint_output("Num "));
-   CHECK(gdb.match_stack_or_breakpoint_output("#2 "));
+   CHECK(gdb.matches("Num ", debug_look_for::stack_or_breakpoint_output));
+   CHECK(gdb.matches("#2 ", debug_look_for::stack_or_breakpoint_output));
 }

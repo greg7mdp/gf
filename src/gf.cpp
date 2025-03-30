@@ -49,6 +49,7 @@ using namespace ctre::literals;
 
 #include "luigi.hpp"
 #include <re/re.hpp>
+using namespace regexp;
 
 enum class multiline_t { off, on };
 
@@ -2034,7 +2035,7 @@ int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* 
          auto pos       = code->code_pos_from_point(cursor_pt);
          auto line      = code->line(pos.line);
 
-         auto bounds = ctx._lang_re->find_symbol_at_pos(line, pos.offset);
+         auto bounds = ctx._lang_re->find_at_pos(line, code_look_for::selectable_expression, pos.offset);
          if (bounds) {
             auto [start, end] = *bounds;
             code->set_selection(2, pos.line, start); // anchor
@@ -2349,12 +2350,12 @@ void SourceWindow::inspect_current_line() {
 
    auto code = s_display_code->line(*currentLine);
 
-   auto expressions = ctx._lang_re->extract_debuggable_expressions(code);
+   auto expressions = ctx._lang_re->debuggable_expressions(code);
    for (auto e : expressions) {
       auto res = EvaluateExpression(e);
       // std::cout << "eval(\"" << e << "\") -> " << res << '\n';
 
-      if (ctx._dbg_re->evaluation_error(res))
+      if (ctx._dbg_re->matches(res, debug_look_for::evaluation_error))
          continue;
 
       if (0 == memcmp(res.c_str(), "= {", 3) && !strchr(res.c_str() + 3, '='))
@@ -7473,7 +7474,7 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
    if (s_source_window->_showing_disassembly)
       s_source_window->disassembly_update_line();
 
-   if (!ctx._dbg_re->match_stack_or_breakpoint_output(*input)) {
+   if (!ctx._dbg_re->matches(*input, debug_look_for::stack_or_breakpoint_output)) {
       // we don't want to call `DebuggerGetBreakpoints()` upon receiving the result of `DebuggerGetBreakpoints()`,
       // causing an infinite loop!!!
       DebuggerGetStack();
@@ -8003,8 +8004,8 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
 }
 
 Context::Context() {
-   _dbg_re  = std::make_unique<regexp::gdb>();
-   _lang_re = std::make_unique<regexp::cpp>();
+   _dbg_re  = std::make_unique<regexp::gdb_impl>();
+   _lang_re = std::make_unique<regexp::cpp_impl>();
 
    add_builtin_windows_and_commands();
    register_extensions();

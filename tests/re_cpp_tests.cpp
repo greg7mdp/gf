@@ -7,12 +7,12 @@
 namespace rng   = std::ranges;
 namespace views = rng::views;
 
-regexp::cpp cpp;
+regexp::cpp_impl cpp;
 
 TEST_CASE("extract_debuggable_expressions") {
 
    std::string code = "aa::bb::result = aa::foo::bar(x + y) + a::b::c->x + arr[idx]->member.value * 2;";
-   auto e = cpp.extract_debuggable_expressions(code);
+   auto e = cpp.debuggable_expressions(code);
 
    for (auto expected : { "x", "y", "arr", "arr[idx]", "idx", "a::b::c->x", "aa::bb::result" }) {
       CHECK(std::ranges::any_of(e, [&](auto sv){ return sv == expected; }));

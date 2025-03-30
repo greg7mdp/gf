@@ -2,9 +2,11 @@
 
 #include <algorithm>
 #include <iostream>
+#include <cassert>
 
 #include <ctre.hpp>
 using namespace ctre::literals;
+using namespace regexp;
 
 template <size_t N>
 using fs_t = ctll::fixed_string<N>; // we can use `fs_t` instead of `ctll::fixed_string` only with clang++-19 or g++-11
@@ -76,7 +78,8 @@ void collect_matches(std::vector<std::string_view>& expressions, const std::stri
 }
 
 // --------------------------------------------------------------------------------
-std::vector<std::string_view> regexp::cpp::extract_debuggable_expressions(std::string_view code, expr_flags e) const {
+std::vector<std::string_view> regexp::cpp_impl::debuggable_expressions(std::string_view code,
+                                                                       uint32_t         e /* = 0 */) const {
    std::vector<std::string_view> expressions;
    expressions.reserve(32);
 
@@ -104,31 +107,55 @@ std::vector<std::string_view> regexp::cpp::extract_debuggable_expressions(std::s
 }
 
 // --------------------------------------------------------------------------------
-std::optional<regexp::bounds> regexp::cpp::find_symbol_at_pos(std::string_view code, size_t pos) const {
-   bool match_ident = false;
+std::optional<regexp::bounds> regexp::cpp_impl::find_at_pos(std::string_view code, code_look_for lf, size_t pos) const {
    std::vector<std::string_view> matches;
    matches.reserve(4);
    auto c = code[pos];
-   if (c == '(' || c == ')') {
-      collect_matches<function_call, 0>(matches, code);
-      collect_matches<parenthesized, 0>(matches, code);
-   } else  if (c == '[' || c == ']') {
-      collect_matches<array_access, 0>(matches, code);
-   } else {
-      match_ident = true;
-      collect_matches<variables, 0>(matches, code);
-   }
-   for (const auto& v : matches) {
-      size_t start = v.data() - code.data();
-      if (start <= pos && start + v.length() >= pos) {
-         auto rest = code.substr(start + v.length());
-         if (match_ident && static_cast<bool>(ctre::starts_with<spaces_par>(rest))) {
-            // if we parsed an variable reference followed by an open parenthesis, it is likely a function call
-            auto par = ctre::match<spaces_par>(rest);
-            return find_symbol_at_pos(code, start + v.length() + par.get<0>().size()); // will parse function calls
-         }
-         return regexp::bounds{ start, start + v.length() };
+   
+   if (lf == code_look_for::selectable_expression) {
+      bool match_ident = false;
+      if (c == '(' || c == ')') {
+         collect_matches<function_call, 0>(matches, code);
+         collect_matches<parenthesized, 0>(matches, code);
+      } else if (c == '[' || c == ']') {
+         collect_matches<array_access, 0>(matches, code);
+      } else {
+         match_ident = true;
+         collect_matches<variables, 0>(matches, code);
       }
+      for (const auto& v : matches) {
+         size_t start = v.data() - code.data();
+         if (start <= pos && start + v.length() >= pos) {
+            auto rest = code.substr(start + v.length());
+            if (match_ident && static_cast<bool>(ctre::starts_with<spaces_par>(rest))) {
+               // if we parsed an variable reference followed by an open parenthesis, it is likely a function call
+               auto par = ctre::match<spaces_par>(rest);
+               return find_at_pos(code, lf, start + v.length() + par.get<0>().size()); // will parse function calls
+            }
+            return regexp::bounds{start, start + v.length()};
+         }
+      }
+   }
+   return {};
+}
+
+
+// --------------------------------------------------------------------------------
+bool cpp_impl::matches(std::string_view s, code_look_for lf) const {
+   switch(lf) {
+      
+   default:
+      assert(0);
+   }
+   return false;
+}
+
+// --------------------------------------------------------------------------------
+one_res cpp_impl::find_1(std::string_view sv, code_look_for lf) const {
+   switch(lf) {
+
+   default:
+      assert(0);
    }
    return {};
 }

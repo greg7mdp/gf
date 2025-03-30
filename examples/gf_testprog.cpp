@@ -39,6 +39,7 @@ int main(int argc, char **argv)
    int i = 1;
    A a;
    C c;
+   float f[] {3.14159, 4.0, 5.5 };
    const char* s = "hello";
    printf("%s fib(3)=%d\n", s, fib(3));
    i = (i + 1);
