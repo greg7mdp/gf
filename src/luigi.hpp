@@ -963,7 +963,7 @@ public:
 #if defined(UI_LINUX)
    ui_handle native_window() const { return _xwindow; }
 #elif defined(UI_WINDOWS)
-   ui_handle native_window() const { return _hwnd; }
+    ui_handle native_window() const { return reinterpret_cast<ui_handle>(_hwnd); }
 #endif
 };
 

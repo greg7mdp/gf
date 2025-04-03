@@ -1,9 +1,12 @@
-#include <bits/stdc++.h>
+#include <vector>
 #include <iostream>
+#include <variant>
+#include <string>
+#include <algorithm>
 
 using namespace std;
 
-int fib(uint64_t n) {
+int fib(int n) {
   if (n <= 1)
     return n;
   return fib(n - 1) + fib(n - 2);
@@ -23,7 +26,7 @@ struct C {
 void check_variants() {
     std::variant<int, float> v, w;
     v = 42; // v contains int
-    int i = std::get<int>(v);
+    [[maybe_unused]] int i = std::get<int>(v);
     w = std::get<int>(v);
 
     std::variant<std::string> x("abc");
@@ -38,7 +41,7 @@ int main(int argc, char **argv)
    std::vector<A> v2 { {2, "two", {}}, {3, "three", {}} };
    int i = 1;
    A a;
-   float f[] {3.14159, 4.0, 5.5 };
+   float f[] {3.14159f, 4.0f, 5.5f };
    const char* s = "hello";
    printf("%s fib(3)=%d\n", s, fib(3));
    i = (i + 1);

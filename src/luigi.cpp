@@ -6307,15 +6307,15 @@ UIWindow& UIWindow::set_name(std::string_view name) {
 }
 
 void UI::set_focus(ui_handle window) const {
-   SetFocus(static_cast<HWND>(window));
+   SetFocus(reinterpret_cast<HWND>(window));
 }
 
 ui_handle UI::get_focus() const {
-   return static_cast<ui_handle>(GetFocus());
+   return reinterpret_cast<ui_handle>(GetFocus());
 }
 
 void UI::write_clipboard_text(std::string_view text, UIWindow* w, sel_target_t) {
-   HWND hwnd = static_cast<HWND>(w->native_window());
+   HWND hwnd = reinterpret_cast<HWND>(w->native_window());
    if (OpenClipboard(hwnd)) {
       EmptyClipboard();
       HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, text.size() + 1);
@@ -6328,7 +6328,7 @@ void UI::write_clipboard_text(std::string_view text, UIWindow* w, sel_target_t) 
 }
 
 std::string UI::read_clipboard_text(UIWindow* w, sel_target_t) {
-   HWND        hwnd = static_cast<HWND>(w->native_window());
+   HWND        hwnd = reinterpret_cast<HWND>(w->native_window());
    std::string res;
 
    if (!OpenClipboard(hwnd)) {
