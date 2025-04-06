@@ -10,33 +10,7 @@
 
 // TODO More data visualization tools in the data window.
 
-#include <algorithm>
-#include <cassert>
-#include <condition_variable>
-#include <csignal>
-#include <cstdarg>
-#include <cstddef>
-#include <cstdint>
-#include <cstdio>
-#include <ctime>
-#include <ctype.h>
-#include <dirent.h>
-#include <fcntl.h>
-#include <fstream>
-#include <memory>
-#include <mutex>
-#include <poll.h>
-#include <queue>
-#include <ranges>
-#include <semaphore.h>
-#include <sys/wait.h>
-#include <spawn.h>
-#include <sys/stat.h>
-#include <thread>
-#include <unordered_map>
-#include <vector>
-#include <iostream>
-#include <format>
+#include "gf.hpp"
 
 namespace views        = std::views;
 namespace rng          = std::ranges;
@@ -797,7 +771,8 @@ void Context::debugger_thread_fn() {
             _evaluate_result_queue.push(std::move(catBuffer));
             _evaluate_mode = false;
          } else {
-            s_main_window->post_message(msgReceivedData, new std::string(std::move(catBuffer)));
+            // new string converted to unique_ptr in MainWindowMessageProc
+            s_main_window->post_message(msgReceivedData, new std::string(std::move(catBuffer))); 
          }
 
          catBuffer = std::string{};
@@ -864,19 +839,6 @@ std::string EvaluateExpression(string_view expression, string_view format = {}) 
       resize_to_lf(res); // terminate string at '\n'
    }
    return res;
-}
-
-void* ControlPipeThread(void*) {
-   while (true) {
-      FILE* file = fopen(gfc._control_pipe_path, "rb");
-      auto  s    = new std::string;
-      s->resize(256);
-      (*s)[fread(s->data(), 1, 255, file)] = 0;
-      s_main_window->post_message(msgReceivedControl, s);
-      fclose(file);
-   }
-
-   return nullptr;
 }
 
 void DebuggerGetStack() {
@@ -1697,7 +1659,7 @@ UIConfig Context::load_settings(bool earlyPass) {
             gfc._control_pipe_path = mk_cstring(value);
             mkfifo(gfc._control_pipe_path, 6 + 6 * 8 + 6 * 64);
             pthread_t thread;
-            pthread_create(&thread, nullptr, ControlPipeThread, nullptr);
+            pthread_create(&thread, nullptr, ControlPipe::thread_proc, nullptr);
          } else if (section == "executable" && !key.empty() && earlyPass) {
             // clang-format off
             parse_res.parse_str ("path", gfc._exe_path) ||
@@ -7504,7 +7466,36 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
       s_trafficlight->repaint(nullptr);
 }
 
-void MsgReceivedControl(std::unique_ptr<std::string> input) {
+// --------------------------------------------------------------------------
+// see `Control pipe` section of readme. `pipe` accepting commands such as:
+//
+// # Load the specified file (must be a full path).
+// echo "f /home/a/test.c" > /home/a/control_pipe.dat
+//
+// # Go to line 123.
+// echo "l 123" > /home/a/control_pipe.dat
+//
+// # Send a GDB command.
+// echo "c file myapp" > /home/a/control_pipe.dat
+// --------------------------------------------------------------------------
+void* ControlPipe::thread_proc(void*) {
+   bool quit = false;
+   while (!quit) {
+      FILE* file = fopen(gfc._control_pipe_path, "rb");
+      auto  s    = new std::string;
+      s->resize(256);
+      (*s)[fread(s->data(), 1, 255, file)] = 0;
+      quit                                 = s->starts_with("quit");
+      if (quit)
+         delete s;
+      else
+         s_main_window->post_message(msgReceivedControl, s); // `s` converted to unique_ptr in MainWindowMessageProc
+      fclose(file);
+   }
+   return nullptr;
+}
+
+void ControlPipe::on_command(std::unique_ptr<std::string> input) {
    char* start = &(*input)[0];
    char* end   = strchr(start, '\n');
    if (end)
@@ -7666,7 +7657,7 @@ void Context::add_builtin_windows_and_commands() {
 #endif
 
    msgReceivedData    = ReceiveMessageRegister(MsgReceivedData);
-   msgReceivedControl = ReceiveMessageRegister(MsgReceivedControl);
+   msgReceivedControl = ReceiveMessageRegister(ControlPipe::on_command);
 
    // received buffer contains debugger output to add to log window
    msgReceivedLog = ReceiveMessageRegister([](std::unique_ptr<std::string> buffer) {
