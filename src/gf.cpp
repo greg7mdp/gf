@@ -10,33 +10,7 @@
 
 // TODO More data visualization tools in the data window.
 
-#include <algorithm>
-#include <cassert>
-#include <condition_variable>
-#include <csignal>
-#include <cstdarg>
-#include <cstddef>
-#include <cstdint>
-#include <cstdio>
-#include <ctime>
-#include <ctype.h>
-#include <dirent.h>
-#include <fcntl.h>
-#include <fstream>
-#include <memory>
-#include <mutex>
-#include <poll.h>
-#include <queue>
-#include <ranges>
-#include <semaphore.h>
-#include <sys/wait.h>
-#include <spawn.h>
-#include <sys/stat.h>
-#include <thread>
-#include <unordered_map>
-#include <vector>
-#include <iostream>
-#include <format>
+#include "gf.hpp"
 
 namespace views        = std::views;
 namespace rng          = std::ranges;
@@ -47,7 +21,6 @@ using namespace std;
 #include <ctre.hpp>
 using namespace ctre::literals;
 
-#include "luigi.hpp"
 #include <re/re.hpp>
 using namespace regexp;
 
@@ -134,7 +107,7 @@ static inline void remove_all_lf(std::string& s) {
 }
 
 template <typename T>
-T sv_atoi_impl(string_view str, size_t offset = 0) {
+static inline T sv_atoi_impl(string_view str, size_t offset = 0) {
    auto sz = str.size();
    assert(offset < sz);
    size_t i = offset;
@@ -164,7 +137,7 @@ T sv_atoi_impl(string_view str, size_t offset = 0) {
    return negative ? result : -result;
 }
 
-char* mk_cstring(std::string_view sv) {
+static inline char* mk_cstring(std::string_view sv) {
    auto sz = sv.size();
    auto s  = (char*)malloc(sz + 1);
    for (size_t i = 0; i < sz; ++i)
@@ -370,13 +343,9 @@ UIMessage                  msgReceivedLog;
 UIMessage                  msgReceivedControl;
 UIMessage                  msgReceivedNext = (UIMessage)(UIMessage::USER_PLUS_1);
 
-char previousLocation[256];
-
 // ---------------------------------------------------
 // User interface:
 // ---------------------------------------------------
-struct SourceWindow;
-
 UIWindow*     s_main_window    = nullptr;
 UISwitcher*   s_main_switcher  = nullptr;
 UICode*       s_display_code   = nullptr;
@@ -386,49 +355,6 @@ UITextbox*    s_input_textbox  = nullptr;
 UISpacer*     s_trafficlight   = nullptr;
 UIMDIClient*  s_data_window    = nullptr;
 UIPanel*      s_data_tab       = nullptr;
-
-// ---------------------------------------------------
-// StackWindow
-// ---------------------------------------------------
-
-struct StackEntry {
-   char     _function[64];
-   char     _location[sizeof(previousLocation)];
-   uint64_t _address;
-   int      _id;
-};
-
-struct StackWindow {
-private:
-   vector<StackEntry> _stack;
-   size_t             _selected;
-   bool               _has_changed;
-
-public:
-   void clear() { _stack.clear(); }
-   void append(const StackEntry& entry) { _stack.push_back(entry); }
-   bool has_selection() const { return _selected < _stack.size(); }
-   bool changed() const { return _has_changed; }
-   void set_selected(size_t i) { _selected = i; }
-   void set_changed(bool b) { _has_changed = b; }
-
-   vector<StackEntry>& stack() { return _stack; }
-
-   const StackEntry& operator[](size_t i) const { return _stack[i]; }
-   StackEntry&       operator[](size_t i) { return _stack[i]; }
-   StackEntry&       current() { return _stack[_selected]; }
-
-   void set_frame(UIElement* el, int index);
-
-   int _table_message_proc(UITable* table, UIMessage msg, int di, void* dp);
-
-   static int StackWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<StackWindow*>(el->_cp)->_table_message_proc(static_cast<UITable*>(el), msg, di, dp);
-   }
-
-   static UIElement* Create(UIElement* parent);
-   static void       Update(const char*, UIElement* table);
-};
 
 StackWindow* sw = nullptr;
 
@@ -797,7 +723,8 @@ void Context::debugger_thread_fn() {
             _evaluate_result_queue.push(std::move(catBuffer));
             _evaluate_mode = false;
          } else {
-            s_main_window->post_message(msgReceivedData, new std::string(std::move(catBuffer)));
+            // new string converted to unique_ptr in MainWindowMessageProc
+            s_main_window->post_message(msgReceivedData, new std::string(std::move(catBuffer))); 
          }
 
          catBuffer = std::string{};
@@ -864,19 +791,6 @@ std::string EvaluateExpression(string_view expression, string_view format = {}) 
       resize_to_lf(res); // terminate string at '\n'
    }
    return res;
-}
-
-void* ControlPipeThread(void*) {
-   while (true) {
-      FILE* file = fopen(gfc._control_pipe_path, "rb");
-      auto  s    = new std::string;
-      s->resize(256);
-      (*s)[fread(s->data(), 1, 255, file)] = 0;
-      s_main_window->post_message(msgReceivedControl, s);
-      fclose(file);
-   }
-
-   return nullptr;
 }
 
 void DebuggerGetStack() {
@@ -995,88 +909,6 @@ public:
       }
    }
 };
-
-// ---------------------------------------------------
-// Source display:
-// ---------------------------------------------------
-
-struct SourceWindow {
-   static UIFont* s_code_font;
-
-   int                    _auto_print_expression_line;
-   int                    _auto_print_result_line;
-   std::array<char, 1024> _auto_print_expression;
-   std::array<char, 1024> _auto_print_result;
-
-   char   _current_file[PATH_MAX];
-   char   _current_file_full[PATH_MAX];
-   time_t _current_file_read_time;
-   bool   _showing_disassembly;
-
-private:
-   int _current_end_of_block;
-   int _last_cursor_x;
-   int _last_cursor_y;
-
-   int _if_condition_evaluation;
-   int _if_condition_line;
-   int _if_condition_from;
-   int _if_condition_to;
-
-   struct InspectResult {
-      std::string _expression;
-      std::string _value;
-   };
-
-   vector<InspectResult> _inspect_results;
-   bool                  _no_inspect_results;
-   bool                  _in_inspect_line_mode = false;
-   int                   _inspect_mode_restore_line;
-   UIRectangle           _display_current_line_bounds;
-   const char*           _disassembly_command = "disas /s";
-
-   int _code_message_proc(UICode* code, UIMessage msg, int di, void* dp);
-   int _line_message_proc(UIElement* el, UIMessage msg, int di, void* dp);
-
-   void _update(const char* data, UICode* el);
-
-public:
-   std::array<char, 1024>& auto_print_result() { return _auto_print_result; }
-
-   bool display_set_position(const char* file, std::optional<size_t> line, bool useGDBToGetFullPath);
-   void display_set_position_from_stack();
-   void disassembly_load();
-   void disassembly_update_line();
-   bool toggle_disassembly();
-   void draw_inspect_line_mode_overlay(UIPainter* painter);
-   void inspect_current_line();
-   void exit_inspect_line_mode(UIElement* el);
-   bool inspect_line();
-   bool set_disassembly_mode();
-
-   static int DisplayCodeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<SourceWindow*>(el->_cp)->_code_message_proc(static_cast<UICode*>(el), msg, di, dp);
-   }
-
-   static int InspectLineModeMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<SourceWindow*>(el->_cp)->_line_message_proc(el, msg, di, dp);
-   }
-
-   static UIElement* Create(UIElement* parent) {
-      s_source_window = new SourceWindow;
-      s_display_code  = &parent->add_code(gfc._selectable_source ? UICode::SELECTABLE : 0)
-                           .set_font(s_code_font)
-                           .set_cp(s_source_window)
-                           .set_user_proc(SourceWindow::DisplayCodeMessage);
-      return s_display_code;
-   }
-
-   static void Update(const char* data, UIElement* el) {
-      static_cast<SourceWindow*>(el->_cp)->_update(data, static_cast<UICode*>(el));
-   }
-};
-
-UIFont* SourceWindow::s_code_font = nullptr;
 
 static bool DisplaySetPosition(const char* file, std::optional<size_t> line, bool useGDBToGetFullPath) {
    return s_source_window->display_set_position(file, line, useGDBToGetFullPath);
@@ -1697,7 +1529,7 @@ UIConfig Context::load_settings(bool earlyPass) {
             gfc._control_pipe_path = mk_cstring(value);
             mkfifo(gfc._control_pipe_path, 6 + 6 * 8 + 6 * 64);
             pthread_t thread;
-            pthread_create(&thread, nullptr, ControlPipeThread, nullptr);
+            pthread_create(&thread, nullptr, ControlPipe::thread_proc, nullptr);
          } else if (section == "executable" && !key.empty() && earlyPass) {
             // clang-format off
             parse_res.parse_str ("path", gfc._exe_path) ||
@@ -1724,6 +1556,17 @@ UIConfig Context::load_settings(bool earlyPass) {
 // ---------------------------------------------------
 // Source display:
 // ---------------------------------------------------
+UIFont* SourceWindow::s_code_font = nullptr;
+char    SourceWindow::s_previous_file_loc[max_file_sz];
+
+UIElement* SourceWindow::Create(UIElement* parent) {
+   s_source_window = new SourceWindow;
+   s_display_code  = &parent->add_code(gfc._selectable_source ? UICode::SELECTABLE : 0)
+                        .set_font(s_code_font)
+                        .set_cp(s_source_window)
+                        .set_user_proc(SourceWindow::DisplayCodeMessage);
+   return s_display_code;
+}
 
 // --------------------------------
 // `line`, if present, is `0-based`
@@ -1800,9 +1643,9 @@ bool SourceWindow::display_set_position(const char* file, std::optional<size_t> 
 
 void SourceWindow::display_set_position_from_stack() {
    if (sw->has_selection()) {
-      char  location[sizeof(previousLocation)];
+      char  location[sizeof(s_previous_file_loc)];
       auto& current = sw->current();
-      strcpy(previousLocation, current._location);
+      strcpy(s_previous_file_loc, current._location);
       strcpy(location, current._location);
       char*                 line = strchr(location, ':');
       std::optional<size_t> position;
@@ -2175,7 +2018,7 @@ void SourceWindow::_update(const char* data, UICode* el) {
       sw->set_selected(0);
    sw->set_changed(false);
 
-   if (changedSourceLine && sw->has_selection() && strcmp(sw->current()._location, previousLocation)) {
+   if (changedSourceLine && sw->has_selection() && strcmp(sw->current()._location, s_previous_file_loc) == 0) {
       display_set_position_from_stack();
    }
 
@@ -7504,7 +7347,36 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
       s_trafficlight->repaint(nullptr);
 }
 
-void MsgReceivedControl(std::unique_ptr<std::string> input) {
+// --------------------------------------------------------------------------
+// see `Control pipe` section of readme. `pipe` accepting commands such as:
+//
+// # Load the specified file (must be a full path).
+// echo "f /home/a/test.c" > /home/a/control_pipe.dat
+//
+// # Go to line 123.
+// echo "l 123" > /home/a/control_pipe.dat
+//
+// # Send a GDB command.
+// echo "c file myapp" > /home/a/control_pipe.dat
+// --------------------------------------------------------------------------
+void* ControlPipe::thread_proc(void*) {
+   bool quit = false;
+   while (!quit) {
+      FILE* file = fopen(gfc._control_pipe_path, "rb");
+      auto  s    = new std::string;
+      s->resize(256);
+      (*s)[fread(s->data(), 1, 255, file)] = 0;
+      quit                                 = s->starts_with("quit");
+      if (quit)
+         delete s;
+      else
+         s_main_window->post_message(msgReceivedControl, s); // `s` converted to unique_ptr in MainWindowMessageProc
+      fclose(file);
+   }
+   return nullptr;
+}
+
+void ControlPipe::on_command(std::unique_ptr<std::string> input) {
    char* start = &(*input)[0];
    char* end   = strchr(start, '\n');
    if (end)
@@ -7666,7 +7538,7 @@ void Context::add_builtin_windows_and_commands() {
 #endif
 
    msgReceivedData    = ReceiveMessageRegister(MsgReceivedData);
-   msgReceivedControl = ReceiveMessageRegister(MsgReceivedControl);
+   msgReceivedControl = ReceiveMessageRegister(ControlPipe::on_command);
 
    // received buffer contains debugger output to add to log window
    msgReceivedLog = ReceiveMessageRegister([](std::unique_ptr<std::string> buffer) {
