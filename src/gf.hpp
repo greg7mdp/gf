@@ -53,10 +53,10 @@ struct SourceWindow {
    std::array<char, 1024> _auto_print_expression;
    std::array<char, 1024> _auto_print_result;
 
-   char   _current_file[PATH_MAX];
-   char   _current_file_full[PATH_MAX];
-   time_t _current_file_read_time;
-   bool   _showing_disassembly;
+   std::string _current_file;
+   std::string _current_file_full;
+   time_t      _current_file_read_time;
+   bool        _showing_disassembly;
 
 private:
    int _current_end_of_block;

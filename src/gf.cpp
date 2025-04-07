@@ -168,6 +168,16 @@ void print(std::format_string<Args...> fmt, Args&&... args) {
    std::cout << std::format(fmt, std::forward<Args>(args)...);
 }
 
+std::string get_realpath(const std::string& path) {
+   char buff[PATH_MAX];
+   return std::string{realpath(path.c_str(), buff)};
+}
+
+std::string my_getcwd() {
+   char buff[PATH_MAX];
+   return std::string{getcwd(buff, sizeof(buff))};
+}
+
 // ---------------------------------------------------------------------------------------------
 //                              Data structures
 // ---------------------------------------------------------------------------------------------
@@ -684,8 +694,9 @@ void Context::debugger_thread_fn() {
          if (_kill_gdb_thread)
             break;
       } else if (FD_ISSET(pipeFromGdb, &readfds)) { // Data is available for reading
-         char buffer[512 + 1];
-         int  count = read(pipeFromGdb, buffer, 512);
+         constexpr size_t max_read_sz = 512;
+         char buffer[max_read_sz + 1];
+         int  count = read(pipeFromGdb, buffer, max_read_sz);
          if (_kill_gdb_thread)
             break;
          if (count <= 0) {
@@ -913,6 +924,11 @@ static bool DisplaySetPosition(const char* file, std::optional<size_t> line, boo
    return s_source_window->display_set_position(file, line, useGDBToGetFullPath);
 }
 
+static bool DisplaySetPosition(const std::string& file, std::optional<size_t> line, bool useGDBToGetFullPath) {
+   return s_source_window->display_set_position(file.c_str(), line, useGDBToGetFullPath);
+}
+
+
 // ---------------------------------------------------
 // Breakpoints:
 // ---------------------------------------------------
@@ -922,18 +938,17 @@ struct BreakpointMgr {
 private:
    struct Breakpoint {
       int      _number = 0;
-      char     _file[PATH_MAX];
-      char     _full_path[PATH_MAX];
+      string   _file;
+      string   _full_path;
       int      _line       = 0;
       int      _hit        = 0;
       bool     _watchpoint = false;
       bool     _enabled    = false;
       bool     _multiple   = false;
-      char     _condition[128];
+      string   _condition;
       uint64_t _condition_hash = 0;
 
-      bool match_path(const char* p) const { return 0 == strcmp(_full_path, p); }
-      bool match(int line, const char* path) const { return _line == line && match_path(path); }
+      bool match(int line, std::string_view path) const { return _line == line && path == _full_path; }
    };
 
    friend struct BreakpointsWindow;
@@ -944,7 +959,7 @@ public:
    size_t num_breakpoints() const { return _breakpoints.size(); }
 
    template <class F>
-   void for_all_matching_breakpoints(int line, const char* path, F&& f) {
+   void for_all_matching_breakpoints(int line, std::string_view path, F&& f) {
       for (size_t i = 0; i < _breakpoints.size(); i++) {
          if (_breakpoints[i].match(line, path)) {
             std::forward<F>(f)(i, _breakpoints[i]);
@@ -1028,8 +1043,7 @@ public:
          if (condition && condition < next) {
             const char* end = strchr(condition, '\n');
             condition += 13;
-            std_format_to_n(breakpoint._condition, sizeof(breakpoint._condition), "{}",
-                            std::string_view{condition, (size_t)(end - condition)});
+            breakpoint._condition = std::string_view{condition, (size_t)(end - condition)};
             breakpoint._condition_hash = Hash((const uint8_t*)condition, end - condition);
          }
 
@@ -1048,8 +1062,7 @@ public:
             if (end && isdigit(end[1])) {
                if (file[0] == '.' && file[1] == '/')
                   file += 2;
-               std_format_to_n(breakpoint._file, sizeof(breakpoint._file), "{}",
-                               std::string_view{file, (size_t)(end - file)});
+               breakpoint._file = std::string_view{file, (size_t)(end - file)};
                breakpoint._line = sv_atoi(end, 1);
             } else
                recognised = false;
@@ -1057,7 +1070,7 @@ public:
             recognised = false;
 
          if (recognised) {
-            realpath(breakpoint._file, breakpoint._full_path);
+            breakpoint._full_path = get_realpath(breakpoint._file);
 
             for (auto& bp : _breakpoints) {
                if (bp.match(breakpoint._line, breakpoint._full_path) &&
@@ -1079,7 +1092,7 @@ public:
                   const char* end = strchr(address, '\n');
                   if (end) {
                      breakpoint._watchpoint = true;
-                     snprintf(breakpoint._file, sizeof(breakpoint._file), "%.*s", (int)(end - address), address);
+                     breakpoint._file = std::string_view{address, (size_t)(end - address)};
                      _breakpoints.push_back(std::move(breakpoint));
                   }
                }
@@ -1575,36 +1588,34 @@ bool SourceWindow::display_set_position(const char* file, std::optional<size_t> 
       return false;
    }
 
-   char        buffer[4096];
    const char* originalFile = file;
-
-   if (file && file[0] == '~') {
-      std_format_to_n(buffer, sizeof(buffer), "{}/{}", getenv("HOME"), 1 + file);
-      file = buffer;
-   } else if (file && file[0] != '/' && useGDBToGetFullPath) {
-      auto        res = EvaluateCommand("info source");
-      const char* f   = strstr(res.c_str(), "Located in ");
-
-      if (f) {
-         f += 11;
-         const char* end = strchr(f, '\n');
-
-         if (end) {
-            std_format_to_n(buffer, sizeof(buffer), "{}", std::string_view{f, (size_t)(end - f)});
-            file = buffer;
-         }
-      }
-   }
-
    bool reloadFile = false;
 
    if (file) {
-      if (strcmp(_current_file, file)) {
+      char buffer[PATH_MAX];
+      if (file[0] == '~') {
+         std_format_to_n(buffer, sizeof(buffer), "{}/{}", getenv("HOME"), 1 + file);
+         file = buffer;
+      } else if (file[0] != '/' && useGDBToGetFullPath) {
+         auto        res = EvaluateCommand("info source");
+         const char* f   = strstr(res.c_str(), "Located in ");
+
+         if (f) {
+            f += 11;
+            const char* end = strchr(f, '\n');
+
+            if (end) {
+               std_format_to_n(buffer, sizeof(buffer), "{}", std::string_view{f, (size_t)(end - f)});
+               file = buffer;
+            }
+         }
+      }
+
+      if (strcmp(_current_file.c_str(), file)) {
          reloadFile = true;
       }
 
       struct stat buf;
-
       if (!stat(file, &buf) && buf.st_mtime != _current_file_read_time) {
          reloadFile = true;
       }
@@ -1612,11 +1623,12 @@ bool SourceWindow::display_set_position(const char* file, std::optional<size_t> 
       _current_file_read_time = buf.st_mtime;
    }
 
+
    bool changed = false;
 
    if (reloadFile) {
-      std_format_to_n(_current_file, 4096, "{}", file);
-      realpath(_current_file, _current_file_full);
+      _current_file = file;
+      _current_file_full = get_realpath(_current_file);
 
       s_main_window->set_name(_current_file_full);
 
@@ -1743,7 +1755,7 @@ bool SourceWindow::toggle_disassembly() {
    } else {
       s_display_code->set_current_line({});
       _current_end_of_block   = -1;
-      _current_file[0]        = 0;
+      _current_file.clear();
       _current_file_read_time = 0;
       display_set_position_from_stack();
       s_display_code->set_tab_columns(4);
@@ -2402,17 +2414,16 @@ const char* BitmapViewerGetBits(std::string pointerString, std::string widthStri
 
    uint32_t* bits = (uint32_t*)malloc(stride * height * 4); // TODO Is this multiply by 4 necessary?! And the one below.
 
-   char bitmapPath[PATH_MAX];
-   realpath(".bitmap.gf", bitmapPath);
+   std::string bitmapPath = get_realpath(".bitmap.gf");
 
    auto res = EvaluateCommand(std::format("dump binary memory {} ({}) ({}+{})", bitmapPath, pr, pr, stride * height));
 
-   FILE* f = fopen(bitmapPath, "rb");
+   FILE* f = fopen(bitmapPath.c_str(), "rb");
 
    if (f) {
       fread(bits, 1, stride * height * 4, f); // TODO Is this multiply by 4 necessary?!
       fclose(f);
-      unlink(bitmapPath);
+      unlink(bitmapPath.c_str());
    }
 
    if (!f || res.contains("access")) {
@@ -4340,31 +4351,29 @@ public:
 // Files window:
 // ---------------------------------------------------/
 struct FilesWindow {
-   char     _directory[PATH_MAX];
+   string   _directory;
    UIPanel* _panel = nullptr;
    UILabel* _path  = nullptr;
 
-   const char* directory() const { return _directory; }
+   const char* directory() const { return _directory.c_str(); }
 
    mode_t get_mode(UIButton* button, size_t* oldLength) {
       const char* name = button->label().data();
-      *oldLength       = strlen(_directory);
-      strcat(_directory, "/");
-      strcat(_directory, name);
+      *oldLength       = _directory.size();
+      _directory += "/";
+      _directory += name;
       struct stat s;
-      stat(_directory, &s);
+      stat(_directory.c_str(), &s);
       return s.st_mode;
    }
 
    void update_path() {
-      char copy[PATH_MAX];
-      realpath(_directory, copy); // resolve dir into `copy`
-      strcpy(_directory, copy);   // copy resolved path into `_directory`
+      _directory = get_realpath(_directory);
    }
 
    bool populate_panel() {
       size_t         oldLength;
-      DIR*           directory = opendir(_directory);
+      DIR*           directory = opendir(_directory.c_str());
       struct dirent* entry;
       if (!directory)
          return false;
@@ -4392,25 +4401,22 @@ struct FilesWindow {
       }
 
       _panel->refresh();
-
-      char path[PATH_MAX];
-      realpath(_directory, path);
-      _path->set_label(path);
+      _path->set_label(get_realpath(_directory));
 
       return true;
    }
 
    void navigate_to_cwd() {
-      getcwd(_directory, sizeof(_directory));
+      _directory = my_getcwd();
       populate_panel();
    }
 
    void navigate_to_active_file() {
-      std_format_to_n(_directory, sizeof(_directory), "{}", s_source_window->_current_file_full);
-      int p = strlen(_directory);
+      _directory = s_source_window->_current_file_full;
+      size_t p = _directory.size();
       while (p--) {
          if (_directory[p] == '/') {
-            _directory[p] = 0;
+            _directory.resize(p);
             break;
          }
       }
@@ -4477,7 +4483,7 @@ struct FilesWindow {
 struct RegistersWindow {
 private:
    struct RegisterData {
-      char _string[128];
+      string _string;
    };
 
    vector<RegisterData> _reg_data;
@@ -4520,16 +4526,12 @@ public:
          const char* stringEnd   = format2End;
 
          RegisterData data;
-         std_format_to_n(data._string, sizeof(data._string), "{}",
-                         std::string_view{stringStart, (size_t)(stringEnd - stringStart)});
+         data._string = std::string_view{stringStart, (size_t)(stringEnd - stringStart)};
          bool modified = false;
 
          if (_reg_data.size() > new_reg_data.size()) {
             RegisterData* old = &_reg_data[new_reg_data.size()];
-
-            if (strcmp(old->_string, data._string)) {
-               modified = true;
-            }
+            modified = (old->_string != data._string);
          }
 
          new_reg_data.push_back(data);
@@ -4664,9 +4666,9 @@ struct LogWindow {
 struct ThreadsWindow {
 private:
    struct Thread {
-      char _frame[127];
-      bool _active = false;
-      int  _id     = 0;
+      string _frame;
+      bool   _active = false;
+      int    _id     = 0;
    };
 
    vector<Thread> _threads;
@@ -4726,10 +4728,7 @@ public:
             break;
          position++;
          char* end = strchr(position, '\n');
-         if (end - position >= (ptrdiff_t)sizeof(thread._frame))
-            end = position + sizeof(thread._frame) - 1;
-         memcpy(thread._frame, position, end - position);
-         thread._frame[end - position] = 0;
+         thread._frame = std::string_view{position,  size_t(end - position)};
          _threads.push_back(thread);
       }
 
@@ -5046,7 +5045,7 @@ struct ProfFlameGraphEntryTime {
 };
 
 struct ProfSourceFileEntry {
-   char _path[256];
+   string _path;
 };
 
 struct ProfFunctionEntry {
@@ -5054,7 +5053,7 @@ struct ProfFunctionEntry {
    int      _line_number       = 0;
    int      _source_file_index = 0;
    double   _total_time        = 0;
-   char     _name[64];
+   string   _name;
 };
 
 int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp);
@@ -5408,7 +5407,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
          char line1[256], line2[256], line3[256];
          std_format_to_n(line1, sizeof(line1), "[{}] {}:{}", report->_hover->_name,
-                         function._source_file_index != -1 ? report->_source_files[function._source_file_index]._path
+                         function._source_file_index != -1 ? report->_source_files[function._source_file_index]._path.c_str()
                                                            : "??",
                          function._line_number);
          std_format_to_n(line2, sizeof(line2), "This call: {:f}ms {:.1f}%%",
@@ -5681,7 +5680,7 @@ void ProfSwitchView(ProfFlameGraphReport* report) {
    }
 #define PROF_COMPARE_NUMBERS(a, b) (a) > (b) ? -1 : (a) < (b) ? 1 : 0
 
-PROF_FUNCTION_COMPARE(ProfFunctionCompareName, strcmp(left->_name, right->_name));
+PROF_FUNCTION_COMPARE(ProfFunctionCompareName, (left->_name != right->_name));
 PROF_FUNCTION_COMPARE(ProfFunctionCompareTotalTime, PROF_COMPARE_NUMBERS(left->_total_time, right->_total_time));
 PROF_FUNCTION_COMPARE(ProfFunctionCompareCallCount, PROF_COMPARE_NUMBERS(left->_call_count, right->_call_count));
 PROF_FUNCTION_COMPARE(ProfFunctionCompareAverage, PROF_COMPARE_NUMBERS(left->_total_time / left->_call_count,
@@ -5823,15 +5822,12 @@ void ProfLoadProfileData(void* _window) {
 
       if (strchr(cName.c_str(), '<'))
          cName = strchr(cName.c_str(), '<') + 1;
-      int length = strlen(cName.c_str());
-      if (length > (int)sizeof(function._name) - 1)
-         length = sizeof(function._name) - 1;
-      memcpy(function._name, cName.c_str(), length);
-      function._name[length] = 0;
+      function._name = cName;
 
       int inTemplate = 0;
 
-      for (int j = 0; j < length; j++) {
+      auto length = function._name.size();
+      for (size_t j = 0; j < length; j++) {
          if (function._name[j] == '(' && !inTemplate) {
             function._name[j] = 0;
             break;
@@ -5853,19 +5849,13 @@ void ProfLoadProfileData(void* _window) {
 
       if (!res.contains("Traceback (most recent call last):")) {
          resize_to_lf(res);
-         ProfSourceFileEntry sourceFile  = {};
-         const char*         cSourceFile = res.c_str();
-         length                          = strlen(cSourceFile);
-         if (length > (int)sizeof(sourceFile._path) - 1)
-            length = sizeof(sourceFile._path) - 1;
-         memcpy(sourceFile._path, cSourceFile, length);
-         sourceFile._path[length] = 0;
+         ProfSourceFileEntry sourceFile { ._path = res };
          std_format_to_n(buffer, sizeof(buffer), "py print(gdb.lookup_global_symbol('{}').line)", function._name);
          res                   = EvaluateCommand(buffer);
          function._line_number = sv_atoi(res);
 
          for (size_t i = 0; i < sourceFiles.size(); i++) {
-            if (0 == strcmp(sourceFiles[i]._path, sourceFile._path)) {
+            if (sourceFiles[i]._path == sourceFile._path) {
                function._source_file_index = i;
                break;
             }
@@ -5921,7 +5911,7 @@ void ProfLoadProfileData(void* _window) {
 
          if (0 == strcmp(entry._name, "[unknown]")) {
             if (report->_functions.contains(rawEntries[i]._this_function))
-               entry._name = report->_functions[rawEntries[i]._this_function]._name;
+               entry._name = report->_functions[rawEntries[i]._this_function]._name.c_str();
          }
 
          entry._this_function = rawEntries[i]._this_function;
@@ -5931,7 +5921,7 @@ void ProfLoadProfileData(void* _window) {
          ProfFlameGraphEntry entry = {};
          if (report->_functions.contains(rawEntries[i]._this_function)) {
             ProfFunctionEntry& function = report->_functions[rawEntries[i]._this_function];
-            entry._name                 = function._name;
+            entry._name                 = function._name.c_str();
             entry._color_index =
                function._source_file_index % (sizeof(profEntryColorPalette) / sizeof(profEntryColorPalette[0]));
          }
