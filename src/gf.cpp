@@ -833,8 +833,7 @@ void DebuggerGetStack() {
       position                 = strchr(position, ' ');
       if (!position || position >= next)
          break;
-      std_format_to_n(entry._function, sizeof(entry._function), "{}",
-                      std::string_view{functionName, (size_t)(position - functionName)});
+      entry._function = std::string_view{functionName, (size_t)(position - functionName)};
 
       const char* file = strstr(position, " at ");
 
@@ -843,7 +842,7 @@ void DebuggerGetStack() {
          const char* end = file;
          while (*end != '\n' && end < next)
             end++;
-         std_format_to_n(entry._location, sizeof(entry._location), "{}", std::string_view{file, (size_t)(end - file)});
+         entry._location = std::string_view{file, (size_t)(end - file)};
       }
 
       sw->append(entry);
@@ -1556,8 +1555,8 @@ UIConfig Context::load_settings(bool earlyPass) {
 // ---------------------------------------------------
 // Source display:
 // ---------------------------------------------------
-UIFont* SourceWindow::s_code_font = nullptr;
-char    SourceWindow::s_previous_file_loc[max_file_sz];
+UIFont*     SourceWindow::s_code_font = nullptr;
+std::string SourceWindow::s_previous_file_loc;
 
 UIElement* SourceWindow::Create(UIElement* parent) {
    s_source_window = new SourceWindow;
@@ -1643,17 +1642,16 @@ bool SourceWindow::display_set_position(const char* file, std::optional<size_t> 
 
 void SourceWindow::display_set_position_from_stack() {
    if (sw->has_selection()) {
-      char  location[sizeof(s_previous_file_loc)];
       auto& current = sw->current();
-      strcpy(s_previous_file_loc, current._location);
-      strcpy(location, current._location);
-      char*                 line = strchr(location, ':');
+      std::string location{current._location};
+      s_previous_file_loc = current._location;
+      char*           line = (char *)strchr(location.c_str(), ':');
       std::optional<size_t> position;
       if (line) {
          *line    = 0;
          position = sv_atoul(line + 1) - 1; // lines in gdb are 1-based
       }
-      display_set_position(location, position, true);
+      display_set_position(location.c_str(), position, true);
    }
 }
 
@@ -2018,7 +2016,7 @@ void SourceWindow::_update(const char* data, UICode* el) {
       sw->set_selected(0);
    sw->set_changed(false);
 
-   if (changedSourceLine && sw->has_selection() && strcmp(sw->current()._location, s_previous_file_loc) != 0) {
+   if (changedSourceLine && sw->has_selection() && sw->current()._location != s_previous_file_loc) {
       display_set_position_from_stack();
    }
 
@@ -3726,13 +3724,12 @@ void WatchLoggerTraceSelectFrame(UIElement* el, int index, WatchLogger* logger) 
    }
 
    StackEntry* entry = &logger->_entries[logger->_selected_entry]._trace[index];
-   char        location[sizeof(entry->_location)];
-   strcpy(location, entry->_location);
-   char* colon = strchr(location, ':');
+   std::string location{entry->_location};
+   char* colon = (char *)strchr(location.c_str(), ':');
 
    if (colon) {
       *colon = 0;
-      DisplaySetPosition(location, sv_atoul(colon + 1) - 1, false);
+      DisplaySetPosition(location.c_str(), sv_atoul(colon + 1) - 1, false);
       el->refresh();
    }
 }

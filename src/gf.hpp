@@ -30,8 +30,6 @@
 
 #include "luigi.hpp"
 
-static constexpr size_t max_file_sz = 256;
-
 // ---------------------------------------------------
 // ---------------------------------------------------
 struct ControlPipe {
@@ -82,7 +80,7 @@ private:
    UIRectangle                _display_current_line_bounds;
    const char*                _disassembly_command = "disas /s";
 
-   static char s_previous_file_loc[max_file_sz];   // `<file path>:<line>`
+   static std::string s_previous_file_loc;   // `<file path>:<line>`
 
    int _code_message_proc(UICode* code, UIMessage msg, int di, void* dp);
    int _line_message_proc(UIElement* el, UIMessage msg, int di, void* dp);
@@ -122,10 +120,10 @@ public:
 // StackWindow
 // ---------------------------------------------------
 struct StackEntry {
-   char     _function[64];
-   char     _location[max_file_sz];  // `<file path>:<line>`
-   uint64_t _address;
-   int      _id;
+   std::string _function;   // `<function_name>`
+   std::string _location;   // `<file path>:<line>`
+   uint64_t    _address;
+   int         _id;
 };
 
 struct StackWindow {
