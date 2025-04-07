@@ -2018,7 +2018,7 @@ void SourceWindow::_update(const char* data, UICode* el) {
       sw->set_selected(0);
    sw->set_changed(false);
 
-   if (changedSourceLine && sw->has_selection() && strcmp(sw->current()._location, s_previous_file_loc) == 0) {
+   if (changedSourceLine && sw->has_selection() && strcmp(sw->current()._location, s_previous_file_loc) != 0) {
       display_set_position_from_stack();
    }
 
