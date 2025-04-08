@@ -44,7 +44,8 @@ int main(int argc, char **argv)
    float f[] {3.14159f, 4.0f, 5.5f };
    const char* s = "hello";
    printf("%s fib(3)=%d\n", s, fib(3));
-   i = (i + 1);
+   if (i < 3)
+      i = (i + 1);
 
    int res = a.i + c.as[1].i - fib(1);
 

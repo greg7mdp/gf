@@ -2036,21 +2036,21 @@ void SourceWindow::_update(const char* data, UICode* el) {
    if (changedSourceLine && currentLine) {
       // If there is an auto-print expression from the previous line, evaluate it.
 #if 0
-      if (autoPrintExpression[0]) {
-         auto        res    = EvaluateCommand(std::format("p {}", autoPrintExpression));
+      if (_auto_print_expression[0]) {
+         auto        res    = EvaluateCommand(std::format("p {}", _auto_print_expression.data()));
          const char* result = strchr(res.c_str(), '=');
 
          if (result) {
-            autoPrintResultLine = autoPrintExpressionLine;
-            std_format_to_n(autoPrintResult, sizeof(autoPrintResult), "{}", result);
-            char* end = strchr(autoPrintResult, '\n');
+            _auto_print_result_line = _auto_print_expression_line;
+            std_format_to_n(_auto_print_result.data(), sizeof(_auto_print_result), "{}", result);
+            char* end = strchr(_auto_print_result.data(), '\n');
             if (end)
                *end = 0;
          } else {
-            autoPrintResult[0] = 0;
+            _auto_print_result[0] = 0;
          }
 
-         autoPrintExpression[0] = 0;
+         _auto_print_expression[0] = 0;
       }
 #endif
 
@@ -2172,16 +2172,22 @@ void SourceWindow::_update(const char* data, UICode* el) {
             } else if (text[i] == ')' && !depth) {
                (void)expressionStart;
 #if 0
+               // code to underline in red or green the if condition on the current line, depending
+               // on whether it is false or true.
+               // unfortunately it has the bad side effect of also evaluating any side effects which may 
+               // be in the `if` condition, so these side effects are evaluated twice.
+               // maybe we can re-enable if we can ensure that the condition has no side effect (++, +=, ...)
+               // -------------------------------------------------------------------------------------------
                auto res = EvaluateExpression(string_view{&text[expressionStart], i - expressionStart});
 
                if (res == "= true") {
-                  ifConditionEvaluation = 2;
-                  ifConditionFrom = expressionStart, ifConditionTo = i;
-                  ifConditionLine = *currentLine;
+                  _if_condition_evaluation = 2;
+                  _if_condition_from = expressionStart, _if_condition_to = i;
+                  _if_condition_line = *currentLine;
                } else if (res == "= false") {
-                  ifConditionEvaluation = 1;
-                  ifConditionFrom = expressionStart, ifConditionTo = i;
-                  ifConditionLine = *currentLine;
+                  _if_condition_evaluation = 1;
+                  _if_condition_from = expressionStart, _if_condition_to = i;
+                  _if_condition_line = *currentLine;
                }
 #endif
                break;
