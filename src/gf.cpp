@@ -2749,6 +2749,7 @@ public:
    const std::string& key() const { return _key; };
 
    void update(uint64_t update_index) {
+      _highlight = false;
       if ((_value.empty() || _update_index != update_index) && !_open) {
          if (!ctx._program_running) {
             _update_index = update_index;
@@ -3388,7 +3389,19 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
       UIPainter*  painter = (UIPainter*)dp;
       const auto& thm     = theme();
 
-      for (size_t i = (painter->_clip.t - _bounds.t) / rowHeight; i <= last_row(); i++) {
+      // figure out the correct indentation for the `=` signs
+      const size_t last = last_row();
+      size_t key_space = 4;
+
+      for (size_t i = 0; i <= last; i++) {
+         bool focused = i == _selected_row && is_focused();
+         if (i < _rows.size() && !(focused && _waiting_for_format_character)) {
+            const shared_ptr<Watch>& watch = _rows[i];
+            key_space = std::max(key_space, !watch->_open ? (watch->_key.size() + watch->_depth * 3) : 0);
+         }
+      }
+      
+      for (size_t i = (painter->_clip.t - _bounds.t) / rowHeight; i <= last; i++) {
          UIRectangle row = _bounds;
          row.t += i * rowHeight, row.b = row.t + rowHeight;
 
@@ -3406,25 +3419,38 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
          row.r -= ui_size::textbox_margin;
 
          if (i < _rows.size()) {
+            // ----------------------------------------------------------------------
+            //                      Update watched values
+            // ----------------------------------------------------------------------
             const shared_ptr<Watch>& watch = _rows[i];
             watch->update(_update_index);
 
-            char keyIndex[64];
-            if (watch->_key.empty()) {
-               std_format_to_n(keyIndex, sizeof(keyIndex), "[{}]", watch->_array_index);
-            }
-
+            // ----------------------------------------------------------------------
+            //                      and render them
+            // ----------------------------------------------------------------------
             char buffer[256];
             if (focused && _waiting_for_format_character) {
                std_format_to_n(buffer, sizeof(buffer), "Enter format character: (e.g. 'x' for hex)");
             } else {
-               std_format_to_n(buffer, sizeof(buffer), "{:.{}}{}{}{}{}", "                                           ",
-                               watch->_depth * 3,
-                               watch->_open         ? "v "
-                               : watch->_has_fields ? "> "
-                                                    : "",
-                               !watch->_key.empty() ? watch->_key.c_str() : keyIndex, watch->_open ? "" : " = ",
-                               watch->_open ? "" : watch->_value.c_str());
+               std::string keyIndex = std::format("[{}]", watch->_array_index);
+               if (watch->_key.empty()) {
+                  keyIndex = std::format("[{}]", watch->_array_index);
+               }
+
+               const auto& key = !watch->_key.empty() ? watch->_key : keyIndex;
+               bool open = watch->_open;
+               int  depth = watch->_depth;
+               const char* spaces = "                                                                                ";
+               int num_spaces = !open ? (int)key_space - (depth*3) - (int)key.size() : 0;
+               assert(num_spaces >= 0);
+
+               std_format_to_n(buffer, sizeof(buffer), "{:.{}}{}{}{:.{}}{}{}",
+                               spaces, depth * 3,                                   // depth indentation
+                               open ? "v " : (watch->_has_fields ? "> " : "  "),
+                               key,
+                               spaces, std::max(0, num_spaces),                     // aligning the '='
+                               open ? "" : " = ",
+                               open ? "" : watch->_value.c_str());
             }
 
             if (focused) {

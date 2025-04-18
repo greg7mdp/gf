@@ -4,13 +4,13 @@
 ##
 ## ----------------------------------------------------------------------------------
 
-cmake_minimum_required(VERSION 3.24...3.31)
+cmake_minimum_required(VERSION 3.24...4.0)
 
 project(gf)
 
-set( CMAKE_CXX_STANDARD 23 )
-set( CMAKE_CXX_EXTENSIONS OFF )
-set( CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CXX_STANDARD_REQUIRED ON)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
