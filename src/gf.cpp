@@ -2681,6 +2681,7 @@ private:
    bool        _loaded_fields    = false;
    bool        _is_array         = false;
    bool        _is_dynamic_array = false;
+   bool        _highlight        = false; // draw in red variables that just changed
    uint8_t     _depth            = 0;
    char        _format           = 0;
    uintptr_t   _array_index      = 0;
@@ -3393,9 +3394,14 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
             if ((watch->_value.empty() || watch->_update_index != _update_index) && !watch->_open) {
                if (!ctx._program_running) {
                   watch->_update_index  = _update_index;
-                  watch->_value_with_nl = watch->get_value(multiline_t::on);
-                  watch->_value         = watch->_value_with_nl;
-                  remove_all_lf(watch->_value);
+                  auto new_val = watch->get_value(multiline_t::on);
+                  bool changed = new_val != watch->_value_with_nl;
+                  if (changed) {
+                     watch->_value_with_nl = std::move(new_val);
+                     watch->_value         = watch->_value_with_nl;
+                     remove_all_lf(watch->_value);
+                  }
+                  watch->_highlight     = changed;
                } else {
                   watch->_value = watch->_value_with_nl = "..";
                }
@@ -3421,6 +3427,8 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
 
             if (focused) {
                painter->draw_string(row, buffer, thm.textSelected, UIAlign::left, nullptr);
+            } else if (watch->_highlight) {
+               painter->draw_string(row, buffer, 0xFF0000, UIAlign::left, nullptr);
             } else {
                painter->draw_string_highlighted(row, buffer, 1, nullptr);
             }
