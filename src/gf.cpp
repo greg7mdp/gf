@@ -2693,13 +2693,6 @@ private:
    Watch*      _parent       = nullptr;
    uint64_t    _update_index = 0;
 
-public:
-   friend struct WatchWindow;
-   static constexpr int WATCH_ARRAY_MAX_FIELDS = 10000000;
-
-   char&              format() { return _format; }
-   const std::string& key() const { return _key; };
-
    std::string evaluate(std::string_view function) const {
       char      buffer[4096];
       uintptr_t position = 0;
@@ -2746,6 +2739,31 @@ public:
 
       position += std_format_to_n(buffer + position, sizeof(buffer) - position, ")");
       return EvaluateCommand(buffer);
+   }
+
+public:
+   friend struct WatchWindow;
+   static constexpr int WATCH_ARRAY_MAX_FIELDS = 10000000;
+
+   char&              format() { return _format; }
+   const std::string& key() const { return _key; };
+
+   void update(uint64_t update_index) {
+      if ((_value.empty() || _update_index != update_index) && !_open) {
+         if (!ctx._program_running) {
+            _update_index = update_index;
+            auto new_val  = get_value(multiline_t::on);
+            bool changed  = new_val != _value_with_nl;
+            _highlight = changed && !_value_with_nl.empty();
+            if (changed) {
+               _value_with_nl = std::move(new_val);
+               _value         = _value_with_nl;
+               remove_all_lf(_value);
+            }
+         } else {
+            _value = _value_with_nl = "..";
+         }
+      }
    }
 
    bool has_fields() const {
@@ -3389,30 +3407,14 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
 
          if (i < _rows.size()) {
             const shared_ptr<Watch>& watch = _rows[i];
-            char                     buffer[256];
-
-            if ((watch->_value.empty() || watch->_update_index != _update_index) && !watch->_open) {
-               if (!ctx._program_running) {
-                  watch->_update_index  = _update_index;
-                  auto new_val = watch->get_value(multiline_t::on);
-                  bool changed = new_val != watch->_value_with_nl;
-                  if (changed) {
-                     watch->_value_with_nl = std::move(new_val);
-                     watch->_value         = watch->_value_with_nl;
-                     remove_all_lf(watch->_value);
-                  }
-                  watch->_highlight     = changed;
-               } else {
-                  watch->_value = watch->_value_with_nl = "..";
-               }
-            }
+            watch->update(_update_index);
 
             char keyIndex[64];
-
             if (watch->_key.empty()) {
                std_format_to_n(keyIndex, sizeof(keyIndex), "[{}]", watch->_array_index);
             }
 
+            char buffer[256];
             if (focused && _waiting_for_format_character) {
                std_format_to_n(buffer, sizeof(buffer), "Enter format character: (e.g. 'x' for hex)");
             } else {
@@ -6598,7 +6600,7 @@ void ViewWindowView(void* cp) {
       char address[64];
 
       if ((res)[0] != '(') {
-         res = watch->evaluate("gf_addressof");
+         res = watch->get_address();
          print("addressof '{}'\n", res);
          resize_to_lf(res, ' ');
          resize_to_lf(res);
