@@ -30,6 +30,8 @@
 
 #include "luigi.hpp"
 
+#define ALLOW_SIDE_EFFECTS 0   // evaluating expressions with side effects in debugger can change program behavior
+
 // ---------------------------------------------------
 // ---------------------------------------------------
 struct ControlPipe {

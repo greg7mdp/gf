@@ -2035,7 +2035,7 @@ void SourceWindow::_update(const char* data, UICode* el) {
    auto currentLine = s_display_code->current_line();
    if (changedSourceLine && currentLine) {
       // If there is an auto-print expression from the previous line, evaluate it.
-#if 0
+#if ALLOW_SIDE_EFFECTS
       if (_auto_print_expression[0]) {
          auto        res    = EvaluateCommand(std::format("p {}", _auto_print_expression.data()));
          const char* result = strchr(res.c_str(), '=');
@@ -2132,6 +2132,8 @@ void SourceWindow::_update(const char* data, UICode* el) {
 
       _if_condition_evaluation = 0;
 
+#if ALLOW_SIDE_EFFECTS
+      // missing detection of `++`, `--`, `+=`, etc...
       for (uintptr_t i = 0, phase = 0, expressionStart = 0, depth = 0; i < bytes; i++) {
          if (phase == 0) {
             if (text[i] == ' ' || text[i] == '\t' || text[i] == '}') {
@@ -2171,7 +2173,6 @@ void SourceWindow::_update(const char* data, UICode* el) {
                depth--;
             } else if (text[i] == ')' && !depth) {
                (void)expressionStart;
-#if 0
                // code to underline in red or green the if condition on the current line, depending
                // on whether it is false or true.
                // unfortunately it has the bad side effect of also evaluating any side effects which may 
@@ -2189,11 +2190,11 @@ void SourceWindow::_update(const char* data, UICode* el) {
                   _if_condition_from = expressionStart, _if_condition_to = i;
                   _if_condition_line = *currentLine;
                }
-#endif
                break;
             }
          }
       }
+#endif
    }
 
    el->refresh();
