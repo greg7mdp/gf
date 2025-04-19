@@ -765,6 +765,9 @@ public:
    bool           is_pressed() const;
    bool           is_disabled() const { return !!(_flags & disabled_flag); }
 
+   bool           is_shift_on() const;
+   bool           is_ctrl_on() const;
+
    UI*            ui() const;
    UITheme&       theme() const;                 // indirect access to `UI`
    UIFont*        active_font() const;           // indirect access to `UI`
@@ -969,11 +972,13 @@ public:
 
 // ------------------------------- need UIWindow to be defined -------------------------------
 inline int     UIElement::scale(auto sz) const { return (int)((float)sz * _window->scale()); }
-inline bool    UIElement::is_hovered() const { return _window->hovered() == this; }
-inline bool    UIElement::is_focused() const { return _window->focused() == this; }
-inline bool    UIElement::is_pressed() const { return _window->pressed() == this; }
-inline UIPoint UIElement::cursor_pos() const { return _window->cursor_pos(); }
-inline UI*     UIElement::ui() const         { return _window->ui(); }
+inline bool    UIElement::is_hovered()   const { return _window->hovered() == this; }
+inline bool    UIElement::is_focused()   const { return _window->focused() == this; }
+inline bool    UIElement::is_pressed()   const { return _window->pressed() == this; }
+inline bool    UIElement::is_shift_on()  const { return _window && _window->_shift; }
+inline bool    UIElement::is_ctrl_on()   const { return _window && _window->_ctrl; }
+inline UIPoint UIElement::cursor_pos()   const { return _window->cursor_pos(); }
+inline UI*     UIElement::ui()           const { return _window->ui(); }
 
 // ------------------------------------------------------------------------------------------
 struct UIPanel : public UIElementCast<UIPanel> {

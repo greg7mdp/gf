@@ -4147,9 +4147,7 @@ public:
    }
 
    void delete_selected_breakpoints() const { for_all_selected_breakpoints("delete"); }
-
    void disable_selected_breakpoints() const { for_all_selected_breakpoints("disable"); }
-
    void enable_selected_breakpoints() const { for_all_selected_breakpoints("enable"); }
 
    int _table_message_proc(UITable* table, UIMessage msg, int di, void* dp);
@@ -4159,7 +4157,7 @@ public:
    }
 
    static UIElement* Create(UIElement* parent) {
-      return &parent->add_table(0, "File\tLine\tEnabled\tCondition\tHit")
+      return &parent->add_table(0, "Id\tFile\tLine\tEnabled\tCondition\tHit")
                  .set_cp(new BreakpointsWindow(s_breakpoint_mgr._breakpoints))
                  .set_user_proc(BreakpointsWindow::BreakpointsWindowMessage);
    }
@@ -4175,37 +4173,31 @@ public:
 
 int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::TABLE_GET_ITEM) {
-      UITableGetItem* m     = (UITableGetItem*)dp;
-      Breakpoint*     entry = &_breakpoints[m->_row];
-      m->_is_selected       = rng::find(_selected, entry->_number) != rng::end(_selected);
+      UITableGetItem*   m  = (UITableGetItem*)dp;
+      const Breakpoint& bp = _breakpoints[m->_row];
 
-      if (m->_column == 0) {
-         return m->format_to("{}", entry->_file);
-      } else if (m->_column == 1) {
-         if (entry->_watchpoint)
-            return m->format_to("watch {}", entry->_number);
-         else
-            return m->format_to("{}", entry->_line);
-      } else if (m->_column == 2) {
-         return m->format_to("{}", entry->_enabled ? "yes" : "no");
-      } else if (m->_column == 3) {
-         return m->format_to("{}", entry->_condition);
-      } else if (m->_column == 4) {
-         if (entry->_hit > 0) {
-            return m->format_to("{}", entry->_hit);
-         }
+      m->_is_selected       = rng::find(_selected, bp._number) != rng::end(_selected);
+
+      switch (m->_column) {
+      case 0: return m->format_to("{}", bp._number);
+      case 1: return m->format_to("{}", bp._file);
+      case 2: return bp._watchpoint ? m->format_to("watch {}", bp._number) : m->format_to("{}", bp._line);
+      case 3: return m->format_to("{}", bp._enabled ? "yes" : "no");
+      case 4: return m->format_to("{}", bp._condition);
+      case 5: return bp._hit > 0 ? m->format_to("{}", bp._hit) : 0;
+      default: assert(0); return 0;
       }
    } else if (msg == UIMessage::RIGHT_DOWN) {
-      int index = ((UITable*)uitable)->hittest(uitable->cursor_pos());
+      int index = uitable->hittest(uitable->cursor_pos());
 
       if (index != -1) {
-         Breakpoint* entry = &_breakpoints[index];
+         const Breakpoint& bp = _breakpoints[index];
 
-         bool found = rng::find(_selected, entry->_number) != rng::end(_selected);
+         bool found = rng::find(_selected, bp._number) != rng::end(_selected);
          if (_selected.size() <= 1 || !found) {
             if (!uitable->_window->_ctrl)
                _selected.clear();
-            _selected.push_back(entry->_number);
+            _selected.push_back(bp._number);
          }
 
          UIMenu& menu = uitable->ui()->create_menu(uitable->_window, UIMenu::NO_SCROLL);
@@ -4213,7 +4205,6 @@ int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int 
          if (_selected.size() > 1) {
             bool atLeastOneBreakpointDisabled = false;
             bool atLeastOneBreakpointEnabled  = false;
-
 
             for (auto selected : _selected) {
                for (const auto& breakpoint : _breakpoints) {
@@ -4245,20 +4236,22 @@ int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int 
          menu.show();
       }
    } else if (msg == UIMessage::LEFT_DOWN) {
-      int index = ((UITable*)uitable)->hittest(uitable->cursor_pos());
+      // support multiple selection of breakpoints
+      // -----------------------------------------
+      int index = uitable->hittest(uitable->cursor_pos());
 
       if (index != -1) {
-         Breakpoint* entry = &_breakpoints[index];
+         const Breakpoint& bp = _breakpoints[index];
 
          if (!uitable->_window->_shift)
-            _anchor = entry->_number;
+            _anchor = bp._number;
          if (!uitable->_window->_ctrl)
             _selected.clear();
 
          uintptr_t from = 0, to = 0;
 
          for (size_t i = 0; i < _breakpoints.size(); i++) {
-            if (_breakpoints[i]._number == entry->_number) {
+            if (_breakpoints[i]._number == bp._number) {
                from = i;
             }
             if (_breakpoints[i]._number == _anchor) {
@@ -4280,8 +4273,8 @@ int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int 
             }
          }
 
-         if (!entry->_watchpoint && rng::find(_selected, entry->_number) != rng::end(_selected)) {
-            DisplaySetPosition(entry->_file, entry->_line - 1, false);
+         if (!bp._watchpoint && rng::find(_selected, bp._number) != rng::end(_selected)) {
+            DisplaySetPosition(bp._file, bp._line - 1, false);
          }
       } else if (!uitable->_window->_ctrl && !uitable->_window->_shift) {
          _selected.clear();
@@ -4736,7 +4729,7 @@ public:
          auto& thread = _threads[m->_row];
          m->_is_selected   = thread._active;
 
-         switch(m->_column) {
+         switch (m->_column) {
          case 0: return m->format_to("{}", thread._id);
          case 1: return m->format_to("{}", thread._name);
          case 2: return m->format_to("{}", thread._frame);
