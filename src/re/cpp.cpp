@@ -144,7 +144,7 @@ std::optional<regexp::bounds> regexp::cpp_impl::find_at_pos(std::string_view cod
 
 
 // --------------------------------------------------------------------------------
-bool cpp_impl::matches(std::string_view s, code_look_for lf) const {
+bool cpp_impl::matches(std::string_view s, code_look_for lf, size_t pos /* = 0 */) const {
    switch(lf) {
       
    default:
@@ -154,7 +154,27 @@ bool cpp_impl::matches(std::string_view s, code_look_for lf) const {
 }
 
 // --------------------------------------------------------------------------------
-one_res cpp_impl::find_1(std::string_view sv, code_look_for lf) const {
+one_res cpp_impl::find_1(std::string_view sv, code_look_for lf, size_t pos /* = 0 */) const {
+   switch(lf) {
+
+   default:
+      assert(0);
+   }
+   return {};
+}
+
+// --------------------------------------------------------------------------------
+two_res cpp_impl::find_2(std::string_view sv, code_look_for lf, size_t pos /* = 0 */) const {
+   switch(lf) {
+
+   default:
+      assert(0);
+   }
+   return {};
+}
+
+// --------------------------------------------------------------------------------
+three_res cpp_impl::find_3(std::string_view sv, code_look_for lf, size_t pos /* = 0 */) const {
    switch(lf) {
 
    default:

@@ -109,6 +109,9 @@ static inline void remove_all_lf(std::string& s) {
 template <typename T>
 static inline T sv_atoi_impl(string_view str, size_t offset = 0) {
    auto sz = str.size();
+   if (sz == 0)
+      return 0;
+   
    assert(offset < sz);
    size_t i = offset;
 
@@ -176,6 +179,14 @@ std::string get_realpath(const std::string& path) {
 std::string my_getcwd() {
    char buff[PATH_MAX];
    return std::string{getcwd(buff, sizeof(buff))};
+}
+
+void set_thread_name(const char* name) {
+#if defined(__linux__) || defined(__FreeBSD__)
+   pthread_setname_np(pthread_self(), name);
+#elif defined(__APPLE__)
+   pthread_setname_np(name);
+#endif
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -627,6 +638,7 @@ UIMessage ReceiveMessageRegister(std::function<void(std::unique_ptr<std::string>
 }
 
 void Context::debugger_thread_fn() {
+   set_thread_name("gdb_thread");
    int outputPipe[2];
    int inputPipe[2];
 
@@ -4709,9 +4721,10 @@ struct LogWindow {
 struct ThreadsWindow {
 private:
    struct Thread {
-      string _frame;
       bool   _active = false;
       int    _id     = 0;
+      string _name;
+      string _frame;
    };
 
    vector<Thread> _threads;
@@ -4722,10 +4735,11 @@ public:
          UITableGetItem* m = (UITableGetItem*)dp;
          m->_is_selected   = _threads[m->_row]._active;
 
-         if (m->_column == 0) {
-            return m->format_to("{}", _threads[m->_row]._id);
-         } else if (m->_column == 1) {
-            return m->format_to("{}", _threads[m->_row]._frame);
+         switch(m->_column) {
+         case 0: return m->format_to("{}", _threads[m->_row]._id);
+         case 1: return m->format_to("{}", _threads[m->_row]._name);
+         case 2: return m->format_to("{}", _threads[m->_row]._frame);
+         default: assert(0); return 0;
          }
       } else if (msg == UIMessage::LEFT_DOWN) {
          int index = uitable->hittest(uitable->cursor_pos());
@@ -4748,30 +4762,21 @@ public:
       if (res.empty())
          return;
 
-      char* position = (char*)res.c_str();
-      for (int i = 0; position[i]; i++) {
-         if (position[i] == '\n' && position[i + 1] == ' ' && position[i + 2] == ' ' && position[i + 3] == ' ') {
-            memmove(position + i, position + i + 3, strlen(position) - 3 - i + 1);
-         }
-      }
+      // ---------------------------------- gdb output --------------------------------------------
+      //   Id   Target Id                                        Frame 
+      // * 1    Thread 0x7ffff78eb780 (LWP 1103966) "gf"         0x00007ffff7718bcf in poll () from /lib/x86_64-linux-gnu/libc.so.6
+      //   3    Thread 0x7ffff3200640 (LWP 1103968) "gdb_thread" 0x00007ffff771b63d in select () from /lib/x86_64-linux-gnu/libc.so.6
+      // (gdb)
+      // ------------------------------------------------------------------------------------------
 
-      while (true) {
-         position = strchr(position, '\n');
-         if (!position)
-            break;
-         Thread thread = {};
-         if (position[1] == '*')
-            thread._active = true;
-         thread._id = sv_atoi(position, 2);
-         position   = strchr(position + 1, '"');
-         if (!position)
-            break;
-         position = strchr(position + 1, '"');
-         if (!position)
-            break;
-         position++;
-         char* end = strchr(position, '\n');
-         thread._frame = std::string_view{position,  size_t(end - position)};
+      for (auto& match : ctx._dbg_re->find_4s(res, debug_look_for::thread_info)) {
+         auto [sel, id, name, frame] = match;
+         Thread thread{
+            ._active = (sel == "*"),
+            ._id     = sv_atoi(id),
+            ._name   = std::string{name},
+            ._frame  = std::string{frame},
+         };
          _threads.push_back(thread);
       }
 
@@ -4781,7 +4786,7 @@ public:
    }
 
    static UIElement* Create(UIElement* parent) {
-      return &parent->add_table(0, "ID\tFrame")
+      return &parent->add_table(0, "ID\tName\tFrame")
                  .set_cp(new ThreadsWindow)
                  .set_user_proc(ThreadsWindow::ThreadsWindowMessage);
    }
@@ -7390,6 +7395,7 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
 // echo "c file myapp" > /home/a/control_pipe.dat
 // --------------------------------------------------------------------------
 void* ControlPipe::thread_proc(void*) {
+   set_thread_name("ctrlpipe_thread");
    bool quit = false;
    while (!quit) {
       FILE* file = fopen(gfc._control_pipe_path, "rb");
