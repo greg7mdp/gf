@@ -736,6 +736,8 @@ public:
    UIElement&     parent() { return *_parent; }
    void           measurements_changed(int which);
    UIPoint        cursor_pos() const;
+   void           set_cursor(int cursor);
+   int            pressed_button() const;
    
    void           refresh();
    void           relayout();
@@ -750,6 +752,7 @@ public:
    UIRectangle    screen_bounds();            // Returns bounds of element in same coordinate system as used by UIWindowCreate.
 
    int            scale(auto sz) const;
+   float          get_scale() const;          // returns the scale of the associated window
 
    message_proc_t get_class_proc() const { return _class_proc; }
 
@@ -767,6 +770,7 @@ public:
 
    bool           is_shift_on() const;
    bool           is_ctrl_on() const;
+   bool           is_alt_on() const;
 
    UI*            ui() const;
    UITheme&       theme() const;                 // indirect access to `UI`
@@ -924,7 +928,7 @@ public:
    UIWindow*   next() const { return _next; }
    
    UIWindow&   set_scale(float scale) { _scale = scale; return *this; }
-   float       scale() const { return _scale; }
+   float       get_scale() const { return _scale; }
 
    std::vector<uint32_t>& bits() { return _bits; }
 
@@ -971,13 +975,17 @@ public:
 };
 
 // ------------------------------- need UIWindow to be defined -------------------------------
-inline int     UIElement::scale(auto sz) const { return (int)((float)sz * _window->scale()); }
+inline int     UIElement::scale(auto sz) const { return (int)((float)sz * _window->get_scale()); }
+inline float   UIElement::get_scale()    const { return _window->get_scale(); }
 inline bool    UIElement::is_hovered()   const { return _window->hovered() == this; }
 inline bool    UIElement::is_focused()   const { return _window->focused() == this; }
 inline bool    UIElement::is_pressed()   const { return _window->pressed() == this; }
-inline bool    UIElement::is_shift_on()  const { return _window && _window->_shift; }
-inline bool    UIElement::is_ctrl_on()   const { return _window && _window->_ctrl; }
+inline bool    UIElement::is_shift_on()  const { return _window->_shift; }
+inline bool    UIElement::is_ctrl_on()   const { return _window->_ctrl; }
+inline bool    UIElement::is_alt_on()    const { return _window->_alt; }
 inline UIPoint UIElement::cursor_pos()   const { return _window->cursor_pos(); }
+inline void    UIElement::set_cursor(int cursor) { (void)_window->set_cursor(cursor); }
+inline int     UIElement::pressed_button() const { return _window->pressed_button(); }
 inline UI*     UIElement::ui()           const { return _window->ui(); }
 
 // ------------------------------------------------------------------------------------------

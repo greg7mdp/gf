@@ -1870,7 +1870,7 @@ void CommandEnableAllBreakpointsOnLine(int line) {
 
 int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::CLICKED && !_showing_disassembly) {
-      int result = code->hittest(code->_window->cursor_pos());
+      int result = code->hittest(code->cursor_pos());
 
       if (result < 0 && code->left_down_in_margin()) {
          int line = -result;
@@ -1880,7 +1880,7 @@ int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* 
 
          if (code->is_ctrl_on()) {
             (void)DebuggerSend(std::format("until {}", line), true, false);
-         } else if (code->_window->_alt || code->is_shift_on()) {
+         } else if (code->is_alt_on() || code->is_shift_on()) {
             EvaluateCommand(std::format("tbreak {}", line));
             (void)DebuggerSend(std::format("jump {}", line), true, false);
          }
@@ -1974,7 +1974,7 @@ int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* 
       }
 
       if (code->hittest(code->cursor_pos()) == m->index && code->is_hovered() &&
-          (code->is_ctrl_on() || code->_window->_alt || code->is_shift_on()) &&
+          (code->is_ctrl_on() || code->is_alt_on() || code->is_shift_on()) &&
           !code->_window->textbox_modified_flag()) {
          m->painter->draw_border(m->bounds, code->is_ctrl_on() ? theme.selected : theme.codeOperator, UIRectangle(2));
          m->painter->draw_string(m->bounds, code->is_ctrl_on() ? "=> run until " : "=> skip to ", theme.text,
@@ -2600,7 +2600,7 @@ private:
          std::string_view cur_text = textbox->text();
          auto             sz       = cur_text.size();
 
-         if (m->text == "`"  && !textbox->is_ctrl_on() && !textbox->_window->_alt && !sz) {
+         if (m->text == "`"  && !textbox->is_ctrl_on() && !textbox->is_alt_on() && !sz) {
             textbox->set_reject_next_key(true);
          } else if (m->code == UIKeycode::ENTER && !textbox->is_shift_on()) {
             if (!sz) {
@@ -2993,7 +2993,7 @@ public:
       if (_selected_row > _rows.size())
          _selected_row = _rows.size();
       UIScrollBar* scroll    = ((UIPanel*)_parent)->scrollbar();
-      int          rowHeight = (int)(ui_size::textbox_height * _window->scale());
+      int          rowHeight = (int)(ui_size::textbox_height * get_scale());
       int          start = index * rowHeight, end = (index + 1) * rowHeight, height = _parent->_bounds.height();
       bool         unchanged = false;
       if (end >= scroll->position() + height)
@@ -3052,7 +3052,7 @@ public:
    }
 
    void create_textbox_for_row(bool addExistingText) {
-      int         rowHeight = (int)(ui_size::textbox_height * _window->scale());
+      int         rowHeight = (int)(ui_size::textbox_height * get_scale());
       UIRectangle row       = _bounds;
       row.t += _selected_row * rowHeight, row.b = row.t + rowHeight;
       _textbox = &add_textbox(0).set_user_proc(WatchTextboxMessage).set_cp(this);
@@ -3394,7 +3394,7 @@ void Watch::add_fields(WatchWindow* w) {
 }
 
 int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
-   int rowHeight = (int)(ui_size::textbox_height * _window->scale());
+   int rowHeight = (int)(ui_size::textbox_height * get_scale());
    int result    = 0;
 
    if (msg == UIMessage::PAINT) {
@@ -3578,12 +3578,12 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
       } else if (m->text == "/" && _selected_row != _rows.size()) {
          _waiting_for_format_character = true;
       } else if (_mode == WATCH_NORMAL && !m->text.empty() && m->code != UIKeycode::TAB && !_textbox &&
-                 !is_ctrl_on() && !_window->_alt &&
+                 !is_ctrl_on() && !is_alt_on() &&
                  (_selected_row == _rows.size() || !_rows[_selected_row]->_parent)) {
          create_textbox_for_row(false);
          _textbox->message(msg, di, dp);
       } else if (_mode == WATCH_NORMAL && !m->text.empty() && m->code == UI_KEYCODE_LETTER('V') && !_textbox &&
-                 is_ctrl_on() && !_window->_alt && !is_shift_on() &&
+                 is_ctrl_on() && !is_alt_on() && !is_shift_on() &&
                  (_selected_row == _rows.size() || !_rows[_selected_row]->_parent)) {
          create_textbox_for_row(false);
          _textbox->message(msg, di, dp);
@@ -3642,7 +3642,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
                break;
             }
          }
-      } else if (m->code == UI_KEYCODE_LETTER('C') && !_textbox && !is_shift_on() && !_window->_alt &&
+      } else if (m->code == UI_KEYCODE_LETTER('C') && !_textbox && !is_shift_on() && !is_alt_on() &&
                  is_ctrl_on()) {
          copy_value_to_clipboard();
       } else {
@@ -3653,7 +3653,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
       _parent->refresh();
       refresh();
    } else if (msg == UIMessage::MIDDLE_DOWN) {
-      if (_mode == WATCH_NORMAL && !_textbox && !is_ctrl_on() && !_window->_alt &&
+      if (_mode == WATCH_NORMAL && !_textbox && !is_ctrl_on() && !is_alt_on() &&
           (_selected_row == _rows.size() || !_rows[_selected_row]->_parent)) {
          create_textbox_for_row(false);
          _textbox->paste(sel_target_t::primary);
@@ -3778,7 +3778,7 @@ int WatchLoggerWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          delete logger;
       }
    } else if (msg == UIMessage::GET_WIDTH || msg == UIMessage::GET_HEIGHT) {
-      return el->_window->scale() * 400;
+      return el->get_scale() * 400;
    }
 
    return 0;
@@ -5529,7 +5529,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          report->_drag_initial_point  = pos.x;
          report->_drag_initial_value2 = report->_v_scroll->position();
          report->_drag_initial_point2 = pos.y;
-         el->_window->set_cursor((int)UICursor::hand);
+         el->set_cursor((int)UICursor::hand);
       } else {
          report->_drag_mode          = FLAME_GRAPH_DRAG_X_SCROLL;
          report->_drag_initial_value = report->_x_start;
@@ -5548,7 +5548,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          report->_drag_initial_value  = report->_x_start;
          report->_drag_initial_point  = pos.x;
          report->_drag_initial_point2 = pos.y;
-         el->_window->set_cursor((int)UICursor::cross_hair);
+         el->set_cursor((int)UICursor::cross_hair);
       }
    } else if (msg == UIMessage::RIGHT_DOWN) {
       auto pos = el->cursor_pos();
@@ -5581,7 +5581,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       report->_drag_mode    = 0;
       report->_drag_started = false;
       el->repaint(nullptr);
-      el->_window->set_cursor((int)UICursor::arrow);
+      el->set_cursor((int)UICursor::arrow);
    } else if (msg == UIMessage::MOUSE_DRAG) {
       report->_drag_started = true;
       auto pos              = el->cursor_pos();
@@ -5659,7 +5659,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
                                                                      : (int)UICursor::arrow;
    } else if (msg == UIMessage::LAYOUT) {
       UIRectangle scrollBarBounds = el->_bounds;
-      scrollBarBounds.l           = scrollBarBounds.r - ui_size::scroll_bar * el->_window->scale();
+      scrollBarBounds.l           = scrollBarBounds.r - ui_size::scroll_bar * el->get_scale();
       report->_v_scroll->set_page(el->_bounds.height() - profZoomBarHeight);
       report->_v_scroll->move(scrollBarBounds, true);
       report->_client   = el->_bounds;
@@ -6417,19 +6417,19 @@ int ViewWindowMatrixGridMessage(UIElement* el, UIMessage msg, int di, void* dp) 
          }
       }
 
-      int scrollBarSize = ui_size::scroll_bar * el->_window->scale();
+      int scrollBarSize = ui_size::scroll_bar * el->get_scale();
       painter->draw_block(
          UIRectangle(el->_bounds.r - scrollBarSize, el->_bounds.r, el->_bounds.b - scrollBarSize, el->_bounds.b),
          thm.panel1);
    } else if (msg == UIMessage::LAYOUT) {
       UIRectangle scrollBarBounds = el->_bounds;
-      scrollBarBounds.l           = scrollBarBounds.r - ui_size::scroll_bar * el->_window->scale();
-      scrollBarBounds.b -= ui_size::scroll_bar * el->_window->scale();
+      scrollBarBounds.l           = scrollBarBounds.r - ui_size::scroll_bar * el->get_scale();
+      scrollBarBounds.b -= ui_size::scroll_bar * el->get_scale();
       grid->_v_scroll->set_page(scrollBarBounds.height());
       grid->_v_scroll->move(scrollBarBounds, true);
       scrollBarBounds   = el->_bounds;
-      scrollBarBounds.t = scrollBarBounds.b - ui_size::scroll_bar * el->_window->scale();
-      scrollBarBounds.r -= ui_size::scroll_bar * el->_window->scale();
+      scrollBarBounds.t = scrollBarBounds.b - ui_size::scroll_bar * el->get_scale();
+      scrollBarBounds.r -= ui_size::scroll_bar * el->get_scale();
       grid->_h_scroll->set_page(scrollBarBounds.width());
       grid->_h_scroll->move(scrollBarBounds, true);
    } else if (msg == UIMessage::SCROLLED) {
@@ -6441,7 +6441,7 @@ int ViewWindowMatrixGridMessage(UIElement* el, UIMessage msg, int di, void* dp) 
 
 int ViewWindowStringLayout(ViewWindowString* display, UIPainter* painter, int offset) {
    UIRectangle clientBounds = display->_bounds;
-   clientBounds.r -= ui_size::scroll_bar * display->_window->scale();
+   clientBounds.r -= ui_size::scroll_bar * display->get_scale();
    int x = clientBounds.l, y = clientBounds.t - offset;
    UI* ui = display->ui();
 
@@ -6504,9 +6504,9 @@ int ViewWindowStringMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       display->_data.reset();
    } else if (msg == UIMessage::LAYOUT) {
       UIRectangle scrollBarBounds = el->_bounds;
-      scrollBarBounds.l           = scrollBarBounds.r - ui_size::scroll_bar * el->_window->scale();
+      scrollBarBounds.l           = scrollBarBounds.r - ui_size::scroll_bar * el->get_scale();
       UIRectangle clientBounds    = el->_bounds;
-      clientBounds.r -= ui_size::scroll_bar * el->_window->scale();
+      clientBounds.r -= ui_size::scroll_bar * el->get_scale();
       display->_v_scroll->set_maximum(ViewWindowStringLayout(display, nullptr, 0));
       display->_v_scroll->set_page(el->_bounds.height());
       display->_v_scroll->move(scrollBarBounds, true);
@@ -6802,36 +6802,36 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          display->_samples_on_screen = display->_sample_count;
       }
 
-      int         scrollBarHeight = ui_size::scroll_bar * el->_window->scale();
+      int         scrollBarHeight = ui_size::scroll_bar * el->get_scale();
       UIRectangle scrollBarBounds = el->_bounds;
       scrollBarBounds.t           = scrollBarBounds.b - scrollBarHeight;
       display->_scrollbar->set_maximum(display->_sample_count);
       display->_scrollbar->set_page(display->_samples_on_screen);
       display->_scrollbar->move(scrollBarBounds, true);
 
-      display->_zoomout->move(UIRectangle(el->_bounds.l + (int)(15 * el->_window->scale()),
-                                          el->_bounds.l + (int)(45 * el->_window->scale()),
-                                          el->_bounds.t + (int)(15 * el->_window->scale()),
-                                          el->_bounds.t + (int)(45 * el->_window->scale())),
+      display->_zoomout->move(UIRectangle(el->_bounds.l + (int)(15 * el->get_scale()),
+                                          el->_bounds.l + (int)(45 * el->get_scale()),
+                                          el->_bounds.t + (int)(15 * el->get_scale()),
+                                          el->_bounds.t + (int)(45 * el->get_scale())),
                               true);
-      display->_zoomin->move(UIRectangle(el->_bounds.l + (int)(45 * el->_window->scale()),
-                                         el->_bounds.l + (int)(75 * el->_window->scale()),
-                                         el->_bounds.t + (int)(15 * el->_window->scale()),
-                                         el->_bounds.t + (int)(45 * el->_window->scale())),
+      display->_zoomin->move(UIRectangle(el->_bounds.l + (int)(45 * el->get_scale()),
+                                         el->_bounds.l + (int)(75 * el->get_scale()),
+                                         el->_bounds.t + (int)(15 * el->get_scale()),
+                                         el->_bounds.t + (int)(45 * el->get_scale())),
                              true);
-      display->_normalize->move(UIRectangle(el->_bounds.l + (int)(75 * el->_window->scale()),
-                                            el->_bounds.l + (int)(135 * el->_window->scale()),
-                                            el->_bounds.t + (int)(15 * el->_window->scale()),
-                                            el->_bounds.t + (int)(45 * el->_window->scale())),
+      display->_normalize->move(UIRectangle(el->_bounds.l + (int)(75 * el->get_scale()),
+                                            el->_bounds.l + (int)(135 * el->get_scale()),
+                                            el->_bounds.t + (int)(15 * el->get_scale()),
+                                            el->_bounds.t + (int)(45 * el->get_scale())),
                                 true);
-   } else if (msg == UIMessage::MOUSE_DRAG && el->_window->pressed_button() == 1) {
+   } else if (msg == UIMessage::MOUSE_DRAG && el->pressed_button() == 1) {
       auto pos = el->cursor_pos();
       display->_scrollbar->position() += display->_drag_last_modification;
       display->_drag_last_modification =
          (pos.x - display->_drag_last_x) * display->_samples_on_screen / el->_bounds.width();
       display->_scrollbar->position() -= display->_drag_last_modification;
       display->refresh();
-   } else if (msg == UIMessage::MOUSE_DRAG && el->_window->pressed_button() == 2) {
+   } else if (msg == UIMessage::MOUSE_DRAG && el->pressed_button() == 2) {
       display->repaint(nullptr);
    } else if (msg == UIMessage::MOUSE_MOVE) {
       display->repaint(nullptr);
@@ -6952,7 +6952,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
          if (mouseXSample >= 0 && mouseXSample < sampleCount && el->_clip.contains(pos) &&
              !display->_scrollbar->_clip.contains(pos)) {
-            int         stringOffset = 20 * el->_window->scale();
+            int         stringOffset = 20 * el->get_scale();
             UIRectangle stringRectangle =
                UIRectangle(client.l + stringOffset, client.r - stringOffset, client.t + stringOffset,
                            client.t + stringOffset + el->ui()->string_height());
@@ -6977,7 +6977,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          }
       }
 
-      if (el->_window->pressed_button() == 2 && el->_window->pressed()) {
+      if (el->pressed_button() == 2 && el->_window->pressed()) {
          int l = pos.x, r = display->_drag_last_x;
          painter->draw_invert(UIRectangle(l > r ? r : l, l > r ? l : r, el->_bounds.t, el->_bounds.r));
       }
