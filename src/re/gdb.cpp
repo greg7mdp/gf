@@ -24,7 +24,7 @@ bool gdb_impl::matches(std::string_view s, debug_look_for lf, size_t pos /* = 0 
 }
 
 // --------------------------------------------------------------------------------
-one_res gdb_impl::find_1(std::string_view s, debug_look_for lf, size_t pos /* = 0 */) const {
+opt_res_t<1> gdb_impl::find_1(std::string_view s, debug_look_for lf, size_t pos /* = 0 */) const {
    switch(lf) {
 
    default:
@@ -34,7 +34,7 @@ one_res gdb_impl::find_1(std::string_view s, debug_look_for lf, size_t pos /* = 
 }
 
 // --------------------------------------------------------------------------------
-two_res gdb_impl::find_2(std::string_view s, debug_look_for lf, size_t pos /* = 0 */) const {
+opt_res_t<2> gdb_impl::find_2(std::string_view s, debug_look_for lf, size_t pos /* = 0 */) const {
    switch(lf) {
 
    default:
@@ -44,7 +44,7 @@ two_res gdb_impl::find_2(std::string_view s, debug_look_for lf, size_t pos /* = 
 }
 
 // --------------------------------------------------------------------------------
-three_res gdb_impl::find_3(std::string_view s, debug_look_for lf, size_t pos /* = 0 */) const {
+opt_res_t<3> gdb_impl::find_3(std::string_view s, debug_look_for lf, size_t pos /* = 0 */) const {
    switch(lf) {
 
    default:
@@ -54,7 +54,7 @@ three_res gdb_impl::find_3(std::string_view s, debug_look_for lf, size_t pos /* 
 }
 
 // --------------------------------------------------------------------------------
-four_res gdb_impl::find_4(std::string_view s, debug_look_for lf, size_t pos /* = 0 */) const {
+opt_res_t<4> gdb_impl::find_4(std::string_view s, debug_look_for lf, size_t pos /* = 0 */) const {
    switch(lf) {
 
    default:
@@ -64,7 +64,7 @@ four_res gdb_impl::find_4(std::string_view s, debug_look_for lf, size_t pos /* =
 }
 
 // --------------------------------------------------------------------------------
-ones gdb_impl::find_1s(std::string_view s, debug_look_for lf, size_t pos /* = 0 */) const {
+vec_res_t<1> gdb_impl::find_1s(std::string_view s, debug_look_for lf, size_t pos /* = 0 */) const {
    switch(lf) {
 
    default:
@@ -74,7 +74,7 @@ ones gdb_impl::find_1s(std::string_view s, debug_look_for lf, size_t pos /* = 0 
 }
 
 // --------------------------------------------------------------------------------
-twos gdb_impl::find_2s(std::string_view s, debug_look_for lf, size_t pos /* = 0 */) const {
+vec_res_t<2> gdb_impl::find_2s(std::string_view s, debug_look_for lf, size_t pos /* = 0 */) const {
    switch(lf) {
 
    default:
@@ -84,7 +84,7 @@ twos gdb_impl::find_2s(std::string_view s, debug_look_for lf, size_t pos /* = 0 
 }
 
 // --------------------------------------------------------------------------------
-threes gdb_impl::find_3s(std::string_view s, debug_look_for lf, size_t pos /* = 0 */) const {
+vec_res_t<3> gdb_impl::find_3s(std::string_view s, debug_look_for lf, size_t pos /* = 0 */) const {
    switch(lf) {
 
    default:
@@ -94,15 +94,21 @@ threes gdb_impl::find_3s(std::string_view s, debug_look_for lf, size_t pos /* = 
 }
 
 // --------------------------------------------------------------------------------
-fours gdb_impl::find_4s(std::string_view s, debug_look_for lf, size_t pos /* = 0 */) const {
-   fours res;
+vec_res_t<4> gdb_impl::find_4s(std::string_view s, debug_look_for lf, size_t pos /* = 0 */) const {
+   vec_res_t<4> res;
 
    switch(lf) {
    case debug_look_for::thread_info:
-      res.reserve(16);
+      // ---------------------------------- gdb output --------------------------------------------
+      //   Id   Target Id                                        Frame
+      // * 1    Thread 0x7ffff78eb780 (LWP 1103966) "gf"         0x00007ffff7718bcf in poll () from /lib/x86_64-linux-gnu/libc.so.6
+      //   3    Thread 0x7ffff3200640 (LWP 1103968) "gdb_thread" 0x00007ffff771b63d in select () from /lib/x86_64-linux-gnu/libc.so.6
+      // (gdb)
+      // ------------------------------------------------------------------------------------------
+      res.reserve(8);
       for (auto match : ctre::multiline_search_all<R"(^(\*| ) ([0-9]+) *Thread.*[0-9]\) ("[a-zA-Z_0-9]+").*(0x.*)$)">(s)) {
          auto [m, sel, id, name, frame] = match;
-         res.push_back(four_tuple{sel, id, name, frame});
+         res.push_back(tuples_t<4>{sel, id, name, frame});
       }
       return res;
 

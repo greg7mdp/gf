@@ -4733,18 +4733,20 @@ public:
    int _table_message_proc(UITable* uitable, UIMessage msg, int di, void* dp) {
       if (msg == UIMessage::TABLE_GET_ITEM) {
          UITableGetItem* m = (UITableGetItem*)dp;
-         m->_is_selected   = _threads[m->_row]._active;
+         auto& thread = _threads[m->_row];
+         m->_is_selected   = thread._active;
 
          switch(m->_column) {
-         case 0: return m->format_to("{}", _threads[m->_row]._id);
-         case 1: return m->format_to("{}", _threads[m->_row]._name);
-         case 2: return m->format_to("{}", _threads[m->_row]._frame);
+         case 0: return m->format_to("{}", thread._id);
+         case 1: return m->format_to("{}", thread._name);
+         case 2: return m->format_to("{}", thread._frame);
          default: assert(0); return 0;
          }
       } else if (msg == UIMessage::LEFT_DOWN) {
          int index = uitable->hittest(uitable->cursor_pos());
 
          if (index != -1) {
+            // switch to thread at `index`
             (void)DebuggerSend(std::format("thread {}", _threads[index]._id), true, false);
          }
       }
@@ -4762,22 +4764,15 @@ public:
       if (res.empty())
          return;
 
-      // ---------------------------------- gdb output --------------------------------------------
-      //   Id   Target Id                                        Frame 
-      // * 1    Thread 0x7ffff78eb780 (LWP 1103966) "gf"         0x00007ffff7718bcf in poll () from /lib/x86_64-linux-gnu/libc.so.6
-      //   3    Thread 0x7ffff3200640 (LWP 1103968) "gdb_thread" 0x00007ffff771b63d in select () from /lib/x86_64-linux-gnu/libc.so.6
-      // (gdb)
-      // ------------------------------------------------------------------------------------------
-
-      for (auto& match : ctx._dbg_re->find_4s(res, debug_look_for::thread_info)) {
+      for (const auto& match : ctx._dbg_re->find_4s(res, debug_look_for::thread_info)) {
          auto [sel, id, name, frame] = match;
-         Thread thread{
-            ._active = (sel == "*"),
-            ._id     = sv_atoi(id),
-            ._name   = std::string{name},
-            ._frame  = std::string{frame},
-         };
-         _threads.push_back(thread);
+         _threads.push_back(
+            Thread{
+               ._active = (sel == "*"),
+               ._id     = sv_atoi(id),
+               ._name   = std::string{name},
+               ._frame  = std::string{frame},
+            });
       }
 
       table->set_num_items(_threads.size());

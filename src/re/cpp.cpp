@@ -154,7 +154,7 @@ bool cpp_impl::matches(std::string_view s, code_look_for lf, size_t pos /* = 0 *
 }
 
 // --------------------------------------------------------------------------------
-one_res cpp_impl::find_1(std::string_view sv, code_look_for lf, size_t pos /* = 0 */) const {
+opt_res_t<1> cpp_impl::find_1(std::string_view sv, code_look_for lf, size_t pos /* = 0 */) const {
    switch(lf) {
 
    default:
@@ -164,7 +164,7 @@ one_res cpp_impl::find_1(std::string_view sv, code_look_for lf, size_t pos /* = 
 }
 
 // --------------------------------------------------------------------------------
-two_res cpp_impl::find_2(std::string_view sv, code_look_for lf, size_t pos /* = 0 */) const {
+opt_res_t<2> cpp_impl::find_2(std::string_view sv, code_look_for lf, size_t pos /* = 0 */) const {
    switch(lf) {
 
    default:
@@ -174,7 +174,7 @@ two_res cpp_impl::find_2(std::string_view sv, code_look_for lf, size_t pos /* = 
 }
 
 // --------------------------------------------------------------------------------
-three_res cpp_impl::find_3(std::string_view sv, code_look_for lf, size_t pos /* = 0 */) const {
+opt_res_t<3> cpp_impl::find_3(std::string_view sv, code_look_for lf, size_t pos /* = 0 */) const {
    switch(lf) {
 
    default:
