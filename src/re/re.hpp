@@ -10,7 +10,8 @@ namespace regexp {
 struct bounds { size_t start, end; };
 
 enum expr_flags {
-   allow_function_calls = 1 << 0
+   allow_function_calls     = 1 << 0,
+   avoid_constant_litterals = 1 << 1
 };
 
 enum class code_look_for {

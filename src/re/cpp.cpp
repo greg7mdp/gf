@@ -71,9 +71,12 @@ static constexpr auto spaces_par = ctll::fixed_string{R"(\s*\()"};
 
 // --------------------------------------------------------------------------------
 template <ctll::fixed_string pattern, size_t capture_index>
-void collect_matches(std::vector<std::string_view>& expressions, const std::string_view& code) {
+void collect_matches(std::vector<std::string_view>& expressions, const std::string_view& code, uint32_t e = 0) {
    for (auto match : ctre::search_all<pattern>(code)) {
-      expressions.push_back(match.template get<capture_index>());
+      std::string_view sv = match.template get<capture_index>();
+      if ((e & avoid_constant_litterals) && ctre::match<R"([0-9.]+(f)?)">(sv))
+         continue;
+      expressions.push_back(sv);
    }
 }
 
@@ -86,11 +89,11 @@ std::vector<std::string_view> regexp::cpp_impl::debuggable_expressions(std::stri
    // Find all matches for each pattern
    // ---------------------------------
    if (e & allow_function_calls)
-      collect_matches<function_call, 0>(expressions, code); // don't execute function calls which may have side effects
-   collect_matches<parenthesized, 1>(expressions, code);
-   collect_matches<variables, 0>(expressions, code);
-   collect_matches<array_access, 0>(expressions, code);
-   collect_matches<binary_expr, 0>(expressions, code);
+      collect_matches<function_call, 0>(expressions, code, e); // don't execute function calls which may have side effects
+   collect_matches<parenthesized, 1>(expressions, code, e);
+   collect_matches<variables, 0>(expressions, code, e);
+   collect_matches<array_access, 0>(expressions, code, e);
+   collect_matches<binary_expr, 0>(expressions, code, e);
 
    // remove duplicates
    // -----------------

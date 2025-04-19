@@ -2210,7 +2210,7 @@ void SourceWindow::inspect_current_line() {
 
    auto code = s_display_code->line(*currentLine);
 
-   auto expressions = ctx._lang_re->debuggable_expressions(code);
+   auto expressions = ctx._lang_re->debuggable_expressions(code, avoid_constant_litterals);
    for (auto e : expressions) {
       auto res = EvaluateExpression(e);
       // std::cout << "eval(\"" << e << "\") -> " << res << '\n';
