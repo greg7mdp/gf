@@ -1878,9 +1878,9 @@ int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* 
       } else if (result > 0 && !code->left_down_in_margin()) {
          int line = result;
 
-         if (code->_window->_ctrl) {
+         if (code->is_ctrl_on()) {
             (void)DebuggerSend(std::format("until {}", line), true, false);
-         } else if (code->_window->_alt || code->_window->_shift) {
+         } else if (code->_window->_alt || code->is_shift_on()) {
             EvaluateCommand(std::format("tbreak {}", line));
             (void)DebuggerSend(std::format("jump {}", line), true, false);
          }
@@ -1974,10 +1974,10 @@ int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* 
       }
 
       if (code->hittest(code->cursor_pos()) == m->index && code->is_hovered() &&
-          (code->_window->_ctrl || code->_window->_alt || code->_window->_shift) &&
+          (code->is_ctrl_on() || code->_window->_alt || code->is_shift_on()) &&
           !code->_window->textbox_modified_flag()) {
-         m->painter->draw_border(m->bounds, code->_window->_ctrl ? theme.selected : theme.codeOperator, UIRectangle(2));
-         m->painter->draw_string(m->bounds, code->_window->_ctrl ? "=> run until " : "=> skip to ", theme.text,
+         m->painter->draw_border(m->bounds, code->is_ctrl_on() ? theme.selected : theme.codeOperator, UIRectangle(2));
+         m->painter->draw_string(m->bounds, code->is_ctrl_on() ? "=> run until " : "=> skip to ", theme.text,
                                  UIAlign::right, nullptr);
       } else if (m->index == _current_end_of_block) {
          m->painter->draw_string(m->bounds, "[Shift+F10]", theme.codeComment, UIAlign::right, nullptr);
@@ -2600,9 +2600,9 @@ private:
          std::string_view cur_text = textbox->text();
          auto             sz       = cur_text.size();
 
-         if (m->text == "`"  && !textbox->_window->_ctrl && !textbox->_window->_alt && !sz) {
+         if (m->text == "`"  && !textbox->is_ctrl_on() && !textbox->_window->_alt && !sz) {
             textbox->set_reject_next_key(true);
-         } else if (m->code == UIKeycode::ENTER && !textbox->_window->_shift) {
+         } else if (m->code == UIKeycode::ENTER && !textbox->is_shift_on()) {
             if (!sz) {
                if (_command_history.size()) {
                   CommandSendToGDB(_command_history[0].get());
@@ -2631,12 +2631,12 @@ private:
             textbox->refresh();
 
             return 1;
-         } else if (m->code == UIKeycode::TAB && sz && !textbox->_window->_shift) {
+         } else if (m->code == UIKeycode::TAB && sz && !textbox->is_shift_on()) {
             tabCompleter.run(textbox, lastKeyWasTab, false);
             return 1;
          } else if (m->code == UIKeycode::UP) {
             auto currentLine = s_display_code->current_line();
-            if (textbox->_window->_shift) {
+            if (textbox->is_shift_on()) {
                if (currentLine && *currentLine > 0) {
                   DisplaySetPosition(nullptr, *currentLine - 1, false);
                }
@@ -2645,7 +2645,7 @@ private:
             }
          } else if (m->code == UIKeycode::DOWN) {
             auto currentLine = s_display_code->current_line();
-            if (textbox->_window->_shift) {
+            if (textbox->is_shift_on()) {
                if (currentLine && *currentLine + 1 < s_display_code->num_lines()) {
                   DisplaySetPosition(nullptr, *currentLine + 1, false);
                }
@@ -3578,12 +3578,12 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
       } else if (m->text == "/" && _selected_row != _rows.size()) {
          _waiting_for_format_character = true;
       } else if (_mode == WATCH_NORMAL && !m->text.empty() && m->code != UIKeycode::TAB && !_textbox &&
-                 !_window->_ctrl && !_window->_alt &&
+                 !is_ctrl_on() && !_window->_alt &&
                  (_selected_row == _rows.size() || !_rows[_selected_row]->_parent)) {
          create_textbox_for_row(false);
          _textbox->message(msg, di, dp);
       } else if (_mode == WATCH_NORMAL && !m->text.empty() && m->code == UI_KEYCODE_LETTER('V') && !_textbox &&
-                 _window->_ctrl && !_window->_alt && !_window->_shift &&
+                 is_ctrl_on() && !_window->_alt && !is_shift_on() &&
                  (_selected_row == _rows.size() || !_rows[_selected_row]->_parent)) {
          create_textbox_for_row(false);
          _textbox->message(msg, di, dp);
@@ -3592,7 +3592,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
       } else if (m->code == UIKeycode::ESCAPE) {
          destroy_textbox();
       } else if (m->code == UIKeycode::UP) {
-         if (_window->_shift) {
+         if (is_shift_on()) {
             auto currentLine = s_display_code->current_line();
             if (currentLine && *currentLine > 0) {
                DisplaySetPosition(nullptr, *currentLine - 1, false);
@@ -3603,7 +3603,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
                _selected_row--;
          }
       } else if (m->code == UIKeycode::DOWN) {
-         if (_window->_shift) {
+         if (is_shift_on()) {
             auto currentLine = s_display_code->current_line();
             if (currentLine && *currentLine + 1 < s_display_code->num_lines()) {
                DisplaySetPosition(nullptr, *currentLine + 1, false);
@@ -3642,8 +3642,8 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
                break;
             }
          }
-      } else if (m->code == UI_KEYCODE_LETTER('C') && !_textbox && !_window->_shift && !_window->_alt &&
-                 _window->_ctrl) {
+      } else if (m->code == UI_KEYCODE_LETTER('C') && !_textbox && !is_shift_on() && !_window->_alt &&
+                 is_ctrl_on()) {
          copy_value_to_clipboard();
       } else {
          result = 0;
@@ -3653,7 +3653,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
       _parent->refresh();
       refresh();
    } else if (msg == UIMessage::MIDDLE_DOWN) {
-      if (_mode == WATCH_NORMAL && !_textbox && !_window->_ctrl && !_window->_alt &&
+      if (_mode == WATCH_NORMAL && !_textbox && !is_ctrl_on() && !_window->_alt &&
           (_selected_row == _rows.size() || !_rows[_selected_row]->_parent)) {
          create_textbox_for_row(false);
          _textbox->paste(sel_target_t::primary);
@@ -3752,7 +3752,7 @@ int WatchTextboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       bool                lastKeyWasTab = tabCompleter._last_key_was_tab;
       tabCompleter._last_key_was_tab    = false;
 
-      if (m->code == UIKeycode::TAB && textbox->text().size() && !el->_window->_shift) {
+      if (m->code == UIKeycode::TAB && textbox->text().size() && !el->is_shift_on()) {
          tabCompleter.run(textbox, lastKeyWasTab, true);
          return 1;
       }
@@ -4195,7 +4195,7 @@ int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int 
 
          bool found = rng::find(_selected, bp._number) != rng::end(_selected);
          if (_selected.size() <= 1 || !found) {
-            if (!uitable->_window->_ctrl)
+            if (!uitable->is_ctrl_on())
                _selected.clear();
             _selected.push_back(bp._number);
          }
@@ -4243,9 +4243,9 @@ int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int 
       if (index != -1) {
          const Breakpoint& bp = _breakpoints[index];
 
-         if (!uitable->_window->_shift)
+         if (!uitable->is_shift_on())
             _anchor = bp._number;
-         if (!uitable->_window->_ctrl)
+         if (!uitable->is_ctrl_on())
             _selected.clear();
 
          uintptr_t from = 0, to = 0;
@@ -4265,7 +4265,7 @@ int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int 
          }
 
          for (uintptr_t i = from; i <= to; i++) {
-            if (uitable->_window->_ctrl && !uitable->_window->_shift) {
+            if (uitable->is_ctrl_on() && !uitable->is_shift_on()) {
                if (auto it = rng::find(_selected, _breakpoints[i]._number); it != rng::end(_selected))
                   _selected.erase(it);
             } else {
@@ -4276,7 +4276,7 @@ int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int 
          if (!bp._watchpoint && rng::find(_selected, bp._number) != rng::end(_selected)) {
             DisplaySetPosition(bp._file, bp._line - 1, false);
          }
-      } else if (!uitable->_window->_ctrl && !uitable->_window->_shift) {
+      } else if (!uitable->is_ctrl_on() && !uitable->is_shift_on()) {
          _selected.clear();
       }
       uitable->focus();

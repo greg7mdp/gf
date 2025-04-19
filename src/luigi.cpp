@@ -1213,9 +1213,9 @@ int _UIDialogWrapperMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       UI*         ui    = el->ui();
       UIKeyTyped* typed = (UIKeyTyped*)dp;
 
-      if (el->_window->_ctrl)
+      if (el->is_ctrl_on())
          return 0;
-      if (el->_window->_shift)
+      if (el->is_shift_on())
          return 0;
 
       if (!ui->_dialog_can_exit) {
@@ -2955,15 +2955,15 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
       if ((m->code == UI_KEYCODE_LETTER('C') || m->code == UI_KEYCODE_LETTER('X') || m->code == UIKeycode::INSERT) &&
-          _window->_ctrl && !_window->_alt && !_window->_shift) {
+          is_ctrl_on() && !_window->_alt && !is_shift_on()) {
          copy(sel_target_t::clipboard);
       } else if ((m->code == UIKeycode::UP || m->code == UIKeycode::DOWN || m->code == UIKeycode::PAGE_UP ||
                   m->code == UIKeycode::PAGE_DOWN) &&
-                 !_window->_ctrl && !_window->_alt) {
+                 !is_ctrl_on() && !_window->_alt) {
          UIFont* previousFont = font()->activate();
          int     lineHeight   = ui->string_height();
 
-         if (_window->_shift) {
+         if (is_shift_on()) {
             if (m->code == UIKeycode::UP) {
                if ((int)_sel[3].line - 1 >= 0) {
                   _set_vertical_motion_column(false);
@@ -2996,14 +2996,14 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
 
          previousFont->activate();
       } else if ((m->code == UIKeycode::HOME || m->code == UIKeycode::END) && !_window->_alt) {
-         if (_window->_shift) {
+         if (is_shift_on()) {
             if (m->code == UIKeycode::HOME) {
-               if (_window->_ctrl)
+               if (is_ctrl_on())
                   _sel[3].line = 0;
                _sel[3].offset        = 0;
                _use_vertical_motion_column = false;
             } else {
-               if (_window->_ctrl)
+               if (is_ctrl_on())
                   _sel[3].line = num_lines() - 1;
                _sel[3].offset        = line(_sel[3].line).size();
                _use_vertical_motion_column = false;
@@ -3016,9 +3016,9 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
             refresh();
          }
       } else if ((m->code == UIKeycode::LEFT || m->code == UIKeycode::RIGHT) && !_window->_alt) {
-         if (_window->_shift) {
-            move_caret(m->code == UIKeycode::LEFT, _window->_ctrl);
-         } else if (!_window->_ctrl) {
+         if (is_shift_on()) {
+            move_caret(m->code == UIKeycode::LEFT, is_ctrl_on());
+         } else if (!is_ctrl_on()) {
             UIFont* active_font = ui->active_font();
             _hscroll->position() += m->code == UIKeycode::LEFT ? -active_font->_glyph_width : active_font->_glyph_width;
             refresh();
@@ -3467,12 +3467,12 @@ int UITable::_class_message_proc(UIMessage msg, int di, void* dp) {
 
       if ((m->code == UIKeycode::UP || m->code == UIKeycode::DOWN || m->code == UIKeycode::PAGE_UP ||
            m->code == UIKeycode::PAGE_DOWN || m->code == UIKeycode::HOME || m->code == UIKeycode::END) &&
-          !_window->_ctrl && !_window->_alt && !_window->_shift) {
+          !is_ctrl_on() && !_window->_alt && !is_shift_on()) {
          key_input_vscroll(m, scale(ui_size::table_row),
                            (_bounds.t - _hscroll->_bounds.t + ui_size::table_header) * 4 / 5, this);
          return 1;
-      } else if ((m->code == UIKeycode::LEFT || m->code == UIKeycode::RIGHT) && !_window->_ctrl && !_window->_alt &&
-                 !_window->_shift) {
+      } else if ((m->code == UIKeycode::LEFT || m->code == UIKeycode::RIGHT) && !is_ctrl_on() && !_window->_alt &&
+                 !is_shift_on()) {
          UIFont* active_font = ui()->active_font();
          _hscroll->position() += m->code == UIKeycode::LEFT ? -active_font->_glyph_width : active_font->_glyph_width;
          refresh();
@@ -3642,9 +3642,9 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
 
       UIKeyTyped* m         = (UIKeyTyped*)dp;
       bool        handled   = true;
-      bool        shift     = !!_window->_shift;
+      bool        shift     = !!is_shift_on();
       bool        alt       = !!_window->_alt;
-      bool        ctrl      = _window->_ctrl && !alt;
+      bool        ctrl      = is_ctrl_on() && !alt;
       bool        modifier  = ctrl || alt || shift;
       bool        selection = _carets[0] != _carets[1];
 
@@ -3654,7 +3654,7 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
       } else if (m->code == UIKeycode::BACKSPACE || m->code == UIKeycode::DEL) {
          _delete_one(m->code == UIKeycode::BACKSPACE, ctrl);
       } else if (m->code == UIKeycode::LEFT || m->code == UIKeycode::RIGHT) {
-         _move_one(m->code == UIKeycode::LEFT, shift, _window->_ctrl);
+         _move_one(m->code == UIKeycode::LEFT, shift, is_ctrl_on());
       } else if (m->code == UIKeycode::HOME || m->code == UIKeycode::END) {
          _move_to_end(m->code == UIKeycode::HOME, shift);
       } else if (m->text.size() && !alt && !ctrl && m->text[0] >= 0x20) {
@@ -4076,7 +4076,7 @@ int UIImageDisplay::_class_message_proc(UIMessage msg, int di, void* dp) {
       _flags &= ~UIImageDisplay::ZOOM_FIT;
       int   divisions   = -di / 72;
       float factor      = 1;
-      float perDivision = _window->_ctrl ? 2.0f : _window->_alt ? 1.01f : 1.2f;
+      float perDivision = is_ctrl_on() ? 2.0f : _window->_alt ? 1.01f : 1.2f;
       while (divisions > 0)
          factor *= perDivision, divisions--;
       while (divisions < 0)
