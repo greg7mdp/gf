@@ -3808,16 +3808,14 @@ int WatchLoggerTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       WatchLogEntry*  entry = &logger->_entries[m->_row];
       m->_is_selected       = (int)m->_row == logger->_selected_entry;
 
-      if (m->_column == 0) {
-         return m->format_to("{}", entry->_value);
-      } else if (m->_column == 1) {
-         return m->format_to("{}", entry->_where);
-      } else {
-         if (m->_column - 2 < entry->_evaluated.size()) {
+      switch (m->_column) {
+      case 0: return m->format_to("{}", entry->_value);
+      case 1: return m->format_to("{}", entry->_where);
+      default:
+         if (m->_column - 2 < entry->_evaluated.size())
             return m->format_to("{}", entry->_evaluated[m->_column - 2]._result);
-         } else {
+         else
             return 0;
-         }
       }
    } else if (msg == UIMessage::LEFT_DOWN || msg == UIMessage::MOUSE_DRAG) {
       int index = ((UITable*)el)->hittest(el->cursor_pos());
@@ -3842,14 +3840,12 @@ int WatchLoggerTraceMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       UITableGetItem* m     = (UITableGetItem*)dp;
       StackEntry*     entry = &logger->_entries[logger->_selected_entry]._trace[m->_row];
 
-      if (m->_column == 0) {
-         return m->format_to("{}", entry->_id);
-      } else if (m->_column == 1) {
-         return m->format_to("{}", entry->_function);
-      } else if (m->_column == 2) {
-         return m->format_to("{}", entry->_location);
-      } else if (m->_column == 3) {
-         return m->format_to("0x{:X}", entry->_address);
+      switch (m->_column) {
+      case 0: return m->format_to("{}", entry->_id);
+      case 1: return m->format_to("{}", entry->_function);
+      case 2: return m->format_to("{}", entry->_location);
+      case 3: return m->format_to("0x{:X}", entry->_address);
+      default: assert(0); return 0;
       }
    } else if (msg == UIMessage::LEFT_DOWN || msg == UIMessage::MOUSE_DRAG) {
       int index = ((UITable*)el)->hittest(el->cursor_pos());
@@ -4082,14 +4078,12 @@ int StackWindow::_table_message_proc(UITable* el, UIMessage msg, int di, void* d
       m->_is_selected         = (size_t)m->_row == _selected;
       const StackEntry& entry = _stack[m->_row];
 
-      if (m->_column == 0) {
-         return m->format_to("{}", entry._id);
-      } else if (m->_column == 1) {
-         return m->format_to("{}", entry._function);
-      } else if (m->_column == 2) {
-         return m->format_to("{}", entry._location);
-      } else if (m->_column == 3) {
-         return m->format_to("0x{:X}", entry._address);
+      switch (m->_column) {
+      case 0: return m->format_to("{}", entry._id);
+      case 1: return m->format_to("{}", entry._function);
+      case 2: return m->format_to("{}", entry._location);
+      case 3: return m->format_to("0x{:X}", entry._address);
+      default: assert(0); return 0;
       }
    } else if (msg == UIMessage::LEFT_DOWN || msg == UIMessage::MOUSE_DRAG) {
       set_frame(el, ((UITable*)el)->hittest(el->cursor_pos()));
@@ -5731,16 +5725,13 @@ int ProfTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       UITableGetItem*    m     = (UITableGetItem*)dp;
       ProfFunctionEntry* entry = &report->_sorted_functions[m->_row];
 
-      if (m->_column == 0) {
-         return m->format_to("{}", entry->_name);
-      } else if (m->_column == 1) {
-         return m->format_to("{:f}", entry->_total_time);
-      } else if (m->_column == 2) {
-         return m->format_to("{}", entry->_call_count);
-      } else if (m->_column == 3) {
-         return m->format_to("{:f}", entry->_total_time / entry->_call_count);
-      } else if (m->_column == 4) {
-         return m->format_to("{:f}", entry->_total_time / report->_total_time * 100);
+      switch (m->_column) {
+      case 0: return m->format_to("{}", entry->_name);
+      case 1: return m->format_to("{:f}", entry->_total_time);
+      case 2: return m->format_to("{}", entry->_call_count);
+      case 3: return m->format_to("{:f}", entry->_total_time / entry->_call_count);
+      case 4: return m->format_to("{:f}", entry->_total_time / report->_total_time * 100);
+      default: assert(0); return 0;
       }
    } else if (msg == UIMessage::LEFT_DOWN) {
       int index = table->header_hittest(el->cursor_pos());
