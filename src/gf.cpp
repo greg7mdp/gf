@@ -974,6 +974,10 @@ private:
          }
          (void)DebuggerSend(std::format("{} {}", s, _number), true, false);
       }
+
+      void toggle() const {
+         command(_enabled ? bp_command::dis : bp_command::ena);
+      }
    };
 
    friend struct BreakpointsWindow;
@@ -4272,6 +4276,12 @@ int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int 
          _selected.clear();
       }
       uitable->focus();
+   } else if (msg == UIMessage::LEFT_DBLCLICK) {
+      int index = uitable->hittest(uitable->cursor_pos());
+      if (index != -1) {
+         const Breakpoint& bp = _breakpoints[index];
+         bp.toggle();
+      }
    } else if (msg == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
@@ -4283,7 +4293,7 @@ int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int 
          int n = m->text[0] - '0';
          for (const auto& breakpoint : _breakpoints) {
             if (breakpoint._number == n) {
-               breakpoint.command(breakpoint._enabled ? bp_command::dis : bp_command::ena);
+               breakpoint.toggle();
                break;
             }
          }
