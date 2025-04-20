@@ -41,18 +41,17 @@ public:
       _cv.notify_one();
    }
 
-   bool pop(std::optional<T>& value) {
+   std::optional<T> pop() {
       std::unique_lock lock(_mutex);
       bool             res = _cv.wait_for(lock, std::chrono::seconds(15), [this] { return !_queue.empty() || _quit; });
 
       if (!res || _quit) { // !res means we hit the timeout
-         value = std::optional<T>{};
-         return false;
+         return {};
       }
 
-      value = std::move(_queue.front());
+      auto value = std::move(_queue.front());
       _queue.pop();
-      return true;
+      return std::optional<T>{std::move(value)};
    }
 
    size_t size() const {
@@ -187,6 +186,18 @@ void set_thread_name(const char* name) {
 #elif defined(__APPLE__)
    pthread_setname_np(name);
 #endif
+}
+
+// hacky way to remove all occurences of `pattern` from `str`
+// ----------------------------------------------------------
+void remove_pattern(std::string& str, std::string_view pattern) {
+   char *s = (char *)str.c_str();
+   for (size_t i=0; s[i]; ++i) {
+      bool pattern_matches = strncmp(&s[i], &pattern[0], pattern.size()) == 0;
+      if (pattern_matches)
+         memmove(s + i, s + i + pattern.size(), strlen(s) - pattern.size() - i + 1);
+   }
+   str.resize(strlen(s));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -334,9 +345,9 @@ struct Context {
    std::optional<std::string> send_command_to_debugger(string_view command, bool echo, bool synchronous);
 
    std::string eval_command(string_view command, bool echo = false) {
-      auto res = *std::move(send_command_to_debugger(command, echo, true));
+      auto res = send_command_to_debugger(command, echo, true);
       // print("{} ==> {}\n", command, res);
-      return res;
+      return std::move(*res);
    }
 
    std::string eval_expression(string_view expression, string_view format = {}) {
@@ -782,7 +793,6 @@ void Context::debugger_thread_fn() {
 // can be called by: SourceWindowUpdate -> EvaluateExpresion -> EvaluateCommand
 // synchronous means we will wait for the debugger output
 std::optional<std::string> Context::send_command_to_debugger(string_view command, bool echo, bool synchronous) {
-   std::optional<std::string> res;
    interrupt_gdb();
 
    if (synchronous)
@@ -803,7 +813,8 @@ std::optional<std::string> Context::send_command_to_debugger(string_view command
    send_to_gdb(command);
 
    if (synchronous) {
-      bool quit = !_evaluate_result_queue.pop(res);
+      auto res = _evaluate_result_queue.pop();
+      bool quit = !res;
       if (!res) {
          print("Hit timeout on command \"{}\"\n", command);
          res = std::string{}; // in synchronous mode we always return a (possibly empty) string
@@ -812,9 +823,10 @@ std::optional<std::string> Context::send_command_to_debugger(string_view command
          if (!quit && s_trafficlight)
             s_trafficlight->repaint(nullptr);
       }
+      return res;
    }
    // print("{} ==> {}\n", command, res ? *res : "???"s);
-   return res;
+   return std::optional<std::string>{};
 }
 
 void StackWindow::update_stack() {
@@ -4770,6 +4782,13 @@ public:
       if (res.empty())
          return;
 
+      // remove line continuation pattern, as in:
+      //   Id   Target Id                                         Frame
+      // * 1    Thread 0x7ffff78eb780 (LWP 1247164) "gf_testprog" main (argc=1,
+      //     argv=0x7fffffffd998)
+      // ----------------------------------------------------------------------
+      remove_pattern(res, "\n   ");
+
       for (const auto& match : ctx._dbg_re->find_4s(res, debug_look_for::thread_info)) {
          auto [sel, id, name, frame] = match;
          _threads.push_back(
@@ -5107,6 +5126,8 @@ struct ProfFunctionEntry {
 
 int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp);
 
+enum class drag_mode_t { unset, zoom_range, pan, x_pan_and_zoom, x_scroll };
+
 struct ProfFlameGraphReport : public UIElement {
    UIRectangle  _client;
    UIFont*      _font;
@@ -5132,16 +5153,12 @@ struct ProfFlameGraphReport : public UIElement {
    ProfFlameGraphEntry* _hover;
    ProfFlameGraphEntry* _menu_item;
 
-#define FLAME_GRAPH_DRAG_ZOOM_RANGE (1)
-#define FLAME_GRAPH_DRAG_PAN (2)
-#define FLAME_GRAPH_DRAG_X_PAN_AND_ZOOM (3)
-#define FLAME_GRAPH_DRAG_X_SCROLL (4)
-   bool   _drag_started;
-   int    _drag_mode;
-   double _drag_initial_value, _drag_initial_value2;
-   int    _drag_initial_point, _drag_initial_point2;
-   int    _drag_current_point;
-   double _drag_scroll_rate;
+   bool        _drag_started;
+   drag_mode_t _drag_mode;
+   double      _drag_initial_value, _drag_initial_value2;
+   int         _drag_initial_point, _drag_initial_point2;
+   int         _drag_current_point;
+   double      _drag_scroll_rate;
 
    ProfFlameGraphReport(UIElement* parent, uint32_t flags)
       : UIElement(parent, flags, ProfFlameGraphMessage, "flame graph")
@@ -5160,7 +5177,7 @@ struct ProfFlameGraphReport : public UIElement {
       , _hover(nullptr)
       , _menu_item(nullptr)
       , _drag_started(false)
-      , _drag_mode(0)
+      , _drag_mode(drag_mode_t::unset)
       , _drag_initial_value(0)
       , _drag_initial_value2(0)
       , _drag_initial_point(0)
@@ -5192,9 +5209,9 @@ const int profZoomBarHeight = 30;
 const int profScaleHeight   = 20;
 const int profRowHeight     = 30;
 
-#define PROF_MAX_RENDER_THREAD_COUNT (8)
-pthread_t profRenderThreads[PROF_MAX_RENDER_THREAD_COUNT];
-sem_t     profRenderStartSemaphores[PROF_MAX_RENDER_THREAD_COUNT];
+static constexpr int prof_max_render_thread_count = 8;
+pthread_t profRenderThreads[prof_max_render_thread_count];
+sem_t     profRenderStartSemaphores[prof_max_render_thread_count];
 sem_t     profRenderEndSemaphore;
 UIPainter* volatile profRenderPainter;
 ProfFlameGraphReport* volatile profRenderReport;
@@ -5311,8 +5328,8 @@ void* ProfFlameGraphRenderThread(void* _unused) {
             painter->draw_block(UIRectangle(r.l, r.r - 1, r.t, r.t + 1), profBorderLightColor);
             painter->draw_block(UIRectangle(r.l, r.l + 1, r.t + 1, r.b - 1), profBorderLightColor);
 
-            bool hovered =
-               report->_hover && report->_hover->_this_function == entry->_this_function && !report->_drag_mode;
+            bool hovered = report->_hover && report->_hover->_this_function == entry->_this_function &&
+                           report->_drag_mode == drag_mode_t::unset;
             uint32_t color = hovered ? profHoverColor : profEntryColorPalette[entry->_color_index];
             /// uint32_t color = hovered ? profHoverColor : profMainColor;
             painter->draw_block(UIRectangle(r.l + 1, r.r - 1, r.t + 1, r.b - 1), color);
@@ -5359,8 +5376,8 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          profRenderThreadCount = sysconf(_SC_NPROCESSORS_CONF);
          if (profRenderThreadCount < 1)
             profRenderThreadCount = 1;
-         if (profRenderThreadCount > PROF_MAX_RENDER_THREAD_COUNT)
-            profRenderThreadCount = PROF_MAX_RENDER_THREAD_COUNT;
+         if (profRenderThreadCount > prof_max_render_thread_count)
+            profRenderThreadCount = prof_max_render_thread_count;
          print("Using {} render threads.\n", profRenderThreadCount);
 
          sem_init(&profRenderEndSemaphore, 0, 0);
@@ -5410,7 +5427,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          }
       }
 
-      if (report->_drag_mode == FLAME_GRAPH_DRAG_ZOOM_RANGE) {
+      if (report->_drag_mode == drag_mode_t::zoom_range) {
          UIRectangle r = report->_client;
          r.l = report->_drag_initial_point, r.r = report->_drag_current_point;
          if (r.l > r.r)
@@ -5441,7 +5458,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          painter->draw_border(zoomBarThumb, profBorderLightColor, UIRectangle(4));
       }
 
-      if (report->_hover && !report->_drag_mode) {
+      if (report->_hover && report->_drag_mode == drag_mode_t::unset) {
          const ProfFunctionEntry& function = report->_functions[report->_hover->_this_function];
 
          char line1[256], line2[256], line3[256];
@@ -5533,14 +5550,14 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::LEFT_DOWN) {
       auto pos = el->cursor_pos();
       if (pos.y < report->_client.b - profZoomBarHeight) {
-         report->_drag_mode           = FLAME_GRAPH_DRAG_PAN;
+         report->_drag_mode           = drag_mode_t::pan;
          report->_drag_initial_value  = report->_x_start;
          report->_drag_initial_point  = pos.x;
          report->_drag_initial_value2 = report->_v_scroll->position();
          report->_drag_initial_point2 = pos.y;
          el->set_cursor((int)UICursor::hand);
       } else {
-         report->_drag_mode          = FLAME_GRAPH_DRAG_X_SCROLL;
+         report->_drag_mode          = drag_mode_t::x_scroll;
          report->_drag_initial_value = report->_x_start;
          report->_drag_initial_point = pos.x;
          report->_drag_scroll_rate   = 1.0;
@@ -5553,7 +5570,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::MIDDLE_DOWN) {
       auto pos = el->cursor_pos();
       if (pos.y < report->_client.b - profZoomBarHeight) {
-         report->_drag_mode           = FLAME_GRAPH_DRAG_X_PAN_AND_ZOOM;
+         report->_drag_mode           = drag_mode_t::x_pan_and_zoom;
          report->_drag_initial_value  = report->_x_start;
          report->_drag_initial_point  = pos.x;
          report->_drag_initial_point2 = pos.y;
@@ -5562,11 +5579,11 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::RIGHT_DOWN) {
       auto pos = el->cursor_pos();
       if (pos.y < report->_client.b - profZoomBarHeight) {
-         report->_drag_mode          = FLAME_GRAPH_DRAG_ZOOM_RANGE;
+         report->_drag_mode          = drag_mode_t::zoom_range;
          report->_drag_initial_point = pos.x;
       }
    } else if (msg == UIMessage::LEFT_UP || msg == UIMessage::RIGHT_UP || msg == UIMessage::MIDDLE_UP) {
-      if (report->_drag_mode == FLAME_GRAPH_DRAG_ZOOM_RANGE && report->_drag_started) {
+      if (report->_drag_mode == drag_mode_t::zoom_range && report->_drag_started) {
          UIRectangle r = report->_client;
          r.l = report->_drag_initial_point, r.r = report->_drag_current_point;
          if (r.l > r.r)
@@ -5587,7 +5604,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          ProfFillView(report);
       }
 
-      report->_drag_mode    = 0;
+      report->_drag_mode    = drag_mode_t::unset;
       report->_drag_started = false;
       el->repaint(nullptr);
       el->set_cursor((int)UICursor::arrow);
@@ -5595,7 +5612,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       report->_drag_started = true;
       auto pos              = el->cursor_pos();
 
-      if (report->_drag_mode == FLAME_GRAPH_DRAG_PAN) {
+      if (report->_drag_mode == drag_mode_t::pan) {
          double delta     = report->_x_end - report->_x_start;
          report->_x_start = report->_drag_initial_value - (double)(pos.x - report->_drag_initial_point) *
                                                              report->_total_time / report->_client.width() * delta /
@@ -5611,7 +5628,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          }
          report->_v_scroll->position() = report->_drag_initial_value2 - (double)(pos.y - report->_drag_initial_point2);
          report->_v_scroll->refresh();
-      } else if (report->_drag_mode == FLAME_GRAPH_DRAG_X_SCROLL) {
+      } else if (report->_drag_mode == drag_mode_t::x_scroll) {
          double delta     = report->_x_end - report->_x_start;
          report->_x_start = report->_drag_initial_value + (double)(pos.x - report->_drag_initial_point) *
                                                              report->_total_time / report->_client.width() *
@@ -5625,7 +5642,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
             report->_x_start += report->_total_time - report->_x_end;
             report->_x_end = report->_total_time;
          }
-      } else if (report->_drag_mode == FLAME_GRAPH_DRAG_X_PAN_AND_ZOOM) {
+      } else if (report->_drag_mode == drag_mode_t::x_pan_and_zoom) {
          double delta = report->_x_end - report->_x_start;
          report->_x_start += (double)(pos.x - report->_drag_initial_point) * report->_total_time /
                              report->_client.width() * delta / report->_total_time * 3.0;
@@ -5642,7 +5659,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          double newZoom = (report->_x_end - report->_x_start) / report->_total_time * factor;
          report->_x_start += mouse * (report->_x_end - report->_x_start) * (1 - factor);
          report->_x_end = newZoom * report->_total_time + report->_x_start;
-      } else if (report->_drag_mode == FLAME_GRAPH_DRAG_ZOOM_RANGE) {
+      } else if (report->_drag_mode == drag_mode_t::zoom_range) {
          report->_drag_current_point = pos.x;
       }
 
@@ -5663,8 +5680,8 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       el->repaint(nullptr);
       return 1;
    } else if (msg == UIMessage::GET_CURSOR) {
-      return report->_drag_mode == FLAME_GRAPH_DRAG_PAN              ? (int)UICursor::hand
-             : report->_drag_mode == FLAME_GRAPH_DRAG_X_PAN_AND_ZOOM ? (int)UICursor::cross_hair
+      return report->_drag_mode == drag_mode_t::pan              ? (int)UICursor::hand
+             : report->_drag_mode == drag_mode_t::x_pan_and_zoom ? (int)UICursor::cross_hair
                                                                      : (int)UICursor::arrow;
    } else if (msg == UIMessage::LAYOUT) {
       UIRectangle scrollBarBounds = el->_bounds;

@@ -106,7 +106,7 @@ vec_res_t<4> gdb_impl::find_4s(std::string_view s, debug_look_for lf, size_t pos
       // (gdb)
       // ------------------------------------------------------------------------------------------
       res.reserve(8);
-      for (auto match : ctre::multiline_search_all<R"(^(\*| ) ([0-9]+) *Thread.*[0-9]\) ("[a-zA-Z_0-9]+").*(0x.*)$)">(s)) {
+      for (auto match : ctre::multiline_search_all<R"(^(\*| ) ([0-9]+) *Thread.*[0-9]\) ("[a-zA-Z_0-9]+") +(.*)$)">(s)) {
          auto [m, sel, id, name, frame] = match;
          res.push_back(tuples_t<4>{sel, id, name, frame});
       }
