@@ -946,6 +946,8 @@ static bool DisplaySetPosition(const std::string& file, std::optional<size_t> li
 // ---------------------------------------------------
 std::optional<std::string> DebuggerSend(string_view command, bool echo, bool synchronous);
 
+enum class bp_command { ena, dis, del };
+
 struct BreakpointMgr {
 private:
    struct Breakpoint {
@@ -961,6 +963,17 @@ private:
       uint64_t _condition_hash = 0;
 
       bool match(int line, std::string_view path) const { return _line == line && path == _full_path; }
+
+      void command(bp_command cmd) const {
+         const char* s;
+         switch(cmd) {
+         case bp_command::ena: s = "ena";  break;
+         case bp_command::dis: s = "dis"; break;
+         case bp_command::del: s = "del";  break;
+         default: assert(0);
+         }
+         (void)DebuggerSend(std::format("{} {}", s, _number), true, false);
+      }
    };
 
    friend struct BreakpointsWindow;
@@ -977,11 +990,6 @@ public:
             std::forward<F>(f)(i, _breakpoints[i]);
          }
       }
-   }
-
-   void command(int index, const char* action) {
-      Breakpoint* breakpoint = &_breakpoints[index];
-      (void)DebuggerSend(std::format("{} {}", action, breakpoint->_number), true, false);
    }
 
    void toggle_breakpoint(int line = 0) {
@@ -1218,12 +1226,6 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
 }
 
 static void CommandSendToGDB(string_view s) { (void)CommandParseInternal(s, false); }
-
-static void CommandDeleteBreakpoint(int index) { s_breakpoint_mgr.command(index, "delete"); }
-
-static void CommandDisableBreakpoint(int index) { s_breakpoint_mgr.command(index, "disable"); }
-
-static void CommandEnableBreakpoint(int index) { s_breakpoint_mgr.command(index, "enable"); }
 
 static bool CommandSyncWithGvim() {
    char buffer[1024];
@@ -1855,17 +1857,17 @@ void SourceWindow::draw_inspect_line_mode_overlay(UIPainter* painter) {
 
 void CommandDeleteAllBreakpointsOnLine(int line) {
    s_breakpoint_mgr.for_all_matching_breakpoints(line, s_source_window->_current_file_full,
-                                                 [](int line, auto&) { CommandDeleteBreakpoint(line); });
+                                                 [](int line, auto& bp) { bp.command(bp_command::del); });
 }
 
 void CommandDisableAllBreakpointsOnLine(int line) {
    s_breakpoint_mgr.for_all_matching_breakpoints(line, s_source_window->_current_file_full,
-                                                 [](int line, auto&) { CommandDisableBreakpoint(line); });
+                                                 [](int line, auto& bp) { bp.command(bp_command::dis); });
 }
 
 void CommandEnableAllBreakpointsOnLine(int line) {
    s_breakpoint_mgr.for_all_matching_breakpoints(line, s_source_window->_current_file_full,
-                                                 [](int line, auto&) { CommandEnableBreakpoint(line); });
+                                                 [](int line, auto& bp) { bp.command(bp_command::ena); });
 }
 
 int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* dp) {
@@ -4129,20 +4131,16 @@ public:
    BreakpointsWindow(vector<Breakpoint>& bp)
       : _breakpoints(bp) {}
 
-   void for_all_selected_breakpoints(string_view action) const {
+   void for_all_selected_breakpoints(bp_command cmd) const {
       for (auto selected : _selected) {
          for (const auto& breakpoint : _breakpoints) {
             if (breakpoint._number == selected) {
-               (void)DebuggerSend(std::format("{} {}", action, selected), true, false);
+               breakpoint.command(cmd);
                break;
             }
          }
       }
    }
-
-   void delete_selected_breakpoints() const { for_all_selected_breakpoints("delete"); }
-   void disable_selected_breakpoints() const { for_all_selected_breakpoints("disable"); }
-   void enable_selected_breakpoints() const { for_all_selected_breakpoints("enable"); }
 
    int _table_message_proc(UITable* table, UIMessage msg, int di, void* dp);
 
@@ -4211,20 +4209,20 @@ int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int 
                }
             }
 
-            menu.add_item(0, "Delete", [this](UIButton&) { delete_selected_breakpoints(); });
+            menu.add_item(0, "Delete", [this](UIButton&) { for_all_selected_breakpoints(bp_command::del); });
 
             if (atLeastOneBreakpointDisabled)
-               menu.add_item(0, "Enable", [this](UIButton&) { enable_selected_breakpoints(); });
+               menu.add_item(0, "Enable", [this](UIButton&) { for_all_selected_breakpoints(bp_command::ena); });
 
             if (atLeastOneBreakpointEnabled)
-               menu.add_item(0, "Disable", [this](UIButton&) { disable_selected_breakpoints(); });
+               menu.add_item(0, "Disable", [this](UIButton&) { for_all_selected_breakpoints(bp_command::dis); });
          } else {
-            menu.add_item(0, "Delete", [index](UIButton&) { CommandDeleteBreakpoint(index); });
+            menu.add_item(0, "Delete", [&bp](UIButton&) { bp.command(bp_command::del); });
 
             if (_breakpoints[index]._enabled)
-               menu.add_item(0, "Disable", [index](UIButton&) { CommandDisableBreakpoint(index); });
+               menu.add_item(0, "Disable", [&bp](UIButton&) { bp.command(bp_command::dis); });
             else
-               menu.add_item(0, "Enable", [index](UIButton&) { CommandEnableBreakpoint(index); });
+               menu.add_item(0, "Enable", [&bp](UIButton&) { bp.command(bp_command::ena); });
          }
 
          menu.show();
@@ -4277,8 +4275,18 @@ int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int 
    } else if (msg == UIMessage::KEY_TYPED) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
-      if (m->code == UIKeycode::DEL && _selected.size() > 0) {
-         delete_selected_breakpoints();
+      if (_selected.size() > 0) {
+         if (m->code == UIKeycode::DEL)
+            for_all_selected_breakpoints(bp_command::del);
+      }
+      if (m->text.size() == 1 && m->text[0] >= '0' && m->text[0] <= '9') {
+         int n = m->text[0] - '0';
+         for (const auto& breakpoint : _breakpoints) {
+            if (breakpoint._number == n) {
+               breakpoint.command(breakpoint._enabled ? bp_command::dis : bp_command::ena);
+               break;
+            }
+         }
       }
    }
 
