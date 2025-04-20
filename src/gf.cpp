@@ -5202,16 +5202,6 @@ int          profRenderThreadCount;
 volatile int profRenderThreadIndexAllocator;
 volatile int profRenderActiveThreads;
 
-int ProfFlameGraphEntryCompare(const void* _a, const void* _b) {
-   ProfFlameGraphEntry* a = (ProfFlameGraphEntry*)_a;
-   ProfFlameGraphEntry* b = (ProfFlameGraphEntry*)_b;
-   return a->_depth > b->_depth             ? 1
-          : a->_depth < b->_depth           ? -1
-          : a->_start_time > b->_start_time ? 1
-          : a->_start_time < b->_start_time ? -1
-                                            : 0;
-}
-
 void ProfShowSource(ProfFlameGraphReport* report) {
    ProfFlameGraphEntry* entry = report->_menu_item;
    if (!report->_functions.contains(entry->_this_function)) {
@@ -5721,21 +5711,6 @@ void ProfSwitchView(ProfFlameGraphReport* report) {
    report->_parent->refresh();
 }
 
-#define PROF_FUNCTION_COMPARE(a, b)                                 \
-   int a(const void* c, const void* d) {                            \
-      const ProfFunctionEntry* left  = (const ProfFunctionEntry*)c; \
-      const ProfFunctionEntry* right = (const ProfFunctionEntry*)d; \
-      return b;                                                     \
-   }
-#define PROF_COMPARE_NUMBERS(a, b) (a) > (b) ? -1 : (a) < (b) ? 1 : 0
-
-PROF_FUNCTION_COMPARE(ProfFunctionCompareName, (left->_name != right->_name));
-PROF_FUNCTION_COMPARE(ProfFunctionCompareTotalTime, PROF_COMPARE_NUMBERS(left->_total_time, right->_total_time));
-PROF_FUNCTION_COMPARE(ProfFunctionCompareCallCount, PROF_COMPARE_NUMBERS(left->_call_count, right->_call_count));
-PROF_FUNCTION_COMPARE(ProfFunctionCompareAverage, PROF_COMPARE_NUMBERS(left->_total_time / left->_call_count,
-                                                                       right->_total_time / right->_call_count));
-PROF_FUNCTION_COMPARE(ProfFunctionComparePercentage, PROF_COMPARE_NUMBERS(left->_total_time, right->_total_time));
-
 int ProfTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    ProfFlameGraphReport* report = (ProfFlameGraphReport*)el->_cp;
    UITable*              table  = report->_table;
@@ -5754,23 +5729,29 @@ int ProfTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       }
    } else if (msg == UIMessage::LEFT_DOWN) {
       int index = table->header_hittest(el->cursor_pos());
+      auto& sf = report->_sorted_functions;
 
       if (index != -1) {
-         if (index == 0) {
-            qsort(report->_sorted_functions.data(), report->_sorted_functions.size(), sizeof(ProfFunctionEntry),
-                  ProfFunctionCompareName);
-         } else if (index == 1) {
-            qsort(report->_sorted_functions.data(), report->_sorted_functions.size(), sizeof(ProfFunctionEntry),
-                  ProfFunctionCompareTotalTime);
-         } else if (index == 2) {
-            qsort(report->_sorted_functions.data(), report->_sorted_functions.size(), sizeof(ProfFunctionEntry),
-                  ProfFunctionCompareCallCount);
-         } else if (index == 3) {
-            qsort(report->_sorted_functions.data(), report->_sorted_functions.size(), sizeof(ProfFunctionEntry),
-                  ProfFunctionCompareAverage);
-         } else if (index == 4) {
-            qsort(report->_sorted_functions.data(), report->_sorted_functions.size(), sizeof(ProfFunctionEntry),
-                  ProfFunctionComparePercentage);
+         switch (index) {
+         case 0:
+            std::sort(sf.begin(), sf.end(), [](auto& a, auto& b) { return a._name > b._name; });
+            break;
+         case 1:
+            std::sort(sf.begin(), sf.end(), [](auto& a, auto& b) { return a._total_time > b._total_time; });
+            break;
+         case 2:
+            std::sort(sf.begin(), sf.end(), [](auto& a, auto& b) { return a._call_count > b._call_count; });
+            break;
+         case 3:
+            std::sort(sf.begin(), sf.end(), [](auto& a, auto& b) {
+               return (a._total_time / a._call_count) > (b._total_time / b._call_count);
+            });
+            break;
+         case 4:
+            std::sort(sf.begin(), sf.end(), [](auto& a, auto& b) { return a._total_time > b._total_time; });
+            break;
+         default:
+            assert(0);
          }
 
          el->refresh();
@@ -5999,7 +5980,10 @@ void ProfLoadProfileData(void* _window) {
 
    stack.clear();
    report->_x_end = report->_total_time;
-   qsort(report->_entries.data(), report->_entries.size(), sizeof(ProfFlameGraphEntry), ProfFlameGraphEntryCompare);
+
+   std::sort(report->_entries.begin(), report->_entries.end(), [](const auto& a, const auto& b) {
+      return std::tuple(a._depth, a._start_time) < std::tuple(b._depth, b._start_time);
+   });
 
    int maxDepth = 0;
 
@@ -6044,8 +6028,8 @@ void ProfLoadProfileData(void* _window) {
    }
 
    table->set_num_items(report->_sorted_functions.size());
-   qsort(report->_sorted_functions.data(), report->_sorted_functions.size(), sizeof(ProfFunctionEntry),
-         ProfFunctionCompareTotalTime);
+   auto& sf = report->_sorted_functions;
+   std::sort(sf.begin(), sf.end(), [](auto& a, auto& b) { return a._total_time > b._total_time; });
    table->set_column_highlight(1);
    table->resize_columns();
 
