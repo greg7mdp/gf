@@ -817,12 +817,12 @@ std::optional<std::string> Context::send_command_to_debugger(string_view command
    return res;
 }
 
-void DebuggerGetStack() {
+void StackWindow::update_stack() {
    auto res = ctx.eval_command(std::format("bt {}", gfc._backtrace_count_limit));
    if (res.empty())
       return;
 
-   sw->clear();
+   clear();
 
    const char* position = res.c_str();
 
@@ -869,7 +869,7 @@ void DebuggerGetStack() {
          entry._location = std::string_view{file, (size_t)(end - file)};
       }
 
-      sw->append(entry);
+      append(entry);
 
       if (!(*next))
          break;
@@ -4027,7 +4027,7 @@ bool WatchLoggerUpdate(std::string _data) {
    entry._where = where;
 
    std::swap(entry._trace, sw->stack());
-   DebuggerGetStack();
+   sw->update_stack();
    std::swap(entry._trace, sw->stack());
 
    logger->_entries.push_back(entry);
@@ -4826,7 +4826,7 @@ public:
       if (!pause) {
          (void)CommandParseInternal("run", false);
       } else {
-         DebuggerGetStack();
+         sw->update_stack();
          s_source_window->display_set_position_from_stack();
       }
    }
@@ -7353,7 +7353,7 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
    if (!ctx._dbg_re->matches(*input, debug_look_for::stack_or_breakpoint_output)) {
       // we don't want to call `DebuggerGetBreakpoints()` upon receiving the result of `DebuggerGetBreakpoints()`,
       // causing an infinite loop!!!
-      DebuggerGetStack();
+      sw->update_stack();
       s_breakpoint_mgr.update_breakpoint_from_gdb();
 
       ctx.grab_focus(s_input_textbox->_window); // grab focus when breakpoint is hit!

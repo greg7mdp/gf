@@ -142,6 +142,8 @@ public:
    void set_selected(size_t i) { _selected = i; }
    void set_changed(bool b) { _has_changed = b; }
 
+   void update_stack();
+
    std::vector<StackEntry>& stack() { return _stack; }
 
    const StackEntry& operator[](size_t i) const { return _stack[i]; }
