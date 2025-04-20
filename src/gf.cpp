@@ -287,10 +287,9 @@ struct Context {
    pid_t             _gdb_pid         = 0;
    std::atomic<bool> _kill_gdb_thread = false;
    std::thread       _gdb_thread; // reads gdb output and pushes it to queue (we wait on queue in DebuggerSend
-   std::atomic<bool> _evaluate_mode =
-      false; // when true, means we sent a command to gdb and are waiting for the response
-   char**                 _gdb_argv = nullptr;
-   int                    _gdb_argc = 0;
+   std::atomic<bool> _evaluate_mode = false; // true means we sent a command to gdb and are waiting for the response
+   char**            _gdb_argv      = nullptr;
+   int               _gdb_argc      = 0;
    SPSCQueue<std::string> _evaluate_result_queue;
    std::atomic<bool>      _program_running = true;
 
@@ -326,6 +325,29 @@ struct Context {
       kill_gdb_thread();
       print(std::cerr, "killing gdb process {}.\n", _gdb_pid);
       kill(_gdb_pid, SIGKILL);
+   }
+
+   void start_debugger_thread() {
+      _gdb_thread = std::thread([this]() { debugger_thread_fn(); });
+   }
+
+   std::optional<std::string> send_command_to_debugger(string_view command, bool echo, bool synchronous);
+
+   std::string eval_command(string_view command, bool echo = false) {
+      auto res = *std::move(send_command_to_debugger(command, echo, true));
+      // print("{} ==> {}\n", command, res);
+      return res;
+   }
+
+   std::string eval_expression(string_view expression, string_view format = {}) {
+      auto cmd = std::format("p{} {}", format, expression);
+      auto res = eval_command(cmd);
+      auto eq  = res.find_first_of('=');
+      if (eq != npos) {
+         res.erase(0, eq);  // remove characters up to '='
+         resize_to_lf(res); // terminate string at '\n'
+      }
+      return res;
    }
 
    void restore_focus() {
@@ -757,20 +779,16 @@ void Context::debugger_thread_fn() {
    return;
 }
 
-void DebuggerStartThread() {
-   ctx._gdb_thread = std::thread([]() { ctx.debugger_thread_fn(); });
-}
-
 // can be called by: SourceWindowUpdate -> EvaluateExpresion -> EvaluateCommand
 // synchronous means we will wait for the debugger output
-std::optional<std::string> DebuggerSend(string_view command, bool echo, bool synchronous) {
+std::optional<std::string> Context::send_command_to_debugger(string_view command, bool echo, bool synchronous) {
    std::optional<std::string> res;
-   ctx.interrupt_gdb();
+   interrupt_gdb();
 
    if (synchronous)
-      ctx._evaluate_mode = true;
+      _evaluate_mode = true;
 
-   ctx._program_running = true;
+   _program_running = true;
 
    if (s_trafficlight)
       s_trafficlight->repaint(nullptr);
@@ -782,15 +800,15 @@ std::optional<std::string> DebuggerSend(string_view command, bool echo, bool syn
       s_display_output->refresh();
    }
 
-   ctx.send_to_gdb(command);
+   send_to_gdb(command);
 
    if (synchronous) {
-      bool quit = !ctx._evaluate_result_queue.pop(res);
+      bool quit = !_evaluate_result_queue.pop(res);
       if (!res) {
          print("Hit timeout on command \"{}\"\n", command);
          res = std::string{}; // in synchronous mode we always return a (possibly empty) string
       } else {
-         ctx._program_running = false;
+         _program_running = false;
          if (!quit && s_trafficlight)
             s_trafficlight->repaint(nullptr);
       }
@@ -799,25 +817,8 @@ std::optional<std::string> DebuggerSend(string_view command, bool echo, bool syn
    return res;
 }
 
-std::string EvaluateCommand(string_view command, bool echo = false) {
-   auto res = *std::move(DebuggerSend(command, echo, true));
-   // print("{} ==> {}\n", command, res);
-   return res;
-}
-
-std::string EvaluateExpression(string_view expression, string_view format = {}) {
-   auto cmd = std::format("p{} {}", format, expression);
-   auto res = EvaluateCommand(cmd);
-   auto eq  = res.find_first_of('=');
-   if (eq != npos) {
-      res.erase(0, eq);  // remove characters up to '='
-      resize_to_lf(res); // terminate string at '\n'
-   }
-   return res;
-}
-
 void DebuggerGetStack() {
-   auto res = EvaluateCommand(std::format("bt {}", gfc._backtrace_count_limit));
+   auto res = ctx.eval_command(std::format("bt {}", gfc._backtrace_count_limit));
    if (res.empty())
       return;
 
@@ -876,6 +877,8 @@ void DebuggerGetStack() {
    }
 }
 
+// ------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------
 struct TabCompleter {
    bool _last_key_was_tab;
 
@@ -891,7 +894,7 @@ public:
       for (int i = 0; buffer[i]; i++)
          if (buffer[i] == '\\')
             buffer[i] = ' ';
-      auto res = EvaluateCommand(buffer);
+      auto res = ctx.eval_command(buffer);
       if (res.empty())
          return;
 
@@ -944,8 +947,6 @@ static bool DisplaySetPosition(const std::string& file, std::optional<size_t> li
 // ---------------------------------------------------
 // Breakpoints:
 // ---------------------------------------------------
-std::optional<std::string> DebuggerSend(string_view command, bool echo, bool synchronous);
-
 enum class bp_command { ena, dis, del };
 
 struct BreakpointMgr {
@@ -972,7 +973,7 @@ private:
          case bp_command::del: s = "del";  break;
          default: assert(0);
          }
-         (void)DebuggerSend(std::format("{} {}", s, _number), true, false);
+         (void)ctx.send_command_to_debugger(std::format("{} {}", s, _number), true, false);
       }
 
       void toggle() const {
@@ -1011,16 +1012,16 @@ public:
 
       for (const auto& bp : _breakpoints) {
          if (bp.match(line, s_source_window->_current_file_full)) {
-            (void)DebuggerSend(std::format("clear {}:{}", s_source_window->_current_file, line), true, false);
+            (void)ctx.send_command_to_debugger(std::format("clear {}:{}", s_source_window->_current_file, line), true, false);
             return;
          }
       }
 
-      (void)DebuggerSend(std::format("b {}:{}", s_source_window->_current_file, line), true, false);
+      (void)ctx.send_command_to_debugger(std::format("b {}:{}", s_source_window->_current_file, line), true, false);
    }
 
    void update_breakpoint_from_gdb() {
-      auto eval_res = EvaluateCommand("info break");
+      auto eval_res = ctx.eval_command("info break");
       _breakpoints.clear();
 
       const char* position = eval_res.c_str();
@@ -1138,31 +1139,31 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
    std::optional<std::string> res;
    if (command == "gf-step") {
       if (!ctx._program_running)
-         res = DebuggerSend(s_source_window->_showing_disassembly ? "stepi" : "s", true, synchronous);
+         res = ctx.send_command_to_debugger(s_source_window->_showing_disassembly ? "stepi" : "s", true, synchronous);
    } else if (command == "gf-next") {
       if (!ctx._program_running)
-         res = DebuggerSend(s_source_window->_showing_disassembly ? "nexti" : "n", true, synchronous);
+         res = ctx.send_command_to_debugger(s_source_window->_showing_disassembly ? "nexti" : "n", true, synchronous);
    } else if (command == "gf-step-out-of-block") {
       int line = SourceFindEndOfBlock();
 
       if (line != -1) {
-         (void)DebuggerSend(std::format("until {}", line), true, synchronous);
+         (void)ctx.send_command_to_debugger(std::format("until {}", line), true, synchronous);
       }
    } else if (command == "gf-step-into-outer") {
       const char *start, *end;
       bool        found = SourceFindOuterFunctionCall(&start, &end);
 
       if (found) {
-         res = DebuggerSend(std::format("advance {}", string_view(start, (int)(end - start))), true, synchronous);
+         res = ctx.send_command_to_debugger(std::format("advance {}", string_view(start, (int)(end - start))), true, synchronous);
       } else {
          return CommandParseInternal("gf-step", synchronous);
       }
    } else if (command == "gf-restart-gdb") {
       ctx._first_update = true;
       ctx.kill_gdb();
-      DebuggerStartThread();
+      ctx.start_debugger_thread();
    } else if (command == "gf-get-pwd") {
-      auto        res    = EvaluateCommand("info source");
+      auto        res    = ctx.eval_command("info source");
       const char* needle = "Compilation directory is ";
       const char* pwd    = strstr(res.c_str(), needle);
 
@@ -1223,7 +1224,7 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
    } else if (command == "kill" && gfc._confirm_command_kill &&
               s_main_window->show_dialog(0, "Kill debugging target?\n%f%B%C", "Kill", "Cancel") == "Cancel") {
    } else {
-      res = DebuggerSend(command, true, synchronous);
+      res = ctx.send_command_to_debugger(command, true, synchronous);
    }
 
    return res;
@@ -1615,7 +1616,7 @@ bool SourceWindow::display_set_position(const char* file, std::optional<size_t> 
          std_format_to_n(buffer, sizeof(buffer), "{}/{}", getenv("HOME"), 1 + file);
          file = buffer;
       } else if (file[0] != '/' && useGDBToGetFullPath) {
-         auto        res = EvaluateCommand("info source");
+         auto        res = ctx.eval_command("info source");
          const char* f   = strstr(res.c_str(), "Located in ");
 
          if (f) {
@@ -1686,10 +1687,10 @@ void SourceWindow::display_set_position_from_stack() {
 }
 
 void SourceWindow::disassembly_load() {
-   auto res = EvaluateCommand(_disassembly_command);
+   auto res = ctx.eval_command(_disassembly_command);
 
    if (!res.contains("Dump of assembler code for function")) {
-      res = EvaluateCommand("disas $pc,+1000");
+      res = ctx.eval_command("disas $pc,+1000");
    }
 
    const char* end = strstr(res.c_str(), "End of assembler dump.");
@@ -1724,7 +1725,7 @@ void SourceWindow::disassembly_load() {
 }
 
 void SourceWindow::disassembly_update_line() {
-   auto        res     = EvaluateCommand("p $pc");
+   auto        res     = ctx.eval_command("p $pc");
    const char* address = strstr(res.c_str(), "0x");
 
    if (address) {
@@ -1885,10 +1886,10 @@ int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* 
          int line = result;
 
          if (code->is_ctrl_on()) {
-            (void)DebuggerSend(std::format("until {}", line), true, false);
+            (void)ctx.send_command_to_debugger(std::format("until {}", line), true, false);
          } else if (code->is_alt_on() || code->is_shift_on()) {
-            EvaluateCommand(std::format("tbreak {}", line));
-            (void)DebuggerSend(std::format("jump {}", line), true, false);
+            ctx.eval_command(std::format("tbreak {}", line));
+            (void)ctx.send_command_to_debugger(std::format("jump {}", line), true, false);
          }
       }
    } else if (msg == UIMessage::KEY_TYPED) {
@@ -2055,7 +2056,7 @@ void SourceWindow::_update(const char* data, UICode* el) {
       // If there is an auto-print expression from the previous line, evaluate it.
 #if ALLOW_SIDE_EFFECTS
       if (_auto_print_expression[0]) {
-         auto        res    = EvaluateCommand(std::format("p {}", _auto_print_expression.data()));
+         auto        res    = ctx.EvaluateCommand(std::format("p {}", _auto_print_expression.data()));
          const char* result = strchr(res.c_str(), '=');
 
          if (result) {
@@ -2197,7 +2198,7 @@ void SourceWindow::_update(const char* data, UICode* el) {
                // be in the `if` condition, so these side effects are evaluated twice.
                // maybe we can re-enable if we can ensure that the condition has no side effect (++, +=, ...)
                // -------------------------------------------------------------------------------------------
-               auto res = EvaluateExpression(string_view{&text[expressionStart], i - expressionStart});
+               auto res = ctx.EvaluateExpression(string_view{&text[expressionStart], i - expressionStart});
 
                if (res == "= true") {
                   _if_condition_evaluation = 2;
@@ -2230,7 +2231,7 @@ void SourceWindow::inspect_current_line() {
 
    auto expressions = ctx._lang_re->debuggable_expressions(code, avoid_constant_litterals);
    for (auto e : expressions) {
-      auto res = EvaluateExpression(e);
+      auto res = ctx.eval_expression(e);
       // std::cout << "eval(\"" << e << "\") -> " << res << '\n';
 
       if (ctx._dbg_re->matches(res, debug_look_for::evaluation_error))
@@ -2406,18 +2407,18 @@ int BitmapViewerRefreshMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
 const char* BitmapViewerGetBits(std::string pointerString, std::string widthString, std::string heightString,
                                 std::string strideString, uint32_t** _bits, int* _width, int* _height, int* _stride) {
-   auto widthResult = EvaluateExpression(widthString);
+   auto widthResult = ctx.eval_expression(widthString);
    if (widthResult.empty()) {
       return "Could not evaluate width.";
    }
    int  width        = sv_atoi(widthResult, 1);
-   auto heightResult = EvaluateExpression(heightString);
+   auto heightResult = ctx.eval_expression(heightString);
    if (heightResult.empty()) {
       return "Could not evaluate height.";
    }
    int  height        = sv_atoi(heightResult, 1);
    int  stride        = width * 4;
-   auto pointerResult = EvaluateExpression(pointerString, "/x");
+   auto pointerResult = ctx.eval_expression(pointerString, "/x");
    if (pointerResult.empty()) {
       return "Could not evaluate pointer.";
    }
@@ -2430,7 +2431,7 @@ const char* BitmapViewerGetBits(std::string pointerString, std::string widthStri
    ++pr;
 
    if (!strideString.empty()) {
-      auto strideResult = EvaluateExpression(strideString);
+      auto strideResult = ctx.eval_expression(strideString);
       if (strideResult.empty()) {
          return "Could not evaluate stride.";
       }
@@ -2441,7 +2442,7 @@ const char* BitmapViewerGetBits(std::string pointerString, std::string widthStri
 
    std::string bitmapPath = get_realpath(".bitmap.gf");
 
-   auto res = EvaluateCommand(std::format("dump binary memory {} ({}) ({}+{})", bitmapPath, pr, pr, stride * height));
+   auto res = ctx.eval_command(std::format("dump binary memory {} ({}) ({}+{})", bitmapPath, pr, pr, stride * height));
 
    FILE* f = fopen(bitmapPath.c_str(), "rb");
 
@@ -2756,7 +2757,7 @@ private:
       }
 
       position += std_format_to_n(buffer + position, sizeof(buffer) - position, ")");
-      return EvaluateCommand(buffer);
+      return ctx.eval_command(buffer);
    }
 
 public:
@@ -3111,7 +3112,7 @@ public:
       if (!(*position))
          return false;
       uint64_t value = strtoul(position, nullptr, 0);
-      auto     res   = EvaluateCommand(std::format("info line * 0x{:x}", value));
+      auto     res   = ctx.eval_command(std::format("info line * 0x{:x}", value));
       position       = (char*)res.c_str();
 
       if (res.contains("No line number")) {
@@ -3151,7 +3152,7 @@ public:
 
    void update() {
       if (_mode == WatchWindow::WATCH_LOCALS) {
-         auto res = EvaluateCommand("py gf_locals()");
+         auto res = ctx.eval_command("py gf_locals()");
 
          bool newFrame = (_last_local_list.empty() || _last_local_list != res);
 
@@ -3532,7 +3533,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
                      return;
 
                   auto buffer = std::format("watch * {}", res);
-                  (void)DebuggerSend(buffer, true, false);
+                  (void)ctx.send_command_to_debugger(buffer, true, false);
                });
 
             if (firstWatchWindow) {
@@ -3780,7 +3781,7 @@ int WatchLoggerWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          if (auto it = rng::find(watchLoggers, logger); it != rng::end(watchLoggers))
             watchLoggers.erase(it);
 
-         EvaluateCommand(std::format("delete {}", logger->_id));
+         ctx.eval_command(std::format("delete {}", logger->_id));
          delete logger;
       }
    } else if (msg == UIMessage::GET_WIDTH || msg == UIMessage::GET_HEIGHT) {
@@ -3895,7 +3896,7 @@ void WatchWindow::WatchChangeLoggerCreate() {
    UIMDIChild* child =
       &s_data_window->add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(0), std::format("Log {}", res));
 
-   res                = EvaluateCommand(std::format("watch * {}", res));
+   res                = ctx.eval_command(std::format("watch * {}", res));
    const char* number = strstr(res.c_str(), "point ");
 
    if (!number) {
@@ -4001,7 +4002,7 @@ bool WatchLoggerUpdate(std::string _data) {
       for (uintptr_t i = 0; true; i++) {
          if (expressionsToEvaluate[i] == ';' || !expressionsToEvaluate[i]) {
 
-            auto res = EvaluateExpression(string_view(expressionsToEvaluate + start, i - start));
+            auto res = ctx.eval_expression(string_view(expressionsToEvaluate + start, i - start));
             start    = i + 1;
             WatchLogEvaluated evaluated;
             const char*       start = strstr(res.c_str(), " = ");
@@ -4032,7 +4033,7 @@ bool WatchLoggerUpdate(std::string _data) {
    logger->_entries.push_back(entry);
    ++logger->_table->num_items();
    logger->_table->refresh();
-   (void)DebuggerSend("c", false, false);
+   (void)ctx.send_command_to_debugger("c", false, false);
    return true;
 }
 
@@ -4068,7 +4069,7 @@ void StackWindow::set_frame(UIElement* el, int index) {
    if (index >= 0 && index < (int)((UITable*)el)->num_items()) {
       _has_changed = true;
       if (_selected != (size_t)index) {
-         (void)DebuggerSend(std::format("frame {}", index), false, false);
+         (void)ctx.send_command_to_debugger(std::format("frame {}", index), false, false);
          _selected = index;
          el->repaint(nullptr);
       } else {
@@ -4379,7 +4380,7 @@ public:
          UIKeyTyped* m = (UIKeyTyped*)dp;
 
          if (m->code == UIKeycode::ENTER) {
-            auto  res = EvaluateCommand(std::format("ptype /o {}", _textbox->text()));
+            auto  res = ctx.eval_command(std::format("ptype /o {}", _textbox->text()));
             char* end = (char*)strstr(res.c_str(), "\n(gdb)");
             if (end)
                *end = 0;
@@ -4550,7 +4551,7 @@ private:
 
 public:
    void update(UIElement* panel) {
-      auto res = EvaluateCommand("info registers");
+      auto res = ctx.eval_command("info registers");
 
       if (res.empty() || res.contains("The program has no registers now.") ||
           res.contains("The current thread has terminated")) {
@@ -4719,9 +4720,9 @@ struct LogWindow {
    }
 };
 
-// ---------------------------------------------------/
+// ---------------------------------------------------
 // Thread window:
-// ---------------------------------------------------/
+// ---------------------------------------------------
 
 struct ThreadsWindow {
 private:
@@ -4752,7 +4753,7 @@ public:
 
          if (index != -1) {
             // switch to thread at `index`
-            (void)DebuggerSend(std::format("thread {}", _threads[index]._id), true, false);
+            (void)ctx.send_command_to_debugger(std::format("thread {}", _threads[index]._id), true, false);
          }
       }
 
@@ -4765,7 +4766,7 @@ public:
 
    void update(UITable* table) {
       _threads.clear();
-      auto res = EvaluateCommand("info threads");
+      auto res = ctx.eval_command("info threads");
       if (res.empty())
          return;
 
@@ -4809,14 +4810,14 @@ private:
 
 public:
    void start_or_run(bool pause) {
-      auto res = EvaluateCommand(std::format("file \"{}\"", _path->text()));
+      auto res = ctx.eval_command(std::format("file \"{}\"", _path->text()));
 
       if (res.contains("No such file or directory.")) {
          s_main_window->show_dialog(0, "The executable path is invalid.\n%f%B", "OK");
          return;
       }
 
-      (void)EvaluateCommand(std::format("start {}", _arguments->text()));
+      (void)ctx.eval_command(std::format("start {}", _arguments->text()));
 
       if (_should_ask) {
          CommandParseInternal("gf-get-pwd", true);
@@ -4892,7 +4893,7 @@ public:
    int _textbox_message_proc(UITextbox* textbox, UIMessage msg, int di, void* dp) {
       if (msg == UIMessage::KEY_TYPED) {
          if (!_commands.size()) {
-            auto  res = EvaluateCommand("help all");
+            auto  res = ctx.eval_command("help all");
             char* s   = nullptr;
             if (!res.empty()) {
                s = (char*)res.c_str();
@@ -5785,7 +5786,7 @@ int ProfTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 void ProfLoadProfileData(void* _window) {
    ProfWindow* data = (ProfWindow*)_window;
 
-   auto        res              = EvaluateExpression("gfProfilingTicksPerMs");
+   auto        res              = ctx.eval_expression("gfProfilingTicksPerMs");
    const char* ticksPerMsString = strstr(res.c_str(), "= ");
    data->_ticks_per_ms          = ticksPerMsString ? sv_atoi(ticksPerMsString, 2) : 0;
 
@@ -5794,7 +5795,7 @@ void ProfLoadProfileData(void* _window) {
       return;
    }
 
-   auto pos           = EvaluateExpression("gfProfilingBufferPosition");
+   auto pos           = ctx.eval_expression("gfProfilingBufferPosition");
    int  rawEntryCount = sv_atoi(strstr(pos.c_str(), "= "), 2);
    print("Reading {} profiling entries...\n", rawEntryCount);
 
@@ -5823,7 +5824,7 @@ void ProfLoadProfileData(void* _window) {
    char buffer[PATH_MAX * 2];
    std_format_to_n(buffer, sizeof(buffer),
                    "dump binary memory {} (gfProfilingBuffer) (gfProfilingBuffer+gfProfilingBufferPosition)", path);
-   (void)EvaluateCommand(buffer);
+   (void)ctx.eval_command(buffer);
    FILE* f = fopen(path, "rb");
 
    if (!f) {
@@ -5861,7 +5862,7 @@ void ProfLoadProfileData(void* _window) {
       function._source_file_index = -1;
 
       std_format_to_n(buffer, sizeof(buffer), "(void *) {:p}", rawEntries[i]._this_function);
-      auto cName = EvaluateExpression(buffer);
+      auto cName = ctx.eval_expression(buffer);
       if (cName.empty())
          continue;
 
@@ -5890,13 +5891,13 @@ void ProfLoadProfileData(void* _window) {
 
       std_format_to_n(buffer, sizeof(buffer), "py print(gdb.lookup_global_symbol('{}').symtab.filename)",
                       function._name);
-      auto res = EvaluateCommand(buffer);
+      auto res = ctx.eval_command(buffer);
 
       if (!res.contains("Traceback (most recent call last):")) {
          resize_to_lf(res);
          ProfSourceFileEntry sourceFile { ._path = res };
          std_format_to_n(buffer, sizeof(buffer), "py print(gdb.lookup_global_symbol('{}').line)", function._name);
-         res                   = EvaluateCommand(buffer);
+         res                   = ctx.eval_command(buffer);
          function._line_number = sv_atoi(res);
 
          for (size_t i = 0; i < sourceFiles.size(); i++) {
@@ -6052,7 +6053,7 @@ void ProfLoadProfileData(void* _window) {
 }
 
 void ProfStepOverProfiled(ProfWindow* window) {
-   (void)EvaluateCommand("call GfProfilingStart()");
+   (void)ctx.eval_command("call GfProfilingStart()");
    CommandSendToGDB("gf-next");
    window->_in_step_over_profiled = true;
 }
@@ -6061,7 +6062,7 @@ void ProfWindowUpdate(const char* data, UIElement* el) {
    ProfWindow* window = (ProfWindow*)el->_cp;
 
    if (window->_in_step_over_profiled) {
-      (void)EvaluateCommand("call GfProfilingStop()");
+      (void)ctx.eval_command("call GfProfilingStop()");
       ProfLoadProfileData(window);
       ctx.switch_to_window_and_focus("Data");
       s_data_window->refresh();
@@ -6116,7 +6117,7 @@ private:
           "Goto") {
          char buffer[4096];
          std_format_to_n(buffer, sizeof(buffer), "py gf_valueof(['{}'],' ')", expression);
-         auto        res    = EvaluateCommand(buffer);
+         auto        res    = ctx.eval_command(buffer);
          const char* result = res.c_str();
 
          if (result && ((*result == '(' && isdigit(result[1])) || isdigit(*result))) {
@@ -6168,7 +6169,7 @@ private:
 
             for (size_t i = 0; i < (size_t)rowCount * 16 / 8; i++) {
                std_format_to_n(buffer, sizeof(buffer), "x/8xb 0x{:x}", _offset + i * 8);
-               auto res = EvaluateCommand(buffer);
+               auto res = ctx.eval_command(buffer);
 
                bool error = true;
 
@@ -6643,7 +6644,7 @@ void ViewWindowView(void* cp) {
 
       char tempPath[PATH_MAX];
       realpath(".temp.gf", tempPath);
-      res = EvaluateExpression(std::format("(size_t)strlen((const char *)({}))", address));
+      res = ctx.eval_expression(std::format("(size_t)strlen((const char *)({}))", address));
       print("'{}' -> '{}'\n", buffer, res);
       const char* lengthString = res.c_str() ? strstr(res.c_str(), "= ") : nullptr;
       size_t      length       = lengthString ? sv_atoi(lengthString, 2) : 0;
@@ -6660,7 +6661,7 @@ void ViewWindowView(void* cp) {
       }
 
       std_format_to_n(buffer, sizeof(buffer), "dump binary memory {} ({}) ({}+{})", tempPath, address, address, length);
-      res = EvaluateCommand(buffer);
+      res = ctx.eval_command(buffer);
       print("'{}' -> '{}'\n", buffer, res);
       FILE* f = fopen(tempPath, "rb");
 
@@ -6699,7 +6700,7 @@ void ViewWindowView(void* cp) {
       char buffer[PATH_MAX * 2];
       std_format_to_n(buffer, sizeof(buffer), "dump binary memory {} ({}) ({}+{})", tempPath, res, res,
                       w * h * itemSize);
-      res     = EvaluateCommand(buffer);
+      res     = ctx.eval_command(buffer);
       FILE* f = fopen(tempPath, "rb");
 
       if (f) {
@@ -7081,12 +7082,12 @@ void WaveformViewerUpdate(const char* pointerString, const char* sampleCountStri
 
 const char* WaveformViewerGetSamples(const char* pointerString, const char* sampleCountString,
                                      const char* channelsString, float** _samples, int* _sampleCount, int* _channels) {
-   auto sampleCountResult = EvaluateExpression(sampleCountString);
+   auto sampleCountResult = ctx.eval_expression(sampleCountString);
    if (sampleCountResult.empty()) {
       return "Could not evaluate sample count.";
    }
    int  sampleCount    = sv_atoi(sampleCountResult, 1);
-   auto channelsResult = EvaluateExpression(channelsString);
+   auto channelsResult = ctx.eval_expression(channelsString);
    if (channelsResult.empty()) {
       return "Could not evaluate channels.";
    }
@@ -7094,7 +7095,7 @@ const char* WaveformViewerGetSamples(const char* pointerString, const char* samp
    if (channels < 1 || channels > 8) {
       return "Channels must be between 1 and 8.";
    }
-   auto pointerResult = EvaluateExpression(pointerString, "/x");
+   auto pointerResult = ctx.eval_expression(pointerString, "/x");
    if (pointerResult.empty()) {
       return "Could not evaluate pointer.";
    }
@@ -7114,7 +7115,7 @@ const char* WaveformViewerGetSamples(const char* pointerString, const char* samp
    char buffer[PATH_MAX * 2];
    std_format_to_n(buffer, sizeof(buffer), "dump binary memory {} ({}) ({}+{})", transferPath,
                    pointerResult.c_str() + 1, pointerResult.c_str() + 1, byteCount);
-   auto res = EvaluateCommand(buffer);
+   auto res = ctx.eval_command(buffer);
 
    FILE* f = fopen(transferPath, "rb");
 
@@ -7326,7 +7327,7 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
    ctx._program_running = false;
 
    if (ctx._first_update) {
-      (void)EvaluateCommand(pythonCode);
+      (void)ctx.eval_command(pythonCode);
 
       char path[PATH_MAX];
       std_format_to_n(path, sizeof(path), "{}/.config/gf2_watch.txt", getenv("HOME"));
@@ -7903,7 +7904,7 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
    if (ui_config._has_theme)
       ui->theme() = ui_config._theme;
 
-   DebuggerStartThread();
+   ctx.start_debugger_thread();
    CommandSyncWithGvim();
    return ui;
 }
