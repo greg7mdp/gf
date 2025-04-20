@@ -3910,8 +3910,8 @@ int UIMDIChild::_class_message_proc(UIMessage msg, int di, void* dp) {
       _mdi_bounds.edge = _mdi_bounds.opposite negate minimum;
 
          auto pos = cursor_pos();
-         _UI_MDI_CHILD_MOVE_EDGE(0b1000, l, x, width, r, -, ui_size::mdi_child_minimum_width, l);
-         _UI_MDI_CHILD_MOVE_EDGE(0b0100, r, x, width, l, +, ui_size::mdi_child_minimum_width, l);
+         _UI_MDI_CHILD_MOVE_EDGE(0b1000, l, x, width,  r, -, ui_size::mdi_child_minimum_width, l);
+         _UI_MDI_CHILD_MOVE_EDGE(0b0100, r, x, width,  l, +, ui_size::mdi_child_minimum_width, l);
          _UI_MDI_CHILD_MOVE_EDGE(0b0010, t, y, height, b, -, ui_size::mdi_child_minimum_height, t);
          _UI_MDI_CHILD_MOVE_EDGE(0b0001, b, y, height, t, +, ui_size::mdi_child_minimum_height, t);
          _parent->refresh();

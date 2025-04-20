@@ -4144,6 +4144,15 @@ private:
    int                 _anchor = 0;
    vector<Breakpoint>& _breakpoints;
 
+   size_t _find_index(int number) {
+      for (size_t i = 0; i < _breakpoints.size(); i++) {
+         if (_breakpoints[i]._number == number)
+            return i;
+      }
+      assert(0);
+      return 0;
+   }
+
 public:
    BreakpointsWindow(vector<Breakpoint>& bp)
       : _breakpoints(bp) {}
@@ -4257,26 +4266,20 @@ int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int 
          if (!uitable->is_ctrl_on())
             _selected.clear();
 
-         uintptr_t from = 0, to = 0;
-
-         for (size_t i = 0; i < _breakpoints.size(); i++) {
-            if (_breakpoints[i]._number == bp._number) {
-               from = i;
-            }
-            if (_breakpoints[i]._number == _anchor) {
-               to = i;
-            }
-         }
-
-         if (from > to) {
-            uintptr_t temp = from;
-            from = to, to = temp;
-         }
+         size_t from = _find_index(bp._number);
+         size_t to   = _find_index(_anchor);
+         if (from > to)
+            std::swap(from, to);
 
          for (uintptr_t i = from; i <= to; i++) {
             if (uitable->is_ctrl_on() && !uitable->is_shift_on()) {
+               // ctrl is on. toggle selection of selected breakpoint.
+               // since !is_shift_on(), _anchor was set and there'll be only one
+               // --------------------------------------------------------------
                if (auto it = rng::find(_selected, _breakpoints[i]._number); it != rng::end(_selected))
                   _selected.erase(it);
+               else
+                  _selected.push_back(_breakpoints[i]._number);
             } else {
                _selected.push_back(_breakpoints[i]._number);
             }
