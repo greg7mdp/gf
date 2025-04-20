@@ -778,13 +778,17 @@ UIPainter& UIPainter::draw_triangle(int x0, int y0, int x1, int y1, int x2, int 
                      x2 < _clip.l + 1 || x2 >= _clip.r - 1;
    bool needsYClip = y0 < _clip.t + 1 || y2 >= _clip.b - 1;
 
-#define _UI_DRAW_TRIANGLE_APPLY_CLIP(xo, yo)                    \
-   if (needsYClip && (yi + yo < _clip.t || yi + yo >= _clip.b)) \
-      continue;                                                 \
-   if (needsXClip && xf + xo < _clip.l)                         \
-      xf = _clip.l - xo;                                        \
-   if (needsXClip && xt + xo > _clip.r)                         \
-      xt = _clip.r - xo;
+   auto apply_clip = [&](int& xf, int& xt, int xo, int yo, int yi) {
+      if (needsYClip && (yi + yo < _clip.t || yi + yo >= _clip.b))
+         return true;
+      if (needsXClip) {
+         if (xf + xo < _clip.l)
+            xf = _clip.l - xo;
+         if (xt + xo > _clip.r)
+            xt = _clip.r - xo;
+      }
+      return false;
+   };
 
    // Step 3: Split into 2 triangles with bases aligned with the x-axis.
    float xm0 = (x2 - x0) * (y1 - y0) / (y2 - y0), xm1 = x1 - x0;
@@ -799,7 +803,8 @@ UIPainter& UIPainter::draw_triangle(int x0, int y0, int x1, int y1, int x2, int 
    // Step 4: Draw the top part.
    for (float y = 0; y < ym; y++) {
       int xf = xm0 * y * ymr, xt = xm1 * y * ymr, yi = (int)y;
-      _UI_DRAW_TRIANGLE_APPLY_CLIP(x0, y0);
+      if (apply_clip(xf, xt, x0, y0, yi))
+         continue;                                            // fully clipped
       uint32_t* b = &_bits[(yi + y0) * _width + x0];
       for (int x = xf; x < xt; x++)
          b[x] = color;
@@ -808,7 +813,8 @@ UIPainter& UIPainter::draw_triangle(int x0, int y0, int x1, int y1, int x2, int 
    // Step 5: Draw the bottom part.
    for (float y = 0; y < ye; y++) {
       int xf = xe0 * (ye - y) * yer, xt = xe1 * (ye - y) * yer, yi = (int)y;
-      _UI_DRAW_TRIANGLE_APPLY_CLIP(x2, y1);
+      if (apply_clip(xf, xt, x2, y1, yi))
+         continue;                                           // fully clipped
       uint32_t* b = &_bits[(yi + y1) * _width + x2];
       for (int x = xf; x < xt; x++)
          b[x] = color;
