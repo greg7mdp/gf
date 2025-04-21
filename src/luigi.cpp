@@ -2961,7 +2961,7 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
       UIKeyTyped* m = (UIKeyTyped*)dp;
 
       if ((m->code == UI_KEYCODE_LETTER('C') || m->code == UI_KEYCODE_LETTER('X') || m->code == UIKeycode::INSERT) &&
-          is_ctrl_on() && !is_alt_on() && !is_shift_on()) {
+          is_only_ctrl_on()) {
          copy(sel_target_t::clipboard);
       } else if ((m->code == UIKeycode::UP || m->code == UIKeycode::DOWN || m->code == UIKeycode::PAGE_UP ||
                   m->code == UIKeycode::PAGE_DOWN) &&
@@ -3473,12 +3473,11 @@ int UITable::_class_message_proc(UIMessage msg, int di, void* dp) {
 
       if ((m->code == UIKeycode::UP || m->code == UIKeycode::DOWN || m->code == UIKeycode::PAGE_UP ||
            m->code == UIKeycode::PAGE_DOWN || m->code == UIKeycode::HOME || m->code == UIKeycode::END) &&
-          !is_ctrl_on() && !is_alt_on() && !is_shift_on()) {
+          !is_modifier_on()) {
          key_input_vscroll(m, scale(ui_size::table_row),
                            (_bounds.t - _hscroll->_bounds.t + ui_size::table_header) * 4 / 5, this);
          return 1;
-      } else if ((m->code == UIKeycode::LEFT || m->code == UIKeycode::RIGHT) && !is_ctrl_on() && !is_alt_on() &&
-                 !is_shift_on()) {
+      } else if ((m->code == UIKeycode::LEFT || m->code == UIKeycode::RIGHT) && !is_modifier_on()) {
          UIFont* active_font = ui()->active_font();
          _hscroll->position() += m->code == UIKeycode::LEFT ? -active_font->_glyph_width : active_font->_glyph_width;
          refresh();

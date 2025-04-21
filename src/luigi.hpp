@@ -771,6 +771,10 @@ public:
    bool           is_shift_on() const;
    bool           is_ctrl_on() const;
    bool           is_alt_on() const;
+   bool           is_modifier_on() const;
+   bool           is_only_shift_on() const;
+   bool           is_only_ctrl_on() const;
+   bool           is_only_alt_on() const;
 
    UI*            ui() const;
    UITheme&       theme() const;                 // indirect access to `UI`
@@ -983,6 +987,10 @@ inline bool    UIElement::is_pressed()   const { return _window->pressed() == th
 inline bool    UIElement::is_shift_on()  const { return _window->_shift; }
 inline bool    UIElement::is_ctrl_on()   const { return _window->_ctrl; }
 inline bool    UIElement::is_alt_on()    const { return _window->_alt; }
+inline bool    UIElement::is_modifier_on() const { return _window->_alt || _window->_ctrl || _window->_shift; }
+inline bool    UIElement::is_only_shift_on()  const { return _window->_shift && !(_window->_alt || _window->_ctrl); }
+inline bool    UIElement::is_only_ctrl_on()   const { return _window->_ctrl && !(_window->_alt || _window->_shift); }
+inline bool    UIElement::is_only_alt_on()    const { return _window->_alt && !(_window->_ctrl || _window->_shift); }
 inline UIPoint UIElement::cursor_pos()   const { return _window->cursor_pos(); }
 inline void    UIElement::set_cursor(int cursor) { (void)_window->set_cursor(cursor); }
 inline int     UIElement::pressed_button() const { return _window->pressed_button(); }

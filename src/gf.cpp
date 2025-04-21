@@ -1899,7 +1899,7 @@ int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* 
 
          if (code->is_ctrl_on()) {
             (void)ctx.send_command_to_debugger(std::format("until {}", line), true, false);
-         } else if (code->is_alt_on() || code->is_shift_on()) {
+         } else if (code->is_modifier_on()) {
             ctx.eval_command(std::format("tbreak {}", line));
             (void)ctx.send_command_to_debugger(std::format("jump {}", line), true, false);
          }
@@ -1911,7 +1911,7 @@ int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* 
          inspect_line();
          return 0;
       }
-   } else if (msg == UIMessage::LEFT_DBLCLICK && !code->empty()) {
+   } else if (msg == UIMessage::LEFT_DBLCLICK && !code->empty() && !code->is_modifier_on()) {
       int hitTest = code->hittest(code->cursor_pos());
 
       if (hitTest > 0) {
@@ -1992,8 +1992,7 @@ int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* 
          m->painter->draw_string(rectangle, _auto_print_result.data(), theme.codeComment, UIAlign::left, nullptr);
       }
 
-      if (code->hittest(code->cursor_pos()) == m->index && code->is_hovered() &&
-          (code->is_ctrl_on() || code->is_alt_on() || code->is_shift_on()) &&
+      if (code->hittest(code->cursor_pos()) == m->index && code->is_hovered() && code->is_modifier_on() &&
           !code->_window->textbox_modified_flag()) {
          m->painter->draw_border(m->bounds, code->is_ctrl_on() ? theme.selected : theme.codeOperator, UIRectangle(2));
          m->painter->draw_string(m->bounds, code->is_ctrl_on() ? "=> run until " : "=> skip to ", theme.text,
@@ -3602,8 +3601,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
          create_textbox_for_row(false);
          _textbox->message(msg, di, dp);
       } else if (_mode == WATCH_NORMAL && !m->text.empty() && m->code == UI_KEYCODE_LETTER('V') && !_textbox &&
-                 is_ctrl_on() && !is_alt_on() && !is_shift_on() &&
-                 (_selected_row == _rows.size() || !_rows[_selected_row]->_parent)) {
+                 is_only_ctrl_on() && (_selected_row == _rows.size() || !_rows[_selected_row]->_parent)) {
          create_textbox_for_row(false);
          _textbox->message(msg, di, dp);
       } else if (m->code == UIKeycode::ENTER && _textbox) {
@@ -3661,8 +3659,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
                break;
             }
          }
-      } else if (m->code == UI_KEYCODE_LETTER('C') && !_textbox && !is_shift_on() && !is_alt_on() &&
-                 is_ctrl_on()) {
+      } else if (m->code == UI_KEYCODE_LETTER('C') && !_textbox && is_only_ctrl_on()) {
          copy_value_to_clipboard();
       } else {
          result = 0;
@@ -4272,7 +4269,7 @@ int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int 
             std::swap(from, to);
 
          for (uintptr_t i = from; i <= to; i++) {
-            if (uitable->is_ctrl_on() && !uitable->is_shift_on()) {
+            if (uitable->is_only_ctrl_on()) {
                // ctrl is on. toggle selection of selected breakpoint.
                // since !is_shift_on(), _anchor was set and there'll be only one
                // --------------------------------------------------------------
@@ -4288,11 +4285,11 @@ int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int 
          if (!bp._watchpoint && rng::find(_selected, bp._number) != rng::end(_selected)) {
             DisplaySetPosition(bp._file, bp._line - 1, false);
          }
-      } else if (!uitable->is_ctrl_on() && !uitable->is_shift_on()) {
+      } else if (!uitable->is_modifier_on()) {
          _selected.clear();
       }
       uitable->focus();
-   } else if (msg == UIMessage::LEFT_DBLCLICK) {
+   } else if (msg == UIMessage::LEFT_DBLCLICK && !uitable->is_modifier_on()) {
       int index = uitable->hittest(uitable->cursor_pos());
       if (index != -1) {
          const Breakpoint& bp = _breakpoints[index];
