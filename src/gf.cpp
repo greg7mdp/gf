@@ -3427,7 +3427,9 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
          bool focused = i == _selected_row && is_focused();
          if (i < _rows.size() && !(focused && _waiting_for_format_character)) {
             const shared_ptr<Watch>& watch = _rows[i];
-            key_space = std::max(key_space, !watch->_open ? (watch->_key.size() + watch->_depth * 3) : 0);
+            watch->update(_update_index);
+            size_t key_size = std::max(watch->_key.size(), 4ul);
+            key_space = std::max(key_space, key_size + (!watch->_open ? watch->_depth * 3 : 0));
          }
       }
       
@@ -3450,10 +3452,9 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
 
          if (i < _rows.size()) {
             // ----------------------------------------------------------------------
-            //                      Update watched values
+            //                      Watched values updated above
             // ----------------------------------------------------------------------
             const shared_ptr<Watch>& watch = _rows[i];
-            watch->update(_update_index);
 
             // ----------------------------------------------------------------------
             //                      and render them
