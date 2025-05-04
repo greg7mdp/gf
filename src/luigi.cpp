@@ -173,8 +173,9 @@ std::unordered_map<std::string, UITheme> ui_themes{
 // ---------------------------------------------------------------------------------------------
 //                              Utilities
 // ---------------------------------------------------------------------------------------------
-std::string LoadFile(const char* path) {
-   FILE* f = fopen(path, "rb");
+std::string LoadFile(std::string_view sv_path) {
+   bool null_terminated = (sv_path[sv_path.size()] == 0); // ahhh ugly accessing past the end of the `string_view`, hopefully OK.
+   FILE* f = fopen(null_terminated ? sv_path.data() : std::string{sv_path}.c_str(), "rb");
    if (!f)
       return {};
 
@@ -557,6 +558,12 @@ INI_Parser::iterator& INI_Parser::iterator::operator++() {
       *this = iterator();
    return *this;
 }
+
+// --------------------------------------------------
+// INI File updater
+// --------------------------------------------------
+
+
 
 // --------------------------------------------------
 // Animations.

@@ -18,6 +18,7 @@
 #include <cstring>
 #include <cctype>
 #include <charconv>
+#include <fstream>
 #include <functional>
 #include <memory>
 #include <string>
@@ -164,7 +165,7 @@ void print(FILE* f, std::format_string<Args...> fmt, Args&&... args) {
    fprintf(f, "%s", formatted.c_str());
 }
 
-std::string LoadFile(const char* path); // load whole file into string
+std::string LoadFile(std::string_view path); // load whole file into string
 
 template<class T>
 inline T ui_atoi(std::string_view sv) {
@@ -2016,8 +2017,85 @@ private:
 };
 
 
-
 static_assert(std::ranges::input_range<INI_Parser>);
+
+struct INI_Updater {
+   std::string _path;
+
+   struct Section {
+      std::string config;     // the whole config file in a string
+      size_t      start_pos;  // index of the section *after* section_string
+      size_t      end_pos;    // if set, index of beginning of the next section
+   };
+
+   std::string get_section(const char* section_string) {
+      Section sect = _find_section(section_string);
+      if (sect.start_pos == std::string::npos)
+         return {};
+      if (sect.end_pos != std::string::npos)
+         return sect.config.substr(sect.start_pos, sect.end_pos - sect.start_pos);
+      return sect.config.substr(sect.start_pos);
+   }
+
+   // `section_string` should be something like: "[trusted_folders]\n"
+   // `text` should be one or more newline terminated lines
+   // ------------------------------------------------------------------
+   bool insert_after_section(const char* section_string, std::string_view text) {
+      Section sect = _find_section(section_string);
+
+      std::ofstream ofs(_path, std::ofstream::out | std::ofstream::binary);
+      if (!ofs)
+         return false;
+
+      if (sect.start_pos == std::string::npos) {
+         ofs << sect.config << section_string << text;
+      } else {
+         ofs << sect.config.substr(0, sect.start_pos);
+         ofs << text;
+         ofs << sect.config.substr(sect.start_pos, sect.config.size());
+      }
+      return true;
+   }
+
+   // `section_string` should be something like: "[trusted_folders]\n"
+   // `text` should be one or more newline terminated lines
+   // ------------------------------------------------------------------
+   bool replace_section(const char* section_string, std::string_view text) {
+      Section sect = _find_section(section_string);
+
+      std::string config     = LoadFile(_path);
+      auto        insert_pos = config.find(section_string);
+
+      std::ofstream ofs(_path, std::ofstream::out | std::ofstream::binary);
+      if (!ofs)
+         return false;
+
+      if (sect.start_pos == std::string::npos) {
+         ofs << sect.config << section_string << text;
+      } else {
+         ofs << config.substr(0, sect.start_pos);
+         ofs << text;
+
+         if (sect.end_pos != std::string::npos)
+            ofs << config.substr(sect.end_pos, sect.config.size());
+      }
+      return true;
+   }
+
+private:
+   // `section_string` should be something like: "[trusted_folders]\n"
+   // ------------------------------------------------------------------
+   Section _find_section(const char* section_string) {
+      Section sect;
+      sect.config = LoadFile(_path);
+      sect.start_pos = sect.config.find(section_string);
+      if (sect.start_pos != std::string::npos) {
+         sect.start_pos  += strlen(section_string);
+         sect.end_pos = sect.config.find("\n[", sect.start_pos);
+      }
+      return sect;
+   }
+};
 
 // ----------------------------------------
 //      Variables

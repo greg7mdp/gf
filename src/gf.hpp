@@ -12,6 +12,7 @@
 #include <ctype.h>
 #include <dirent.h>
 #include <fcntl.h>
+#include <filesystem>
 #include <fstream>
 #include <memory>
 #include <mutex>
@@ -27,6 +28,8 @@
 #include <vector>
 #include <iostream>
 #include <format>
+
+namespace fs = std::filesystem;
 
 #include "luigi.hpp"
 

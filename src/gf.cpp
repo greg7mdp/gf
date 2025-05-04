@@ -254,9 +254,9 @@ struct GF_Config {
    const char*     _vim_server_name   = "GVIM";
    const char*     _log_pipe_path     = nullptr;
    vector<Command> _preset_commands;
-   char            _global_config_path[PATH_MAX];
-   char            _local_config_dir[PATH_MAX];
-   char            _local_config_path[PATH_MAX];
+   std::string     _global_config_path;
+   std::string     _local_config_dir;
+   std::string     _local_config_path;
    int             _code_font_size      = 13;
    int             _interface_font_size = 11;
    int             _window_width        = -1;
@@ -1340,24 +1340,17 @@ const char* themeItems[] = {
 };
 
 static void SettingsAddTrustedFolder() {
-   std::string config         = LoadFile(gfc._global_config_path);
-   const char* section_string = "\n[trusted_folders]\n";
-   auto        insert_pos     = config.find(section_string);
+   const char* section_string = "[trusted_folders]\n";
+   auto        updater        = INI_Updater{gfc._global_config_path};
+   auto        text           = std::format("{}\n", gfc._local_config_dir);
 
-   if (insert_pos == std::string::npos) {
-      config += section_string;
-      insert_pos = config.size();
-   } else {
-      insert_pos += strlen(section_string);
-   }
-
-   std::ofstream ofs(gfc._global_config_path, std::ofstream::out | std::ofstream::binary);
-   if (!ofs)
-      print(std::cerr, "Error: Could not modify the global config file!\n");
-   else {
-      ofs << config.substr(0, insert_pos);
-      ofs << gfc._local_config_dir << '\n';
-      ofs << config.substr(insert_pos, config.size());
+   // check that it is not already there
+   // ----------------------------------
+   if (updater.get_section(section_string).find(text) == std::string::npos) {
+      // OK, add it
+      // ----------
+      if (!updater.insert_after_section(section_string, text))
+         print(std::cerr, "Error: Could not modify the global config file!\n");
    }
 }
 
@@ -4852,20 +4845,23 @@ public:
    }
 
    void save() {
-      FILE* f = fopen(gfc._local_config_path, "rb");
-      if (f) {
+      if (fs::exists(fs::path{gfc._local_config_path})) {
          auto result = s_main_window->show_dialog(0, ".project.gf already exists in the current directory.\n%f%B%C",
                                                   "Overwrite", "Cancel");
          if (result != "Overwrite")
             return;
-         fclose(f);
       }
 
-      f = fopen(gfc._local_config_path, "wb");
-      print(f, "[executable]\npath={}\narguments={}\nask_directory={}\n", _path->text(), _arguments->text(),
-            _should_ask ? '1' : '0');
-      fclose(f);
+      // update `.project.gf` to store the executable parameters
+      // -------------------------------------------------------
+      auto text = std::format("path={}\narguments={}\nask_directory={}\n",
+                              _path->text(), _arguments->text(), _should_ask ? '1' : '0');
+      INI_Updater{gfc._local_config_path}.replace_section("[executable]\n", text);
+
+      // store in `gf2_config.ini` that we trust this folder
+      // ---------------------------------------------------
       SettingsAddTrustedFolder();
+
       s_main_window->show_dialog(0, "Saved executable settings!\n%f%B", "OK");
    }
 
@@ -7852,10 +7848,9 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
 
    // load settings and initialize ui
    // -------------------------------
-   getcwd(gfc._local_config_dir, sizeof(gfc._local_config_dir));
-   std_format_to_n(gfc._global_config_path, sizeof(gfc._global_config_path), "{}/.config/gf2_config.ini",
-                   getenv("HOME"));
-   std_format_to_n(gfc._local_config_path, sizeof(gfc._local_config_path), "{}/.project.gf", gfc._local_config_dir);
+   gfc._local_config_dir   = my_getcwd();
+   gfc._global_config_path = std::format("{}/.config/gf2_config.ini", getenv("HOME"));
+   gfc._local_config_path  = std::format("{}/.project.gf", gfc._local_config_dir);
 
    UIConfig ui_config = ctx.load_settings(true);
 
@@ -7928,9 +7923,8 @@ int main(int argc, char** argv) {
    ctx.kill_gdb();
 
    if (gfc._restore_watch_window && firstWatchWindow) {
-      std_format_to_n(gfc._global_config_path, sizeof(gfc._global_config_path), "{}/.config/gf2_watch.txt",
-                      getenv("HOME"));
-      FILE* f = fopen(gfc._global_config_path, "wb");
+      gfc._global_config_path = std::format("{}/.config/gf2_watch.txt", getenv("HOME"));
+      FILE* f = fopen(gfc._global_config_path.c_str(), "wb");
 
       if (f) {
          for (const auto& exp : firstWatchWindow->base_expressions()) {
