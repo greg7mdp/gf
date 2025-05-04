@@ -264,7 +264,7 @@ struct GF_Config {
    float           _ui_scale            = 1;
    bool            _maximize;
    bool            _selectable_source        = true;
-   bool            _restore_watch_window     = false;
+   bool            _restore_watch_window     = true;
    bool            _confirm_command_connect  = true;
    bool            _confirm_command_kill     = true;
    int             _backtrace_count_limit    = 50;
@@ -7327,19 +7327,17 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
    if (ctx._first_update) {
       (void)ctx.eval_command(pythonCode);
 
-      char path[PATH_MAX];
-      std_format_to_n(path, sizeof(path), "{}/.config/gf2_watch.txt", getenv("HOME"));
-      std::string s    = LoadFile(path);
-      const char* data = s.c_str();
-
-      while (data && gfc._restore_watch_window) {
-         const char* end = strchr(data, '\n');
-         if (!end)
-            break;
-         WatchAddExpression(string_view{data, static_cast<size_t>(end - data)});
-         data = end + 1;
+      if (gfc._restore_watch_window) {
+         INI_Updater ini{gfc._local_config_path};
+         auto        watches = ini.get_section("[watch]\n");
+         for (size_t idx = 0; idx < watches.size(); ) {
+            size_t end = watches.find('\n', idx);
+            if (end == std::string::npos)
+               break;
+            WatchAddExpression(string_view{&watches[idx], end - idx});
+            idx = end + 1;
+         }
       }
-
       ctx._first_update = false;
    }
 
@@ -7923,18 +7921,13 @@ int main(int argc, char** argv) {
    ctx.kill_gdb();
 
    if (gfc._restore_watch_window && firstWatchWindow) {
-      gfc._global_config_path = std::format("{}/.config/gf2_watch.txt", getenv("HOME"));
-      FILE* f = fopen(gfc._global_config_path.c_str(), "wb");
+      std::stringstream ss;
+      for (const auto& exp : firstWatchWindow->base_expressions())
+         ss << exp->key() << '\n';
 
-      if (f) {
-         for (const auto& exp : firstWatchWindow->base_expressions()) {
-            print(f, "{}\n", exp->key());
-         }
-
-         fclose(f);
-      } else {
+      if (!INI_Updater{gfc._local_config_path}.replace_section("[watch]\n", ss.str())) {
          print(std::cerr, "Warning: Could not save the contents of the watch window; '{}' was not accessible.\n",
-               gfc._global_config_path);
+               gfc._local_config_path);
       }
    }
 

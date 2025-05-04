@@ -2048,7 +2048,10 @@ struct INI_Updater {
          return false;
 
       if (sect.start_pos == std::string::npos) {
-         ofs << sect.config << section_string << text;
+         ofs << sect.config;
+         if (!sect.config.empty())
+            ofs << '\n';
+         ofs << section_string << text;
       } else {
          ofs << sect.config.substr(0, sect.start_pos);
          ofs << text;
@@ -2071,7 +2074,10 @@ struct INI_Updater {
          return false;
 
       if (sect.start_pos == std::string::npos) {
-         ofs << sect.config << section_string << text;
+         ofs << sect.config;
+         if (!sect.config.empty())
+            ofs << '\n';
+         ofs << section_string << text;
       } else {
          ofs << config.substr(0, sect.start_pos);
          ofs << text;

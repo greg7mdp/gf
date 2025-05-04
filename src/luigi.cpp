@@ -174,24 +174,37 @@ std::unordered_map<std::string, UITheme> ui_themes{
 //                              Utilities
 // ---------------------------------------------------------------------------------------------
 std::string LoadFile(std::string_view sv_path) {
-   bool null_terminated = (sv_path[sv_path.size()] == 0); // ahhh ugly accessing past the end of the `string_view`, hopefully OK.
-   FILE* f = fopen(null_terminated ? sv_path.data() : std::string{sv_path}.c_str(), "rb");
-   if (!f)
+   bool null_terminated =
+      (sv_path[sv_path.size()] == 0); // ahhh ugly accessing past the end of the `string_view`, hopefully OK.
+   std::ifstream ifs(null_terminated ? sv_path.data() : std::string{sv_path}.c_str(), std::ifstream::binary);
+   if (ifs.fail())
       return {};
 
-   fseek(f, 0, SEEK_END);
-   size_t bytes = ftell(f);
-   fseek(f, 0, SEEK_SET);
-   std::string s;
-   s.resize_and_overwrite(bytes + 1, [](char*, size_t sz) { return sz; });
+   std::filebuf* pbuf = ifs.rdbuf();
+   std::size_t   sz   = pbuf->pubseekoff(0, ifs.end, ifs.in);
+   pbuf->pubseekpos(0, ifs.in);
 
-   fread(s.data(), 1, bytes, f);
-   s[bytes] = 0;    // make sure it is null terminated
-   s.resize(bytes); // return a string of the correct size
-   fclose(f);
+   std::string s;
+   s.resize_and_overwrite(sz + 1, [](char*, size_t sz) { return sz; });
+   pbuf->sgetn(s.data(), sz);
+   s[sz] = 0;    // make sure it is null terminated
+   s.resize(sz); // return a string of the correct size
 
    return s;
 }
+
+#if 0
+void read_file_contents( const std::filesystem::path& filename, std::string& result )
+   {
+      std::ifstream f( filename.string(), std::ios::in | std::ios::binary );
+      FC_ASSERT(f, "Failed to open ${filename}", ("filename", filename.string()));
+      // don't use fc::stringstream here as we need something with override for << rdbuf()
+      std::stringstream ss;
+      ss << f.rdbuf();
+      FC_ASSERT(f, "Failed reading ${filename}", ("filename", filename.string()));
+      result = ss.str();
+   }
+#endif
 
 // --------------------------------------------------
 // Member functions.
