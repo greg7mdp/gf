@@ -2567,14 +2567,14 @@ void BitmapAddDialog() {
 
 struct ConsoleWindow {
 private:
-   vector<unique_ptr<char[]>> _command_history;
-   size_t                     _command_history_index = 0;
-   FILE*                      _command_log           = nullptr;
+   vector<std::string> _command_history;
+   size_t              _command_history_index = 0;
+   FILE*               _command_log           = nullptr;
 
    bool previous_command() {
       if (_command_history_index < _command_history.size()) {
          s_input_textbox->clear(false);
-         s_input_textbox->replace_text(_command_history[_command_history_index].get(), false);
+         s_input_textbox->replace_text(_command_history[_command_history_index], false);
          if (_command_history_index < _command_history.size() - 1)
             _command_history_index++;
          s_input_textbox->refresh();
@@ -2587,7 +2587,7 @@ private:
 
       if (_command_history_index > 0) {
          _command_history_index--;
-         s_input_textbox->replace_text(_command_history[_command_history_index].get(), false);
+         s_input_textbox->replace_text(_command_history[_command_history_index], false);
       }
 
       s_input_textbox->refresh();
@@ -2616,7 +2616,7 @@ private:
          } else if (m->code == UIKeycode::ENTER && !textbox->is_shift_on()) {
             if (!sz) {
                if (_command_history.size()) {
-                  CommandSendToGDB(_command_history[0].get());
+                  CommandSendToGDB(_command_history[0]);
                }
 
                return 1;
@@ -2627,11 +2627,7 @@ private:
                print(_command_log, "{}\n", buffer);
             CommandSendToGDB(buffer);
 
-
-            unique_ptr<char[]> string = std::make_unique<char[]>(sz + 1);
-            memcpy(string.get(), cur_text.data(), sz);
-            string[sz] = 0;
-            _command_history.insert(_command_history.cbegin(), std::move(string));
+            _command_history.insert(_command_history.cbegin(), std::string(cur_text));
             _command_history_index = 0;
 
             if (_command_history.size() > 500) {
