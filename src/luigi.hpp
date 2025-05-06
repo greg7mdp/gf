@@ -1332,6 +1332,14 @@ public:
       _lines.emplace_back(offset, bytes);
    }
 
+   void       increase_last_line_length(size_t num_new_chars) {
+      assert(!_lines.empty());
+      auto& last_line = _lines.back();
+      last_line.bytes += num_new_chars;
+      if (last_line.bytes > _max_columns)
+         _max_columns = last_line.bytes;
+   }
+
    UICode&    move_caret(bool backward, bool word);
    code_pos   code_pos_from_point(UIPoint pt);
 

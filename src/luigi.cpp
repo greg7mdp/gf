@@ -3145,16 +3145,15 @@ UICode& UICode::insert_content(std::string_view new_content, bool replace) {
 
    size_t sz        = new_content.size();
    size_t orig_size = _content.size();
+   bool   append_to_last_line = (!_content.empty() && _content.back() != '\n');
 
    _content.resize(orig_size + sz);
 
-   size_t lineCount = new_content.back() != '\n';
-
+   size_t lineCount = 0;
    for (size_t i = 0; i < sz; ++i) {
       _content[orig_size + i] = new_content[i];
-
       if (new_content[i] == '\n')
-         lineCount++;
+         ++lineCount;
    }
 
    size_t orig_lines = _lines.size();
@@ -3162,8 +3161,15 @@ UICode& UICode::insert_content(std::string_view new_content, bool replace) {
 
    for (size_t i = 0, offset = 0; i <= sz; ++i) {
       if (i == sz || new_content[i] == '\n') {
-         emplace_back_line(orig_size + offset, i - offset);
+         if (append_to_last_line) {
+            assert(offset == 0);
+            append_to_last_line = false;
+            increase_last_line_length(i);
+         } else
+            emplace_back_line(orig_size + offset, i - offset);
          offset = i + 1;
+         if (i == sz - 1)
+            break; // we already finished the line with the `\n`
       }
    }
 

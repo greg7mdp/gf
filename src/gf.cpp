@@ -806,7 +806,7 @@ std::optional<std::string> Context::send_command_to_debugger(string_view command
    // std::cout << "sending: \"" << command << "\"\n";
 
    if (echo && s_display_output) {
-      s_display_output->insert_content(command, false);
+      s_display_output->insert_content(std::format("{}\n", command), false);
       s_display_output->refresh();
    }
 
