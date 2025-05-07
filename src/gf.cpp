@@ -24,6 +24,9 @@ using namespace ctre::literals;
 #include <re/re.hpp>
 using namespace regexp;
 
+#include <nlohmann/json.hpp>
+using json = nlohmann::json;
+
 enum class multiline_t { off, on };
 
 // ---------------------------------------------------------------------------------------------
