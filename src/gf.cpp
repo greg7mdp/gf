@@ -664,6 +664,9 @@ bool SourceFindOuterFunctionCall(const char** start, const char** end) {
    return found;
 }
 
+// callback frees the `std::string*` received in `void* dp` by inserting it into a
+// `unique_ptr` in `MainWindowMessageProc`
+// -------------------------------------------------------------------------------
 UIMessage ReceiveMessageRegister(std::function<void(std::unique_ptr<std::string>)> callback) {
    receiveMessageTypes.push_back({._msg = msgReceivedNext, ._callback = std::move(callback)});
    msgReceivedNext = (UIMessage)((uint32_t)msgReceivedNext + 1);
@@ -1290,7 +1293,6 @@ static bool CommandSyncWithGvim() {
 }
 
 static void CommandCustom(string_view command) {
-
    if (command.starts_with("shell ")) {
       // TODO Move this into CommandParseInternal?
 
@@ -1303,22 +1305,22 @@ static void CommandCustom(string_view command) {
       unlink(".output.gf");
 
       std::string copy;
-      copy.resize_and_overwrite(output.size() + 1, [](char*, size_t sz) { return sz; });
-
-      uintptr_t j = 0;
-
-      for (size_t i = 0; i <= bytes;) {
-         if ((uint8_t)output[i] == 0xE2 && (uint8_t)output[i + 1] == 0x80 &&
-             ((uint8_t)output[i + 2] == 0x98 || (uint8_t)output[i + 2] == 0x99)) {
-            copy[j++] = '\'';
-            i += 3;
-         } else {
-            copy[j++] = output[i++];
+      copy.resize_and_overwrite(output.size(), [&](char* p, size_t sz) {
+         size_t j = 0;
+         for (size_t i = 0; i <= bytes;) {
+            if ((uint8_t)output[i] == 0xE2 && (uint8_t)output[i + 1] == 0x80 &&
+                ((uint8_t)output[i + 2] == 0x98 || (uint8_t)output[i + 2] == 0x99)) {
+               p[j++] = '\'';
+               i += 3;
+            } else {
+               p[j++] = output[i++];
+            }
          }
-      }
+         return j;
+      });
 
       if (s_display_output) {
-         s_display_output->insert_content({copy.data(), j}, false);
+         s_display_output->insert_content(copy, false);
          s_display_output->insert_content(
             std::format("(exit code: {}; time: {}s)\n", result, (int)(time(nullptr) - start)), false);
          s_display_output->refresh();
@@ -4699,17 +4701,14 @@ struct LogWindow {
          }
 
          while (true) {
-            char input[16384];
-            int  length = read(file, input, sizeof(input) - 1);
-            if (length <= 0)
-               break;
-            input[length] = 0;
-
             std::string* s = new std::string;
-            s->resize(sizeof(context) + length + 1);
-            memcpy(s->data(), &context, sizeof(context));
-            strcpy(s->data() + sizeof(context), input);
-            s_main_window->post_message(msgReceivedLog, s);
+            s->resize_and_overwrite(4096, [&](char* p, size_t sz) {
+               int num_read = read(file, p, sz);
+               return num_read > 0 ? num_read : 0;
+            });
+            if (s->empty())
+               break;
+            s_main_window->post_message(msgReceivedLog, s); // `s` freed in callback (see unique_ptr in MainWindowMessageProc)
          }
       }
    }
@@ -4936,7 +4935,7 @@ public:
 
                   command._description       = (char*)calloc(1, next - (dash + 3) + 1);
                   command._description_lower = (char*)calloc(1, next - (dash + 3) + 1);
-                  memcpy(command._description, dash + 3, next - (dash + 3));
+                  std::memcpy(command._description, dash + 3, next - (dash + 3));
 
                   for (int i = 0; command._description[i]; i++) {
                      command._description_lower[i] = command._description[i] >= 'A' && command._description[i] <= 'Z'
@@ -7036,7 +7035,7 @@ void WaveformDisplaySetContent(WaveformDisplay* display, float* samples, size_t 
    UI_ASSERT(channels >= 1);
    free(display->_samples);
    display->_samples = (float*)malloc(sizeof(float) * sampleCount * channels);
-   memcpy(display->_samples, samples, sizeof(float) * sampleCount * channels);
+   std::memcpy(display->_samples, samples, sizeof(float) * sampleCount * channels);
    display->_sample_count      = sampleCount;
    display->_channels          = channels;
    display->_samples_on_screen = sampleCount;
@@ -7390,9 +7389,10 @@ void* ControlPipe::thread_proc(void*) {
    while (!quit) {
       FILE* file = fopen(gfc._control_pipe_path, "rb");
       auto  s    = new std::string;
-      s->resize(256);
-      (*s)[fread(s->data(), 1, 255, file)] = 0;
-      quit                                 = s->starts_with("quit");
+      s->resize_and_overwrite(255, [&](char* p, size_t sz) {
+         return fread(p, 1, sz, file); // returns size actually read which will resize the string accordingly
+      });
+      quit = s->starts_with("quit");
       if (quit)
          delete s;
       else
@@ -7831,7 +7831,7 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
    // -------------------------------------------------------------------
    ctx._gdb_argv    = (char**)malloc(sizeof(char*) * (argc + 1));
    ctx._gdb_argv[0] = (char*)"gdb";
-   memcpy(ctx._gdb_argv + 1, argv + 1, sizeof(argv) * argc);
+   std::memcpy(ctx._gdb_argv + 1, argv + 1, sizeof(argv) * argc);
    ctx._gdb_argc = argc;
 
    if (argc >= 2 && 0 == strcmp(argv[1], "--rr-replay")) {

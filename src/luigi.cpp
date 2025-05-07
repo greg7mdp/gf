@@ -185,10 +185,10 @@ std::string LoadFile(std::string_view sv_path) {
    pbuf->pubseekpos(0, ifs.in);
 
    std::string s;
-   s.resize_and_overwrite(sz + 1, [](char*, size_t sz) { return sz; });
-   pbuf->sgetn(s.data(), sz);
-   s[sz] = 0;    // make sure it is null terminated
-   s.resize(sz); // return a string of the correct size
+   s.resize_and_overwrite(sz, [&](char* p, size_t sz) {
+      pbuf->sgetn(p, sz);
+      return sz;
+   });
 
    return s;
 }
@@ -5307,8 +5307,11 @@ std::string UI::selection::read_clipboard_text(UI& ui, UIWindow* w) {
       // ------------------------
       if (target != ui._atoms[incrID]) {
          std::string res;
-         res.resize(size);
-         memcpy(res.data(), data, size);
+         res.resize_and_overwrite(size, [&](char* p, size_t sz) {
+            std::memcpy(p, data, sz);
+            return sz;
+         });
+
          XFree(data);
          XDeleteProperty(sel_event.display, sel_event.requestor, sel_event.property);
          return res;
@@ -5340,8 +5343,10 @@ std::string UI::selection::read_clipboard_text(UI& ui, UIWindow* w) {
                if (chunkSize == 0) {
                   return res;
                } else {
-                  res.resize(size + chunkSize);
-                  memcpy(res.data() + size, data, chunkSize);
+                  res.resize_and_overwrite(size + chunkSize, [&](char* p, size_t sz) {
+                     std::memcpy(p + size, data, chunkSize);
+                     return sz;
+                  });
                   size += chunkSize;
                }
 
@@ -5408,9 +5413,9 @@ unique_ptr<UI> UI::initialise(const UIConfig& cfg) {
                       "r");
 
       if (f) {
-         font_path.resize(PATH_MAX + 1);
-         auto cnt = fread(&font_path[0], 1, PATH_MAX, f);
-         font_path.resize(cnt);
+         font_path.resize_and_overwrite(PATH_MAX, [&](char* p, size_t sz) {
+            return fread(p, 1, sz, f);
+         });
          pclose(f);
          char* newline = strchr(&font_path[0], '\n');
          if (newline) {
@@ -6388,9 +6393,10 @@ std::string UI::read_clipboard_text(UIWindow* w, sel_target_t) {
       return res;
    }
 
-   res.resize(byteCount);
-   for (uintptr_t i = 0; i < byteCount; i++)
-      res[i] = buffer[i];
+   res.resize_and_overwrite(byteCount, [&](char* p, size_t sz) {
+      std::memcpy(p, buffer, sz);
+      return sz;
+   });
 
    GlobalUnlock(memory);
    CloseClipboard();
