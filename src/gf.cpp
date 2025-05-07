@@ -808,9 +808,13 @@ std::optional<std::string> Context::send_command_to_debugger(string_view command
 
    // std::cout << "sending: \"" << command << "\"\n";
 
-   if (echo && s_display_output) {
-      s_display_output->insert_content(std::format("{}\n", command), false);
-      s_display_output->refresh();
+   if (echo) {
+      if (s_display_output) {
+         s_display_output->insert_content(std::format("{}\n", command), false);
+         s_display_output->refresh();
+      }
+      if (_log_window)
+         s_main_window->post_message(msgReceivedLog, new std::string(std::format("{}\n", command)));
    }
 
    send_to_gdb(command);
@@ -1190,7 +1194,7 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
 
          if (!chdir(pwd)) {
             if (s_display_output) {
-               s_display_output->insert_content(std::format("New working directory: {}", pwd), false);
+               s_display_output->insert_content(std::format("New working directory: {}\n", pwd), false);
                s_display_output->refresh();
             }
          }
@@ -1219,8 +1223,10 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
             if (synchronous)
                async = nullptr; // Trim the '&' character, but run synchronously anyway.
             res = CommandParseInternal(position, !async);
-            if (s_display_output && res)
+            if (s_display_output && res) {
                s_display_output->insert_content(*res, false);
+               s_display_output->insert_content("\n", false);
+            }
             if (end)
                position = end + 1;
             else
@@ -1321,6 +1327,7 @@ static void CommandCustom(string_view command) {
 
       if (s_display_output) {
          s_display_output->insert_content(copy, false);
+         s_display_output->insert_content("\n", false);
          s_display_output->insert_content(
             std::format("(exit code: {}; time: {}s)\n", result, (int)(time(nullptr) - start)), false);
          s_display_output->refresh();
@@ -1774,7 +1781,7 @@ bool SourceWindow::toggle_disassembly() {
    s_display_code->_flags ^= UICode::NO_MARGIN;
 
    if (_showing_disassembly) {
-      s_display_code->insert_content("Disassembly could not be loaded.\nPress Ctrl+D to return to source view.", true);
+      s_display_code->insert_content("Disassembly could not be loaded.\nPress Ctrl+D to return to source view.\n", true);
       s_display_code->set_tab_columns(8);
       disassembly_load();
       disassembly_update_line();
@@ -4385,9 +4392,10 @@ public:
 
          if (m->code == UIKeycode::ENTER) {
             auto  res = ctx.eval_command(std::format("ptype /o {}", _textbox->text()));
-            char* end = (char*)strstr(res.c_str(), "\n(gdb)");
+            auto start = res.c_str();
+            char* end = (char*)strstr(start, "\n(gdb)");
             if (end)
-               *end = 0;
+               res.resize(end - start + 1); // keep the '\n'
             _display->insert_content(res, true);
             _textbox->clear(false);
             _display->refresh();
@@ -4961,14 +4969,14 @@ public:
 
          for (const auto& cmd : _commands) {
             if (strstr(cmd._description_lower, query)) {
-               std_format_to_n(buffer, sizeof(buffer), "{}: {}", cmd._name, cmd._description);
+               std_format_to_n(buffer, sizeof(buffer), "{}: {}\n", cmd._name, cmd._description);
                _display->insert_content(buffer, firstMatch);
                firstMatch = false;
             }
          }
 
          if (firstMatch) {
-            _display->insert_content("(no matches)", firstMatch);
+            _display->insert_content("(no matches)\n", firstMatch);
          }
 
          _display->reset_vscroll();
@@ -4995,7 +5003,7 @@ public:
                 },
                 [&](auto& p) {
                    win->_display = &p.add_code(UIElement::v_fill | UICode::NO_MARGIN | UICode::SELECTABLE)
-                                       .insert_content("Type here to search \nGDB command descriptions.", true);
+                                       .insert_content("Type here to search \nGDB command descriptions.\n", true);
                 });
       return panel;
    }
@@ -7363,7 +7371,7 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
    DataViewersUpdateAll();
 
    if (s_display_output) {
-      s_display_output->insert_content(*input, false);
+      s_display_output->insert_content(*input, false); // don't add `\n` at the end
       s_display_output->refresh();
    }
 

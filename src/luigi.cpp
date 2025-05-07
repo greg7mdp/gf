@@ -2579,7 +2579,7 @@ UICode& UICode::clear() {
 UICode& UICode::load_file(const char* path, std::optional<std::string_view> err /* = {} */) {
    std::string buff = LoadFile(path);
    if (buff.empty())
-      insert_content(err ? *err : std::format("The file '{}' could not be loaded.", path), true);
+      insert_content(err ? *err : std::format("The file '{}' could not be loaded.\n", path), true);
    else
       insert_content(buff, true);
    _current_line.reset();
@@ -3149,18 +3149,18 @@ UICode& UICode::insert_content(std::string_view new_content, bool replace) {
 
    _content.resize(orig_size + sz);
 
-   size_t lineCount = 0;
+   size_t num_new_lines = 0;
    for (size_t i = 0; i < sz; ++i) {
       _content[orig_size + i] = new_content[i];
       if (new_content[i] == '\n')
-         ++lineCount;
+         ++num_new_lines;
    }
 
    size_t orig_lines = _lines.size();
-   _lines.reserve(orig_lines + lineCount);
+   _lines.reserve(orig_lines + num_new_lines);
 
    for (size_t i = 0, offset = 0; i <= sz; ++i) {
-      if (i == sz || new_content[i] == '\n') {
+      if (i == sz || new_content[i] == '\n') { // if `new_content` not `\n` terminated, still process the last line
          if (append_to_last_line) {
             assert(offset == 0);
             append_to_last_line = false;
