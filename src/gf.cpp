@@ -174,12 +174,12 @@ void print(std::format_string<Args...> fmt, Args&&... args) {
 }
 
 std::string get_realpath(const std::string& path) {
-   char buff[PATH_MAX];
+   char buff[PATH_MAX] = "";
    return std::string{realpath(path.c_str(), buff)};
 }
 
 std::string my_getcwd() {
-   char buff[PATH_MAX];
+   char buff[PATH_MAX] = "";
    return std::string{getcwd(buff, sizeof(buff))};
 }
 
@@ -1633,11 +1633,12 @@ bool SourceWindow::display_set_position(const char* file, std::optional<size_t> 
    const char* originalFile = file;
    bool reloadFile = false;
 
-   if (file) {
+   if (file && *file) {
+      std::string cleaned_file{file};
+
       char buffer[PATH_MAX];
       if (file[0] == '~') {
-         std_format_to_n(buffer, sizeof(buffer), "{}/{}", getenv("HOME"), 1 + file);
-         file = buffer;
+         cleaned_file = std::format("{}/{}", getenv("HOME"), &file[1]);
       } else if (file[0] != '/' && useGDBToGetFullPath) {
          auto        res = ctx.eval_command("info source");
          const char* f   = strstr(res.c_str(), "Located in ");
@@ -1647,39 +1648,41 @@ bool SourceWindow::display_set_position(const char* file, std::optional<size_t> 
             const char* end = strchr(f, '\n');
 
             if (end) {
-               std_format_to_n(buffer, sizeof(buffer), "{}", std::string_view{f, (size_t)(end - f)});
-               file = buffer;
+               cleaned_file = std::string_view{f, (size_t)(end - f)};
             }
          }
       }
 
-      if (strcmp(_current_file.c_str(), file)) {
+      std::string cleaned_file_full = get_realpath(cleaned_file);
+
+      if (cleaned_file_full != _current_file_full) {
          reloadFile = true;
+      } else {
+         struct stat buf;
+         if (!stat(cleaned_file_full.c_str(), &buf) && buf.st_mtime != _current_file_read_time) {
+            reloadFile = true;
+            _current_file_read_time = buf.st_mtime;
+         }
       }
 
-      struct stat buf;
-      if (!stat(file, &buf) && buf.st_mtime != _current_file_read_time) {
-         reloadFile = true;
+      if (reloadFile) {
+         _current_file      = std::move(cleaned_file);
+         _current_file_full = std::move(cleaned_file_full);
       }
-
-      _current_file_read_time = buf.st_mtime;
    }
 
-
-   bool changed = false;
 
    if (reloadFile) {
-      _current_file = file;
-      _current_file_full = get_realpath(_current_file);
+      if (!_current_file_full.empty()) {
+         s_main_window->set_name(_current_file_full);
 
-      s_main_window->set_name(_current_file_full);
-
-      s_display_code->load_file(file,
-                                std::format("The file '{}' (from '{}') could not be loaded.", file, originalFile));
-
-      changed               = true;
+         s_display_code->load_file(_current_file_full.c_str(),
+                                   std::format("The file '{}' (from '{}') could not be loaded.", file, originalFile));
+      }
       _auto_print_result[0] = 0;
    }
+
+   bool changed = reloadFile;
 
    auto currentLine = s_display_code->current_line();
    if (line && (!currentLine || currentLine != line)) {
@@ -3819,7 +3822,7 @@ void WatchLoggerTraceSelectFrame(UIElement* el, int index, WatchLogger* logger) 
 
    if (colon) {
       *colon = 0;
-      DisplaySetPosition(location.c_str(), sv_atoul(colon + 1) - 1, false);
+      DisplaySetPosition(location, sv_atoul(colon + 1) - 1, false);
       el->refresh();
    }
 }
@@ -7637,7 +7640,8 @@ UIElement* Context::switch_to_window_and_focus(string_view target_name) {
 
 int MainWindowMessageProc(UIElement*, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::WINDOW_ACTIVATE) {
-      DisplaySetPosition(s_source_window->_current_file_full, s_display_code->current_line(), false);
+      // make a copy as DisplaySetPosition modifies `s_source_window->_current_file_full`
+      DisplaySetPosition(std::string{s_source_window->_current_file_full}, s_display_code->current_line(), false);
    } else {
       for (const auto& msgtype : receiveMessageTypes) {
          if (msgtype._msg == msg) {
