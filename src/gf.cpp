@@ -268,6 +268,8 @@ struct GF_Config {
    bool            _maximize;
    bool            _selectable_source        = true;
    bool            _restore_watch_window     = true;
+   bool            _restore_breakpoints      = true;
+   bool            _breakpoints_restored     = false;
    bool            _confirm_command_connect  = true;
    bool            _confirm_command_kill     = true;
    int             _backtrace_count_limit    = 50;
@@ -789,7 +791,7 @@ void Context::debugger_thread_fn() {
             s_main_window->post_message(msgReceivedData, new std::string(std::move(catBuffer))); 
          }
 
-         catBuffer = std::string{};
+         catBuffer.resize(0);
       }
    }
 
@@ -1010,7 +1012,20 @@ private:
          return std::move(*this);
       }
 
-      NLOHMANN_DEFINE_TYPE_INTRUSIVE(Breakpoint, _number, _file, _line, _watchpoint, _enabled, _multiple, _condition)
+      // sets that breakpoint in gdb
+      void set() {
+         // no `echo` since we don't echo the output, `sync` needed to set multiple breakpoints in a row.
+         if (!_file.empty() && _line)
+            (void)ctx.eval_command(std::format("b {}:{}", _file, _line));
+      }
+
+      void clear() {
+         // no `echo` since we don't echo the output, `sync` needed to clear multiple breakpoints in a row.
+         if (!_file.empty() && _line)
+            (void)ctx.eval_command(std::format("clear {}:{}", _file, _line));
+      }
+
+      NLOHMANN_DEFINE_TYPE_INTRUSIVE(Breakpoint, _file, _line, _watchpoint, _enabled, _condition)
    };
 
    friend struct BreakpointsWindow;
@@ -1026,6 +1041,13 @@ public:
          if (_breakpoints[i].match(line, path)) {
             std::forward<F>(f)(i, _breakpoints[i]);
          }
+      }
+   }
+
+   template <class F>
+   void for_all_breakpoints(F&& f) {
+      for (size_t i = 0; i < _breakpoints.size(); i++) {
+         std::forward<F>(f)(i, _breakpoints[i]);
       }
    }
 
@@ -1052,7 +1074,24 @@ public:
       (void)ctx.send_command_to_debugger(std::format("b {}:{}", s_source_window->_current_file, line), true, false);
    }
 
-   void update_breakpoint_from_gdb() {
+   void restore_breakpoints(std::string_view sv) {
+      for (size_t idx = 0; idx < sv.size();) {
+         size_t end = sv.find('\n', idx);
+         if (end == std::string::npos)
+            break;
+         auto       j = json::parse(&sv[idx], &sv[end]);
+         Breakpoint bp;
+         from_json(j, bp);
+
+         // send breakpoint to gdb
+         bp.set();
+
+         idx = end + 1;
+      }
+      update_breakpoints_from_gdb();
+   }
+
+   void update_breakpoints_from_gdb() {
       auto eval_res = ctx.eval_command("info break");
       _breakpoints.clear();
 
@@ -4853,6 +4892,14 @@ public:
          CommandParseInternal("gf-get-pwd", true);
       }
 
+      if (gfc._restore_breakpoints && !gfc._breakpoints_restored) {
+         gfc._breakpoints_restored = true;
+
+         INI_Updater ini{gfc._local_config_path};
+         auto        bp = ini.get_section("[breakpoints]\n");
+         s_breakpoint_mgr.restore_breakpoints(bp);
+      }
+
       if (!pause) {
          (void)CommandParseInternal("run", false);
       } else {
@@ -7367,7 +7414,7 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
       // we don't want to call `DebuggerGetBreakpoints()` upon receiving the result of `DebuggerGetBreakpoints()`,
       // causing an infinite loop!!!
       sw->update_stack();
-      s_breakpoint_mgr.update_breakpoint_from_gdb();
+      s_breakpoint_mgr.update_breakpoints_from_gdb();
 
       ctx.grab_focus(s_input_textbox->_window); // grab focus when breakpoint is hit!
    }
@@ -7947,6 +7994,18 @@ int main(int argc, char** argv) {
       if (!INI_Updater{gfc._local_config_path}.replace_section("[watch]\n", ss.str())) {
          print(std::cerr, "Warning: Could not save the contents of the watch window; '{}' was not accessible.\n",
                gfc._local_config_path);
+      }
+   }
+   if (gfc._restore_breakpoints && s_breakpoint_mgr.num_breakpoints()) {
+      std::stringstream ss;
+      s_breakpoint_mgr.for_all_breakpoints([&](size_t, const auto& breakpoint) {
+         json j;
+         to_json(j, breakpoint);
+         ss << "    " << j << "\n";
+      });
+
+      if (!INI_Updater{gfc._local_config_path}.replace_section("[breakpoints]\n", ss.str())) {
+         print(std::cerr, "Warning: Could not save breakpoints.");
       }
    }
 

@@ -2036,7 +2036,7 @@ struct INI_Updater {
       size_t      end_pos;    // if set, index of beginning of the next section
    };
 
-   std::string get_section(const char* section_string) {
+   std::string get_section(std::string_view section_string) {
       Section sect = _find_section(section_string);
       if (sect.start_pos == std::string::npos)
          return {};
@@ -2048,7 +2048,7 @@ struct INI_Updater {
    // `section_string` should be something like: "[trusted_folders]\n"
    // `text` should be one or more newline terminated lines
    // ------------------------------------------------------------------
-   bool insert_after_section(const char* section_string, std::string_view text) {
+   bool insert_after_section(std::string_view section_string, std::string_view text) {
       Section sect = _find_section(section_string);
 
       std::ofstream ofs(_path, std::ofstream::out | std::ofstream::binary);
@@ -2071,7 +2071,7 @@ struct INI_Updater {
    // `section_string` should be something like: "[trusted_folders]\n"
    // `text` should be one or more newline terminated lines
    // ------------------------------------------------------------------
-   bool replace_section(const char* section_string, std::string_view text) {
+   bool replace_section(std::string_view section_string, std::string_view text) {
       Section sect = _find_section(section_string);
 
       std::string config     = LoadFile(_path);
@@ -2099,12 +2099,12 @@ struct INI_Updater {
 private:
    // `section_string` should be something like: "[trusted_folders]\n"
    // ------------------------------------------------------------------
-   Section _find_section(const char* section_string) {
+   Section _find_section(std::string_view section_string) {
       Section sect;
       sect.config = LoadFile(_path);
       sect.start_pos = sect.config.find(section_string);
       if (sect.start_pos != std::string::npos) {
-         sect.start_pos  += strlen(section_string);
+         sect.start_pos  += section_string.size();
          sect.end_pos = sect.config.find("\n[", sect.start_pos);
       }
       return sect;
