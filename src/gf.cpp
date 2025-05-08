@@ -3044,7 +3044,7 @@ public:
    }
 
    void add_expression(string_view string = {}) {
-      if (string.empty() && _textbox && _textbox->text().empty()) {
+      if (string.empty() && _textbox != nullptr && _textbox->text().empty()) {
          destroy_textbox();
          return;
       }
@@ -3053,8 +3053,10 @@ public:
 
       if (!string.empty())
          watch->_key = string;
-      else
+      else if ( _textbox != nullptr)
          watch->_key = _textbox->text();
+      else
+         return;
 
       delete_expression(); // Deletes textbox.
       _rows.insert(_rows.cbegin() + _selected_row, watch);
