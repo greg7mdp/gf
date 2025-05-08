@@ -534,10 +534,10 @@ bool        CommandInspectLine();
 // Utilities:
 // ------------------------------------------------------
 
-inline uint64_t Hash(const uint8_t* key, size_t keyBytes) {
+inline uint64_t Hash(std::string_view sv) {
    uint64_t hash = 0xCBF29CE484222325;
-   for (uintptr_t i = 0; i < keyBytes; i++)
-      hash = (hash ^ key[i]) * 0x100000001B3;
+   for (auto c : sv)
+      hash = (hash ^ c) * 0x100000001B3;
    return hash;
 }
 
@@ -976,14 +976,14 @@ private:
    struct Breakpoint {
       int      _number = 0;
       string   _file;
-      string   _full_path;
+      string   _full_path;           // realpath of `_file`, computed, do not serialize
       int      _line       = 0;
-      int      _hit        = 0;
+      int      _hit        = 0;      // count of hits - do not serialize
       bool     _watchpoint = false;
       bool     _enabled    = false;
       bool     _multiple   = false;
       string   _condition;
-      uint64_t _condition_hash = 0;
+      uint64_t _condition_hash = 0;  // hash of _condition, computed
 
       bool match(int line, std::string_view path) const { return _line == line && path == _full_path; }
 
@@ -1001,6 +1001,16 @@ private:
       void toggle() const {
          command(_enabled ? bp_command::dis : bp_command::ena);
       }
+
+      Breakpoint update() && {
+         if (!_condition.empty() && _condition_hash == 0)
+            _condition_hash = Hash(_condition);           // used when deserializing from json
+         if (!_file.empty() && _full_path.empty())
+            _full_path = get_realpath(_file);
+         return std::move(*this);
+      }
+
+      NLOHMANN_DEFINE_TYPE_INTRUSIVE(Breakpoint, _number, _file, _line, _watchpoint, _enabled, _multiple, _condition)
    };
 
    friend struct BreakpointsWindow;
@@ -1079,9 +1089,7 @@ public:
          if (file)
             file += 4;
 
-         Breakpoint breakpoint = {};
-         breakpoint._number    = number;
-         breakpoint._enabled   = enabled;
+         Breakpoint breakpoint { ._number = number, ._enabled = enabled };
 
          bool recognised = true;
 
@@ -1091,7 +1099,7 @@ public:
             const char* end = strchr(condition, '\n');
             condition += 13;
             breakpoint._condition = std::string_view{condition, (size_t)(end - condition)};
-            breakpoint._condition_hash = Hash((const uint8_t*)condition, end - condition);
+            breakpoint._condition_hash = Hash(breakpoint._condition); // leave it there, used for `bp._multiple`
          }
 
          const char* hitCountNeedle = "breakpoint already hit";
@@ -1117,8 +1125,6 @@ public:
             recognised = false;
 
          if (recognised) {
-            breakpoint._full_path = get_realpath(breakpoint._file);
-
             for (auto& bp : _breakpoints) {
                if (bp.match(breakpoint._line, breakpoint._full_path) &&
                    bp._condition_hash == breakpoint._condition_hash) {
@@ -1127,7 +1133,7 @@ public:
                }
             }
             if (!breakpoint._multiple)
-               _breakpoints.push_back(std::move(breakpoint));
+               _breakpoints.push_back(std::move(breakpoint).update());
          } else if (strstr(position, "watchpoint") != 0) {
             // we have a watchpoint
             const char* address = strstr(position, enabled ? " y  " : " n  ");
@@ -1140,7 +1146,7 @@ public:
                   if (end) {
                      breakpoint._watchpoint = true;
                      breakpoint._file = std::string_view{address, (size_t)(end - address)};
-                     _breakpoints.push_back(std::move(breakpoint));
+                     _breakpoints.push_back(std::move(breakpoint).update());
                   }
                }
             }
