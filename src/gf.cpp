@@ -1403,7 +1403,7 @@ static void SettingsAddTrustedFolder() {
 
    // check that it is not already there
    // ----------------------------------
-   if (updater.get_section(section_string).find(text) == std::string::npos) {
+   if (!updater.section_contains(section_string, text)) {
       // OK, add it
       // ----------
       if (!updater.insert_after_section(section_string, text))
@@ -4896,8 +4896,9 @@ public:
          gfc._breakpoints_restored = true;
 
          INI_Updater ini{gfc._local_config_path};
-         auto        bp = ini.get_section("[breakpoints]\n");
-         s_breakpoint_mgr.restore_breakpoints(bp);
+         ini.with_section("[breakpoints]\n", [&](std::string_view sv) {
+            s_breakpoint_mgr.restore_breakpoints(sv);
+         });
       }
 
       if (!pause) {
@@ -7393,14 +7394,15 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
 
       if (gfc._restore_watch_window) {
          INI_Updater ini{gfc._local_config_path};
-         auto        watches = ini.get_section("[watch]\n");
-         for (size_t idx = 0; idx < watches.size(); ) {
-            size_t end = watches.find('\n', idx);
-            if (end == std::string::npos)
-               break;
-            WatchAddExpression(string_view{&watches[idx], end - idx});
-            idx = end + 1;
-         }
+         ini.with_section("[watch]\n", [&](std::string_view watches) {
+            for (size_t idx = 0; idx < watches.size();) {
+               size_t end = watches.find('\n', idx);
+               if (end == std::string::npos)
+                  break;
+               WatchAddExpression(string_view{&watches[idx], end - idx});
+               idx = end + 1;
+            }
+         });
       }
       ctx._first_update = false;
    }

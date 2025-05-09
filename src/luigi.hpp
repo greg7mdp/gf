@@ -2034,15 +2034,25 @@ struct INI_Updater {
       std::string config;     // the whole config file in a string
       size_t      start_pos;  // index of the section *after* section_string
       size_t      end_pos;    // if set, index of beginning of the next section
+
+      std::string_view sv() {
+         if (start_pos == std::string::npos)
+             return {};
+         if (end_pos != std::string::npos)
+            return { &config[start_pos], end_pos - start_pos};
+         return { &config[start_pos], config.size() - start_pos };
+      }
    };
 
-   std::string get_section(std::string_view section_string) {
+   template <class F>
+   auto with_section(std::string_view section_string, F &&f) {
       Section sect = _find_section(section_string);
-      if (sect.start_pos == std::string::npos)
-         return {};
-      if (sect.end_pos != std::string::npos)
-         return sect.config.substr(sect.start_pos, sect.end_pos - sect.start_pos);
-      return sect.config.substr(sect.start_pos);
+      return std::forward<F>(f)(sect.sv());
+   }
+
+   // returns true if the section contains the text string (anywhere)
+   bool section_contains(std::string_view section_string, std::string_view text) {
+      return with_section(section_string, [&](std::string_view sv) { return sv.find(text) != std::string::npos; });
    }
 
    // `section_string` should be something like: "[trusted_folders]\n"
