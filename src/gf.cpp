@@ -2481,7 +2481,7 @@ struct BitmapViewer {
 };
 
 int BitmapViewerWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-   BitmapViewer* viewer = (BitmapViewer*)el->_cp;
+   BitmapViewer* viewer = static_cast<BitmapViewer*>(el->_cp);
    if (msg == UIMessage::DESTROY) {
       DataViewerRemoveFromAutoUpdateList(el);
       delete viewer;
@@ -5818,7 +5818,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 }
 
 int ProfReportWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-   ProfFlameGraphReport* report = (ProfFlameGraphReport*)el->_cp;
+   ProfFlameGraphReport* report = static_cast<ProfFlameGraphReport*>(el->_cp);
 
    if (msg == UIMessage::LAYOUT) {
       if (report->_showing_table) {
@@ -5843,7 +5843,7 @@ void ProfSwitchView(ProfFlameGraphReport* report) {
 }
 
 int ProfTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-   ProfFlameGraphReport* report = (ProfFlameGraphReport*)el->_cp;
+   ProfFlameGraphReport* report = static_cast<ProfFlameGraphReport*>(el->_cp);
    UITable*              table  = report->_table;
 
    if (msg == UIMessage::TABLE_GET_ITEM) {
@@ -6174,7 +6174,7 @@ void ProfStepOverProfiled(ProfWindow* window) {
 }
 
 void ProfWindowUpdate(const char* data, UIElement* el) {
-   ProfWindow* window = (ProfWindow*)el->_cp;
+   ProfWindow* window = static_cast<ProfWindow*>(el->_cp);
 
    if (window->_in_step_over_profiled) {
       (void)ctx.eval_command("call GfProfilingStop()");
@@ -7251,7 +7251,7 @@ const char* WaveformViewerGetSamples(const char* pointerString, const char* samp
 int WaveformViewerWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::DESTROY) {
       DataViewerRemoveFromAutoUpdateList(el);
-      delete (WaveformViewer*)el->_cp;
+      delete static_cast<WaveformViewer*>(el->_cp);
    } else if (msg == UIMessage::GET_WIDTH) {
       return 300;
    } else if (msg == UIMessage::GET_HEIGHT) {
@@ -7262,7 +7262,7 @@ int WaveformViewerWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) 
 }
 
 void WaveformViewerAutoUpdateCallback(UIElement* el) {
-   WaveformViewer* viewer = (WaveformViewer*)el->_cp;
+   WaveformViewer* viewer = static_cast<WaveformViewer*>(el->_cp);
    WaveformViewerUpdate(viewer->_pointer, viewer->_sample_count, viewer->_channels, el);
 }
 
