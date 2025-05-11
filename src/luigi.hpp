@@ -1519,10 +1519,13 @@ struct textbox_state_t {
 };
 
 struct UITextbox : public UIElementCast<UITextbox>, public textbox_state_t  {
+   using on_key_cb_t = std::function<void(UITextbox&, UIKeycode)>;
+
 private:
    bool                         _reject_next_key{false};
    std::vector<textbox_state_t> _undo_states;
    size_t                       _undo_idx{0};
+   on_key_cb_t                  _on_key_up_down;
    
    int     _class_message_proc(UIMessage msg, int di, void* dp);
 
@@ -1556,6 +1559,7 @@ public:
    UITextbox& redo();
 
    UITextbox& set_reject_next_key(bool v) { _reject_next_key = v; return *this; }
+   UITextbox& on_key_up_down(on_key_cb_t f) { _on_key_up_down = std::move(f); return *this; }
 };
 
 // ------------------------------------------------------------------------------------------
