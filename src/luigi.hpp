@@ -199,6 +199,21 @@ inline std::string_view ui_trim(const std::string_view str) {
     return ui_trimend(ui_trimstart(str));
 }
 
+template <class F>
+void for_each_line(std::string_view sv, F&& f) {
+   size_t start = 0;
+   for (size_t i=0; i<sv.size(); ++i) {
+      if (sv[i] == '\n') {
+         if (std::forward<F>(f)(std::string_view{&sv[start], i - start}))
+            break;
+         start = i+1;
+      }
+   }
+   if (start < sv.size())
+      std::forward<F>(f)(std::string_view{&sv[start], sv.size() - start});
+}
+
+
 // ---------------------------------------------------------------------------
 // assigns val to var, and returns true if the value changed
 // ---------------------------------------------------------------------------
