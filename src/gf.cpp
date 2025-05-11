@@ -168,6 +168,8 @@ static inline char* mk_cstring(std::string_view sv) {
 
 static inline int sv_atoi(string_view str, size_t offset = 0) { return sv_atoi_impl<int>(str, offset); }
 
+static inline uint32_t sv_atoui(string_view str, size_t offset = 0) { return sv_atoi_impl<uint32_t>(str, offset); }
+
 [[maybe_unused]] static inline long sv_atol(string_view str, size_t offset = 0) {
    return sv_atoi_impl<long>(str, offset);
 }
@@ -190,7 +192,8 @@ void print(std::format_string<Args...> fmt, Args&&... args) {
 
 std::string get_realpath(const std::string& path) {
    char buff[PATH_MAX] = "";
-   return std::string{realpath(path.c_str(), buff)};
+   realpath(path.c_str(), buff); // realpath can return 0 if path doesn'tr exist (ENOENT)
+   return *buff ? std::string{buff} : path;
 }
 
 std::string my_getcwd() {
@@ -2497,8 +2500,8 @@ int BitmapViewerWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    return 0;
 }
 
-void BitmapViewerUpdate(std::string pointerString, std::string widthString, std::string heightString,
-                        std::string strideString, UIElement* owner = nullptr);
+void BitmapViewerUpdate(const std::string& pointerString, const std::string& widthString,
+                        const std::string& heightString, const std::string& strideString, UIElement* owner = nullptr);
 
 int BitmapViewerRefreshMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::CLICKED) {
@@ -2509,29 +2512,27 @@ int BitmapViewerRefreshMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    return 0;
 }
 
-const char* BitmapViewerGetBits(std::string pointerString, std::string widthString, std::string heightString,
-                                std::string strideString, uint32_t** _bits, int* _width, int* _height, int* _stride) {
+const char* BitmapViewerGetBits(const std::string& pointerString, const std::string& widthString,
+                                const std::string& heightString, const std::string& strideString, UIBitmapBits& bb) {
    auto widthResult = ctx.eval_expression(widthString);
    if (widthResult.empty()) {
       return "Could not evaluate width.";
    }
-   int  width        = sv_atoi(widthResult, 1);
-   auto heightResult = ctx.eval_expression(heightString);
+   uint32_t width        = sv_atoui(widthResult, 1);
+   auto     heightResult = ctx.eval_expression(heightString);
    if (heightResult.empty()) {
       return "Could not evaluate height.";
    }
-   int  height        = sv_atoi(heightResult, 1);
-   int  stride        = width * 4;
-   auto pointerResult = ctx.eval_expression(pointerString, "/x");
+   uint32_t height        = sv_atoui(heightResult, 1);
+   uint32_t stride        = width * 4;
+   auto     pointerResult = ctx.eval_expression(pointerString, "/x");
    if (pointerResult.empty()) {
       return "Could not evaluate pointer.";
    }
-   char _pointerResult[1024];
-   std_format_to_n(_pointerResult, sizeof(_pointerResult), "{}", pointerResult);
-   auto pr = strstr(_pointerResult, " 0x");
-   if (!pr) {
+   auto pr = strstr(pointerResult.c_str(), " 0x");
+   if (!pr)
       return "Pointer to image bits does not look like an address!";
-   }
+
    ++pr;
 
    if (!strideString.empty()) {
@@ -2542,7 +2543,7 @@ const char* BitmapViewerGetBits(std::string pointerString, std::string widthStri
       stride = sv_atoi(strideResult, 1);
    }
 
-   uint32_t* bits = (uint32_t*)malloc(stride * height * 4); // TODO Is this multiply by 4 necessary?! And the one below.
+   uint32_t* bits = (uint32_t*)malloc(stride * height);
 
    std::string bitmapPath = get_realpath(".bitmap.gf");
 
@@ -2551,7 +2552,7 @@ const char* BitmapViewerGetBits(std::string pointerString, std::string widthStri
    FILE* f = fopen(bitmapPath.c_str(), "rb");
 
    if (f) {
-      fread(bits, 1, stride * height * 4, f); // TODO Is this multiply by 4 necessary?!
+      fread(bits, 1, stride * height, f);
       fclose(f);
       unlink(bitmapPath.c_str());
    }
@@ -2560,7 +2561,7 @@ const char* BitmapViewerGetBits(std::string pointerString, std::string widthStri
       return "Could not read the image bits!";
    }
 
-   *_bits = bits, *_width = width, *_height = height, *_stride = stride;
+   bb = UIBitmapBits{ .bits = unique_ptr<uint32_t>{bits}, .width = width, .height = height, .stride = stride };
    return nullptr;
 }
 
@@ -2570,19 +2571,19 @@ int BitmapViewerDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          ->create_menu(el->_window, UIMenu::NO_SCROLL)
          .add_item(0, "Save to file...",
                    [el](UIButton&) {
-                      static char* path = nullptr;
+                      static std::string path;
                       auto result       = s_main_window->show_dialog(0, "Save to file       \nPath:\n%t\n%f%B%C", &path,
                                                                      "Save", "Cancel");
                       if (result != "Save")
                          return;
 
                       UIImageDisplay* display = (UIImageDisplay*)el;
-                      FILE*           f       = fopen(path, "wb");
-                      print(f, "P6\n{} {}\n255\n", display->_width, display->_height);
+                      FILE*           f       = fopen(path.c_str(), "wb");
+                      print(f, "P6\n{} {}\n255\n", display->_bb.width, display->_bb.height);
 
-                      for (size_t i = 0; i < display->_width * display->_height; i++) {
-                         uint8_t pixel[3] = {(uint8_t)(display->_bits[i] >> 16), (uint8_t)(display->_bits[i] >> 8),
-                                             (uint8_t)display->_bits[i]};
+                      for (size_t i = 0; i < display->_bb.width * display->_bb.height; i++) {
+                         uint32_t src_pix = display->_bb[i];
+                         uint8_t  pixel[3] = {(uint8_t)(src_pix >> 16), (uint8_t)(src_pix >> 8), (uint8_t)src_pix};
                          fwrite(pixel, 1, 3, f);
                       }
 
@@ -2595,24 +2596,19 @@ int BitmapViewerDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 }
 
 void BitmapViewerAutoUpdateCallback(UIElement* el) {
-   BitmapViewer* bitmap = (BitmapViewer*)el->_cp;
+   BitmapViewer* bitmap = static_cast<BitmapViewer*>(el->_cp);
    BitmapViewerUpdate(bitmap->_pointer, bitmap->_width, bitmap->_height, bitmap->_stride, el);
 }
 
-void BitmapViewerUpdate(std::string pointerString, std::string widthString, std::string heightString,
-                        std::string strideString, UIElement* owner) {
-   uint32_t*   bits  = nullptr;
-   int         width = 0, height = 0, stride = 0;
-   const char* error =
-      BitmapViewerGetBits(pointerString, widthString, heightString, strideString, &bits, &width, &height, &stride);
-
+void BitmapViewerUpdate(const std::string& pointerString, const std::string& widthString, const std::string& heightString,
+                        const std::string& strideString, UIElement* owner) {
    if (!owner) {
       BitmapViewer* bitmap = new BitmapViewer;
 
-      bitmap->_pointer = std::move(pointerString);
-      bitmap->_width   = std::move(widthString);
-      bitmap->_height  = std::move(heightString);
-      bitmap->_stride  = std::move(strideString);
+      bitmap->_pointer = pointerString;
+      bitmap->_width   = widthString;
+      bitmap->_height  = heightString;
+      bitmap->_stride  = strideString;
 
       UIMDIChild* window = &s_data_window->add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Bitmap")
                                .set_user_proc(BitmapViewerWindowMessage)
@@ -2625,16 +2621,18 @@ void BitmapViewerUpdate(std::string pointerString, std::string widthString, std:
       owner = window;
 
       UIPanel* panel = &owner->add_panel(UIPanel::EXPAND);
-      bitmap->_display =
-         &panel->add_imagedisplay(UIImageDisplay::INTERACTIVE | UIElement::v_fill, bits, width, height, stride)
-             .set_user_proc(BitmapViewerDisplayMessage);
+      bitmap->_display = &panel->add_imagedisplay(UIImageDisplay::INTERACTIVE | UIElement::v_fill, UIBitmapBits{})
+                             .set_user_proc(BitmapViewerDisplayMessage);
       bitmap->_label_panel = &panel->add_panel(UIPanel::COLOR_1 | UIElement::v_fill);
       bitmap->_label       = &bitmap->_label_panel->add_label(UIElement::h_fill, {});
    }
 
+   UIBitmapBits bb;
+   const char* error = BitmapViewerGetBits(pointerString, widthString, heightString, strideString, bb);
+
    BitmapViewer* bitmap  = (BitmapViewer*)owner->_cp;
-   bitmap->_parsed_width = width, bitmap->_parsed_height = height;
-   bitmap->_display->set_content(bits, width, height, stride);
+   bitmap->_parsed_width = bb.width, bitmap->_parsed_height = bb.height;
+   bitmap->_display->set_content(std::move(bb));
    if (error)
       bitmap->_label->set_label(error);
    if (error)
@@ -2644,21 +2642,18 @@ void BitmapViewerUpdate(std::string pointerString, std::string widthString, std:
    bitmap->_label_panel->_parent->refresh();
    owner->refresh();
    s_data_window->refresh();
-
-   free(bits);
 }
 
 void BitmapAddDialog() {
-   static char *pointer = nullptr, *width = nullptr, *height = nullptr, *stride = nullptr;
+   static std::string pointer, width, height, stride;
 
    auto result = s_main_window->show_dialog(0,
                                             "Add bitmap\n\n%l\n\nPointer to bits: (32bpp, RR GG BB "
                                             "AA)\n%t\nWidth:\n%t\nHeight:\n%t\nStride: (optional)\n%t\n\n%l\n\n%f%B%C",
                                             &pointer, &width, &height, &stride, "Add", "Cancel");
 
-   if (result == "Add") {
-      BitmapViewerUpdate(pointer ?: "", width ?: "", height ?: "", (stride && stride[0]) ? stride : "");
-   }
+   if (result == "Add")
+      BitmapViewerUpdate(pointer, width, height, stride);
 }
 
 // ---------------------------------------------------/
@@ -3376,16 +3371,13 @@ public:
       if (_selected_row == _rows.size())
          return;
 
-      char* filePath = nullptr;
+      std::string filePath;
       auto  result   = s_main_window->show_dialog(0, "Path:            \n%t\n%f%B%C", &filePath, "Save", "Cancel");
 
-      if (result == "Cancel") {
-         free(filePath);
+      if (result == "Cancel")
          return;
-      }
 
-      FILE* f = fopen(filePath, "wb");
-      free(filePath);
+      FILE* f = fopen(filePath.c_str(), "wb");
 
       if (!f) {
          s_main_window->show_dialog(0, "Could not open the file for writing!\n%f%B", "OK");
@@ -3407,7 +3399,7 @@ public:
    }
 
    static int WatchPanelMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-      WatchWindow* window = (WatchWindow*)el->_cp;
+      WatchWindow* window = static_cast<WatchWindow*>(el->_cp);
       if (msg == UIMessage::LEFT_DOWN) {
          window->focus();
          window->repaint(nullptr);
@@ -3850,7 +3842,7 @@ int WatchTextboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::UPDATE) {
       if (!el->is_focused()) {
          el->destroy();
-         ((WatchWindow*)el->_cp)->destroy_textbox(); // use _cp here!
+         static_cast<WatchWindow*>(el->_cp)->destroy_textbox(); // use _cp here!
       }
    } else if (msg == UIMessage::KEY_TYPED) {
       UITextbox*  textbox = (UITextbox*)el;
@@ -3877,7 +3869,7 @@ void WatchAddExpression(string_view sv) {
 int WatchLoggerWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::DESTROY) {
       if (el->_cp) {
-         WatchLogger* logger = (WatchLogger*)el->_cp;
+         WatchLogger* logger = static_cast<WatchLogger*>(el->_cp);
 
          if (auto it = rng::find(watchLoggers, logger); it != rng::end(watchLoggers))
             watchLoggers.erase(it);
@@ -3909,7 +3901,7 @@ void WatchLoggerTraceSelectFrame(UIElement* el, int index, WatchLogger* logger) 
 }
 
 int WatchLoggerTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-   WatchLogger* logger = (WatchLogger*)el->_cp;
+   WatchLogger* logger = static_cast<WatchLogger*>(el->_cp);
 
    if (msg == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m     = (UITableGetItem*)dp;
@@ -3942,7 +3934,7 @@ int WatchLoggerTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 }
 
 int WatchLoggerTraceMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-   WatchLogger* logger = (WatchLogger*)el->_cp;
+   WatchLogger* logger = static_cast<WatchLogger*>(el->_cp);
 
    if (msg == UIMessage::TABLE_GET_ITEM) {
       UITableGetItem* m     = (UITableGetItem*)dp;
@@ -3983,16 +3975,13 @@ void WatchWindow::WatchChangeLoggerCreate() {
       return;
    }
 
-   char* expressionsToEvaluate = nullptr;
-
+   std::string expressionsToEvaluate;
    auto result = s_main_window->show_dialog(
       0, "-- Watch logger settings --\nExpressions to evaluate (separate with semicolons):\n%t\n\n%l\n\n%f%B%C",
       &expressionsToEvaluate, "Start", "Cancel");
 
-   if (result == "Cancel" || expressionsToEvaluate == nullptr) {
-      free(expressionsToEvaluate);
+   if (result == "Cancel" || expressionsToEvaluate.empty())
       return;
-   }
 
    UIMDIChild* child =
       &s_data_window->add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(0), std::format("Log {}", res));
@@ -4014,13 +4003,13 @@ void WatchWindow::WatchChangeLoggerCreate() {
    uintptr_t position = 0;
    position += std_format_to_n(logger->_columns + position, sizeof(logger->_columns) - position, "New value\tWhere");
 
-   if (expressionsToEvaluate) {
+   if (!expressionsToEvaluate.empty()) {
       uintptr_t start = 0;
 
       for (uintptr_t i = 0; true; i++) {
          if (expressionsToEvaluate[i] == ';' || !expressionsToEvaluate[i]) {
             position += std_format_to_n(logger->_columns + position, sizeof(logger->_columns) - position, "\t{}",
-                                        std::string_view{expressionsToEvaluate + start, (size_t)(i - start)});
+                                        std::string_view{&expressionsToEvaluate[start], (size_t)(i - start)});
             start = i + 1;
          }
 
@@ -6226,7 +6215,7 @@ private:
    uint64_t        _offset;
 
    void _add_memory_window() {
-      char* expression = nullptr;
+      std::string expression;
 
       if (s_main_window->show_dialog(0, "Enter address expression:\n%t\n%f%b%b", &expression, "Goto", "Cancel") ==
           "Goto") {
@@ -6251,8 +6240,6 @@ private:
             s_main_window->show_dialog(0, "Expression did not evaluate to an address.\n%f%b", "OK");
          }
       }
-
-      free(expression);
    }
 
    int _message_proc(UIMessage msg, int di, void* dp) {
@@ -7192,11 +7179,12 @@ struct WaveformViewer {
    WaveformDisplay* _display             = nullptr;
 };
 
-void WaveformViewerUpdate(const char* pointerString, const char* sampleCountString, const char* channelsString,
-                          UIElement* owner);
+void WaveformViewerUpdate(const std::string& pointerString, const std::string& sampleCountString,
+                          const std::string& channelsString, UIElement* owner);
 
-const char* WaveformViewerGetSamples(const char* pointerString, const char* sampleCountString,
-                                     const char* channelsString, float** _samples, int* _sampleCount, int* _channels) {
+const char* WaveformViewerGetSamples(const std::string& pointerString, const std::string& sampleCountString,
+                                     const std::string& channelsString, float** _samples, int* _sampleCount,
+                                     int* _channels) {
    auto sampleCountResult = ctx.eval_expression(sampleCountString);
    if (sampleCountResult.empty()) {
       return "Could not evaluate sample count.";
@@ -7275,12 +7263,12 @@ int WaveformViewerRefreshMessage(UIElement* el, UIMessage msg, int di, void* dp)
 }
 
 void WaveformViewerSaveToFile(WaveformDisplay* display) {
-   static char* path   = nullptr;
+   static std::string path;
    auto         result = s_main_window->show_dialog(0, "Save to file       \nPath:\n%t\n%f%b%b%b", &path, "Save",
                                                     "Save and open", "Cancel");
    if (result == "Cancel")
       return;
-   FILE* f = fopen(path, "wb");
+   FILE* f = fopen(path.c_str(), "wb");
    if (!f) {
       s_main_window->show_dialog(0, "Unable to open file for writing.\n%f%b", "OK");
       return;
@@ -7331,7 +7319,7 @@ int WaveformViewerDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp)
    return 0;
 }
 
-void WaveformViewerUpdate(const char* pointerString, const char* sampleCountString, const char* channelsString,
+void WaveformViewerUpdate(const std::string& pointerString, const std::string& sampleCountString, const std::string& channelsString,
                           UIElement* owner) {
    float*      samples     = nullptr;
    int         sampleCount = 0, channels = 0;
@@ -7340,11 +7328,11 @@ void WaveformViewerUpdate(const char* pointerString, const char* sampleCountStri
 
    if (!owner) {
       WaveformViewer* viewer = new WaveformViewer;
-      if (pointerString)
+      if (!pointerString.empty())
          std_format_to_n(viewer->_pointer, sizeof(viewer->_pointer), "{}", pointerString);
-      if (sampleCountString)
+      if (!sampleCountString.empty())
          std_format_to_n(viewer->_sample_count, sizeof(viewer->_sample_count), "{}", sampleCountString);
-      if (channelsString)
+      if (!channelsString.empty())
          std_format_to_n(viewer->_channels, sizeof(viewer->_channels), "{}", channelsString);
 
       UIMDIChild* window = &s_data_window->add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Waveform")
@@ -7387,7 +7375,7 @@ void WaveformViewerUpdate(const char* pointerString, const char* sampleCountStri
 }
 
 void WaveformAddDialog() {
-   static char *pointer = nullptr, *sampleCount = nullptr, *channels = nullptr;
+   static std::string pointer, sampleCount, channels;
 
    auto result = s_main_window->show_dialog(
       0,
@@ -7447,7 +7435,7 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
       if (gfc._restore_watch_window) {
          INI_Updater ini{gfc.get_prog_config_path()};
          ini.with_section("[watch]\n", [&](std::string_view watches) {
-            print ("watches={}", watches);
+            // print ("watches={}\n", watches);
             for (size_t idx = 0; idx < watches.size();) {
                size_t end = watches.find('\n', idx);
                if (end == std::string::npos)

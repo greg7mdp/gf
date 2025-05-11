@@ -1402,9 +1402,8 @@ UIWrapPanel& UIElement::add_wrappanel(uint32_t flags) { return *new UIWrapPanel(
 
 UIGauge& UIElement::add_gauge(uint32_t flags) { return *new UIGauge(this, flags); }
 
-UIImageDisplay& UIElement::add_imagedisplay(uint32_t flags, uint32_t* bits, size_t width, size_t height,
-                                            size_t stride) {
-   return *new UIImageDisplay(this, flags, bits, width, height, stride);
+UIImageDisplay& UIElement::add_imagedisplay(uint32_t flags, UIBitmapBits&& bb) {
+   return *new UIImageDisplay(this, flags, std::move(bb));
 }
 
 UISwitcher& UIElement::add_switcher(uint32_t flags) { return *new UISwitcher(this, flags); }
@@ -1437,14 +1436,10 @@ int _UIDialogDefaultButtonMessage(UIElement* el, UIMessage msg, int di, void* dp
 // --------------------------------------------------
 static int _DialogTextboxMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
    UITextbox*       textbox = (UITextbox*)el;
-   std::string_view text    = textbox->text();
 
    if (msg == UIMessage::VALUE_CHANGED) {
-      auto   sz     = text.size();
-      char** buffer = (char**)el->_cp;
-      *buffer       = (char*)realloc(*buffer, sz + 1); // update user pointer to hold the textbox text
-      std::memcpy(*buffer, text.data(), sz);
-      (*buffer)[sz] = 0;
+      std::string* buffer = static_cast<std::string*>(el->_cp);
+      *buffer = textbox->text();
    } else if (msg == UIMessage::UPDATE && di == UIUpdate::focused && el->is_focused()) {
       textbox->select_all();
       el->repaint(nullptr);
@@ -1500,11 +1495,11 @@ std::string_view UIWindow::show_dialog(uint32_t flags, const char* format, ...) 
             const char* label = va_arg(arguments, const char*);
             row->add_label(0, label);
          } else if (format[i] == 't') { // --> textbox
-            char**     buffer  = va_arg(arguments, char**);
+            std::string*  buffer  = va_arg(arguments, std::string*);
             UITextbox* textbox = &row->add_textbox(h_fill);
             if (!focus)
                focus = textbox;
-            if (*buffer)
+            if (!buffer->empty())
                textbox->replace_text(*buffer, false);
             textbox->set_cp(buffer); // when the textbox text is updated, `*buffer` will contain a `char*` to the string
             textbox->set_user_proc(_DialogTextboxMessageProc);
@@ -4031,10 +4026,10 @@ UIImageDisplay& UIImageDisplay::_update_viewport() {
    bounds.r -= bounds.l, bounds.b -= bounds.t;
 
    float minimumZoomX = 1, minimumZoomY = 1;
-   if ((int)_width > bounds.r)
-      minimumZoomX = (float)bounds.r / _width;
-   if ((int)_height > bounds.b)
-      minimumZoomY = (float)bounds.b / _height;
+   if ((int)_bb.width > bounds.r)
+      minimumZoomX = (float)bounds.r / _bb.width;
+   if ((int)_bb.height > bounds.b)
+      minimumZoomY = (float)bounds.b / _bb.height;
    float minimumZoom = minimumZoomX < minimumZoomY ? minimumZoomX : minimumZoomY;
 
    if (_zoom < minimumZoom || (_flags & UIImageDisplay::ZOOM_FIT)) {
@@ -4046,25 +4041,24 @@ UIImageDisplay& UIImageDisplay::_update_viewport() {
       _panX = 0;
    if (_panY < 0)
       _panY = 0;
-   if (_panX > _width - bounds.r / _zoom)
-      _panX = _width - bounds.r / _zoom;
-   if (_panY > _height - bounds.b / _zoom)
-      _panY = _height - bounds.b / _zoom;
+   if (_panX > _bb.width - bounds.r / _zoom)
+      _panX = _bb.width - bounds.r / _zoom;
+   if (_panY > _bb.height - bounds.b / _zoom)
+      _panY = _bb.height - bounds.b / _zoom;
 
-   if (bounds.r && _width * _zoom <= bounds.r)
-      _panX = _width / 2 - bounds.r / _zoom / 2;
-   if (bounds.b && _height * _zoom <= bounds.b)
-      _panY = _height / 2 - bounds.b / _zoom / 2;
+   if (bounds.r && _bb.width * _zoom <= bounds.r)
+      _panX = _bb.width / 2 - bounds.r / _zoom / 2;
+   if (bounds.b && _bb.height * _zoom <= bounds.b)
+      _panY = _bb.height / 2 - bounds.b / _zoom / 2;
    return *this;
 }
 
 int UIImageDisplay::_class_message_proc(UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::GET_HEIGHT) {
-      return _height;
+      return _bb.height;
    } else if (msg == UIMessage::GET_WIDTH) {
-      return _width;
+      return _bb.width;
    } else if (msg == UIMessage::DEALLOCATE) {
-      free(_bits);
    } else if (msg == UIMessage::PAINT) {
       UIPainter* painter = (UIPainter*)dp;
 
@@ -4072,18 +4066,18 @@ int UIImageDisplay::_class_message_proc(UIMessage msg, int di, void* dp) {
       int x = _UILinearMap(0, _panX, _panX + w / _zoom, 0, w) + _bounds.l;
       int y = _UILinearMap(0, _panY, _panY + h / _zoom, 0, h) + _bounds.t;
 
-      UIRectangle image  = UIRectangle(x, x + (int)(_width * _zoom), y, (int)(y + _height * _zoom));
+      UIRectangle image  = UIRectangle(x, x + (int)(_bb.width * _zoom), y, (int)(y + _bb.height * _zoom));
       UIRectangle bounds = intersection(painter->_clip, intersection(_bounds, image));
       if (!bounds.valid())
          return 0;
 
       if (_zoom == 1) {
          uint32_t* lineStart       = (uint32_t*)painter->_bits + bounds.t * painter->_width + bounds.l;
-         uint32_t* sourceLineStart = _bits + (bounds.l - image.l) + _width * (bounds.t - image.t);
+         const uint32_t* sourceLineStart = &_bb[bounds.l - image.l] + _bb.width * (bounds.t - image.t);
 
-         for (int i = 0; i < bounds.b - bounds.t; i++, lineStart += painter->_width, sourceLineStart += _width) {
+         for (int i = 0; i < bounds.b - bounds.t; i++, lineStart += painter->_width, sourceLineStart += _bb.width) {
             uint32_t* destination = lineStart;
-            uint32_t* source      = sourceLineStart;
+            const uint32_t* source      = sourceLineStart;
             int       j           = bounds.r - bounds.l;
 
             do {
@@ -4101,7 +4095,7 @@ int UIImageDisplay::_class_message_proc(UIMessage msg, int di, void* dp) {
 
             for (int j = bounds.l; j < bounds.r; j++) {
                int tx                               = (j - image.l) * zr;
-               destination[i * painter->_width + j] = _bits[ty * _width + tx];
+               destination[i * painter->_width + j] = _bb[ty * _bb.width + tx];
             }
          }
       }
@@ -4131,7 +4125,7 @@ int UIImageDisplay::_class_message_proc(UIMessage msg, int di, void* dp) {
       _previousWidth = bounds.r, _previousHeight = bounds.b;
       _update_viewport();
    } else if (msg == UIMessage::GET_CURSOR && (_flags & UIImageDisplay::INTERACTIVE) &&
-              (_bounds.width() < _width * _zoom || _bounds.height() < _height * _zoom)) {
+              (_bounds.width() < _bb.width * _zoom || _bounds.height() < _bb.height * _zoom)) {
       return (int)UICursor::hand;
    } else if (msg == UIMessage::MOUSE_DRAG) {
       _panX -= (cursor_pos().x - _previousPanPointX) / _zoom;
@@ -4149,40 +4143,23 @@ int UIImageDisplay::_class_message_proc(UIMessage msg, int di, void* dp) {
    return 0;
 }
 
-UIImageDisplay& UIImageDisplay::set_content(uint32_t* bits, size_t w, size_t h, size_t stride) {
-   free(bits);
-   bits    = (uint32_t*)malloc(w * h * 4);
-   _width  = w;
-   _height = h;
-
-   uint32_t* destination = bits;
-   uint32_t* source      = bits;
-
-   for (size_t row = 0; row < _height; row++, source += stride / 4) {
-      for (size_t i = 0; i < _width; i++) {
-         *destination++ = source[i];
-      }
-   }
-
+UIImageDisplay& UIImageDisplay::set_content(UIBitmapBits bb) {
+   _bb = std::move(bb);
    measurements_changed(3);
    repaint(nullptr);
    return *this;
 }
 
-UIImageDisplay::UIImageDisplay(UIElement* parent, uint32_t flags, uint32_t* bits, size_t width, size_t height,
-                               size_t stride)
+UIImageDisplay::UIImageDisplay(UIElement* parent, uint32_t flags, UIBitmapBits bb)
    : UIElementCast<UIImageDisplay>(parent, flags, UIImageDisplay::_ClassMessageProc, "ImageDisplay")
    , _previousWidth(0)
    , _previousHeight(0)
    , _previousPanPointX(0)
    , _previousPanPointY(0)
-   , _bits(bits)
-   , _width(width)
-   , _height(height)
    , _panX(0)
    , _panY(0)
    , _zoom(1) {
-   set_content(bits, width, height, stride);
+   set_content(std::move(bb));
 }
 
 // --------------------------------------------------

@@ -325,6 +325,7 @@ inline constexpr int mdi_cascade              = 30;
 // --------------------
 struct UI;
 struct UIButton;
+struct UIBitmapBits;
 struct UICheckbox;
 struct UICode;
 struct UIElement;
@@ -803,7 +804,7 @@ public:
    UICode&         add_code(uint32_t flags);
    UIElement&      add_element(uint32_t flags, message_proc_t message_proc, const char* cClassName);
    UIGauge&        add_gauge(uint32_t flags);
-   UIImageDisplay& add_imagedisplay(uint32_t flags, uint32_t* bits, size_t width, size_t height, size_t stride);
+   UIImageDisplay& add_imagedisplay(uint32_t flags, UIBitmapBits&& bb);
    UILabel&        add_label(uint32_t flags, std::string_view label);
    UIMDIChild&     add_mdichild(uint32_t flags, UIRectangle initialBounds, std::string_view title);
    UIMDIClient&    add_mdiclient(uint32_t flags);
@@ -1638,6 +1639,20 @@ public:
 };
 
 // ------------------------------------------------------------------------------------------
+struct UIBitmapBits {
+   unique_ptr<uint32_t> bits;
+   uint32_t             width  = 0;
+   uint32_t             height = 0;
+   uint32_t             stride = 0; // line length in bytes, typically `width * 4`
+
+   const uint32_t& operator[](size_t i) const {
+      assert(i < stride * height);
+      uint32_t* line = reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(bits.get()) + stride * (i / width));
+      return line[i % width];
+   }
+};
+
+
 struct UIImageDisplay : public UIElementCast<UIImageDisplay> {
 private:
    int _previousWidth;
@@ -1656,16 +1671,14 @@ private:
 public:
    enum { INTERACTIVE = (1 << 0), ZOOM_FIT = (1 << 1) };
 
-   uint32_t* _bits;
-   size_t    _width;
-   size_t    _height;
-   float     _panX;
-   float     _panY;
-   float     _zoom;
+   UIBitmapBits _bb;
+   float        _panX;
+   float        _panY;
+   float        _zoom;
 
-   UIImageDisplay(UIElement* parent, uint32_t flags, uint32_t* bits, size_t width, size_t height, size_t stride);
+   UIImageDisplay(UIElement* parent, uint32_t flags, UIBitmapBits bb);
 
-   UIImageDisplay& set_content(uint32_t* bits, size_t width, size_t height, size_t stride);
+   UIImageDisplay& set_content(UIBitmapBits bb);
 };
 
 // ------------------------------------------------------------------------------------------
