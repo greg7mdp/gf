@@ -360,8 +360,7 @@ struct Context {
    std::atomic<bool> _kill_gdb_thread = false;
    std::thread       _gdb_thread; // reads gdb output and pushes it to queue (we wait on queue in DebuggerSend
    std::atomic<bool> _evaluate_mode = false; // true means we sent a command to gdb and are waiting for the response
-   char**            _gdb_argv      = nullptr;
-   int               _gdb_argc      = 0;
+   vector<const char*>    _gdb_argv;
    SPSCQueue<std::string> _evaluate_result_queue;
    std::atomic<bool>      _program_running = true;
 
@@ -729,20 +728,24 @@ void Context::debugger_thread_fn() {
    pipe(outputPipe);
    pipe(inputPipe);
 
+   _gdb_argv[0] = _gdb_path;         // make sure prog name is correct in arg list
+   if (_gdb_argv.back() != nullptr)  // make sure arg list is null-terminated
+      _gdb_argv.push_back(nullptr);
+
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__APPLE__)
    print(std::cerr, "Using fork\n");
-   gdbPID = fork();
+   _gdb_pid = fork();
 
-   if (gdbPID == 0) {
+   if (_gdb_pid == 0) {
       setsid();
-      dup2(inputPipe[0], 0);    // inputPipe[0]  == stdin
-      dup2(outputPipe[1], 1);   // outputPipe[1] == stdout
-      dup2(outputPipe[1], 2);   // outputPipe[1] == stderr
-      execvp(gdbPath, gdbArgv); // execute gdb with arguments gdbArgv
+      dup2(inputPipe[0], 0);        // inputPipe[0]  == stdin
+      dup2(outputPipe[1], 1);       // outputPipe[1] == stdout
+      dup2(outputPipe[1], 2);       // outputPipe[1] == stderr
+      execvp(_gdb_path, (char**)&_gdb_argv[0]); // execute gdb with arguments _gdb_argv
       print(std::cerr, "Error: Couldn't execute gdb.\n");
       exit(EXIT_FAILURE);
 
-   } else if (gdbPID < 0) {
+   } else if (_gdb_pid < 0) {
       print(std::cerr, "Error: Couldn't fork.\n");
       exit(EXIT_FAILURE);
    }
@@ -758,7 +761,7 @@ void Context::debugger_thread_fn() {
    posix_spawnattr_init(&attrs);
    posix_spawnattr_setflags(&attrs, POSIX_SPAWN_SETSID);
 
-   posix_spawnp(&_gdb_pid, _gdb_path, &actions, &attrs, _gdb_argv, environ);
+   posix_spawnp(&_gdb_pid, _gdb_path, &actions, &attrs, (char**)&_gdb_argv[0], environ);
 
    posix_spawn_file_actions_destroy(&actions);
    posix_spawnattr_destroy(&attrs);
@@ -1571,10 +1574,7 @@ UIConfig Context::load_settings(bool earlyPass) {
             }
          } else if (section == "gdb" && !key.empty() && !earlyPass) {
             if (key == "argument") {
-               ctx._gdb_argc++;
-               ctx._gdb_argv                    = (char**)realloc(ctx._gdb_argv, sizeof(char*) * (ctx._gdb_argc + 1));
-               ctx._gdb_argv[ctx._gdb_argc - 1] = mk_cstring(value);
-               ctx._gdb_argv[ctx._gdb_argc]     = nullptr;
+               _gdb_argv.push_back(mk_cstring(value));
             } else if (key == "arguments") {
                char buffer[2048];
                auto sz  = value.size();
@@ -1612,16 +1612,11 @@ UIConfig Context::load_settings(bool earlyPass) {
 
                   std_format_to_n(buffer, sizeof(buffer), "{}",
                                   std::string_view{&val[argumentStart], (size_t)(argumentEnd - argumentStart)});
-
-                  ctx._gdb_argc++; // 0 is for the program name
-                  ctx._gdb_argv = (char**)realloc(ctx._gdb_argv, sizeof(char*) * (ctx._gdb_argc + 1));
-                  ctx._gdb_argv[ctx._gdb_argc - 1] = strdup(buffer);
-                  ctx._gdb_argv[ctx._gdb_argc]     = nullptr;
+                  _gdb_argv.push_back(strdup(buffer));
                }
             } else if (key == "path") {
                char* path       = mk_cstring(value);
                ctx._gdb_path    = path;
-               ctx._gdb_argv[0] = path;
             } else if (key == "log_all_output" && sv_atoi(value)) {
                if (auto it = _interface_windows.find("Log"); it != _interface_windows.end()) {
                   const auto& [name, window] = *it;
@@ -7942,16 +7937,12 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
 
    // process command arguments and create updated version to pass to gdb
    // -------------------------------------------------------------------
-   ctx._gdb_argv    = (char**)malloc(sizeof(char*) * (argc + 1));
-   ctx._gdb_argv[0] = (char*)"gdb";
-   std::memcpy(ctx._gdb_argv + 1, argv + 1, sizeof(argv) * argc);
-   ctx._gdb_argc = argc;
+   assert(ctx._gdb_argv.size() == 1); // _gdb_argv[0] set in Context::Context()
+   for (int i=1; i<argc; ++i)
+      ctx._gdb_argv.push_back(argv[i]);
 
-   if (argc >= 2 && 0 == strcmp(argv[1], "--rr-replay")) {
-      ctx._gdb_argv[0] = (char*)"rr";
-      ctx._gdb_argv[1] = (char*)"replay";
-      ctx._gdb_path    = "rr";
-   }
+   if (argc >= 2 && strcmp(argv[1], "--rr-replay") == 0)
+      ctx._gdb_argv = { "rr", "replay" };
 
    // load settings and initialize ui
    // -------------------------------
@@ -8014,6 +8005,7 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
 }
 
 Context::Context() {
+   _gdb_argv.push_back(_gdb_path);  // argv[0] is always the program path
    _dbg_re  = std::make_unique<regexp::gdb_impl>();
    _lang_re = std::make_unique<regexp::cpp_impl>();
 
