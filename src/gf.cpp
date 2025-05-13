@@ -257,6 +257,15 @@ struct ReceiveMessageType {
 };
 
 // --------------------------------------------------------------------------------------------
+struct ExeStartInfo {
+   std::string _path;
+   std::string _args;
+   bool        _ask_dir = true;
+
+   NLOHMANN_DEFINE_TYPE_INTRUSIVE(ExeStartInfo, _path, _args, _ask_dir)
+};
+
+// --------------------------------------------------------------------------------------------
 //                      Config (mostly read from `gf2_config.ini` file)
 // --------------------------------------------------------------------------------------------
 struct GF_Config {
@@ -265,9 +274,7 @@ struct GF_Config {
 
    // executable window
    // -----------------
-   std::string _exe_path;
-   std::string _exe_args;
-   bool        _exe_ask_dir = true;
+   ExeStartInfo _exe;
 
    // misc
    // ----
@@ -1662,11 +1669,19 @@ UIConfig Context::load_settings(bool earlyPass) {
             pthread_t thread;
             pthread_create(&thread, nullptr, ControlPipe::thread_proc, nullptr);
          } else if (section == "executable" && !key.empty() && earlyPass) {
+            // spec for program start config found in `gf2_config.ini`
+            // -------------------------------------------------------
             // clang-format off
-            parse_res.parse_str ("path", gfc._exe_path) ||
-            parse_res.parse_str ("arguments", gfc._exe_args) ||
-            parse_res.parse_bool("ask_directory", gfc._exe_ask_dir);
+            parse_res.parse_str ("path", gfc._exe._path) ||
+            parse_res.parse_str ("arguments", gfc._exe._args) ||
+            parse_res.parse_bool("ask_directory", gfc._exe._ask_dir);
             // clang-format on
+         } else if (section == "program" && !key.empty() && earlyPass) {
+            // spec for program start config found in `.project.gf` and config files
+            // in `.gf` dir. Use json single-line format.
+            // ---------------------------------------------------------------------
+            auto       j = json::parse(key);
+            from_json(j, gfc._exe);
          } else if (earlyPass && !section.empty() && !key.empty() && !value.empty()) {
             if (auto it = _interface_windows.find(std::string(section)); it != _interface_windows.end()) {
                const auto& [name, window] = *it;
@@ -4934,10 +4949,13 @@ void ExecutableWindow::save() {
    // update `.project.gf` to store the executable parameters. We always save in `.project.gf`
    // in the current directory, but also in `_prog_config_path` so we have a history of commands
    // for this program.
-   // -------------------------------------------------------
-   auto text = std::format("path={}\narguments={}\nask_directory={}\n", _path->text(), _arguments->text(),
-                           _should_ask ? '1' : '0');
-   INI_Updater{gfc._local_config_path}.replace_section("[executable]\n", text);
+   // ------------------------------------------------------------------------------------------
+   json j;
+   ExeStartInfo esi{ ._path = std::string{_path->text()}, ._args = std::string{_arguments->text()}, ._ask_dir = _should_ask};
+   to_json(j, esi);
+   auto text = j.dump();  // spec for program start config - json single-line format.
+   text += "\n";
+   INI_Updater{gfc._local_config_path}.replace_section("[program]\n", text);
 
    // store in `gf2_config.ini` that we trust this folder
    // ---------------------------------------------------
@@ -4953,7 +4971,7 @@ void ExecutableWindow::save() {
 
    std::string old_section;
 
-   ini.with_section("[executable]\n", [&](std::string_view sv) {
+   ini.with_section("[program]\n", [&](std::string_view sv) {
       bool present = sv.find(text) != std::string::npos;
       if (!present)
          old_section = sv;
@@ -4961,7 +4979,7 @@ void ExecutableWindow::save() {
 
    if (!present) {
       old_section.insert(0, text);
-      ini.replace_section("[executable]\n", old_section);
+      ini.replace_section("[program]\n", old_section);
    }
 
    s_main_window->show_dialog(0, "Saved executable settings!\n%f%B", "OK");
@@ -4973,11 +4991,11 @@ UIElement* ExecutableWindow::Create(UIElement* parent) {
 
    panel->add_n(
       [&](auto& p) { p.add_label(0, "Path to executable:"); },
-      [&](auto& p) { win->_path = &p.add_textbox(0).replace_text(gfc._exe_path, false); },
+      [&](auto& p) { win->_path = &p.add_textbox(0).replace_text(gfc._exe._path, false); },
       [&](auto& p) { p.add_label(0, "Command line arguments:"); },
-      [&](auto& p) { win->_arguments = &p.add_textbox(0).replace_text(gfc._exe_args, false); },
+      [&](auto& p) { win->_arguments = &p.add_textbox(0).replace_text(gfc._exe._args, false); },
       [&](auto& p) {
-         p.add_checkbox(0, "Ask GDB for working directory").set_checked(gfc._exe_ask_dir).track(&win->_should_ask);
+         p.add_checkbox(0, "Ask GDB for working directory").set_checked(gfc._exe._ask_dir).track(&win->_should_ask);
       },
       [&](auto& p) {
          p.add_panel(UIPanel::HORIZONTAL)
