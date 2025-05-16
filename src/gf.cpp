@@ -577,7 +577,7 @@ end
 
 // Forward declarations:
 
-static bool DisplaySetPosition(const char* file, std::optional<size_t> line, bool useGDBToGetFullPath);
+static bool DisplaySetPosition(const char* file, std::optional<size_t> line);
 void        WatchAddExpression(string_view string);
 bool        CommandInspectLine();
 
@@ -1012,12 +1012,12 @@ public:
    }
 };
 
-static bool DisplaySetPosition(const char* file, std::optional<size_t> line, bool useGDBToGetFullPath) {
-   return s_source_window->display_set_position(file, line, useGDBToGetFullPath);
+static bool DisplaySetPosition(const char* file, std::optional<size_t> line) {
+   return s_source_window->display_set_position(file, line, false);
 }
 
-static bool DisplaySetPosition(const std::string& file, std::optional<size_t> line, bool useGDBToGetFullPath) {
-   return s_source_window->display_set_position(file.c_str(), line, useGDBToGetFullPath);
+static bool DisplaySetPosition(const std::string& file, std::optional<size_t> line) {
+   return s_source_window->display_set_position(file.c_str(), line, false);
 }
 
 
@@ -1395,7 +1395,7 @@ static bool CommandSyncWithGvim() {
       strcpy(buffer2, name);
    }
 
-   DisplaySetPosition(buffer2, lineNumber - 1, false); // lines in vi are 1-based
+   DisplaySetPosition(buffer2, lineNumber - 1); // lines in vi are 1-based
    return true;
 }
 
@@ -2750,7 +2750,7 @@ private:
             auto currentLine = s_display_code->current_line();
             if (textbox->is_shift_on()) {
                if (currentLine && *currentLine > 0) {
-                  DisplaySetPosition(nullptr, *currentLine - 1, false);
+                  DisplaySetPosition(nullptr, *currentLine - 1);
                }
             } else {
                previous_command();
@@ -2759,7 +2759,7 @@ private:
             auto currentLine = s_display_code->current_line();
             if (textbox->is_shift_on()) {
                if (currentLine && *currentLine + 1 < s_display_code->num_lines()) {
-                  DisplaySetPosition(nullptr, *currentLine + 1, false);
+                  DisplaySetPosition(nullptr, *currentLine + 1);
                }
             } else {
                next_command();
@@ -3706,7 +3706,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
          if (is_shift_on()) {
             auto currentLine = s_display_code->current_line();
             if (currentLine && *currentLine > 0) {
-               DisplaySetPosition(nullptr, *currentLine - 1, false);
+               DisplaySetPosition(nullptr, *currentLine - 1);
             }
          } else {
             destroy_textbox();
@@ -3717,7 +3717,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
          if (is_shift_on()) {
             auto currentLine = s_display_code->current_line();
             if (currentLine && *currentLine + 1 < s_display_code->num_lines()) {
-               DisplaySetPosition(nullptr, *currentLine + 1, false);
+               DisplaySetPosition(nullptr, *currentLine + 1);
             }
          } else {
             destroy_textbox();
@@ -3905,7 +3905,7 @@ void WatchLoggerTraceSelectFrame(UIElement* el, int index, WatchLogger* logger) 
 
    if (colon) {
       *colon = 0;
-      DisplaySetPosition(location, sv_atoul(colon + 1) - 1, false);
+      DisplaySetPosition(location, sv_atoul(colon + 1) - 1);
       el->refresh();
    }
 }
@@ -4374,7 +4374,7 @@ int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int 
          }
 
          if (!bp._watchpoint && rng::find(_selected, bp._number) != rng::end(_selected)) {
-            DisplaySetPosition(bp._file, bp._line - 1, false);
+            DisplaySetPosition(bp._file, bp._line - 1);
          }
       } else if (!uitable->is_modifier_on()) {
          _selected.clear();
@@ -4599,7 +4599,7 @@ struct FilesWindow {
                return 0;
             }
          } else if (S_ISREG(mode)) {
-            DisplaySetPosition(directory(), 0, false);
+            DisplaySetPosition(directory(), 0);
          }
 
          _directory[oldLength] = 0;
@@ -5347,7 +5347,7 @@ void ProfShowSource(ProfFlameGraphReport* report) {
       s_main_window->show_dialog(0, "Source information was not found for this function.\n%f%b", "OK");
       return;
    } else {
-      DisplaySetPosition(report->_source_files[function._source_file_index]._path, function._line_number - 1, false);
+      DisplaySetPosition(report->_source_files[function._source_file_index]._path, function._line_number - 1);
    }
 }
 
@@ -7534,9 +7534,9 @@ void ControlPipe::on_command(std::unique_ptr<std::string> input) {
       *end = 0;
 
    if (start[0] == 'f' && start[1] == ' ') {
-      DisplaySetPosition(start + 2, 0, false);
+      DisplaySetPosition(start + 2, 0);
    } else if (start[0] == 'l' && start[1] == ' ') {
-      DisplaySetPosition(nullptr, sv_atoul(start + 2) - 1, false);
+      DisplaySetPosition(nullptr, sv_atoul(start + 2) - 1);
    } else if (start[0] == 'c' && start[1] == ' ') {
       (void)CommandParseInternal(start + 2, false);
    }
@@ -7746,7 +7746,7 @@ UIElement* Context::switch_to_window_and_focus(string_view target_name) {
 int MainWindowMessageProc(UIElement*, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::WINDOW_ACTIVATE) {
       // make a copy as DisplaySetPosition modifies `s_source_window->_current_file_full`
-      DisplaySetPosition(std::string{s_source_window->_current_file_full}, s_display_code->current_line(), false);
+      DisplaySetPosition(std::string{s_source_window->_current_file_full}, s_display_code->current_line());
    } else {
       for (const auto& msgtype : receiveMessageTypes) {
          if (msgtype._msg == msg) {
