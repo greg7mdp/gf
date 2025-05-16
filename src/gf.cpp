@@ -1731,7 +1731,7 @@ bool SourceWindow::display_set_position(const char* file, std::optional<size_t> 
       char buffer[PATH_MAX];
       if (file[0] == '~') {
          cleaned_file = std::format("{}/{}", getenv("HOME"), &file[1]);
-      } else if (file[0] != '/' && useGDBToGetFullPath) {
+      } else if (/* file[0] != '/' && */ useGDBToGetFullPath) { // don't check leading '/' => see https://github.com/nakst/gf/pull/204/files
          auto        res = ctx.eval_command("info source");
          const char* f   = strstr(res.c_str(), "Located in ");
 
