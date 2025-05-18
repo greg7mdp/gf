@@ -304,13 +304,11 @@ private:
    std::string     _prog_config_dir;         // <path>/.gf where path is `prog` dir or the one above
    std::string     _prog_config_path;        // <path>/.gf/<progname>.ini where path is `prog` dir or the one above
 
-public:
-   const std::string& get_prog_config_path() {
-      fs::path path;
+   fs::path get_prog_config_dir() {
       if (_prog_config_dir.empty()) {
          // start from current dir
          // ----------------------
-         path = fs::path{_local_config_dir};
+         fs::path path{_local_config_dir};
 
          // go one dir up is current directory starts with "build"
          // ------------------------------------------------------
@@ -322,9 +320,14 @@ public:
          path.append(".gf");
          fs::create_directories(path);      // create directory if it doesn't exist
          _prog_config_dir = path.native();  // store as a string
-      } else {
-         path = fs::path{_prog_config_dir};
+         return path;
       }
+      return fs::path{_prog_config_dir};
+   }
+
+public:
+   const std::string& get_prog_config_path() {
+      fs::path path{get_prog_config_dir()};
 
       // and we have one config file for each program name. Update as path
       // in executable window can change.
@@ -336,6 +339,20 @@ public:
       // print("_prog_config_path={}\n", _prog_config_path);
 
       return _prog_config_path;
+   }
+
+   std::vector<std::string> get_progs() {
+      std::vector<std::string> res;
+      fs::path path{get_prog_config_dir()};
+      assert(fs::is_directory(path));
+
+      for (const auto& entry : fs::directory_iterator(path)) {
+         auto f = entry.path().filename().native();
+         if (f.ends_with(".ini"))
+            f.resize(f.size() - 4);
+         res.push_back(f);
+      }
+      return res;
    }
 };
 
@@ -4985,15 +5002,67 @@ void ExecutableWindow::save() {
    s_main_window->show_dialog(0, "Saved executable settings!\n%f%B", "OK");
 }
 
+void ExecutableWindow::update_args(int incr) { // should be -1, 0 or +1
+   INI_Updater ini{gfc.get_prog_config_path()};
+
+   ini.with_section("[program]\n", [&](std::string_view sv) {
+      auto v = get_lines(sv);
+      if (v.empty())
+         return;
+      auto& cur = _current_arg_index;
+      cur       = std::clamp(cur, 0u, (uint32_t)v.size() - 1);
+      if (incr == 1) {
+         cur = cur >= v.size() - 1 ? 0 : cur + 1;
+      } else if (incr == -1) {
+         cur = cur == 0 ? v.size() - 1 : cur - 1;
+      } else {
+         assert(incr == 0);
+      }
+      auto         j = json::parse(v[cur]);
+      ExeStartInfo si;
+      from_json(j, si);
+      _arguments->select_all();
+      _arguments->replace_text(si._args, false);
+   });
+}
+
 UIElement* ExecutableWindow::Create(UIElement* parent) {
    ExecutableWindow* win = s_executable_window = new ExecutableWindow;
    UIPanel*          panel                     = &parent->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND);
 
    panel->add_n(
       [&](auto& p) { p.add_label(0, "Path to executable:"); },
-      [&](auto& p) { win->_path = &p.add_textbox(0).replace_text(gfc._exe._path, false); },
+      [&](auto& p) { win->_path = &p.add_textbox(0)
+                                    .replace_text(gfc._exe._path, false)
+                                    .on_key_up_down([win](UITextbox &t, UIKeycode code) {
+                                       auto v = gfc.get_progs();
+                                       auto& cur = win->_current_prog_index;
+                                       cur = std::clamp(cur, 0u, (uint32_t)v.size() -1);
+                                       if (code == UIKeycode::DOWN) {
+                                          cur = cur >= v.size() - 1 ? 0 : cur + 1;
+                                       } else {
+                                          assert(code == UIKeycode::UP);
+                                          cur = cur == 0 ? v.size() - 1 : cur - 1;
+                                       }
+                                       t.select_all();
+                                       t.replace_text(v[cur], false);
+                                       win->_current_arg_index = 0;
+                                       win->update_args(0);
+                                       return true;
+                                    });
+      },
       [&](auto& p) { p.add_label(0, "Command line arguments:"); },
-      [&](auto& p) { win->_arguments = &p.add_textbox(0).replace_text(gfc._exe._args, false); },
+      [&](auto& p) { win->_arguments = &p.add_textbox(0)
+                                         .replace_text(gfc._exe._args, false)
+                                         .on_key_up_down([win](UITextbox &t, UIKeycode code) {
+                                            if (code == UIKeycode::DOWN) {
+                                               win->update_args(1);
+                                            } else {
+                                               assert(code == UIKeycode::UP);
+                                               win->update_args(-1);
+                                            }
+                                            return true;
+                                         }); },
       [&](auto& p) {
          p.add_checkbox(0, "Ask GDB for working directory").set_checked(gfc._exe._ask_dir).track(&win->_should_ask);
       },

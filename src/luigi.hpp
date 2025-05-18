@@ -200,7 +200,7 @@ inline std::string_view ui_trim(const std::string_view str) {
 }
 
 template <class F>
-void for_each_line(std::string_view sv, F&& f) {
+inline void for_each_line(std::string_view sv, F&& f) {
    size_t start = 0;
    for (size_t i=0; i<sv.size(); ++i) {
       if (sv[i] == '\n') {
@@ -213,6 +213,12 @@ void for_each_line(std::string_view sv, F&& f) {
       std::forward<F>(f)(std::string_view{&sv[start], sv.size() - start});
 }
 
+inline std::vector<std::string_view> get_lines(std::string_view sv) {
+   std::vector<std::string_view> v;
+   v.reserve(sv.size() / 50);
+   for_each_line(sv, [&](std::string_view sv) { v.push_back(sv); return false; });
+   return v;
+}
 
 // ---------------------------------------------------------------------------
 // assigns val to var, and returns true if the value changed
@@ -1520,7 +1526,7 @@ struct textbox_state_t {
 };
 
 struct UITextbox : public UIElementCast<UITextbox>, public textbox_state_t  {
-   using on_key_cb_t = std::function<void(UITextbox&, UIKeycode)>;
+   using on_key_cb_t = std::function<bool(UITextbox&, UIKeycode)>;
 
 private:
    bool                         _reject_next_key{false};

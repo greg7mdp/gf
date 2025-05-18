@@ -3682,7 +3682,7 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
       } else if (m->code == UIKeycode::LEFT || m->code == UIKeycode::RIGHT) {
          _move_one(m->code == UIKeycode::LEFT, shift, is_ctrl_on());
       } else if (_on_key_up_down && (m->code == UIKeycode::UP || m->code == UIKeycode::DOWN)) {
-         _on_key_up_down(*this, m->code);
+         handled = _on_key_up_down(*this, m->code);
       } else if (m->code == UIKeycode::HOME || m->code == UIKeycode::END) {
          _move_to_end(m->code == UIKeycode::HOME, shift);
       } else if (m->text.size() && !alt && !ctrl && m->text[0] >= 0x20) {

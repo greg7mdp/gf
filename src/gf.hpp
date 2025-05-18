@@ -168,15 +168,18 @@ private:
    UITextbox* _path      = nullptr;
    UITextbox* _arguments = nullptr;
    bool       _should_ask;
-   uint32_t   _current_index = 0;   // current index of `_path`/`_arguments` in `get_prog_config_path()`
 
 public:
+   uint32_t   _current_prog_index = 0;  // current index of <prog>.ini in .gf
+   uint32_t   _current_arg_index = 0;   // current index of `_arguments` in `get_prog_config_path()`
+
    void              start_or_run(bool pause);
    void              save();
    static UIElement* Create(UIElement* parent);
 
    std::string       get_path() const { return std::string{_path->text()}; }
    std::string       get_arguments() const { return std::string{_arguments->text()}; }
+   void              update_args(int incr); // should be -1, 0 or +1
 };
 
 
