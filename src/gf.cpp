@@ -266,6 +266,53 @@ struct ExeStartInfo {
 };
 
 // --------------------------------------------------------------------------------------------
+struct FileImage {
+   std::string                   _path;
+   std::string                   _contents;
+   std::vector<std::string_view> _lines;     // lines from _contents
+   size_t                        _idx;       // current line of interest
+
+   FileImage(std::string_view path) : _path(path) {
+      load();
+   }
+
+   ~FileImage() {
+      dump();
+   }
+
+   void load() {
+      _contents = LoadFile(_path);
+      _lines    = get_lines(_contents);
+   }
+
+   void dump() {
+      std::ofstream out(_path);
+      out << _contents;
+   }
+
+   void add_line(std::string_view line) {
+      assert(line.find('\n') == std::string_view::npos);
+      auto sz = _contents.size();
+      if (_contents.capacity() < sz + line.size())
+         _contents.reserve(_contents.capacity() * 2);
+      _contents += line;
+      _contents += '\n';
+      _lines.emplace_back(&_contents[sz], line.size());
+      _idx = _lines.size() - 1;
+   }
+
+   std::string_view incr(int offset) {
+      assert(offset >= -1 && offset <= 1);
+      _idx = std::clamp(_idx, 0ul, _lines.size() - 1);
+      if (offset == 1)
+         _idx = _idx == _lines.size() - 1 ? 0ul : _idx + 1;
+      else if (offset == -1)
+         _idx = _idx == 0ul ? _lines.size() - 1 : _idx - 1;
+      return _lines[_idx];
+   }
+};
+
+// --------------------------------------------------------------------------------------------
 //                      Config (mostly read from `gf2_config.ini` file)
 // --------------------------------------------------------------------------------------------
 struct GF_Config {
@@ -301,44 +348,41 @@ struct GF_Config {
    bool            _grab_focus_on_breakpoint = true;
 
 private:
-   std::string     _prog_config_dir;         // <path>/.gf where path is `prog` dir or the one above
-   std::string     _prog_config_path;        // <path>/.gf/<progname>.ini where path is `prog` dir or the one above
+   fs::path        _prog_config_dir;         // <path>/.gf where path is `prog` dir or the one above
+   fs::path        _prog_config_path;        // <path>/.gf/<progname>.ini where path is `prog` dir or the one above
 
    fs::path get_prog_config_dir() {
       if (_prog_config_dir.empty()) {
          // start from current dir
          // ----------------------
-         fs::path path{_local_config_dir};
+         _prog_config_dir = _local_config_dir;
 
          // go one dir up is current directory starts with "build"
          // ------------------------------------------------------
-         if (path.filename().native().starts_with("build"))
-            path = path.parent_path();
+         if (_prog_config_dir.filename().native().starts_with("build"))
+            _prog_config_dir = _prog_config_dir.parent_path();
 
          // `.gf` is the directory holding the local config files
          // -----------------------------------------------------
-         path.append(".gf");
-         fs::create_directories(path);      // create directory if it doesn't exist
-         _prog_config_dir = path.native();  // store as a string
-         return path;
+         _prog_config_dir.append(".gf");
+         fs::create_directories(_prog_config_dir);      // create directory if it doesn't exist
+         return _prog_config_dir;
       }
-      return fs::path{_prog_config_dir};
+      return _prog_config_dir;
    }
 
 public:
    const std::string& get_prog_config_path() {
-      fs::path path{get_prog_config_dir()};
+      _prog_config_path = get_prog_config_dir();
 
       // and we have one config file for each program name. Update as path
       // in executable window can change.
       // -----------------------------------------------------------------
       fs::path exe{s_executable_window->get_path()};
-      path.append(exe.filename().native() + ".ini");
+      _prog_config_path.append(exe.filename().native() + ".ini");
 
-      _prog_config_path = path.native();
       // print("_prog_config_path={}\n", _prog_config_path);
-
-      return _prog_config_path;
+      return _prog_config_path.native();
    }
 
    std::vector<std::string> get_progs() {
@@ -1687,6 +1731,7 @@ UIConfig Context::load_settings(bool earlyPass) {
             pthread_create(&thread, nullptr, ControlPipe::thread_proc, nullptr);
          } else if (section == "executable" && !key.empty() && earlyPass) {
             // spec for program start config found in `gf2_config.ini`
+            // uses 3 separate lines format
             // -------------------------------------------------------
             // clang-format off
             parse_res.parse_str ("path", gfc._exe._path) ||
@@ -1696,6 +1741,7 @@ UIConfig Context::load_settings(bool earlyPass) {
          } else if (section == "program" && !key.empty() && earlyPass) {
             // spec for program start config found in `.project.gf` and config files
             // in `.gf` dir. Use json single-line format.
+            // overrides the above!
             // ---------------------------------------------------------------------
             auto       j = json::parse(key);
             from_json(j, gfc._exe);
