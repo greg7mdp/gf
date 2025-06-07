@@ -1646,10 +1646,10 @@ public:
 
 // ------------------------------------------------------------------------------------------
 struct UIBitmapBits {
-   unique_ptr<uint32_t> bits;
-   uint32_t             width  = 0;
-   uint32_t             height = 0;
-   uint32_t             stride = 0; // line length in bytes, typically `width * 4`
+   unique_ptr<uint32_t[]> bits;
+   uint32_t               width  = 0;
+   uint32_t               height = 0;
+   uint32_t               stride = 0; // line length in bytes, typically `width * 4`
 
    const uint32_t& operator[](size_t i) const {
       assert(i < stride * height);

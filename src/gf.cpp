@@ -159,7 +159,7 @@ static inline T sv_atoi_impl(string_view str, size_t offset = 0) {
 
 static inline char* mk_cstring(std::string_view sv) {
    auto sz = sv.size();
-   auto s  = (char*)malloc(sz + 1);
+   auto s  = new char[sz + 1];
    for (size_t i = 0; i < sz; ++i)
       s[i] = sv[i];
    s[sz] = 0;
@@ -326,8 +326,8 @@ struct GF_Config {
    // misc
    // ----
    const char*     _control_pipe_path = nullptr;
-   const char*     _vim_server_name   = "GVIM";
-   const char*     _log_pipe_path     = nullptr;
+   std::string     _vim_server_name   = "GVIM";
+   std::string     _log_pipe_path;
    vector<Command> _preset_commands;
    std::string     _global_config_path;      // ~/.config/gf2_config.ini (main config file)
    std::string     _local_config_dir;        // <cwd>
@@ -418,9 +418,9 @@ struct WatchWindow;
 struct Context {
 // ========== Debugger config ======================
 #if defined(__OpenBSD__)
-   const char* _gdb_path = "egdb";
+   std::string _gdb_path = "egdb";
 #else
-   const char* _gdb_path = "gdb";
+   std::string _gdb_path = "gdb";
 #endif
    std::string _initial_gdb_command = "set prompt (gdb) ";
    bool        _first_update        = true;
@@ -437,7 +437,7 @@ struct Context {
    std::atomic<bool> _kill_gdb_thread = false;
    std::thread       _gdb_thread; // reads gdb output and pushes it to queue (we wait on queue in DebuggerSend
    std::atomic<bool> _evaluate_mode = false; // true means we sent a command to gdb and are waiting for the response
-   vector<const char*>    _gdb_argv;
+   vector<std::unique_ptr<const char[]>>    _gdb_argv;
    SPSCQueue<std::string> _evaluate_result_queue;
    std::atomic<bool>      _program_running = true;
 
@@ -805,8 +805,8 @@ void Context::debugger_thread_fn() {
    pipe(outputPipe);
    pipe(inputPipe);
 
-   _gdb_argv[0] = _gdb_path;         // make sure prog name is correct in arg list
-   if (_gdb_argv.back() != nullptr)  // make sure arg list is null-terminated
+   _gdb_argv[0].reset(mk_cstring(_gdb_path));         // make sure prog name is correct in arg list
+   if (_gdb_argv.back() != nullptr)                   // make sure arg list is null-terminated
       _gdb_argv.push_back(nullptr);
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__APPLE__)
@@ -838,7 +838,7 @@ void Context::debugger_thread_fn() {
    posix_spawnattr_init(&attrs);
    posix_spawnattr_setflags(&attrs, POSIX_SPAWN_SETSID);
 
-   posix_spawnp(&_gdb_pid, _gdb_path, &actions, &attrs, (char**)&_gdb_argv[0], environ);
+   posix_spawnp(&_gdb_pid, _gdb_path.c_str(), &actions, &attrs, (char**)&_gdb_argv[0], environ);
 
    posix_spawn_file_actions_destroy(&actions);
    posix_spawnattr_destroy(&attrs);
@@ -1651,7 +1651,7 @@ UIConfig Context::load_settings(bool earlyPass) {
             }
          } else if (section == "gdb" && !key.empty() && !earlyPass) {
             if (key == "argument") {
-               _gdb_argv.push_back(mk_cstring(value));
+               _gdb_argv.emplace_back(mk_cstring(value));
             } else if (key == "arguments") {
                char buffer[2048];
                auto sz  = value.size();
@@ -1689,11 +1689,10 @@ UIConfig Context::load_settings(bool earlyPass) {
 
                   std_format_to_n(buffer, sizeof(buffer), "{}",
                                   std::string_view{&val[argumentStart], (size_t)(argumentEnd - argumentStart)});
-                  _gdb_argv.push_back(strdup(buffer));
+                  _gdb_argv.emplace_back(mk_cstring(buffer));
                }
             } else if (key == "path") {
-               char* path       = mk_cstring(value);
-               ctx._gdb_path    = path;
+               ctx._gdb_path = value;
             } else if (key == "log_all_output" && sv_atoi(value)) {
                if (auto it = _interface_windows.find("Log"); it != _interface_windows.end()) {
                   const auto& [name, window] = *it;
@@ -1729,10 +1728,10 @@ UIConfig Context::load_settings(bool earlyPass) {
                }
             }
          } else if (section == "vim" && earlyPass && key == "server_name") {
-            gfc._vim_server_name = mk_cstring(value);
+            gfc._vim_server_name = value;
          } else if (section == "pipe" && earlyPass && key == "log") {
-            gfc._log_pipe_path = mk_cstring(value);
-            mkfifo(gfc._log_pipe_path, 6 + 6 * 8 + 6 * 64);
+            gfc._log_pipe_path = value;
+            mkfifo(gfc._log_pipe_path.c_str(), 6 + 6 * 8 + 6 * 64);
          } else if (section == "pipe" && earlyPass && key == "control") {
             gfc._control_pipe_path = mk_cstring(value);
             mkfifo(gfc._control_pipe_path, 6 + 6 * 8 + 6 * 64);
@@ -2623,9 +2622,10 @@ const char* BitmapViewerGetBits(const std::string& pointerString, const std::str
          return "Could not evaluate stride.";
       }
       stride = sv_atoi(strideResult, 1);
+      assert(stride % 4 == 0);
    }
 
-   uint32_t* bits = (uint32_t*)malloc(stride * height);
+   unique_ptr<uint32_t[]> bits { new uint32_t[stride * height / 4] };
 
    std::string bitmapPath = get_realpath(".bitmap.gf");
 
@@ -2634,7 +2634,7 @@ const char* BitmapViewerGetBits(const std::string& pointerString, const std::str
    FILE* f = fopen(bitmapPath.c_str(), "rb");
 
    if (f) {
-      fread(bits, 1, stride * height, f);
+      fread(bits.get(), 1, stride * height, f);
       fclose(f);
       unlink(bitmapPath.c_str());
    }
@@ -2643,7 +2643,7 @@ const char* BitmapViewerGetBits(const std::string& pointerString, const std::str
       return "Could not read the image bits!";
    }
 
-   bb = UIBitmapBits{ .bits = unique_ptr<uint32_t>{bits}, .width = width, .height = height, .stride = stride };
+   bb = UIBitmapBits{ .bits = std::move(bits), .width = width, .height = height, .stride = stride };
    return nullptr;
 }
 
@@ -3326,7 +3326,7 @@ public:
 
       auto res = watch->get_value(multiline_t::on);
       if (!res.empty())
-         _window->write_clipboard_text(strdup(res.c_str()), sel_target_t::clipboard);
+         _window->write_clipboard_text(res, sel_target_t::clipboard);
    }
 
    void update() {
@@ -3514,7 +3514,7 @@ public:
 
    static void Update(const char*, UIElement* el) { static_cast<WatchWindow*>(el->_cp)->update(); }
 
-   static void Focus(UIElement* el) { static_cast<WatchWindow*>(el)->focus(); }
+   static void Focus(UIElement* el) { static_cast<UIPanel*>(el)->focus(); }
 };
 
 void Watch::add_fields(WatchWindow* w) {
@@ -4850,12 +4850,12 @@ struct CommandsWindow {
 
 struct LogWindow {
    static void* _thread_fn(void* context) {
-      if (!gfc._log_pipe_path) {
+      if (gfc._log_pipe_path.empty()) {
          print(std::cerr, "Warning: The log pipe path has not been set in the configuration file!\n");
          return nullptr;
       }
 
-      int file = open(gfc._log_pipe_path, O_RDONLY | O_NONBLOCK);
+      int file = open(gfc._log_pipe_path.c_str(), O_RDONLY | O_NONBLOCK);
 
       if (file == -1) {
          print(std::cerr, "Warning: Could not open the log pipe!\n");
@@ -6621,7 +6621,7 @@ double ViewWindowMatrixCalculateDeterminant(double* matrix, int n) {
    double s = 0;
 
    for (int i = 0; i < n; i++) {
-      double* sub = (double*)malloc(sizeof(double) * (n - 1) * (n - 1));
+      double* sub = new double[(n - 1) * (n - 1)];
 
       for (int j = 0; j < n - 1; j++) {
          for (int k = 0; k < n - 1; k++) {
@@ -6636,7 +6636,7 @@ double ViewWindowMatrixCalculateDeterminant(double* matrix, int n) {
       else
          s += x;
 
-      free(sub);
+      delete [] sub;
    }
 
    return s;
@@ -8081,10 +8081,14 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
    // -------------------------------------------------------------------
    assert(ctx._gdb_argv.size() == 1); // _gdb_argv[0] set in Context::Context()
    for (int i=1; i<argc; ++i)
-      ctx._gdb_argv.push_back(argv[i]);
+      ctx._gdb_argv.emplace_back(mk_cstring(argv[i]));
 
-   if (argc >= 2 && strcmp(argv[1], "--rr-replay") == 0)
-      ctx._gdb_argv = { "rr", "replay" };
+   if (argc >= 2 && strcmp(argv[1], "--rr-replay") == 0) {
+      ctx._gdb_argv.clear();
+      ctx._gdb_path = "rr";
+      ctx._gdb_argv.emplace_back(mk_cstring("rr"));
+      ctx._gdb_argv.emplace_back(mk_cstring("replay"));
+   }
 
    // load settings and initialize ui
    // -------------------------------
@@ -8147,7 +8151,7 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
 }
 
 Context::Context() {
-   _gdb_argv.push_back(_gdb_path);  // argv[0] is always the program path
+   _gdb_argv.emplace_back(mk_cstring(_gdb_path));  // argv[0] is always the program path
    _dbg_re  = std::make_unique<regexp::gdb_impl>();
    _lang_re = std::make_unique<regexp::cpp_impl>();
 
