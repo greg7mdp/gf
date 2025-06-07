@@ -350,6 +350,7 @@ struct GF_Config {
 private:
    fs::path        _prog_config_dir;         // <path>/.gf where path is `prog` dir or the one above
    fs::path        _prog_config_path;        // <path>/.gf/<progname>.ini where path is `prog` dir or the one above
+   fs::path        _command_history_path;    // <path>/.gf/gf.hist
 
    fs::path get_prog_config_dir() {
       if (_prog_config_dir.empty()) {
@@ -383,6 +384,14 @@ public:
 
       // print("_prog_config_path={}\n", _prog_config_path);
       return _prog_config_path.native();
+   }
+
+   const std::string& get_command_history_path() {
+      if (_command_history_path.empty()) {
+         _command_history_path = get_prog_config_dir();
+         _command_history_path.append("gf.hist");
+      }
+      return _command_history_path.native();
    }
 
    std::vector<std::string> get_progs() {
