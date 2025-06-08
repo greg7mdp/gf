@@ -858,7 +858,7 @@ struct UIConfig {
    uint32_t    default_font_size = 13;
    bool        _has_theme        = false;
    UITheme     _theme;
-   bool        rfu = false;
+   bool        rfu               = false;
 };
 
 enum class sel_target_t : int { primary = 0, clipboard = 1 };
@@ -866,26 +866,26 @@ enum class sel_target_t : int { primary = 0, clipboard = 1 };
 // ------------------------------------------------------------------------------------------
 struct UIWindow : public UIElementCast<UIWindow> {
 private:
-   UIElement*              _dialog;
+   UIElement*              _dialog    = nullptr;
    std::vector<UIShortcut> _shortcuts;
-   float                   _scale;
+   float                   _scale     = 0;
    std::vector<uint32_t>   _bits;
-   uint32_t                _width;
-   uint32_t                _height;
-   UIWindow*               _next;
-   UIElement*              _hovered;
-   UIElement*              _pressed;
-   UIElement*              _focused;
-   UIElement*              _dialog_old_focus;
-   int                     _pressed_button;
+   uint32_t                _width     = 0;
+   uint32_t                _height    = 0;
+   UIWindow*               _next      = nullptr;
+   UIElement*              _hovered   = nullptr;
+   UIElement*              _pressed   = nullptr;
+   UIElement*              _focused   = nullptr;
+   UIElement*              _dialog_old_focus = nullptr;
+   int                     _pressed_button   = 0;
    UIPoint                 _cursor;
-   int                     _cursor_style;
+   int                     _cursor_style     = 0;
    // Set when a textbox is modified.
    // Useful for tracking whether changes to the loaded document have been saved.
-   bool                    _textbox_modified_flag;
-   bool                    _urgent;
-   UIRectangle             _update_region;
-   UI*                     _ui;
+   bool                    _textbox_modified_flag = false;
+   bool                    _urgent                = false;
+   UIRectangle             _update_region         = UIRectangle(0);
+   UI*                     _ui                    = nullptr;
 
    void       _init_toplevel();
    int        _class_message_proc_common(UIMessage msg, int di, void* dp);
@@ -904,9 +904,9 @@ public:
       MAXIMIZE        = (1 << 3),
    };
 
-   bool        _ctrl;
-   bool        _shift;
-   bool        _alt;
+   bool        _ctrl  = false;
+   bool        _shift = false;
+   bool        _alt   = false;
 
 #ifdef UI_DEBUG
    float _last_full_fill_count = 0;
@@ -1022,9 +1022,9 @@ inline UI*     UIElement::ui()           const { return _window->ui(); }
 // ------------------------------------------------------------------------------------------
 struct UIPanel : public UIElementCast<UIPanel> {
 private:
-   UIScrollBar* _scrollBar;
-   UIRectangle  _border;
-   int          _gap;
+   UIScrollBar* _scrollBar = nullptr;
+   UIRectangle  _border    = UIRectangle(0);
+   int          _gap       = 0;
 
    int        _class_message_proc(UIMessage msg, int di, void* dp);
    
@@ -1091,8 +1091,8 @@ public:
 // ------------------------------------------------------------------------------------------
 struct UICheckbox : public UIElementCast<UICheckbox> {
 private:
-   bool                             _checked;     // value that is updated by default, unless `track` is called
-   bool*                            _checked_ptr;
+   bool                             _checked     = false;   // value that is updated by default, unless `track` is called
+   bool*                            _checked_ptr = nullptr;
    std::string                      _label;
    std::function<void(UICheckbox&)> _on_click;
 
@@ -1142,8 +1142,8 @@ public:
 // ------------------------------------------------------------------------------------------
 struct UISpacer : public UIElementCast<UISpacer> {
 private:
-   size_t   _width;
-   size_t   _height;
+   size_t   _width  = 0;
+   size_t   _height = 0;
 
    int        _class_message_proc(UIMessage msg, int di, void* dp);
 
@@ -1193,7 +1193,7 @@ public:
 struct UITabPane : public UIElementCast<UITabPane> {
 private:
    std::string _tabs;
-   uint32_t    _active;
+   uint32_t    _active = 0;
 
    int        _class_message_proc(UIMessage msg, int di, void* dp);
    
@@ -1227,10 +1227,10 @@ public:
 // ------------------------------------------------------------------------------------------
 struct UIScrollBar : public UIElementCast<UIScrollBar> {
 private:
-   int64_t    _maximum;
-   int64_t    _page;
-   int64_t    _drag_offset;
-   int64_t    _position;
+   int64_t    _maximum     = 0;
+   int64_t    _page        = 0;
+   int64_t    _drag_offset = 0;
+   int64_t    _position    = 0;
 
    int        _class_message_proc(UIMessage msg, int di, void* dp);
 
@@ -1241,9 +1241,9 @@ private:
 public:
    enum { HORIZONTAL = 1 << 0 };
 
-   UI_CLOCK_T _last_animate_time;
-   bool       _in_drag;
-   bool       _horizontal;
+   UI_CLOCK_T _last_animate_time = 0;
+   bool       _in_drag           = false;
+   bool       _horizontal        = false;
 
    UIScrollBar(UIElement* parent, uint32_t flags);
 
@@ -1285,8 +1285,8 @@ private:
    };
 
    struct code_line {
-      size_t offset;
-      size_t bytes;
+      size_t offset = 0;
+      size_t bytes  = 0;
    };
 
    struct menu_item {
@@ -1296,17 +1296,17 @@ private:
 
    std::vector<char>       _content;
    std::vector<code_line>  _lines;
-   std::optional<size_t>   _current_line{0};                   // if set, 0 <= currentLine < lines.size()
-   size_t                  _focus_line{0};
+   std::optional<size_t>   _current_line                     = 0;  // if set, 0 <= currentLine < lines.size()
+   size_t                  _focus_line                       = 0;
    UIFont*                 _font;
-   bool                    _move_scroll_to_focus_next_layout{false};
-   bool                    _move_scroll_to_caret_next_layout{false};
-   int                     _tab_columns{4};
-   size_t                  _max_columns{0};
-   UI_CLOCK_T              _last_animate_time{0};
-   bool                    _left_down_in_margin{false};
-   int                     _vertical_motion_column{0};
-   bool                    _use_vertical_motion_column{false};
+   bool                    _move_scroll_to_focus_next_layout = false;
+   bool                    _move_scroll_to_caret_next_layout = false;
+   int                     _tab_columns                      = 4;
+   size_t                  _max_columns                      = 0;
+   UI_CLOCK_T              _last_animate_time                = 0;
+   bool                    _left_down_in_margin              = false;
+   int                     _vertical_motion_column           = 0;
+   bool                    _use_vertical_motion_column       = false;
    std::array<code_pos, 4> _sel{};                            // start, end (ordered), anchor, caret (unordered)
    std::vector<menu_item>  _menu_items;                       // added to right click menu on selection
 
@@ -1412,8 +1412,8 @@ public:
 // ------------------------------------------------------------------------------------------
 struct UIGauge : public UIElementCast<UIGauge> {
 private:
-   double _position;
-   bool   _vertical;
+   double _position = 0;
+   bool   _vertical = false;
 
    int        _class_message_proc(UIMessage msg, int di, void* dp);
 
@@ -1433,9 +1433,9 @@ public:
 // ------------------------------------------------------------------------------------------
 struct UISlider : public UIElementCast<UISlider> {
 private:
-   double                         _position;
-   int                            _steps;
-   bool                           _vertical;
+   double                         _position = 0;
+   int                            _steps    = 0;
+   bool                           _vertical = false;
    std::function<void(UISlider&)> _on_value_changed;
 
    int        _class_message_proc(UIMessage msg, int di, void* dp);
@@ -1464,10 +1464,10 @@ struct UITable : public UIElementCast<UITable>, public UIScrollbarPair {
    using on_click_t   = std::function<void(UITable&)>;
 
 private:
-   size_t              _num_items;
+   size_t              _num_items = 0;
    std::string         _columns; // list of column headers separated by '\t' characters
    std::vector<size_t> _column_widths;
-   size_t              _column_highlight;
+   size_t              _column_highlight = 0;
    on_getitem_t        _on_getitem;
    on_click_t          _on_click;
 
@@ -1573,8 +1573,8 @@ public:
 struct UIMenu : public UIElementCast<UIMenu> {
 private:
    UIPoint      _point;            // keep as int for X11 APIs
-   UIScrollBar* _vscroll;
-   UIWindow*    _parent_window;
+   UIScrollBar* _vscroll       = nullptr;
+   UIWindow*    _parent_window = nullptr;
 
    void       _prepare(int* width, int* height);
    int        _class_message_proc(UIMessage msg, int di, void* dp);
@@ -1602,8 +1602,8 @@ struct UIMDIChild;
 // ------------------------------------------------------------------------------------------
 struct UIMDIClient : public UIElementCast<UIMDIClient> {
 private:
-   UIMDIChild* _active;
-   int         _cascade;
+   UIMDIChild* _active  = nullptr;
+   int         _cascade = 0;
    
    int        _class_message_proc(UIMessage msg, int di, void* dp);
 
@@ -1624,8 +1624,8 @@ struct UIMDIChild : public UIElementCast<UIMDIChild> {
 private:
    UIRectangle _mdi_bounds;
    std::string _title;
-   int         _drag_hit_test;
-   UIRectangle _drag_offset;
+   int         _drag_hit_test = 0;
+   UIRectangle _drag_offset   = UIRectangle(0);
 
    int        _class_message_proc(UIMessage msg, int di, void* dp);
    
@@ -1661,10 +1661,10 @@ struct UIBitmapBits {
 
 struct UIImageDisplay : public UIElementCast<UIImageDisplay> {
 private:
-   int _previousWidth;
-   int _previousHeight;
-   int _previousPanPointX;
-   int _previousPanPointY;
+   int _previousWidth      = 0;
+   int _previousHeight     = 0;
+   int _previousPanPointX  = 0;
+   int _previousPanPointY  = 0;
 
    int        _class_message_proc(UIMessage msg, int di, void* dp);
 
@@ -1678,9 +1678,9 @@ public:
    enum { INTERACTIVE = (1 << 0), ZOOM_FIT = (1 << 1) };
 
    UIBitmapBits _bb;
-   float        _panX;
-   float        _panY;
-   float        _zoom;
+   float        _panX  = 0;
+   float        _panY  = 0;
+   float        _zoom  = 1;
 
    UIImageDisplay(UIElement* parent, uint32_t flags, UIBitmapBits bb);
 
@@ -1722,7 +1722,7 @@ public:
 struct UIInspector {
    static constexpr bool _enabled = (bool)UI_DEBUG;
 
-   UI*       _ui;
+   UI*       _ui        = nullptr;
    UIWindow* _inspector = nullptr;
    UITable*  _table     = nullptr;
    UIWindow* _target    = nullptr;

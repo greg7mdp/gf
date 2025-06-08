@@ -1933,10 +1933,7 @@ int UIPanel::_class_message_proc(UIMessage msg, int di, void* dp) {
 }
 
 UIPanel::UIPanel(UIElement* parent, uint32_t flags)
-   : UIElementCast<UIPanel>(parent, flags, UIPanel::_ClassMessageProc, "Panel")
-   , _scrollBar(nullptr)
-   , _border(0)
-   , _gap(0) {
+   : UIElementCast<UIPanel>(parent, flags, UIPanel::_ClassMessageProc, "Panel") {
 
    if (flags & UIPanel::LARGE_SPACING) {
       _border = UIRectangle(ui_size::pane_large_border);
@@ -2148,7 +2145,6 @@ UICheckbox& UICheckbox::set_label(std::string_view new_label) {
 
 UICheckbox::UICheckbox(UIElement* parent, uint32_t flags, std::string_view label)
    : UIElementCast<UICheckbox>(parent, flags | tab_stop_flag, UICheckbox::_ClassMessageProc, "Checkbox")
-   , _checked(false)
    , _checked_ptr(&_checked)
    , _label(label) {}
 
@@ -2331,8 +2327,7 @@ int UITabPane::_class_message_proc(UIMessage msg, int di, void* dp) {
 
 UITabPane::UITabPane(UIElement* parent, uint32_t flags, const char* tabs)
    : UIElementCast<UITabPane>(parent, flags, UITabPane::_ClassMessageProc, "Tab Pane")
-   , _tabs(tabs)
-   , _active(0) {}
+   , _tabs(tabs) {}
 
 // --------------------------------------------------
 // Spacers.
@@ -2501,12 +2496,6 @@ int _UIScrollThumbMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
 
 UIScrollBar::UIScrollBar(UIElement* parent, uint32_t flags)
    : UIElementCast<UIScrollBar>(parent, flags, UIScrollBar::_ClassMessageProc, "Scroll Bar")
-   , _maximum(0)
-   , _page(0)
-   , _drag_offset(0)
-   , _position(0)
-   , _last_animate_time(0)
-   , _in_drag(false)
    , _horizontal(flags & UIScrollBar::HORIZONTAL) {
    auto scrollup = new UIElement(this, flags, _UIScrollUpDownMessageProc, !_horizontal ? "Scroll Up" : "Scroll Left");
    scrollup->_cp = (void*)(uintptr_t)0;
@@ -3264,8 +3253,6 @@ UISlider& UISlider::set_position(double new_pos) {
 
 UISlider::UISlider(UIElement* parent, uint32_t flags)
    : UIElementCast<UISlider>(parent, flags, UISlider::_ClassMessageProc, "Slider")
-   , _position(0)
-   , _steps(0)
    , _vertical(!!(flags & vertical_flag)) {}
 
 // --------------------------------------------------
@@ -3999,9 +3986,7 @@ int UIMDIClient::_class_message_proc(UIMessage msg, int di, void* dp) {
 UIMDIChild::UIMDIChild(UIElement* parent, uint32_t flags, const UIRectangle& initialBounds, std::string_view title)
    : UIElementCast<UIMDIChild>(parent, flags, UIMDIChild::_ClassMessageProc, "MDIChild")
    , _mdi_bounds(initialBounds)
-   , _title(title)
-   , _drag_hit_test(0)
-   , _drag_offset(0) {
+   , _title(title) {
    UI_ASSERT(parent->_class_proc == UIMDIClient::_ClassMessageProc);
    UIMDIClient* mdiClient = (UIMDIClient*)parent;
 
@@ -4013,9 +3998,7 @@ UIMDIChild::UIMDIChild(UIElement* parent, uint32_t flags, const UIRectangle& ini
 }
 
 UIMDIClient::UIMDIClient(UIElement* parent, uint32_t flags)
-   : UIElementCast<UIMDIClient>(parent, flags, UIMDIClient::_ClassMessageProc, "MDIClient")
-   , _active(nullptr)
-   , _cascade(0) {}
+   : UIElementCast<UIMDIClient>(parent, flags, UIMDIClient::_ClassMessageProc, "MDIClient") {}
 
 // --------------------------------------------------
 // Image displays.
@@ -4151,14 +4134,7 @@ UIImageDisplay& UIImageDisplay::set_content(UIBitmapBits bb) {
 }
 
 UIImageDisplay::UIImageDisplay(UIElement* parent, uint32_t flags, UIBitmapBits bb)
-   : UIElementCast<UIImageDisplay>(parent, flags, UIImageDisplay::_ClassMessageProc, "ImageDisplay")
-   , _previousWidth(0)
-   , _previousHeight(0)
-   , _previousPanPointX(0)
-   , _previousPanPointY(0)
-   , _panX(0)
-   , _panY(0)
-   , _zoom(1) {
+   : UIElementCast<UIImageDisplay>(parent, flags, UIImageDisplay::_ClassMessageProc, "ImageDisplay") {
    set_content(std::move(bb));
 }
 
@@ -5016,7 +4992,6 @@ bool UI::automation_check_table_item_matches(UITable* table, size_t row, size_t 
       return false;
    UITableGetItem m(bytes + 1, row, column);
    int            length = table->message(UIMessage::TABLE_GET_ITEM, 0, &m);
-   auto           buffer = m.buff(length);
    return m.buff(length) == input;
 }
 
@@ -5082,23 +5057,7 @@ UIWindow& UIWindow::grab_focus() {
 
 UIWindow::UIWindow(UI* ui, UIElement* parent, uint32_t flags, message_proc_t message_proc, const char* cClassName)
    : UIElementCast<UIWindow>(parent, flags, message_proc, cClassName)
-   , _dialog(nullptr)
-   , _scale(0)
-   , _width(0)
-   , _height(0)
-   , _next(nullptr)
-   , _hovered(nullptr)
-   , _pressed(nullptr)
-   , _focused(nullptr)
-   , _dialog_old_focus(nullptr)
-   , _pressed_button(0)
-   , _cursor_style(0)
-   , _textbox_modified_flag(false)
-   , _update_region(0)
-   , _ui(ui)
-   , _ctrl(false)
-   , _shift(false)
-   , _alt(false) {}
+   , _ui(ui) {}
 
 UIWindow::~UIWindow() {}
 

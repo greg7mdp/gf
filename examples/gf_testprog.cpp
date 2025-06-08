@@ -47,7 +47,7 @@ int main(int argc, char **argv)
    if (i < 3)
       i = (i + 1);
 
-   int res = a.i + c.as[1].i - fib(1);
+   int res = a.i + i + c.as[1].i - fib(1);
 
    return std::clamp(res, 0, 0);
 }

@@ -266,11 +266,13 @@ struct ExeStartInfo {
 };
 
 // --------------------------------------------------------------------------------------------
+// Used for managing a command history saved in a file for example.
+// --------------------------------------------------------------------------------------------
 struct FileImage {
    std::string                   _path;
    std::string                   _contents;
    std::vector<std::string_view> _lines;     // lines from _contents
-   size_t                        _idx;       // current line of interest
+   size_t                        _idx = 0;   // current line of interest
 
    FileImage(std::string_view path) : _path(path) {
       load();
@@ -483,7 +485,7 @@ struct Context {
 
    std::string eval_command(string_view command, bool echo = false) {
       auto res = send_command_to_debugger(command, echo, true);
-      // print("{} ==> {}\n", command, res);
+      // if (res) print("{} ==> {}\n", command, *res);
       return std::move(*res);
    }
 
@@ -720,7 +722,6 @@ int SourceFindEndOfBlock() {
 }
 
 bool SourceFindOuterFunctionCall(const char** start, const char** end) {
-   int  num_lines   = (int)s_display_code->num_lines();
    auto currentLine = s_display_code->current_line();
 
    if (!currentLine)
@@ -1027,11 +1028,11 @@ void StackWindow::update_stack() {
 // ------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------
 struct TabCompleter {
-   bool _last_key_was_tab;
+   bool _last_key_was_tab = false;
 
 private:
-   int _consecutive_tab_count;
-   int _last_tab_bytes;
+   int _consecutive_tab_count = 0;
+   int _last_tab_bytes        = 0;
 
 public:
    void run(UITextbox* textbox, bool lastKeyWasTab, bool addPrintPrefix) {
@@ -1099,7 +1100,7 @@ enum class bp_command { ena, dis, del };
 struct BreakpointMgr {
 private:
    struct Breakpoint {
-      int      _number = 0;
+      int      _number{0};
       string   _file;
       string   _full_path;           // realpath of `_file`, computed, do not serialize
       int      _line       = 0;
@@ -2504,8 +2505,8 @@ bool CommandInspectLine() { return s_source_window->inspect_line(); }
 // ---------------------------------------------------/
 
 struct AutoUpdateViewer {
-   UIElement* _el;
-   void (*_callback)(UIElement*);
+   UIElement* _el                = nullptr;
+   void (*_callback)(UIElement*) = nullptr;
 };
 
 vector<AutoUpdateViewer> autoUpdateViewers;
@@ -2933,7 +2934,7 @@ private:
          position += std_format_to_n(buffer + position, sizeof(buffer) - position, ",'{:c}'", _format ?: ' ');
       }
 
-      position += std_format_to_n(buffer + position, sizeof(buffer) - position, ")");
+      std_format_to_n(buffer + position, sizeof(buffer) - position, ")");
       return ctx.eval_command(buffer);
    }
 
@@ -3080,16 +3081,16 @@ private:
    WatchVector         _rows;
    WatchVector         _base_expressions;
    WatchVector         _dynamic_arrays;
-   UITextbox*          _textbox;
+   UITextbox*          _textbox = nullptr;
    std::string         _last_local_list;
-   size_t              _selected_row;
-   int                 _extra_rows;
-   WatchWindowMode     _mode;
-   uint64_t            _update_index;
-   bool                _waiting_for_format_character;
+   size_t              _selected_row                 = 0;
+   int                 _extra_rows                   = 0;
+   WatchWindowMode     _mode                         = WatchWindowMode::WATCH_NORMAL;
+   uint64_t            _update_index                 = 0;
+   bool                _waiting_for_format_character = false;
    vector<string_view> _inspect_results;
-   bool                _in_inspect_line_mode;
-   int                 _inspect_mode_restore_line;
+   bool                _in_inspect_line_mode      = false;
+   int                 _inspect_mode_restore_line = 0;
 
    bool inspect_line();
    void inspect_current_line();
@@ -3100,12 +3101,7 @@ public:
    friend struct Watch;
 
    WatchWindow(UIElement* parent, uint32_t flags, const char* name)
-      : UIElement(parent, flags, WatchWindow::WatchWindowMessage, name)
-      , _textbox(nullptr)
-      , _selected_row(0)
-      , _mode(WATCH_NORMAL)
-      , _update_index(0)
-      , _waiting_for_format_character(false) {
+      : UIElement(parent, flags, WatchWindow::WatchWindowMessage, name) {
       _cp = this; // may be needed, see WatchGetFocused()
    }
 
@@ -4485,7 +4481,7 @@ int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int 
 
 struct DataWindow {
 private:
-   UIButton* _fill_window_button;
+   UIButton* _fill_window_button{nullptr};
 
    bool toggle_fill_data_tab() {
       if (!s_data_tab)
@@ -5038,9 +5034,6 @@ void ExecutableWindow::save() {
    INI_Updater ini{gfc.get_prog_config_path()};
 
    bool present = false;
-   auto path    = _path->text();
-   auto args    = _arguments->text();
-
    std::string old_section;
 
    ini.with_section("[program]\n", [&](std::string_view sv) {
@@ -5369,12 +5362,12 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp);
 enum class drag_mode_t { unset, zoom_range, pan, x_pan_and_zoom, x_scroll };
 
 struct ProfFlameGraphReport : public UIElement {
-   UIRectangle  _client;
-   UIFont*      _font;
-   UITable*     _table;
-   UIButton*    _switch_view_button;
-   UIScrollBar* _v_scroll;
-   bool         _showing_table;
+   UIRectangle  _client             = UIRectangle(0);
+   UIFont*      _font               = nullptr;
+   UITable*     _table              = nullptr;
+   UIButton*    _switch_view_button = nullptr;
+   UIScrollBar* _v_scroll           = nullptr;
+   bool         _showing_table      = false;
 
    vector<ProfFlameGraphEntry>             _entries;
    vector<ProfFlameGraphEntryTime>         _entry_times;
@@ -5382,48 +5375,28 @@ struct ProfFlameGraphReport : public UIElement {
    unordered_map<void*, ProfFunctionEntry> _functions;
    vector<ProfSourceFileEntry>             _source_files;
 
-   uint32_t* _thumbnail;
-   int       _thumbnail_width;
-   int       _thumbnail_height;
+   uint32_t* _thumbnail        = nullptr;
+   int       _thumbnail_width  = 0;
+   int       _thumbnail_height = 0;
 
-   double _total_time;
-   double _x_start;
-   int    _x_end;
+   double _total_time = 0;
+   double _x_start    = 0;
+   int    _x_end      = 0;
 
-   ProfFlameGraphEntry* _hover;
-   ProfFlameGraphEntry* _menu_item;
+   ProfFlameGraphEntry* _hover     = nullptr;
+   ProfFlameGraphEntry* _menu_item = nullptr;
 
-   bool        _drag_started;
-   drag_mode_t _drag_mode;
-   double      _drag_initial_value, _drag_initial_value2;
-   int         _drag_initial_point, _drag_initial_point2;
-   int         _drag_current_point;
-   double      _drag_scroll_rate;
+   bool        _drag_started        = false;
+   drag_mode_t _drag_mode           = drag_mode_t::unset;
+   double      _drag_initial_value  = 0;
+   double      _drag_initial_value2 = 0;
+   int         _drag_initial_point  = 0;
+   int         _drag_initial_point2 = 0;
+   int         _drag_current_point  = 0;
+   double      _drag_scroll_rate    = 0;
 
    ProfFlameGraphReport(UIElement* parent, uint32_t flags)
-      : UIElement(parent, flags, ProfFlameGraphMessage, "flame graph")
-      , _client(0)
-      , _font(nullptr)
-      , _table(nullptr)
-      , _switch_view_button(nullptr)
-      , _v_scroll(nullptr)
-      , _showing_table(false)
-      , _thumbnail(nullptr)
-      , _thumbnail_width(0)
-      , _thumbnail_height(0)
-      , _total_time(0)
-      , _x_start(0)
-      , _x_end(0)
-      , _hover(nullptr)
-      , _menu_item(nullptr)
-      , _drag_started(false)
-      , _drag_mode(drag_mode_t::unset)
-      , _drag_initial_value(0)
-      , _drag_initial_value2(0)
-      , _drag_initial_point(0)
-      , _drag_initial_point2(0)
-      , _drag_current_point(0)
-      , _drag_scroll_rate(0) {}
+      : UIElement(parent, flags, ProfFlameGraphMessage, "flame graph") {}
 };
 
 const uint32_t profMainColor        = 0xFFBFC1C3;
@@ -6347,9 +6320,9 @@ UIElement* ProfWindowCreate(UIElement* parent) {
 
 struct MemoryWindow : public UIElement {
 private:
-   UIButton*       _goto_button;
+   UIButton*       _goto_button = nullptr;
    vector<int16_t> _loaded_bytes;
-   uint64_t        _offset;
+   uint64_t        _offset = 0;
 
    void _add_memory_window() {
       std::string expression;
@@ -6512,7 +6485,7 @@ static int ViewWindowColorSwatchMessage(UIElement* el, UIMessage msg, int di, vo
 static int ViewWindowMatrixGridMessage(UIElement* el, UIMessage msg, int di, void* dp);
 
 struct ViewWindowColorSwatch : public UIElement {
-   uint32_t _color;
+   uint32_t _color = 0;
 
    ViewWindowColorSwatch(UIElement* parent, uint32_t color)
       : UIElement(parent, 0, ViewWindowColorSwatchMessage, "Color swatch")
@@ -6997,28 +6970,25 @@ int WaveformDisplayZoomButtonMessage(UIElement* el, UIMessage msg, int di, void*
 int WaveformDisplayNormalizeButtonMessage(UIElement* el, UIMessage msg, int di, void* dp);
 
 struct WaveformDisplay : public UIElement {
-   float*       _samples;
-   size_t       _sample_count, _channels;
-   int          _samples_on_screen, _minimum_zoom;
-   UIScrollBar* _scrollbar;
-   UIButton *   _zoomout, *_zoomin, *_normalize;
-   int          _drag_last_x, _drag_last_modification;
-   float        _peak;
+   float*       _samples                = nullptr;
+   size_t       _sample_count           = 0;
+   size_t       _channels               = 0;
+   int          _samples_on_screen      = 0;
+   int          _minimum_zoom           = 0;
+   UIScrollBar* _scrollbar              = nullptr;
+   UIButton*    _zoomout                = nullptr;
+   UIButton*    _zoomin                 = nullptr;
+   UIButton*    _normalize              = nullptr;
+   int          _drag_last_x            = 0;
+   int          _drag_last_modification = 0;
+   float        _peak                   = 0;
 
    WaveformDisplay(UIElement* parent, uint32_t flags)
       : UIElement(parent, flags, WaveformDisplayMessage, "WaveformDisplay")
-      , _samples(nullptr)
-      , _sample_count(0)
-      , _channels(0)
-      , _samples_on_screen(0)
-      , _minimum_zoom(0)
       , _scrollbar(new UIScrollBar(this, UIElement::non_client_flag | UIScrollBar::HORIZONTAL))
       , _zoomout(new UIButton(this, UIButton::SMALL, "-"))
       , _zoomin(new UIButton(this, UIButton::SMALL, "+"))
-      , _normalize(new UIButton(this, UIButton::SMALL, "Norm"))
-      , _drag_last_x(0)
-      , _drag_last_modification(0)
-      , _peak(0) {
+      , _normalize(new UIButton(this, UIButton::SMALL, "Norm")) {
       _zoomout->set_user_proc(WaveformDisplayZoomButtonMessage);
       _zoomin->set_user_proc(WaveformDisplayZoomButtonMessage);
       _normalize->set_user_proc(WaveformDisplayNormalizeButtonMessage);

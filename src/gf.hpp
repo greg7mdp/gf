@@ -48,25 +48,25 @@ struct ControlPipe {
 struct SourceWindow {
    static UIFont* s_code_font;
 
-   int                    _auto_print_expression_line;
-   int                    _auto_print_result_line;
+   int                    _auto_print_expression_line = 0;
+   int                    _auto_print_result_line     = 0;
    std::array<char, 1024> _auto_print_expression;
    std::array<char, 1024> _auto_print_result;
 
    std::string _current_file;
    std::string _current_file_full;
-   time_t      _current_file_read_time;
-   bool        _showing_disassembly;
+   time_t      _current_file_read_time = 0;
+   bool        _showing_disassembly    = false;
 
 private:
-   int _current_end_of_block;
-   int _last_cursor_x;
-   int _last_cursor_y;
+   int _current_end_of_block = 0;
+   int _last_cursor_x        = 0;
+   int _last_cursor_y        = 0;
 
-   int _if_condition_evaluation;
-   int _if_condition_line;
-   int _if_condition_from;
-   int _if_condition_to;
+   int _if_condition_evaluation = 0;
+   int _if_condition_line       = 0;
+   int _if_condition_from       = 0;
+   int _if_condition_to         = 0;
 
    struct InspectResult {
       std::string _expression;
@@ -74,11 +74,11 @@ private:
    };
 
    std::vector<InspectResult> _inspect_results;
-   bool                       _no_inspect_results;
-   bool                       _in_inspect_line_mode = false;
-   int                        _inspect_mode_restore_line;
+   bool                       _no_inspect_results        = false;
+   bool                       _in_inspect_line_mode      = false;
+   int                        _inspect_mode_restore_line = 0;
+   const char*                _disassembly_command       = "disas /s";
    UIRectangle                _display_current_line_bounds;
-   const char*                _disassembly_command = "disas /s";
 
    static std::string s_previous_file_loc;   // `<file path>:<line>`
 
@@ -120,17 +120,17 @@ public:
 // StackWindow
 // ---------------------------------------------------
 struct StackEntry {
-   std::string _function;   // `<function_name>`
-   std::string _location;   // `<file path>:<line>`
-   uint64_t    _address;
-   int         _id;
+   std::string _function; // `<function_name>`
+   std::string _location; // `<file path>:<line>`
+   uint64_t    _address = 0;
+   int         _id      = 0;
 };
 
 struct StackWindow {
 private:
    std::vector<StackEntry> _stack;
-   size_t                  _selected;
-   bool                    _has_changed;
+   size_t                  _selected    = 0;
+   bool                    _has_changed = false;
 
 public:
    void clear() { _stack.clear(); }
@@ -167,7 +167,7 @@ struct ExecutableWindow {
 private:
    UITextbox* _path      = nullptr;
    UITextbox* _arguments = nullptr;
-   bool       _should_ask;
+   bool       _should_ask{false};
 
 public:
    uint32_t   _current_prog_index = 0;  // current index of <prog>.ini in .gf

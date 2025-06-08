@@ -80,6 +80,7 @@ if (ENABLE_SANITIZERS OR ENABLE_ADDRESS_SANITIZER)
     if (ENABLE_ADDRESS_SANITIZER)
         message( STATUS "Configuring address sanitizer" )
         set(clang_san_options -g -fsanitize=address -fno-omit-frame-pointer)
+        # use: address, leak, memory, thread, undefined
     else()
         message( STATUS "Configuring other sanitizers" )
         set(clang_san_options -g -fsanitize=undefined -fno-sanitize-recover=all -fsanitize=float-divide-by-zero
