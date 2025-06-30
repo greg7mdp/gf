@@ -189,6 +189,7 @@ std::string LoadFile(std::string_view sv_path) {
       pbuf->sgetn(p, sz);
       return sz;
    });
+   s.resize(sz); // shouldn't be necessary
 
    return s;
 }
@@ -5249,6 +5250,7 @@ std::string UI::selection::read_clipboard_text(UI& ui, UIWindow* w) {
             std::memcpy(p, data, sz);
             return sz;
          });
+         res.resize(size); // shouldn't be necessary, but for some reason it is
 
          XFree(data);
          XDeleteProperty(sel_event.display, sel_event.requestor, sel_event.property);
@@ -5286,6 +5288,7 @@ std::string UI::selection::read_clipboard_text(UI& ui, UIWindow* w) {
                      return sz;
                   });
                   size += chunkSize;
+                  res.resize(size); // shouldn't be necessary
                }
 
                XFree(data);
@@ -6335,6 +6338,7 @@ std::string UI::read_clipboard_text(UIWindow* w, sel_target_t) {
       std::memcpy(p, buffer, sz);
       return sz;
    });
+   res.resize(byteCount); // shouldn't be necessary
 
    GlobalUnlock(memory);
    CloseClipboard();

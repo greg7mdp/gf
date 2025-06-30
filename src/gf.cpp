@@ -3258,7 +3258,7 @@ public:
          ctx.switch_to_window_and_focus("Watch");
          auto w = WatchGetFocused();
          assert(w != nullptr);
-         return w->add_entry_for_address2(res);
+         return w && w->add_entry_for_address2(res);
       }
       return add_entry_for_address2(res);
    }
