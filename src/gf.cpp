@@ -5084,18 +5084,20 @@ UIElement* ExecutableWindow::Create(UIElement* parent) {
                                     .replace_text(gfc._exe._path, false)
                                     .on_key_up_down([win](UITextbox &t, UIKeycode code) {
                                        auto v = gfc.get_progs();
-                                       auto& cur = win->_current_prog_index;
-                                       cur = std::clamp(cur, 0u, (uint32_t)v.size() -1);
-                                       if (code == UIKeycode::DOWN) {
-                                          cur = cur >= v.size() - 1 ? 0 : cur + 1;
-                                       } else {
-                                          assert(code == UIKeycode::UP);
-                                          cur = cur == 0 ? v.size() - 1 : cur - 1;
+                                       if (!v.empty()) {
+                                          auto& cur = win->_current_prog_index;
+                                          cur       = std::clamp(cur, 0u, (uint32_t)v.size() - 1);
+                                          if (code == UIKeycode::DOWN) {
+                                             cur = cur >= v.size() - 1 ? 0 : cur + 1;
+                                          } else {
+                                             assert(code == UIKeycode::UP);
+                                             cur = cur == 0 ? v.size() - 1 : cur - 1;
+                                          }
+                                          t.select_all();
+                                          t.replace_text(v[cur], false);
+                                          win->_current_arg_index = 0;
+                                          win->update_args(0);
                                        }
-                                       t.select_all();
-                                       t.replace_text(v[cur], false);
-                                       win->_current_arg_index = 0;
-                                       win->update_args(0);
                                        return true;
                                     });
       },
