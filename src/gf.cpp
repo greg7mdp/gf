@@ -1954,7 +1954,7 @@ bool SourceWindow::toggle_disassembly() {
    _showing_disassembly      = !_showing_disassembly;
    _auto_print_result_line   = 0;
    _auto_print_expression[0] = 0;
-   s_display_code->_flags ^= UICode::NO_MARGIN;
+   s_display_code->toggle_flag(UICode::NO_MARGIN);
 
    if (_showing_disassembly) {
       s_display_code->insert_content("Disassembly could not be loaded.\nPress Ctrl+D to return to source view.\n", true);
@@ -2524,9 +2524,9 @@ bool DataViewerRemoveFromAutoUpdateList(UIElement* el) {
 
 int DataViewerAutoUpdateButtonMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::CLICKED) {
-      el->_flags ^= UIButton::CHECKED;
+      el->toggle_flag(UIButton::CHECKED);
 
-      if (el->_flags & UIButton::CHECKED) {
+      if (el->has_flag(UIButton::CHECKED)) {
          AutoUpdateViewer v = {._el = el->_parent, ._callback = (void (*)(UIElement*))el->_cp};
          autoUpdateViewers.push_back(v);
       } else {
@@ -2539,7 +2539,7 @@ int DataViewerAutoUpdateButtonMessage(UIElement* el, UIMessage msg, int di, void
 }
 
 void DataViewersUpdateAll() {
-   if (~s_data_tab->_flags & UIElement::hide_flag) {
+   if (!s_data_tab->has_flag(UIElement::hide_flag)) {
       for (const auto& auv : autoUpdateViewers) {
          auv._callback(auv._el);
       }
@@ -2719,9 +2719,9 @@ void BitmapViewerUpdate(const std::string& pointerString, const std::string& wid
    if (error)
       bitmap->_label->set_label(error);
    if (error)
-      bitmap->_label_panel->_flags &= ~UIElement::hide_flag, bitmap->_display->_flags |= UIElement::hide_flag;
+      bitmap->_label_panel->clear_flag(UIElement::hide_flag), bitmap->_display->set_flag(UIElement::hide_flag);
    else
-      bitmap->_label_panel->_flags |= UIElement::hide_flag, bitmap->_display->_flags &= ~UIElement::hide_flag;
+      bitmap->_label_panel->set_flag(UIElement::hide_flag), bitmap->_display->clear_flag(UIElement::hide_flag);
    bitmap->_label_panel->_parent->refresh();
    owner->refresh();
    s_data_window->refresh();
@@ -4487,7 +4487,7 @@ private:
       if (!s_data_tab)
          return false;
       static UIElement *oldParent, *oldBefore;
-      _fill_window_button->_flags ^= UIButton::CHECKED;
+      _fill_window_button->toggle_flag(UIButton::CHECKED);
 
       if (s_main_switcher->_active == s_data_tab) {
          s_main_switcher->switch_to(s_main_switcher->_children[0]);
@@ -4678,7 +4678,7 @@ struct FilesWindow {
          if (i)
             painter->draw_block(button->_bounds, i == 2 ? theme.buttonPressed : theme.buttonHovered);
          painter->draw_string(button->_bounds + UIRectangle(ui_size::button_padding, 0, 0, 0), button->label(),
-                              button->_flags & UIButton::CHECKED ? theme.codeNumber : theme.codeDefault, UIAlign::left,
+                              button->has_flag(UIButton::CHECKED) ? theme.codeNumber : theme.codeDefault, UIAlign::left,
                               nullptr);
          return 1;
       }
@@ -5923,11 +5923,11 @@ int ProfReportWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
    if (msg == UIMessage::LAYOUT) {
       if (report->_showing_table) {
-         report->_flags |= UIElement::hide_flag;
-         report->_table->_flags &= ~UIElement::hide_flag;
+         report->set_flag(UIElement::hide_flag);
+         report->_table->clear_flag(UIElement::hide_flag);
       } else {
-         report->_flags &= ~UIElement::hide_flag;
-         report->_table->_flags |= UIElement::hide_flag;
+         report->clear_flag(UIElement::hide_flag);
+         report->_table->set_flag(UIElement::hide_flag);
       }
       el->_class_proc(el, msg, di, dp);
       report->_table->move(report->_bounds, false);
@@ -7121,7 +7121,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       painter->draw_block(UIRectangle(client.l, client.r, ym, ym + 1), 0x707070);
 
       float yScale =
-         (display->_normalize->_flags & UIButton::CHECKED) && display->_peak > 0.00001f ? 1.0f / display->_peak : 1.0f;
+         (display->_normalize->has_flag(UIButton::CHECKED)) && display->_peak > 0.00001f ? 1.0f / display->_peak : 1.0f;
 
       int    sampleOffset = (int)display->_scrollbar->position();
       float* samples      = &display->_samples[display->_channels * sampleOffset];
@@ -7240,7 +7240,7 @@ int WaveformDisplayNormalizeButtonMessage(UIElement* el, UIMessage msg, int di, 
    WaveformDisplay* display = (WaveformDisplay*)el->_parent;
 
    if (msg == UIMessage::CLICKED) {
-      el->_flags ^= UIButton::CHECKED;
+      el->toggle_flag(UIButton::CHECKED);
       display->refresh();
    }
 
@@ -7466,11 +7466,11 @@ void WaveformViewerUpdate(const std::string& pointerString, const std::string& s
 
    if (error) {
       viewer->_label->set_label(error);
-      viewer->_label_panel->_flags &= ~UIElement::hide_flag;
-      viewer->_display->_flags |= UIElement::hide_flag;
+      viewer->_label_panel->clear_flag(UIElement::hide_flag);
+      viewer->_display->set_flag(UIElement::hide_flag);
    } else {
-      viewer->_label_panel->_flags |= UIElement::hide_flag;
-      viewer->_display->_flags &= ~UIElement::hide_flag;
+      viewer->_label_panel->set_flag(UIElement::hide_flag);
+      viewer->_display->clear_flag(UIElement::hide_flag);
       WaveformDisplaySetContent(viewer->_display, samples, sampleCount, channels);
    }
 
@@ -7525,7 +7525,7 @@ void Context::register_extensions() {
 
 bool ElementHidden(UIElement* el) {
    while (el) {
-      if (el->_flags & UIElement::hide_flag) {
+      if (el->has_flag(UIElement::hide_flag)) {
          return true;
       } else {
          el = el->_parent;
@@ -7812,7 +7812,7 @@ UIElement* Context::switch_to_window_and_focus(string_view target_name) {
       if (target_name != name)
          continue;
 
-      if ((w._el->_flags & UIElement::hide_flag) && w._el->_parent->get_class_proc() == UITabPane::_ClassMessageProc) {
+      if ((w._el->has_flag(UIElement::hide_flag)) && w._el->_parent->get_class_proc() == UITabPane::_ClassMessageProc) {
          UITabPane* tabPane = (UITabPane*)w._el->_parent;
 
          for (uint32_t i = 0; i < tabPane->_children.size(); i++) {
@@ -7827,7 +7827,7 @@ UIElement* Context::switch_to_window_and_focus(string_view target_name) {
 
       if (w._focus) {
          w._focus(w._el); // interface window  has a `focus()` function... call it
-      } else if (w._el->_flags & UIElement::tab_stop_flag) {
+      } else if (w._el->has_flag(UIElement::tab_stop_flag)) {
          w._el->focus(); // focus on associated window (if it has the `tab_stop_flag` flag. currently only WatchWindow
                          // panels.)
       }
@@ -7860,7 +7860,7 @@ int InterfaceTabPaneMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       el->_class_proc(el, msg, di, dp);
 
       for (auto& [name, w] : ctx._interface_windows) {
-         if (w._el && (~w._el->_flags & UIElement::hide_flag) && w._queued_update) {
+         if (w._el && (!w._el->has_flag(UIElement::hide_flag)) && w._queued_update) {
             w._queued_update = false;
             w._update("", w._el);
             w._el->move(w._el->_bounds, false);
@@ -7991,7 +7991,7 @@ void Context::generate_layout_string(UIElement* e, std::string& sb) {
 
    if (strcmp(e->_class_name, "Split Pane") == 0) {
       assert(e->_children.size() == 3);
-      if (e->_flags & UIElement::vertical_flag) {
+      if (e->has_flag(UIElement::vertical_flag)) {
          sb.push_back('v');
       } else {
          sb.push_back('h');

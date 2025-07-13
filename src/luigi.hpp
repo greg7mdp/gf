@@ -785,6 +785,9 @@ public:
    UIElement&     set_cp(void* cp) { _cp = cp; return *this; }
    UIElement&     clear_flag(uint32_t flag) { _flags &= ~flag; return *this; }
    UIElement&     set_flag(uint32_t flag)   { _flags |= flag; return *this; }
+   UIElement&     toggle_flag(uint32_t flag)   { _flags ^= flag; return *this; }
+
+   bool           has_flag(uint32_t flag) const { return !!(_flags & flag); }
 
    bool           is_hovered() const;
    bool           is_focused() const;
