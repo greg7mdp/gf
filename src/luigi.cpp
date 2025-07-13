@@ -552,6 +552,7 @@ INI_Parser::iterator& INI_Parser::iterator::operator++() {
          continue;
       } else if (c == ';') {
          _value_bytes = 0;
+         _curr_pos++, _remaining--;
          ini_read(_key, _key_bytes, '\n', 0);
       } else if (c == '[') {
          _key_bytes = _value_bytes = 0;

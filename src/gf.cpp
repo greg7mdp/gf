@@ -27,6 +27,14 @@ using namespace regexp;
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
+// skip first character if ';' or '=' - these can be used to read a whole line as a keyword in .ini file
+// -----------------------------------------------------------------------------------------------------
+auto json_parse(std::string_view sv) {
+   if (!sv.empty() && (sv[0] == ';' ||  sv[0] == '='))
+      sv = sv.substr(1);
+   return json::parse(sv);
+}
+
 enum class multiline_t { off, on };
 
 // ---------------------------------------------------
@@ -1203,7 +1211,7 @@ public:
          size_t end = sv.find('\n', idx);
          if (end == std::string::npos)
             break;
-         auto       j = json::parse(&sv[idx], &sv[end]);
+         auto       j = json_parse(std::string_view{&sv[idx], end - idx});
          Breakpoint bp;
          from_json(j, bp);
 
@@ -1752,7 +1760,7 @@ UIConfig Context::load_settings(bool earlyPass) {
             // in `.gf` dir. Use json single-line format.
             // overrides the above!
             // ---------------------------------------------------------------------
-            auto       j = json::parse(key);
+            auto j = json_parse(key);
             from_json(j, gfc._exe);
          } else if (earlyPass && !section.empty() && !key.empty() && !value.empty()) {
             if (auto it = _interface_windows.find(std::string(section)); it != _interface_windows.end()) {
@@ -5023,7 +5031,8 @@ void ExecutableWindow::save() {
    to_json(j, esi);
    auto text = j.dump();  // spec for program start config - json single-line format.
    text += "\n";
-   INI_Updater{gfc._local_config_path}.replace_section("[program]\n", text);
+   INI_Updater{gfc._local_config_path}.replace_section(
+      "[program]\n", ";" + text); // semicolon so that whole line read as keyword (not just to '=' character)
 
    // store in `gf2_config.ini` that we trust this folder
    // ---------------------------------------------------
@@ -5037,13 +5046,13 @@ void ExecutableWindow::save() {
    std::string old_section;
 
    ini.with_section("[program]\n", [&](std::string_view sv) {
-      bool present = sv.find(text) != std::string::npos;
+      present = sv.find(text) != std::string::npos;
       if (!present)
          old_section = sv;
    });
 
    if (!present) {
-      old_section.insert(0, text);
+      old_section.insert(0, ";" + text);
       ini.replace_section("[program]\n", old_section);
    }
 
@@ -5066,7 +5075,7 @@ void ExecutableWindow::update_args(int incr) { // should be -1, 0 or +1
       } else {
          assert(incr == 0);
       }
-      auto         j = json::parse(v[cur]);
+      auto         j = json_parse(v[cur]);
       ExeStartInfo si;
       from_json(j, si);
       _arguments->select_all();
@@ -7549,6 +7558,8 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
                size_t end = watches.find('\n', idx);
                if (end == std::string::npos)
                   break;
+               if (idx < end && watches[idx] == ';')
+                  ++idx;
                WatchAddExpression(string_view{&watches[idx], end - idx});
                idx = end + 1;
             }
@@ -8142,19 +8153,20 @@ int main(int argc, char** argv) {
    if (gfc._restore_watch_window && firstWatchWindow) {
       std::stringstream ss;
       for (const auto& exp : firstWatchWindow->base_expressions())
-         ss << exp->key() << '\n';
+         ss << ';' << exp->key() << '\n'; // semicolon to protect the rest of the json in case it contains a '='
 
       if (!INI_Updater{gfc.get_prog_config_path()}.replace_section("[watch]\n", ss.str())) {
          print(std::cerr, "Warning: Could not save the contents of the watch window; '{}' was not accessible.\n",
                gfc.get_prog_config_path());
       }
    }
+
    if (gfc._restore_breakpoints && s_breakpoint_mgr.num_breakpoints()) {
       std::stringstream ss;
       s_breakpoint_mgr.for_all_breakpoints([&](size_t, const auto& breakpoint) {
          json j;
          to_json(j, breakpoint);
-         ss << "    " << j << "\n";
+         ss << ';' << j << "\n";  // semicolon to protect the rest of the json in case it contains a '='
       });
 
       if (!INI_Updater{gfc.get_prog_config_path()}.replace_section("[breakpoints]\n", ss.str())) {
