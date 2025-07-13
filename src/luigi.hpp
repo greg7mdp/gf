@@ -1536,6 +1536,8 @@ private:
    std::vector<textbox_state_t> _undo_states;
    size_t                       _undo_idx{0};
    on_key_cb_t                  _on_key_up_down;
+
+   static std::string           _hidden_str;
    
    int     _class_message_proc(UIMessage msg, int di, void* dp);
 
@@ -1553,7 +1555,11 @@ private:
    void _save_state();
    void _update_state(const textbox_state_t& s);
 
+   std::string_view _text(); // text used for rendering (chars may be all '*' characters)
+
 public:
+   enum { HIDE_CHARACTERS = 1 << 0 };
+
    UITextbox(UIElement* parent, uint32_t flags);
    
    std::string_view text() const { return std::string_view(_buffer); }

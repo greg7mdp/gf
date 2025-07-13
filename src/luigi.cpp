@@ -24,6 +24,10 @@
 namespace views = std::views;
 namespace rng   = std::ranges;
 
+// static variables
+std::string UITextbox::_hidden_str;
+
+
 // --------------------------------------------------
 // Themes.
 // --------------------------------------------------
@@ -3595,6 +3599,16 @@ UITextbox& UITextbox::paste(sel_target_t t) {
    return *this;
 }
 
+std::string_view UITextbox::_text() {
+   std::string_view cur_text = text();
+   if (has_flag(HIDE_CHARACTERS)) {
+      if (_hidden_str.size() < cur_text.size())
+         _hidden_str.resize(cur_text.size(), '*');
+      return std::string_view(_hidden_str.data(), cur_text.size());
+   }
+   return cur_text;
+}
+
 int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
    UI* ui = this->ui();
    if (msg == UIMessage::GET_HEIGHT) {
@@ -3604,8 +3618,10 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::PAINT) {
       static_cast<UIPainter*>(dp)->draw_control(_bounds, UIControl::textbox | state(), {}, 0, get_scale());
 
+      std::string_view cur_text = _text();
+
       int         scaledMargin = scale(ui_size::textbox_margin);
-      int         totalWidth   = ui->string_width(text()) + scaledMargin * 2;
+      int         totalWidth   = ui->string_width(cur_text) + scaledMargin * 2;
       UIRectangle textBounds   = _bounds + ui_rect_1i(scaledMargin);
 
       if (_scroll > totalWidth - textBounds.width()) {
@@ -3615,8 +3631,7 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
       if (_scroll < 0) {
          _scroll = 0;
       }
-
-      int caretX = ui->string_width(text().substr(0, _carets[0])) - _scroll;
+      int caretX = ui->string_width(cur_text.substr(0, _carets[0])) - _scroll;
 
       if (caretX < 0) {
          _scroll = caretX + _scroll;
@@ -3626,13 +3641,12 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
 
       auto&             theme     = ui->theme();
       UIStringSelection selection = {};
-      selection.carets[0]         = _byte_to_column(text(), _carets[0]);
-      selection.carets[1]         = _byte_to_column(text(), _carets[1]);
+      selection.carets[0]         = _byte_to_column(cur_text, _carets[0]);
+      selection.carets[1]         = _byte_to_column(cur_text, _carets[1]);
       selection.colorBackground   = theme.selected;
       selection.colorText         = theme.textSelected;
       textBounds.l -= _scroll;
 
-      auto cur_text = text();
       if (!cur_text.empty()) {
          static_cast<UIPainter*>(dp)->draw_string(textBounds, cur_text, is_disabled() ? theme.textDisabled : theme.text,
                                                   UIAlign::left, is_focused() ? &selection : nullptr);
@@ -3645,7 +3659,7 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
       int     column      = (_window->cursor_pos().x - _bounds.l + _scroll - scale(ui_size::textbox_margin) +
                     active_font->_glyph_width / 2) /
                    active_font->_glyph_width;
-      _carets[0] = _carets[1] = column <= 0 ? 0 : _column_to_byte(text(), column);
+      _carets[0] = _carets[1] = column <= 0 ? 0 : _column_to_byte(_text(), column);
       focus();
    } else if (msg == UIMessage::UPDATE) {
       repaint(nullptr);
