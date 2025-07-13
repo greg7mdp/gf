@@ -351,6 +351,7 @@ struct GF_Config {
    bool            _selectable_source        = true;
    bool            _restore_watch_window     = true;
    bool            _restore_breakpoints      = true;
+   bool            _restore_prog_args        = true;
    bool            _breakpoints_restored     = false;
    bool            _confirm_command_connect  = true;
    bool            _confirm_command_kill     = true;
@@ -1652,6 +1653,8 @@ UIConfig Context::load_settings(bool earlyPass) {
                parse_res.parse_str  ("layout", gfc._layout_string) ||
                parse_res.parse_bool ("maximize", gfc._maximize) ||
                parse_res.parse_bool ("restore_watch_window", gfc._restore_watch_window) ||
+               parse_res.parse_bool ("restore_breakpoints", gfc._restore_breakpoints) ||
+               parse_res.parse_bool ("restore_prog_args", gfc._restore_prog_args) ||
                parse_res.parse_bool ("selectable_source", gfc._selectable_source) ||
                parse_res.parse_int  ("window_width", gfc._window_width) ||
                parse_res.parse_int  ("window_height", gfc._window_height) ||
@@ -5014,30 +5017,16 @@ void ExecutableWindow::start_or_run(bool pause) {
    }
 }
 
-void ExecutableWindow::save() {
-   if (fs::exists(fs::path{gfc._local_config_path})) {
-      auto result = s_main_window->show_dialog(0, ".project.gf already exists in the current directory.\n%f%B%C",
-                                               "Overwrite", "Cancel");
-      if (result != "Overwrite")
-         return;
-   }
-
-   // update `.project.gf` to store the executable parameters. We always save in `.project.gf`
-   // in the current directory, but also in `_prog_config_path` so we have a history of commands
-   // for this program.
-   // ------------------------------------------------------------------------------------------
+std::string ExecutableWindow::start_info_json() {
    json j;
    ExeStartInfo esi{ ._path = std::string{_path->text()}, ._args = std::string{_arguments->text()}, ._ask_dir = _should_ask};
    to_json(j, esi);
    auto text = j.dump();  // spec for program start config - json single-line format.
    text += "\n";
-   INI_Updater{gfc._local_config_path}.replace_section(
-      "[program]\n", ";" + text); // semicolon so that whole line read as keyword (not just to '=' character)
+   return text;
+}
 
-   // store in `gf2_config.ini` that we trust this folder
-   // ---------------------------------------------------
-   SettingsAddTrustedFolder();
-
+void ExecutableWindow::save_prog_args(const std::string& text) {
    // Save in `_prog_config_path`
    // ---------------------------
    INI_Updater ini{gfc.get_prog_config_path()};
@@ -5055,8 +5044,34 @@ void ExecutableWindow::save() {
       old_section.insert(0, ";" + text);
       ini.replace_section("[program]\n", old_section);
    }
+}
 
-   s_main_window->show_dialog(0, "Saved executable settings!\n%f%B", "OK");
+void ExecutableWindow::save(bool confirm) {
+   if (fs::exists(fs::path{gfc._local_config_path})) {
+      if (0) {
+         if (auto result = s_main_window->show_dialog(0, ".project.gf already exists in the current directory.\n%f%B%C",
+                                                      "Overwrite", "Cancel");
+             result != "Overwrite")
+            return;
+      }
+   }
+
+   // update `.project.gf` to store the executable parameters. We always save in `.project.gf`
+   // in the current directory, but also in `_prog_config_path` so we have a history of commands
+   // for this program.
+   // ------------------------------------------------------------------------------------------
+   auto text =  start_info_json();
+   INI_Updater{gfc._local_config_path}.replace_section(
+      "[program]\n", ";" + text); // semicolon so that whole line read as keyword (not just to '=' character)
+
+   // store in `gf2_config.ini` that we trust this folder
+   // ---------------------------------------------------
+   SettingsAddTrustedFolder();
+
+   save_prog_args(text);
+
+   if (confirm)
+      s_main_window->show_dialog(0, "Saved executable settings!\n%f%B", "OK");
 }
 
 void ExecutableWindow::update_args(int incr) { // should be -1, 0 or +1
@@ -5131,7 +5146,7 @@ UIElement* ExecutableWindow::Create(UIElement* parent) {
                [&](auto& p) { p.add_button(0, "Run").on_click([win](UIButton&) { win->start_or_run(false); }); },
                [&](auto& p) { p.add_button(0, "Start").on_click([win](UIButton&) { win->start_or_run(true); }); },
                [&](auto& p) { p.add_spacer(0, 10, 0); },
-               [&](auto& p) { p.add_button(0, "Save to .project.gf").on_click([win](UIButton&) { win->save(); }); });
+               [&](auto& p) { p.add_button(0, "Save to .project.gf").on_click([win](UIButton&) { win->save(true); }); });
       });
    return panel;
 }
@@ -8159,6 +8174,11 @@ int main(int argc, char** argv) {
          print(std::cerr, "Warning: Could not save the contents of the watch window; '{}' was not accessible.\n",
                gfc.get_prog_config_path());
       }
+   }
+
+   if (gfc._restore_prog_args && s_executable_window) {
+      auto exe_json = s_executable_window->start_info_json();
+      s_executable_window->save_prog_args(exe_json);
    }
 
    if (gfc._restore_breakpoints && s_breakpoint_mgr.num_breakpoints()) {

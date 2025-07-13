@@ -174,7 +174,9 @@ public:
    uint32_t   _current_arg_index = 0;   // current index of `_arguments` in `get_prog_config_path()`
 
    void              start_or_run(bool pause);
-   void              save();
+   std::string       start_info_json();
+   void              save_prog_args(const std::string& text);
+   void              save(bool confirm);
    static UIElement* Create(UIElement* parent);
 
    std::string       get_path() const { return std::string{_path->text()}; }
