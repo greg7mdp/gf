@@ -787,7 +787,7 @@ public:
    UIElement&     set_flag(uint32_t flag)   { _flags |= flag; return *this; }
    UIElement&     toggle_flag(uint32_t flag)   { _flags ^= flag; return *this; }
 
-   bool           has_flag(uint32_t flag) const { return !!(_flags & flag); }
+   bool           has_flag(uint32_t flag) const { return !!(_flags & flag); } // checks if at least one flag bit is set
 
    bool           is_hovered() const;
    bool           is_focused() const;
