@@ -1753,10 +1753,10 @@ bool UIElement::_destroy() {
 
 UIElement::UIElement(UIElement* parent, uint32_t flags, message_proc_t message_proc, const char* cClassName)
    : _flags(flags)
+   , _class_name(cClassName)
    , _parent(parent)
    , _bounds(0)
-   , _clip(0)
-   , _class_name(cClassName) {
+   , _clip(0) {
 
    _class_proc = message_proc;
 
@@ -4521,7 +4521,7 @@ bool UIWindow::input_event(UIMessage msg, int di, void* dp) {
                UIElement* el    = start;
 
                do {
-                  if (!el->_children.empty() && !el->has_flag(hide_flag | disabled_flag)) {
+                  if (!el->_children.empty() && !(el->has_flag(hide_flag) || el->has_flag(disabled_flag))) {
                      el = _shift ? el->_children.back() : el->_children[0];
                      continue;
                   }
@@ -4538,7 +4538,8 @@ bool UIWindow::input_event(UIMessage msg, int di, void* dp) {
                   if (!el) {
                      el = _window;
                   }
-               } while (el != start && (!el->has_flag(tab_stop_flag) || (el->has_flag(hide_flag | disabled_flag))));
+               } while (el != start &&
+                        (!el->has_flag(tab_stop_flag) || el->has_flag(hide_flag) || el->has_flag(disabled_flag)));
 
                if (!el->has_flag(window_flag)) {
                   el->focus();
@@ -4850,7 +4851,7 @@ int _UIInspectorTableMessage(UIElement* table, UIMessage msg, int di, void* dp) 
          return 0;
 
       if (m->_column == 0) {
-         return m->format_to("{}{}", std::string_view{"                ", depth * 2}, el->_class_name);
+         return m->format_to("{}{}", std::string_view{"                ", depth * 2}, el->class_name());
       } else if (m->_column == 1) {
          const auto& b = el->_bounds;
          return m->format_to("{}:{}, {}:{}", b.l, b.r, b.t, b.b);
@@ -4901,7 +4902,7 @@ int _UIInspectorCountElements(UIElement* el) {
    int count = 1;
 
    for (auto child : el->_children) {
-      if (!child->has_flag(UIElement::destroy_flag | UIElement::hide_flag)) {
+      if (!(child->has_flag(UIElement::destroy_flag) || child->has_flag(UIElement::hide_flag))) {
          count += _UIInspectorCountElements(child);
       }
    }

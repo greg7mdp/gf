@@ -732,9 +732,14 @@ public:
       destroy_descendent_flag  = 1 << 31
    };
 
+private:
    uint32_t                _flags   = 0; // First 16 bits are element specific.
-   uint32_t                _id      = 0;
    uint32_t                _unused0 = 0;
+   message_proc_t          _user_proc  = nullptr;
+   const char*             _class_name = nullptr;
+
+public:
+   uint32_t                _id      = 0;
    UIElement*              _parent  = nullptr;
    UIWindow*               _window  = nullptr;
    std::vector<UIElement*> _children;
@@ -742,8 +747,6 @@ public:
    UIRectangle             _clip;
    void*                   _cp         = nullptr; // Context pointer (for user).
    message_proc_t          _class_proc = nullptr;
-   message_proc_t          _user_proc  = nullptr;
-   const char*             _class_name = nullptr;
 
    UIElement(UIElement* parent, uint32_t flags, message_proc_t message_proc, const char* cClassName);
    virtual ~UIElement();
@@ -778,6 +781,7 @@ public:
    float          get_scale() const;          // returns the scale of the associated window
 
    message_proc_t get_class_proc() const { return _class_proc; }
+   std::string_view class_name() const { return std::string_view(_class_name); }
 
    UIElement&     set_user_proc(message_proc_t proc) { _user_proc = proc; return *this; }
    message_proc_t user_proc() const { return _user_proc; }

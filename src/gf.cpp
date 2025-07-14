@@ -8015,7 +8015,7 @@ void Context::create_layout(UIElement* parent, const char*& layout_string_curren
 void Context::generate_layout_string(UIElement* e, std::string& sb) {
    char buf[32];
 
-   if (strcmp(e->_class_name, "Split Pane") == 0) {
+   if (e->class_name() == "Split Pane") {
       assert(e->_children.size() == 3);
       if (e->has_flag(UIElement::vertical_flag)) {
          sb.push_back('v');
@@ -8030,7 +8030,7 @@ void Context::generate_layout_string(UIElement* e, std::string& sb) {
       sb.push_back(',');
       generate_layout_string(e->_children[2], sb);
       sb.push_back(')');
-   } else if (strcmp(e->_class_name, "Tab Pane") == 0) {
+   } else if (e->class_name() == "Tab Pane") {
       sb += "t(";
       for (size_t i = 0; i < e->_children.size(); ++i) {
          if (i > 0)
