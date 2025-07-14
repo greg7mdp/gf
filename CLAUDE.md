@@ -62,7 +62,6 @@ cmake --build build
 - Use C++23 features (requires clang++-18 or g++-13)
 - Follow existing code style: tabs for indentation, braces on same line
 - Platform-specific code should be isolated with `#ifdef` blocks
-- UI code uses immediate mode pattern - no retained state in UI elements
 - All GDB communication must go through `DebuggerSend()` or `EvaluateExpression()`
 
 ## Testing
@@ -70,6 +69,69 @@ cmake --build build
 - Unit tests use doctest framework (included in deps/)
 - Test files in `tests/` directory test specific components
 - Example programs in `examples/` for integration testing
+
+## Luigi UI Framework Architecture
+
+### Core Concepts
+
+Luigi is a custom UI framework that combines retained-mode structure with immediate-mode style APIs:
+
+- **UIElement**: Base class for all UI components with hierarchy, bounds, and message handling
+- **Message System**: All UI communication through `UIMessage` enum (PAINT, LAYOUT, input events)
+- **CRTP Pattern**: Enables fluent API with proper return types via `UIElementCast<T>`
+
+### Element Hierarchy
+
+**Container Elements:**
+- `UIWindow`: Top-level windows
+- `UIPanel`: Vertical/horizontal layout containers
+- `UISplitPane`: Resizable splits
+- `UITabPane`: Tabbed interfaces
+- `UIMDIClient/Child`: Multiple document interface
+
+**Interactive Elements:**
+- `UIButton`, `UICheckbox`, `UISlider`: Basic controls
+- `UITextbox`: Text input with clipboard support
+- `UITable`: Data grids with columns
+- `UICode`: Syntax-highlighted code editor
+
+### Layout System
+
+Two-pass layout process:
+1. **Measure Pass**: Elements report preferred size via GET_WIDTH/GET_HEIGHT messages
+2. **Arrange Pass**: Parents assign bounds via LAYOUT message
+
+Layout features:
+- Fill flags for expanding elements
+- Fixed and flexible sizing
+- Gap and border support in panels
+- Nested layout composition
+
+### Rendering Pipeline
+
+1. Window maintains double-buffered bitmap
+2. Paint requests create `UIPainter` with clipping
+3. Elements handle PAINT messages recursively
+4. Platform layer blits buffer to screen
+
+Drawing operations:
+- `draw_block()`: Filled rectangles
+- `draw_string()`: Text with FreeType fonts
+- `draw_control_default()`: Theme-based control rendering
+
+### Event Handling
+
+- Platform events arrive at window level
+- Window dispatches to element under cursor
+- Elements process or propagate messages
+- State changes trigger UPDATE messages for refresh
+
+Example usage pattern:
+```cpp
+panel.add_button(0, "Click Me").on_click([](UIButton& btn) {
+    // Handle click
+});
+```
 
 ## Dependencies
 
