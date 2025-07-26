@@ -4109,8 +4109,8 @@ void WatchWindow::WatchChangeLoggerCreate() {
    }
 
    UISplitPane* panel = &child->add_splitpane(0, 0.5f);
-   UITable*     table = &panel->add_table(UIElement::h_fill | UIElement::v_fill, logger->_columns);
-   UITable*     trace = &panel->add_table(UIElement::h_fill | UIElement::v_fill, "Index\tFunction\tLocation\tAddress");
+   UITable*     table = &panel->add_table(UIElement::hv_fill, logger->_columns);
+   UITable*     trace = &panel->add_table(UIElement::hv_fill, "Index\tFunction\tLocation\tAddress");
 
    logger->_id                      = sv_atoi(number, 6);
    logger->_table                   = table;
@@ -6551,7 +6551,7 @@ struct ViewWindowMatrixGrid : public UIElement {
    grid_type_t           _grid_type;
 
    ViewWindowMatrixGrid(UIElement* parent, int w, int h, char type)
-      : UIElement(parent, UIElement::h_fill | UIElement::v_fill, ViewWindowMatrixGridMessage, "Matrix grid")
+      : UIElement(parent, UIElement::hv_fill, ViewWindowMatrixGridMessage, "Matrix grid")
       , _w(w)
       , _h(h) {
       _h_scroll = &add_scrollbar(UIScrollBar::HORIZONTAL);
@@ -6587,7 +6587,7 @@ struct ViewWindowString : public UIElement {
    int                _length;
 
    ViewWindowString(UIElement* parent, unique_ptr<char[]> data, int length)
-      : UIElement(parent, UIElement::h_fill | UIElement::v_fill, ViewWindowStringMessage, "String display")
+      : UIElement(parent, UIElement::hv_fill, ViewWindowStringMessage, "String display")
       , _v_scroll(&add_scrollbar(0))
       , _data(std::move(data))
       , _length(length) {}
@@ -7964,7 +7964,7 @@ void Context::create_layout(UIElement* parent, const char*& layout_string_curren
    const char* token = InterfaceLayoutNextToken(layout_string_current);
 
    if (0 == strcmp("h", token) || 0 == strcmp("v", token)) {
-      uint32_t flags = UIElement::v_fill | UIElement::h_fill;
+      uint32_t flags = UIElement::hv_fill;
       if (*token == 'v')
          flags |= UIElement::vertical_flag;
       InterfaceLayoutNextToken(layout_string_current, "(");
@@ -7984,7 +7984,7 @@ void Context::create_layout(UIElement* parent, const char*& layout_string_curren
          else if (copy[i] == ')')
             copy[i] = 0;
       UIElement* container =
-         &parent->add_tabpane(UIElement::v_fill | UIElement::h_fill, copy).set_user_proc(InterfaceTabPaneMessage);
+         &parent->add_tabpane(UIElement::hv_fill, copy).set_user_proc(InterfaceTabPaneMessage);
       free(copy);
       create_layout(container, layout_string_current);
 

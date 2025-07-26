@@ -358,8 +358,8 @@ struct UIWrapPanel;
 
 // clang-format off
 
-namespace UIUpdate {
-   enum {
+namespace UIUpdate { // `namespace` instead of `enum class` for the easy conversion to int.
+   enum UIUpdate {
       hovered  = 1,
       pressed  = 2,
       focused  = 3,
@@ -725,11 +725,11 @@ public:
       border_flag      = 1 << 23,
       vertical_flag    = 1 << 24,
 
-      hide_flag                = 1 << 27,
-      relayout_flag            = 1 << 28,
-      relayout_descendent_flag = 1 << 29,
-      destroy_flag             = 1 << 30,
-      destroy_descendent_flag  = 1 << 31
+      hide_flag           = 1 << 27,
+      relayout_flag       = 1 << 28,
+      relayout_descendent = 1 << 29,
+      destroy_flag        = 1 << 30,
+      destroy_descendent  = 1 << 31
    };
 
 private:

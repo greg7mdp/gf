@@ -1184,9 +1184,9 @@ void UIElement::destroy() {
    UIElement* ancestor = _parent;
 
    while (ancestor) {
-      if (ancestor->has_flag(destroy_descendent_flag))
+      if (ancestor->has_flag(destroy_descendent))
          break;
-      ancestor->set_flag(destroy_descendent_flag);
+      ancestor->set_flag(destroy_descendent);
       ancestor = ancestor->_parent;
    }
 
@@ -1211,18 +1211,14 @@ int UIElement::message(UIMessage msg, int di, void* dp) {
    }
 
    if (_user_proc) {
-      int result = _user_proc(this, msg, di, dp);
-
-      if (result) {
+      if (int result = _user_proc(this, msg, di, dp))
          return result;
-      }
    }
 
-   if (_class_proc) {
+   if (_class_proc)
       return _class_proc(this, msg, di, dp);
-   } else {
-      return 0;
-   }
+
+   return 0;
 }
 
 // --------------------------------------------------
@@ -1594,7 +1590,7 @@ void UIElement::relayout() {
    UIElement* ancestor = _parent;
 
    while (ancestor) {
-      ancestor->set_flag(relayout_descendent_flag);
+      ancestor->set_flag(relayout_descendent);
       ancestor = ancestor->_parent;
    }
 }
@@ -1657,12 +1653,12 @@ void UIElement::move(UIRectangle new_bounds, bool layout) {
 
    if (layout) {
       message(UIMessage::LAYOUT, 0, 0);
-   } else if (has_flag(relayout_descendent_flag)) {
+   } else if (has_flag(relayout_descendent)) {
       for (auto child : _children)
          child->move(child->_bounds, false);
    }
 
-   clear_flag(relayout_descendent_flag | relayout_flag);
+   clear_flag(relayout_descendent | relayout_flag);
 }
 
 void UIElement::paint(UIPainter* painter) {
@@ -1702,8 +1698,8 @@ void UIElement::paint(UIPainter* painter) {
 }
 
 bool UIElement::_destroy() {
-   if (has_flag(destroy_descendent_flag)) {
-      clear_flag(destroy_descendent_flag);
+   if (has_flag(destroy_descendent)) {
+      clear_flag(destroy_descendent);
 #if 1
       intptr_t num_children = (intptr_t)_children.size();
       for (intptr_t i = 0; i < num_children; i++) {
@@ -1760,7 +1756,7 @@ UIElement::UIElement(UIElement* parent, uint32_t flags, message_proc_t message_p
 
    _class_proc = message_proc;
 
-   assert((flags & window_flag) || parent); // if `window_flag`, set, `_window` will be set by `_init_toplevel()`
+   assert(has_flag(window_flag) || parent); // if `window_flag`, set, `_window` will be set by `_init_toplevel()`
    if (parent) {
       UI_ASSERT(!parent->has_flag(destroy_flag));
       _window = parent->_window;
