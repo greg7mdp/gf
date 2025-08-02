@@ -220,7 +220,7 @@ void set_thread_name(const char* name) {
 // hacky way to remove all occurences of `pattern` from `str`
 // ----------------------------------------------------------
 void remove_pattern(std::string& str, std::string_view pattern) {
-   char* s = (char*)str.c_str();
+   char* s = const_cast<char*>(str.c_str());
    for (size_t i = 0; s[i]; ++i) {
       bool pattern_matches = strncmp(&s[i], &pattern[0], pattern.size()) == 0;
       if (pattern_matches)
@@ -542,7 +542,7 @@ WatchWindow*               firstWatchWindow = nullptr;
 UIMessage                  msgReceivedData;
 UIMessage                  msgReceivedLog;
 UIMessage                  msgReceivedControl;
-UIMessage                  msgReceivedNext = (UIMessage)(UIMessage::USER_PLUS_1);
+UIMessage                  msgReceivedNext = (UIMessage::USER_PLUS_1);
 
 
 
@@ -803,7 +803,7 @@ bool SourceFindOuterFunctionCall(const char** start, const char** end) {
 // -------------------------------------------------------------------------------
 UIMessage ReceiveMessageRegister(std::function<void(std::unique_ptr<std::string>)> callback) {
    receiveMessageTypes.push_back({._msg = msgReceivedNext, ._callback = std::move(callback)});
-   msgReceivedNext = (UIMessage)((uint32_t)msgReceivedNext + 1);
+   msgReceivedNext = static_cast<UIMessage>(static_cast<uint32_t>(msgReceivedNext) + 1);
    return receiveMessageTypes.back()._msg;
 }
 
@@ -998,14 +998,14 @@ void StackWindow::update_stack() {
 
       StackEntry entry = {};
 
-      entry._id = strtoul(position + 1, (char**)&position, 0);
+      entry._id = strtoul(position + 1, const_cast<char**>(&position), 0);
 
       while (*position == ' ' && position < next)
          position++;
       bool hasAddress = *position == '0';
 
       if (hasAddress) {
-         entry._address = strtoul(position, (char**)&position, 0);
+         entry._address = strtoul(position, const_cast<char**>(&position), 0);
          position += 4;
       }
 
@@ -1015,7 +1015,7 @@ void StackWindow::update_stack() {
       position                 = strchr(position, ' ');
       if (!position || position >= next)
          break;
-      entry._function = std::string_view{functionName, (size_t)(position - functionName)};
+      entry._function = std::string_view{functionName, static_cast<size_t>(position - functionName)};
 
       const char* file = strstr(position, " at ");
 
@@ -1024,7 +1024,7 @@ void StackWindow::update_stack() {
          const char* end = file;
          while (*end != '\n' && end < next)
             end++;
-         entry._location = std::string_view{file, (size_t)(end - file)};
+         entry._location = std::string_view{file, static_cast<size_t>(end - file)};
       }
 
       append(entry);
@@ -1048,7 +1048,7 @@ public:
    void run(UITextbox* textbox, bool lastKeyWasTab, bool addPrintPrefix) {
       auto text   = textbox->text();
       auto buffer = std::format("complete {}{}", addPrintPrefix ? "p " : "",
-                                text.substr(0, lastKeyWasTab ? (size_t)_last_tab_bytes : text.size()));
+                                text.substr(0, lastKeyWasTab ? static_cast<size_t>(_last_tab_bytes) : text.size()));
       for (int i = 0; buffer[i]; i++)
          if (buffer[i] == '\\')
             buffer[i] = ' ';
@@ -1277,7 +1277,7 @@ public:
          if (condition && condition < next) {
             const char* end = strchr(condition, '\n');
             condition += 13;
-            breakpoint._condition      = std::string_view{condition, (size_t)(end - condition)};
+            breakpoint._condition      = std::string_view{condition, static_cast<size_t>(end - condition)};
             breakpoint._condition_hash = Hash(breakpoint._condition); // leave it there, used for `bp._multiple`
          }
 
@@ -1296,7 +1296,7 @@ public:
             if (end && isdigit(end[1])) {
                if (file[0] == '.' && file[1] == '/')
                   file += 2;
-               breakpoint._file = std::string_view{file, (size_t)(end - file)};
+               breakpoint._file = std::string_view{file, static_cast<size_t>(end - file)};
                breakpoint._line = sv_atoi(end, 1);
             } else
                recognised = false;
@@ -1324,7 +1324,7 @@ public:
                   const char* end = strchr(address, '\n');
                   if (end) {
                      breakpoint._watchpoint = true;
-                     breakpoint._file       = std::string_view{address, (size_t)(end - address)};
+                     breakpoint._file       = std::string_view{address, static_cast<size_t>(end - address)};
                      _breakpoints.push_back(std::move(breakpoint).update());
                   }
                }
@@ -1361,8 +1361,8 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
       bool        found = SourceFindOuterFunctionCall(&start, &end);
 
       if (found) {
-         res = ctx.send_command_to_debugger(std::format("advance {}", string_view(start, (int)(end - start))), true,
-                                            synchronous);
+         res = ctx.send_command_to_debugger(
+            std::format("advance {}", string_view(start, static_cast<int>(end - start))), true, synchronous);
       } else {
          return CommandParseInternal("gf-step", synchronous);
       }
@@ -1377,7 +1377,7 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
 
       if (pwd) {
          pwd += strlen(needle);
-         char* end = (char*)strchr(pwd, '\n');
+         char* end = const_cast<char*>(strchr(pwd, '\n'));
          if (end)
             *end = 0;
 
@@ -1503,8 +1503,8 @@ static void CommandCustom(string_view command) {
       copy.resize_and_overwrite(output.size(), [&](char* p, size_t sz) {
          size_t j = 0;
          for (size_t i = 0; i <= bytes;) {
-            if ((uint8_t)output[i] == 0xE2 && (uint8_t)output[i + 1] == 0x80 &&
-                ((uint8_t)output[i + 2] == 0x98 || (uint8_t)output[i + 2] == 0x99)) {
+            if (static_cast<uint8_t>(output[i]) == 0xE2 && static_cast<uint8_t>(output[i + 1]) == 0x80 &&
+                (static_cast<uint8_t>(output[i + 2]) == 0x98 || static_cast<uint8_t>(output[i + 2]) == 0x99)) {
                p[j++] = '\'';
                i += 3;
             } else {
@@ -1518,7 +1518,7 @@ static void CommandCustom(string_view command) {
          s_display_output->insert_content(copy, false);
          s_display_output->insert_content("\n", false);
          s_display_output->insert_content(
-            std::format("(exit code: {}; time: {}s)\n", result, (int)(time(nullptr) - start)), false);
+            std::format("(exit code: {}; time: {}s)\n", result, static_cast<int>(time(nullptr) - start)), false);
          s_display_output->refresh();
       }
    } else {
@@ -1737,7 +1737,8 @@ UIConfig Context::load_settings(bool earlyPass) {
             for (uintptr_t i = 0; i < sizeof(themeItems) / sizeof(themeItems[0]); i++) {
                if (key != themeItems[i])
                   continue;
-               std::from_chars(value.data(), value.data() + value.size(), ((uint32_t*)&ui_config._theme)[i], 16);
+               std::from_chars(value.data(), value.data() + value.size(),
+                               (reinterpret_cast<uint32_t*>(&ui_config._theme))[i], 16);
                ui_config._has_theme = true;
             }
             if (key == "predefined") {
@@ -1831,7 +1832,7 @@ bool SourceWindow::display_set_position(const char* file, std::optional<size_t> 
             const char* end = strchr(f, '\n');
 
             if (end) {
-               cleaned_file = std::string_view{f, (size_t)(end - f)};
+               cleaned_file = std::string_view{f, static_cast<size_t>(end - f)};
             }
          }
       }
@@ -1885,7 +1886,7 @@ void SourceWindow::display_set_position_from_stack() {
       auto&       current = s_stack_window->current();
       std::string location{current._location};
       s_previous_file_loc        = current._location;
-      char*                 line = (char*)strchr(location.c_str(), ':');
+      char*                 line = const_cast<char*>(strchr(location.c_str(), ':'));
       std::optional<size_t> position;
       if (line) {
          *line    = 0;
@@ -1923,7 +1924,7 @@ void SourceWindow::disassembly_load() {
       return;
    }
 
-   char* pointer = (char*)strstr(start, "=> ");
+   char* pointer = const_cast<char*>(strstr(start, "=> "));
 
    if (pointer) {
       pointer[0] = ' ';
@@ -2103,7 +2104,7 @@ int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* 
          }
       }
    } else if (msg == UIMessage::KEY_TYPED) {
-      auto* m = (UIKeyTyped*)dp;
+      auto* m = static_cast<UIKeyTyped*>(dp);
 
       if (m->text == "`") {
          inspect_line();
@@ -2169,7 +2170,7 @@ int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* 
 
       if (_in_inspect_line_mode) {
          UIFont* previousFont = code->font()->activate();
-         draw_inspect_line_mode_overlay((UIPainter*)dp);
+         draw_inspect_line_mode_overlay(static_cast<UIPainter*>(dp));
          previousFont->activate();
       }
 
@@ -2177,10 +2178,10 @@ int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* 
    } else if (msg == UIMessage::CODE_DECORATE_LINE) {
       auto& theme       = code->theme();
       auto  active_font = code->active_font();
-      auto* m           = (UICodeDecorateLine*)dp;
+      auto* m           = static_cast<UICodeDecorateLine*>(dp);
       auto  currentLine = s_display_code->current_line();
 
-      if (currentLine && m->index == (int)*currentLine) {
+      if (currentLine && m->index == static_cast<int>(*currentLine)) {
          _display_current_line_bounds = m->bounds;
       }
 
@@ -2469,14 +2470,14 @@ int SourceWindow::_line_message_proc(UIElement* el, UIMessage msg, int di, void*
    if (msg == UIMessage::UPDATE && !el->is_focused()) {
       exit_inspect_line_mode(el);
    } else if (msg == UIMessage::KEY_TYPED) {
-      auto* m = (UIKeyTyped*)dp;
+      auto* m = static_cast<UIKeyTyped*>(dp);
 
       if (m->text == "`" || m->code == UIKeycode::ESCAPE) {
          exit_inspect_line_mode(el);
       } else if (m->code >= UI_KEYCODE_DIGIT('1') && m->code <= UI_KEYCODE_DIGIT('9')) {
          int index = ((int)m->code - (int)UI_KEYCODE_DIGIT('1'));
 
-         if (index < (int)_inspect_results.size()) {
+         if (index < static_cast<int>(_inspect_results.size())) {
             exit_inspect_line_mode(el);
             WatchAddExpression(_inspect_results[index]._expression);
          }
@@ -2604,7 +2605,7 @@ void BitmapViewerUpdate(const std::string& pointerString, const std::string& wid
 
 int BitmapViewerRefreshMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::CLICKED) {
-      auto* bitmap = (BitmapViewer*)el->_parent->_cp;
+      auto* bitmap = static_cast<BitmapViewer*>(el->_parent->_cp);
       BitmapViewerUpdate(bitmap->_pointer, bitmap->_width, bitmap->_height, bitmap->_stride, el->_parent);
    }
 
@@ -2683,7 +2684,8 @@ int BitmapViewerDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
                       for (size_t i = 0; i < display->_bb.width * display->_bb.height; i++) {
                          uint32_t src_pix  = display->_bb[i];
-                         uint8_t  pixel[3] = {(uint8_t)(src_pix >> 16), (uint8_t)(src_pix >> 8), (uint8_t)src_pix};
+                         uint8_t  pixel[3] = {static_cast<uint8_t>(src_pix >> 16), static_cast<uint8_t>(src_pix >> 8),
+                                              static_cast<uint8_t>(src_pix)};
                          fwrite(pixel, 1, 3, f);
                       }
 
@@ -2714,7 +2716,7 @@ void BitmapViewerUpdate(const std::string& pointerString, const std::string& wid
                                .set_user_proc(BitmapViewerWindowMessage)
                                .set_cp(bitmap);
       bitmap->_auto_toggle = &window->add_button(UIButton::SMALL | UIElement::non_client_flag, "Auto")
-                                 .set_cp((void*)BitmapViewerAutoUpdateCallback)
+                                 .set_cp(reinterpret_cast<void*>(BitmapViewerAutoUpdateCallback))
                                  .set_user_proc(DataViewerAutoUpdateButtonMessage);
       window->add_button(UIButton::SMALL | UIElement::non_client_flag, "Refresh")
          .set_user_proc(BitmapViewerRefreshMessage);
@@ -2730,7 +2732,7 @@ void BitmapViewerUpdate(const std::string& pointerString, const std::string& wid
    UIBitmapBits bb;
    const char*  error = BitmapViewerGetBits(pointerString, widthString, heightString, strideString, bb);
 
-   auto* bitmap          = (BitmapViewer*)owner->_cp;
+   auto* bitmap          = static_cast<BitmapViewer*>(owner->_cp);
    bitmap->_parsed_width = bb.width, bitmap->_parsed_height = bb.height;
    bitmap->_display->set_content(std::move(bb));
    if (error)
@@ -2797,7 +2799,7 @@ private:
 
    int _textbox_message_proc(UITextbox* textbox, UIMessage msg, int di, void* dp) {
       if (msg == UIMessage::KEY_TYPED) {
-         auto* m = (UIKeyTyped*)dp;
+         auto* m = static_cast<UIKeyTyped*>(dp);
 
          static TabCompleter tabCompleter  = {};
          bool                lastKeyWasTab = tabCompleter._last_key_was_tab;
@@ -3437,7 +3439,7 @@ public:
          int oldCount = watch->_fields.size();
 
          if (oldCount != count) {
-            auto index = (size_t)-1;
+            auto index = static_cast<size_t>(-1);
 
             for (size_t i = 0; i < _rows.size(); i++) {
                if (_rows[i] == watch) {
@@ -3555,7 +3557,7 @@ void Watch::add_fields(WatchWindow* w) {
       for (int i = 0; i < count; i++) {
          auto field          = make_shared<Watch>();
          field->_format      = _format;
-         field->_array_index = (uintptr_t)i;
+         field->_array_index = static_cast<uintptr_t>(i);
          field->_parent      = this;
 
          _fields.push_back(field);
@@ -3565,7 +3567,7 @@ void Watch::add_fields(WatchWindow* w) {
          field->_depth      = _depth + 1;
       }
    } else {
-      char* start    = (char*)res.c_str();
+      char* start    = const_cast<char*>(res.c_str());
       char* position = start;
 
       while (true) {
@@ -3578,7 +3580,7 @@ void Watch::add_fields(WatchWindow* w) {
          if (strstr(position, "(gdb)"))
             break;
          auto field     = make_shared<Watch>();
-         field->_depth  = (uint8_t)(_depth + 1);
+         field->_depth  = static_cast<uint8_t>(_depth + 1);
          field->_key    = position;
          field->_parent = this;
 
@@ -3594,7 +3596,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
    int result    = 0;
 
    if (msg == UIMessage::PAINT) {
-      auto*       painter = (UIPainter*)dp;
+      auto*       painter = static_cast<UIPainter*>(dp);
       const auto& thm     = theme();
 
       // figure out the correct indentation for the `=` signs
@@ -3650,7 +3652,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
                bool        open   = watch->_open;
                int         depth  = watch->_depth;
                const char* spaces = "                                                                                ";
-               int         num_spaces = !open ? (int)key_space - (depth * 3) - (int)key.size() : 0;
+               int         num_spaces = !open ? static_cast<int>(key_space) - (depth * 3) - (int)key.size() : 0;
                assert(num_spaces >= 0);
 
                std_format_to_n(buffer, sizeof(buffer), "{:.{}}{}{}{:.{}}{}{}", spaces, depth * 3, // depth indentation
@@ -3735,7 +3737,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::UPDATE) {
       repaint(nullptr);
    } else if (msg == UIMessage::KEY_TYPED) {
-      auto* m = (UIKeyTyped*)dp;
+      auto* m = static_cast<UIKeyTyped*>(dp);
       result  = 1;
 
       if (_waiting_for_format_character) {
@@ -3864,7 +3866,7 @@ int WatchWindow::_line_message_proc(UIElement* el, UIMessage msg, int di, void* 
    if (msg == UIMessage::UPDATE && !el->is_focused()) {
       exit_inspect_line_mode(el);
    } else if (msg == UIMessage::KEY_TYPED) {
-      auto* m = (UIKeyTyped*)dp;
+      auto* m = static_cast<UIKeyTyped*>(dp);
 
       if (m->text == "`" || m->code == UIKeycode::ESCAPE) {
          exit_inspect_line_mode(el);
@@ -3935,7 +3937,7 @@ int WatchTextboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       }
    } else if (msg == UIMessage::KEY_TYPED) {
       auto* textbox = dynamic_cast<UITextbox*>(el);
-      auto* m       = (UIKeyTyped*)dp;
+      auto* m       = static_cast<UIKeyTyped*>(dp);
 
       static TabCompleter tabCompleter  = {};
       bool                lastKeyWasTab = tabCompleter._last_key_was_tab;
@@ -3980,7 +3982,7 @@ void WatchLoggerTraceSelectFrame(UIElement* el, int index, WatchLogger* logger) 
 
    StackEntry* entry = &logger->_entries[logger->_selected_entry]._trace[index];
    std::string location{entry->_location};
-   char*       colon = (char*)strchr(location.c_str(), ':');
+   char*       colon = const_cast<char*>(strchr(location.c_str(), ':'));
 
    if (colon) {
       *colon = 0;
@@ -3993,9 +3995,9 @@ int WatchLoggerTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    auto* logger = static_cast<WatchLogger*>(el->_cp);
 
    if (msg == UIMessage::TABLE_GET_ITEM) {
-      auto*          m     = (UITableGetItem*)dp;
+      auto*          m     = static_cast<UITableGetItem*>(dp);
       WatchLogEntry* entry = &logger->_entries[m->_row];
-      m->_is_selected      = (int)m->_row == logger->_selected_entry;
+      m->_is_selected      = static_cast<int>(m->_row) == logger->_selected_entry;
 
       switch (m->_column) {
       case 0:
@@ -4028,7 +4030,7 @@ int WatchLoggerTraceMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    auto* logger = static_cast<WatchLogger*>(el->_cp);
 
    if (msg == UIMessage::TABLE_GET_ITEM) {
-      auto*       m     = (UITableGetItem*)dp;
+      auto*       m     = static_cast<UITableGetItem*>(dp);
       StackEntry* entry = &logger->_entries[logger->_selected_entry]._trace[m->_row];
 
       switch (m->_column) {
@@ -4105,8 +4107,9 @@ void WatchWindow::WatchChangeLoggerCreate() {
 
       for (uintptr_t i = 0; true; i++) {
          if (expressionsToEvaluate[i] == ';' || !expressionsToEvaluate[i]) {
-            position += std_format_to_n(logger->_columns + position, sizeof(logger->_columns) - position, "\t{}",
-                                        std::string_view{&expressionsToEvaluate[start], (size_t)(i - start)});
+            position +=
+               std_format_to_n(logger->_columns + position, sizeof(logger->_columns) - position, "\t{}",
+                               std::string_view{&expressionsToEvaluate[start], static_cast<size_t>(i - start)});
             start = i + 1;
          }
 
@@ -4226,7 +4229,7 @@ bool WatchLoggerUpdate(std::string _data) {
 
 WatchWindow* WatchGetFocused() {
    return s_main_window->focused()->_class_proc == WatchWindow::WatchWindowMessage
-             ? (WatchWindow*)s_main_window->focused()->_cp
+             ? static_cast<WatchWindow*>(s_main_window->focused()->_cp)
              : nullptr;
 }
 
@@ -4253,9 +4256,9 @@ bool CommandAddWatch() {
 // ---------------------------------------------------/
 
 void StackWindow::set_frame(UIElement* el, int index) {
-   if (index >= 0 && index < (int)(dynamic_cast<UITable*>(el))->num_items()) {
+   if (index >= 0 && index < static_cast<int>((dynamic_cast<UITable*>(el))->num_items())) {
       _has_changed = true;
-      if (_selected != (size_t)index) {
+      if (_selected != static_cast<size_t>(index)) {
          (void)ctx.send_command_to_debugger(std::format("frame {}", index), false, false);
          _selected = index;
          el->repaint(nullptr);
@@ -4268,7 +4271,7 @@ void StackWindow::set_frame(UIElement* el, int index) {
 
 int StackWindow::_table_message_proc(UITable* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::TABLE_GET_ITEM) {
-      auto* m                 = (UITableGetItem*)dp;
+      auto* m                 = static_cast<UITableGetItem*>(dp);
       m->_is_selected         = m->_row == _selected;
       const StackEntry& entry = _stack[m->_row];
 
@@ -4286,9 +4289,9 @@ int StackWindow::_table_message_proc(UITable* el, UIMessage msg, int di, void* d
          return 0;
       }
    } else if (msg == UIMessage::LEFT_DOWN || msg == UIMessage::MOUSE_DRAG) {
-      set_frame(el, ((UITable*)el)->hittest(el->cursor_pos()));
+      set_frame(el, (el)->hittest(el->cursor_pos()));
    } else if (msg == UIMessage::KEY_TYPED) {
-      auto* m = (UIKeyTyped*)dp;
+      auto* m = static_cast<UIKeyTyped*>(dp);
 
       if (m->code == UIKeycode::UP || m->code == UIKeycode::DOWN) {
          set_frame(el, _selected + (m->code == UIKeycode::UP ? -1 : 1));
@@ -4372,7 +4375,7 @@ public:
 
 int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::TABLE_GET_ITEM) {
-      auto*             m  = (UITableGetItem*)dp;
+      auto*             m  = static_cast<UITableGetItem*>(dp);
       const Breakpoint& bp = _breakpoints[m->_row];
 
       m->_is_selected = rng::find(_selected, bp._number) != rng::end(_selected);
@@ -4488,7 +4491,7 @@ int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int 
          bp.toggle();
       }
    } else if (msg == UIMessage::KEY_TYPED) {
-      auto* m = (UIKeyTyped*)dp;
+      auto* m = static_cast<UIKeyTyped*>(dp);
 
       if (_selected.size() > 0) {
          if (m->code == UIKeycode::DEL)
@@ -4581,7 +4584,7 @@ private:
 public:
    int _textbox_message_proc(UITextbox* textbox, UIMessage msg, int di, void* dp) {
       if (msg == UIMessage::KEY_TYPED) {
-         auto* m = (UIKeyTyped*)dp;
+         auto* m = static_cast<UIKeyTyped*>(dp);
 
          if (m->code == UIKeycode::ENTER) {
             auto  res   = ctx.eval_command(std::format("ptype /o {}", _textbox->text()));
@@ -4703,7 +4706,7 @@ struct FilesWindow {
 
          _directory[oldLength] = 0;
       } else if (msg == UIMessage::PAINT) {
-         auto*       painter = (UIPainter*)dp;
+         auto*       painter = static_cast<UIPainter*>(dp);
          int         i       = button->is_pressed() + button->is_hovered();
          const auto& theme   = button->theme();
          if (i)
@@ -4790,7 +4793,7 @@ public:
          const char* stringEnd   = format2End;
 
          RegisterData data;
-         data._string  = std::string_view{stringStart, (size_t)(stringEnd - stringStart)};
+         data._string  = std::string_view{stringStart, static_cast<size_t>(stringEnd - stringStart)};
          bool modified = false;
 
          if (_reg_data.size() > new_reg_data.size()) {
@@ -4828,8 +4831,8 @@ public:
 
             int position = strlen(ap_result.data());
             std_format_to_n(&ap_result[position], sizeof(ap_result) - position, "{}={}",
-                            std::string_view{nameStart, (size_t)(nameEnd - nameStart)},
-                            std::string_view{format1Start, (size_t)(format1End - format1Start)});
+                            std::string_view{nameStart, static_cast<size_t>(nameEnd - nameStart)},
+                            std::string_view{format1Start, static_cast<size_t>(format1End - format1Start)});
          }
       }
 
@@ -4941,7 +4944,7 @@ private:
 public:
    int _table_message_proc(UITable* uitable, UIMessage msg, int di, void* dp) {
       if (msg == UIMessage::TABLE_GET_ITEM) {
-         auto* m         = (UITableGetItem*)dp;
+         auto* m         = static_cast<UITableGetItem*>(dp);
          auto& thread    = _threads[m->_row];
          m->_is_selected = thread._active;
 
@@ -5110,7 +5113,7 @@ void ExecutableWindow::update_args(int incr) { // should be -1, 0 or +1
       if (v.empty())
          return;
       auto& cur = _current_arg_index;
-      cur       = std::clamp(cur, 0u, (uint32_t)v.size() - 1);
+      cur       = std::clamp(cur, 0u, static_cast<uint32_t>(v.size()) - 1);
       if (incr == 1) {
          cur = cur >= v.size() - 1 ? 0 : cur + 1;
       } else if (incr == -1) {
@@ -5204,7 +5207,7 @@ public:
             auto  res = ctx.eval_command("help all");
             char* s   = nullptr;
             if (!res.empty()) {
-               s = (char*)res.c_str();
+               s = const_cast<char*>(res.c_str());
                for (int i = 0; s[i]; i++) {
                   if (s[i] == ',' && s[i + 1] == ' ' && s[i + 2] == '\n') {
                      s[i + 2] = ' ';
@@ -5222,7 +5225,7 @@ public:
 
                if (dash && dash < next && dash > position + 1) {
                   GDBCommand command = {};
-                  command._name      = (char*)calloc(1, dash - 1 - position + 1);
+                  command._name      = static_cast<char*>(calloc(1, dash - 1 - position + 1));
 
                   for (int i = 0, j = 0; i < dash - 1 - position; i++) {
                      if (position[i] != ' ' || position[i + 1] != ' ') {
@@ -5230,8 +5233,8 @@ public:
                      }
                   }
 
-                  command._description       = (char*)calloc(1, next - (dash + 3) + 1);
-                  command._description_lower = (char*)calloc(1, next - (dash + 3) + 1);
+                  command._description       = static_cast<char*>(calloc(1, next - (dash + 3) + 1));
+                  command._description_lower = static_cast<char*>(calloc(1, next - (dash + 3) + 1));
                   std::memcpy(command._description, dash + 3, next - (dash + 3));
 
                   for (int i = 0; command._description[i]; i++) {
@@ -5304,8 +5307,8 @@ public:
 
 void ThumbnailResize(uint32_t* bits, uint32_t originalWidth, uint32_t originalHeight, uint32_t targetWidth,
                      uint32_t targetHeight) {
-   float cx = (float)originalWidth / targetWidth;
-   float cy = (float)originalHeight / targetHeight;
+   float cx = static_cast<float>(originalWidth) / targetWidth;
+   float cy = static_cast<float>(originalHeight) / targetHeight;
 
    for (uint32_t i = 0; i < originalHeight; i++) {
       uint32_t* output = bits + i * originalWidth;
@@ -5313,7 +5316,7 @@ void ThumbnailResize(uint32_t* bits, uint32_t originalWidth, uint32_t originalHe
 
       for (uint32_t j = 0; j < targetWidth; j++) {
          uint32_t sumAlpha = 0, sumRed = 0, sumGreen = 0, sumBlue = 0;
-         uint32_t count = (uint32_t)((j + 1) * cx) - (uint32_t)(j * cx);
+         uint32_t count = static_cast<uint32_t>((j + 1) * cx) - static_cast<uint32_t>(j * cx);
 
          for (uint32_t k = 0; k < count; k++, input++) {
             uint32_t pixel = *input;
@@ -5339,7 +5342,7 @@ void ThumbnailResize(uint32_t* bits, uint32_t originalWidth, uint32_t originalHe
 
       for (uint32_t j = 0; j < targetHeight; j++) {
          uint32_t sumAlpha = 0, sumRed = 0, sumGreen = 0, sumBlue = 0;
-         uint32_t count = (uint32_t)((j + 1) * cy) - (uint32_t)(j * cy);
+         uint32_t count = static_cast<uint32_t>((j + 1) * cy) - static_cast<uint32_t>(j * cy);
 
          for (uint32_t k = 0; k < count; k++, input += originalWidth) {
             uint32_t pixel = *input;
@@ -5544,13 +5547,13 @@ void* ProfFlameGraphRenderThread(void* _unused) {
       ProfFlameGraphReport* report = profRenderReport;
       UIElement*            el     = report;
 
-      double     zoomX    = (double)report->_client.width() / (report->_x_end - report->_x_start);
+      double     zoomX    = static_cast<double>(report->_client.width()) / (report->_x_end - report->_x_start);
       UIPainter  _painter = *profRenderPainter; // Some of the draw functions modify the painter's clip, so make a copy.
       UIPainter* painter  = &_painter;
 
       int64_t pr = 0, pd = 0;
-      auto    xStartF = (float)report->_x_start;
-      auto    xEndF   = (float)report->_x_end;
+      auto    xStartF = static_cast<float>(report->_x_start);
+      auto    xEndF   = static_cast<float>(report->_x_end);
 
       size_t startIndex = report->_entries.size() / profRenderThreadIndexAllocator * threadIndex;
       size_t endIndex   = report->_entries.size() / profRenderThreadIndexAllocator * (threadIndex + 1);
@@ -5568,7 +5571,8 @@ void* ProfFlameGraphRenderThread(void* _unused) {
             continue;
          }
 
-         int64_t rr = report->_client.l + (int64_t)((time->_end - report->_x_start) * zoomX + 0.999); // RECTANGLE_EARLY
+         int64_t rr = report->_client.l +
+                      static_cast<int64_t>((time->_end - report->_x_start) * zoomX + 0.999); // RECTANGLE_EARLY
 
          if (pr == rr && pd == time->_depth) {
             continue;
@@ -5577,7 +5581,7 @@ void* ProfFlameGraphRenderThread(void* _unused) {
          ProfFlameGraphEntry* entry = &report->_entries[i];
 
          // RECTANGLE_OTHER
-         int64_t rl = report->_client.l + (int64_t)((time->_start - report->_x_start) * zoomX);
+         int64_t rl = report->_client.l + static_cast<int64_t>((time->_start - report->_x_start) * zoomX);
          int64_t rt =
             report->_client.t + time->_depth * profRowHeight + profScaleHeight - report->_v_scroll->position();
          int64_t rb = rt + profRowHeight;
@@ -5638,7 +5642,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       if (report->_x_end < report->_x_start + 1e-7)
          report->_x_end = report->_x_start + 1e-7;
 
-      double zoomX = (double)report->_client.width() / (report->_x_end - report->_x_start);
+      double zoomX = static_cast<double>(report->_client.width()) / (report->_x_end - report->_x_start);
 
       if (!profRenderThreadCount) {
          profRenderThreadCount = sysconf(_SC_NPROCESSORS_CONF);
@@ -5656,7 +5660,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          }
       }
 
-      auto* painter = (UIPainter*)dp;
+      auto* painter = static_cast<UIPainter*>(dp);
       painter->draw_block(report->_client, profBackgroundColor);
 
       profRenderReport        = report;
@@ -5685,8 +5689,8 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
             UIRectangle r;
             r.t = report->_client.t;
             r.b = r.t + profScaleHeight;
-            r.l = report->_client.l + (int)((i - report->_x_start) * zoomX);
-            r.r = r.l + (int)(increment * zoomX);
+            r.l = report->_client.l + static_cast<int>((i - report->_x_start) * zoomX);
+            r.r = r.l + static_cast<int>(increment * zoomX);
             if (r.l > painter->_clip.r)
                break;
             auto string = std::format("{:.4f}ms", i);
@@ -5775,13 +5779,13 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
       previousFont->activate();
    } else if (msg == UIMessage::MOUSE_MOVE) {
-      double               zoomX = (double)report->_client.width() / (report->_x_end - report->_x_start);
+      double               zoomX = static_cast<double>(report->_client.width()) / (report->_x_end - report->_x_start);
       ProfFlameGraphEntry* hover = nullptr;
       auto                 pos   = el->cursor_pos();
 
       int  depth   = (pos.y - report->_client.t + report->_v_scroll->position() - profScaleHeight) / profRowHeight;
-      auto xStartF = (float)report->_x_start;
-      auto xEndF   = (float)report->_x_end;
+      auto xStartF = static_cast<float>(report->_x_start);
+      auto xEndF   = static_cast<float>(report->_x_end);
 
       for (size_t i = 0; i < report->_entries.size(); i++) {
          ProfFlameGraphEntryTime* time = &report->_entry_times[i];
@@ -5790,9 +5794,10 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
             continue;
          }
 
-         int64_t rr = report->_client.l + (int64_t)((time->_end - report->_x_start) * zoomX + 0.999); // RECTANGLE_EARLY
+         int64_t rr = report->_client.l +
+                      static_cast<int64_t>((time->_end - report->_x_start) * zoomX + 0.999); // RECTANGLE_EARLY
          // RECTANGLE_OTHER
-         int64_t rl = report->_client.l + (int64_t)((time->_start - report->_x_start) * zoomX);
+         int64_t rl = report->_client.l + static_cast<int64_t>((time->_start - report->_x_start) * zoomX);
          int64_t rt =
             report->_client.t + time->_depth * profRowHeight + profScaleHeight - report->_v_scroll->position();
          int64_t rb = rt + profRowHeight;
@@ -5823,7 +5828,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          report->_drag_initial_point  = pos.x;
          report->_drag_initial_value2 = report->_v_scroll->position();
          report->_drag_initial_point2 = pos.y;
-         el->set_cursor((int)UICursor::hand);
+         el->set_cursor(static_cast<int>(UICursor::hand));
       } else {
          report->_drag_mode          = drag_mode_t::x_scroll;
          report->_drag_initial_value = report->_x_start;
@@ -5842,7 +5847,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          report->_drag_initial_value  = report->_x_start;
          report->_drag_initial_point  = pos.x;
          report->_drag_initial_point2 = pos.y;
-         el->set_cursor((int)UICursor::cross_hair);
+         el->set_cursor(static_cast<int>(UICursor::cross_hair));
       }
    } else if (msg == UIMessage::RIGHT_DOWN) {
       auto pos = el->cursor_pos();
@@ -5856,7 +5861,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          r.l = report->_drag_initial_point, r.r = report->_drag_current_point;
          if (r.l > r.r)
             r.r = report->_drag_initial_point, r.l = report->_drag_current_point;
-         double zoomX     = (double)report->_client.width() / (report->_x_end - report->_x_start);
+         double zoomX     = static_cast<double>(report->_client.width()) / (report->_x_end - report->_x_start);
          report->_x_end   = (r.r - report->_client.l) / zoomX + report->_x_start;
          report->_x_start = (r.l - report->_client.l) / zoomX + report->_x_start;
       } else if (!report->_drag_started && msg == UIMessage::RIGHT_UP && report->_hover) {
@@ -5875,14 +5880,14 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       report->_drag_mode    = drag_mode_t::unset;
       report->_drag_started = false;
       el->repaint(nullptr);
-      el->set_cursor((int)UICursor::arrow);
+      el->set_cursor(static_cast<int>(UICursor::arrow));
    } else if (msg == UIMessage::MOUSE_DRAG) {
       report->_drag_started = true;
       auto pos              = el->cursor_pos();
 
       if (report->_drag_mode == drag_mode_t::pan) {
          double delta     = report->_x_end - report->_x_start;
-         report->_x_start = report->_drag_initial_value - (double)(pos.x - report->_drag_initial_point) *
+         report->_x_start = report->_drag_initial_value - static_cast<double>(pos.x - report->_drag_initial_point) *
                                                              report->_total_time / report->_client.width() * delta /
                                                              report->_total_time;
          report->_x_end = report->_x_start + delta;
@@ -5894,11 +5899,12 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
             report->_x_start += report->_total_time - report->_x_end;
             report->_x_end = report->_total_time;
          }
-         report->_v_scroll->position() = report->_drag_initial_value2 - (double)(pos.y - report->_drag_initial_point2);
+         report->_v_scroll->position() =
+            report->_drag_initial_value2 - static_cast<double>(pos.y - report->_drag_initial_point2);
          report->_v_scroll->refresh();
       } else if (report->_drag_mode == drag_mode_t::x_scroll) {
          double delta     = report->_x_end - report->_x_start;
-         report->_x_start = report->_drag_initial_value + (double)(pos.x - report->_drag_initial_point) *
+         report->_x_start = report->_drag_initial_value + static_cast<double>(pos.x - report->_drag_initial_point) *
                                                              report->_total_time / report->_client.width() *
                                                              report->_drag_scroll_rate;
          report->_x_end = report->_x_start + delta;
@@ -5912,11 +5918,11 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          }
       } else if (report->_drag_mode == drag_mode_t::x_pan_and_zoom) {
          double delta = report->_x_end - report->_x_start;
-         report->_x_start += (double)(pos.x - report->_drag_initial_point) * report->_total_time /
+         report->_x_start += static_cast<double>(pos.x - report->_drag_initial_point) * report->_total_time /
                              report->_client.width() * delta / report->_total_time * 3.0;
          report->_x_end = report->_x_start + delta;
          double factor  = powf(1.02, pos.y - report->_drag_initial_point2);
-         double mouse   = (double)(pos.x - report->_client.l) / report->_client.width();
+         double mouse   = static_cast<double>(pos.x - report->_client.l) / report->_client.width();
 #if 0
          mouse = 0.5;
          XWarpPointer(ui->display, None, windowMain->window, 0, 0, 0, 0, report->dragInitialPoint, report->dragInitialPoint2);
@@ -5941,16 +5947,16 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          factor *= perDivision, divisions--;
       while (divisions < 0)
          factor /= perDivision, divisions++;
-      double mouse   = (double)(pos.x - report->_client.l) / report->_client.width();
+      double mouse   = static_cast<double>(pos.x - report->_client.l) / report->_client.width();
       double newZoom = (report->_x_end - report->_x_start) / report->_total_time * factor;
       report->_x_start += mouse * (report->_x_end - report->_x_start) * (1 - factor);
       report->_x_end = newZoom * report->_total_time + report->_x_start;
       el->repaint(nullptr);
       return 1;
    } else if (msg == UIMessage::GET_CURSOR) {
-      return report->_drag_mode == drag_mode_t::pan              ? (int)UICursor::hand
-             : report->_drag_mode == drag_mode_t::x_pan_and_zoom ? (int)UICursor::cross_hair
-                                                                 : (int)UICursor::arrow;
+      return report->_drag_mode == drag_mode_t::pan              ? static_cast<int>(UICursor::hand)
+             : report->_drag_mode == drag_mode_t::x_pan_and_zoom ? static_cast<int>(UICursor::cross_hair)
+                                                                 : static_cast<int>(UICursor::arrow);
    } else if (msg == UIMessage::LAYOUT) {
       UIRectangle scrollBarBounds = el->_bounds;
       scrollBarBounds.l           = scrollBarBounds.r - ui_size::scroll_bar * el->get_scale();
@@ -6001,7 +6007,7 @@ int ProfTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    UITable* table  = report->_table;
 
    if (msg == UIMessage::TABLE_GET_ITEM) {
-      auto*              m     = (UITableGetItem*)dp;
+      auto*              m     = static_cast<UITableGetItem*>(dp);
       ProfFunctionEntry* entry = &report->_sorted_functions[m->_row];
 
       switch (m->_column) {
@@ -6050,14 +6056,15 @@ int ProfTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          table->set_column_highlight(index);
       }
    } else if (msg == UIMessage::GET_CURSOR) {
-      return table->header_hittest(el->cursor_pos()) == -1 ? (int)UICursor::arrow : (int)UICursor::hand;
+      return table->header_hittest(el->cursor_pos()) == -1 ? static_cast<int>(UICursor::arrow)
+                                                           : static_cast<int>(UICursor::hand);
    }
 
    return 0;
 }
 
 void ProfLoadProfileData(void* _window) {
-   auto* data = (ProfWindow*)_window;
+   auto* data = static_cast<ProfWindow*>(_window);
 
    auto        res              = ctx.eval_expression("gfProfilingTicksPerMs");
    const char* ticksPerMsString = strstr(res.c_str(), "= ");
@@ -6090,7 +6097,7 @@ void ProfLoadProfileData(void* _window) {
       window->set_update_region(painter._clip);
    }
 
-   auto* rawEntries = (ProfProfilingEntry*)calloc(sizeof(ProfProfilingEntry), rawEntryCount);
+   auto* rawEntries = static_cast<ProfProfilingEntry*>(calloc(sizeof(ProfProfilingEntry), rawEntryCount));
 
    char path[PATH_MAX];
    realpath(".profile.gf", path);
@@ -6225,8 +6232,8 @@ void ProfLoadProfileData(void* _window) {
          }
 
          ProfFlameGraphEntry entry = stack.back();
-         entry._end_time           = (double)((rawEntries[i]._time_stamp & 0x7FFFFFFFFFFFFFFFUL) -
-                                    (rawEntries[0]._time_stamp & 0x7FFFFFFFFFFFFFFFUL)) /
+         entry._end_time           = static_cast<double>((rawEntries[i]._time_stamp & 0x7FFFFFFFFFFFFFFFUL) -
+                                                         (rawEntries[0]._time_stamp & 0x7FFFFFFFFFFFFFFFUL)) /
                            data->_ticks_per_ms;
 
          if (0 == strcmp(entry._name, "[unknown]")) {
@@ -6246,8 +6253,9 @@ void ProfLoadProfileData(void* _window) {
                function._source_file_index % (sizeof(profEntryColorPalette) / sizeof(profEntryColorPalette[0]));
          }
 
-         entry._start_time = (double)(rawEntries[i]._time_stamp - (rawEntries[0]._time_stamp & 0x7FFFFFFFFFFFFFFFUL)) /
-                             data->_ticks_per_ms;
+         entry._start_time =
+            static_cast<double>(rawEntries[i]._time_stamp - (rawEntries[0]._time_stamp & 0x7FFFFFFFFFFFFFFFUL)) /
+            data->_ticks_per_ms;
          entry._this_function = rawEntries[i]._this_function;
          entry._depth         = stack.size();
          stack.push_back(entry);
@@ -6309,13 +6317,13 @@ void ProfLoadProfileData(void* _window) {
       // Create an image of the graph for the zoom bar.
       uint32_t  width  = 1200;
       uint32_t  height = maxDepth * 30 + 30;
-      UIPainter painter(report->ui(), width, height, (uint32_t*)malloc(width * height * 4));
+      UIPainter painter(report->ui(), width, height, static_cast<uint32_t*>(malloc(width * height * 4)));
 
       report->_client = report->_bounds = report->_clip = painter._clip;
       ProfFlameGraphMessage(report, UIMessage::PAINT, 0, &painter);
       int newHeight = 30;
       ThumbnailResize(painter._bits, painter._width, painter._height, painter._width, newHeight);
-      report->_thumbnail        = (uint32_t*)realloc(painter._bits, painter._width * newHeight * 4);
+      report->_thumbnail        = static_cast<uint32_t*>(realloc(painter._bits, painter._width * newHeight * 4));
       report->_thumbnail_width  = width;
       report->_thumbnail_height = newHeight;
    }
@@ -6418,7 +6426,7 @@ private:
    int _message_proc(UIMessage msg, int di, void* dp) {
       if (msg == UIMessage::PAINT) {
          const auto& thm     = theme();
-         auto*       painter = (UIPainter*)dp;
+         auto*       painter = static_cast<UIPainter*>(dp);
          painter->draw_block(_bounds, thm.panel1);
 
          char        buffer[64];
@@ -6474,7 +6482,7 @@ private:
             int position = 0;
 
             const auto& thm = theme();
-            std_format_to_n(buffer, sizeof(buffer), "{:8X} ", (uint32_t)(address & 0xFFFFFFFF));
+            std_format_to_n(buffer, sizeof(buffer), "{:8X} ", static_cast<uint32_t>(address & 0xFFFFFFFF));
             painter->draw_string(row, buffer, thm.codeComment, UIAlign::left, 0);
             UIRectangle r          = row + UIRectangle(ui()->string_width(buffer), 0, 0, 0);
             int         glyphWidth = ui()->string_width("a");
@@ -6637,7 +6645,7 @@ int ViewWindowColorSwatchMessage(UIElement* el, UIMessage msg, int di, void* dp)
    if (msg == UIMessage::PAINT) {
       const auto& thm     = el->theme();
       uint32_t    color   = (dynamic_cast<ViewWindowColorSwatch*>(el))->_color;
-      auto*       painter = (UIPainter*)dp;
+      auto*       painter = static_cast<UIPainter*>(dp);
       const char* message = "Col: ";
 
       painter->draw_string(el->_bounds, message, thm.text, UIAlign::left, nullptr);
@@ -6688,7 +6696,7 @@ int ViewWindowMatrixGridMessage(UIElement* el, UIMessage msg, int di, void* dp) 
       UI*         ui                 = el->ui();
       const auto& thm                = el->theme();
       auto [glyphWidth, glyphHeight] = ui->string_dims("A");
-      auto* painter                  = (UIPainter*)dp;
+      auto* painter                  = static_cast<UIPainter*>(dp);
 
       for (int i = 0; i < grid->_h; i++) {
          for (int j = 0; j < grid->_w; j++) {
@@ -6699,14 +6707,15 @@ int ViewWindowMatrixGridMessage(UIElement* el, UIMessage msg, int di, void* dp) 
                painter->draw_glyph(el->_bounds.l + j * glyphWidth - grid->_h_scroll->position(),
                                    el->_bounds.t + i * glyphHeight - grid->_v_scroll->position(), c, thm.text);
             } else if (grid->_grid_type == grid_type_t::float_t || grid->_grid_type == grid_type_t::double_t) {
-               double f = grid->_grid_type == grid_type_t::double_t ? ((double*)grid->data())[i * grid->_w + j]
-                                                                    : (double)((float*)grid->data())[i * grid->_w + j];
+               double f = grid->_grid_type == grid_type_t::double_t
+                             ? ((double*)grid->data())[i * grid->_w + j]
+                             : static_cast<double>(((float*)grid->data())[i * grid->_w + j]);
                char   buffer[64];
                std_format_to_n(buffer, sizeof(buffer), "{:f}", f);
                UIRectangle rectangle =
                   UIRectangle(j * glyphWidth * 14, (j + 1) * glyphWidth * 14, i * glyphHeight, (i + 1) * glyphHeight);
-               UIRectangle offset = UIRectangle(el->_bounds.l - (int)grid->_h_scroll->position(),
-                                                el->_bounds.t - (int)grid->_v_scroll->position());
+               UIRectangle offset = UIRectangle(el->_bounds.l - static_cast<int>(grid->_h_scroll->position()),
+                                                el->_bounds.t - static_cast<int>(grid->_v_scroll->position()));
                painter->draw_string(rectangle + offset, buffer, thm.text, UIAlign::right, nullptr);
             }
          }
@@ -6808,7 +6817,7 @@ int ViewWindowStringMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::PAINT) {
       const auto& thm = el->theme();
       static_cast<UIPainter*>(dp)->draw_block(el->_bounds, thm.codeBackground);
-      ViewWindowStringLayout(display, (UIPainter*)dp, display->_v_scroll->position());
+      ViewWindowStringLayout(display, static_cast<UIPainter*>(dp), display->_v_scroll->position());
    } else if (msg == UIMessage::MOUSE_WHEEL) {
       return display->_v_scroll->message(msg, di, dp);
    } else if (msg == UIMessage::SCROLLED) {
@@ -6824,7 +6833,7 @@ void ViewWindowView(void* cp) {
    if (!watchElement)
       return;
 
-   auto* w     = (WatchWindow*)watchElement->_cp;
+   auto* w     = static_cast<WatchWindow*>(watchElement->_cp);
    auto  w_opt = w->get_selected_watch();
    if (!w_opt)
       return;
@@ -6837,7 +6846,7 @@ void ViewWindowView(void* cp) {
       return;
 
    // Destroy the previous panel contents.
-   auto* panel = (UIElement*)cp;
+   auto* panel = static_cast<UIElement*>(cp);
    panel->destroy_descendents();
    panel->add_button(0, "View (Ctrl+Shift+V)").on_click([panel](UIButton&) { ViewWindowView(panel); });
 
@@ -6866,20 +6875,23 @@ void ViewWindowView(void* cp) {
 
       int64_t value = sv_atoll(res);
 
-      std_format_to_n(buffer, sizeof(buffer), " 8b: {} {} 0x{:x} '{:c}'", (int8_t)value, (uint8_t)value, (uint8_t)value,
-                      (char)value);
+      std_format_to_n(buffer, sizeof(buffer), " 8b: {} {} 0x{:x} '{:c}'", static_cast<int8_t>(value),
+                      static_cast<uint8_t>(value), static_cast<uint8_t>(value), static_cast<char>(value));
       panel->add_label(0, buffer);
-      std_format_to_n(buffer, sizeof(buffer), "16b: {} {} 0x{:x}", (int16_t)value, (uint16_t)value, (uint16_t)value);
+      std_format_to_n(buffer, sizeof(buffer), "16b: {} {} 0x{:x}", static_cast<int16_t>(value),
+                      static_cast<uint16_t>(value), static_cast<uint16_t>(value));
       panel->add_label(0, buffer);
-      std_format_to_n(buffer, sizeof(buffer), "32b: {} {} 0x{:x}", (int32_t)value, (uint32_t)value, (uint32_t)value);
+      std_format_to_n(buffer, sizeof(buffer), "32b: {} {} 0x{:x}", static_cast<int32_t>(value),
+                      static_cast<uint32_t>(value), static_cast<uint32_t>(value));
       panel->add_label(0, buffer);
-      std_format_to_n(buffer, sizeof(buffer), "64b: %{} {} 0x{:x}", (int64_t)value, (uint64_t)value, (uint64_t)value);
+      std_format_to_n(buffer, sizeof(buffer), "64b: %{} {} 0x{:x}", value, static_cast<uint64_t>(value),
+                      static_cast<uint64_t>(value));
       panel->add_label(0, buffer);
 
       int p = std_format_to_n(buffer, sizeof(buffer), "Bin: ");
 
       for (int64_t i = 63; i >= 32; i--) {
-         buffer[p++] = (value & ((uint64_t)1 << i)) ? '1' : '0';
+         buffer[p++] = (value & (static_cast<uint64_t>(1) << i)) ? '1' : '0';
          if ((i & 7) == 0)
             buffer[p++] = ' ';
       }
@@ -6889,7 +6901,7 @@ void ViewWindowView(void* cp) {
       p = std_format_to_n(buffer, sizeof(buffer), "     ");
 
       for (int64_t i = 31; i >= 0; i--) {
-         buffer[p++] = (value & ((uint64_t)1 << i)) ? '1' : '0';
+         buffer[p++] = (value & (static_cast<uint64_t>(1) << i)) ? '1' : '0';
          if ((i & 7) == 0)
             buffer[p++] = ' ';
       }
@@ -6897,7 +6909,7 @@ void ViewWindowView(void* cp) {
       panel->add_label(0, {buffer, static_cast<size_t>(p)});
 
       if (value <= 0xFFFFFFFF) {
-         new ViewWindowColorSwatch(panel, (uint32_t)value);
+         new ViewWindowColorSwatch(panel, static_cast<uint32_t>(value));
       }
    } else if ((0 == memcmp(type, "char [", 6) && !strstr(type, "][")) || 0 == strcmp(type, "const char *") ||
               0 == strcmp(type, "char *")) {
@@ -7090,7 +7102,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       free(display->_samples);
       display->_samples = nullptr;
    } else if (msg == UIMessage::LAYOUT) {
-      if (display->_samples_on_screen > (int)display->_sample_count) {
+      if (display->_samples_on_screen > static_cast<int>(display->_sample_count)) {
          display->_samples_on_screen = display->_sample_count;
       }
 
@@ -7101,18 +7113,21 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       display->_scrollbar->set_page(display->_samples_on_screen);
       display->_scrollbar->move(scrollBarBounds, true);
 
-      display->_zoomout->move(
-         UIRectangle(el->_bounds.l + (int)(15 * el->get_scale()), el->_bounds.l + (int)(45 * el->get_scale()),
-                     el->_bounds.t + (int)(15 * el->get_scale()), el->_bounds.t + (int)(45 * el->get_scale())),
-         true);
-      display->_zoomin->move(
-         UIRectangle(el->_bounds.l + (int)(45 * el->get_scale()), el->_bounds.l + (int)(75 * el->get_scale()),
-                     el->_bounds.t + (int)(15 * el->get_scale()), el->_bounds.t + (int)(45 * el->get_scale())),
-         true);
-      display->_normalize->move(
-         UIRectangle(el->_bounds.l + (int)(75 * el->get_scale()), el->_bounds.l + (int)(135 * el->get_scale()),
-                     el->_bounds.t + (int)(15 * el->get_scale()), el->_bounds.t + (int)(45 * el->get_scale())),
-         true);
+      display->_zoomout->move(UIRectangle(el->_bounds.l + static_cast<int>(15 * el->get_scale()),
+                                          el->_bounds.l + static_cast<int>(45 * el->get_scale()),
+                                          el->_bounds.t + static_cast<int>(15 * el->get_scale()),
+                                          el->_bounds.t + static_cast<int>(45 * el->get_scale())),
+                              true);
+      display->_zoomin->move(UIRectangle(el->_bounds.l + static_cast<int>(45 * el->get_scale()),
+                                         el->_bounds.l + static_cast<int>(75 * el->get_scale()),
+                                         el->_bounds.t + static_cast<int>(15 * el->get_scale()),
+                                         el->_bounds.t + static_cast<int>(45 * el->get_scale())),
+                             true);
+      display->_normalize->move(UIRectangle(el->_bounds.l + static_cast<int>(75 * el->get_scale()),
+                                            el->_bounds.l + static_cast<int>(135 * el->get_scale()),
+                                            el->_bounds.t + static_cast<int>(15 * el->get_scale()),
+                                            el->_bounds.t + static_cast<int>(45 * el->get_scale())),
+                                true);
    } else if (msg == UIMessage::MOUSE_DRAG && el->pressed_button() == 1) {
       auto pos = el->cursor_pos();
       display->_scrollbar->position() += display->_drag_last_modification;
@@ -7132,8 +7147,10 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          l     = r;
          r     = t;
       }
-      float lf = (float)l / el->_bounds.width() * display->_samples_on_screen + display->_scrollbar->position();
-      float rf = (float)r / el->_bounds.width() * display->_samples_on_screen + display->_scrollbar->position();
+      float lf =
+         static_cast<float>(l) / el->_bounds.width() * display->_samples_on_screen + display->_scrollbar->position();
+      float rf =
+         static_cast<float>(r) / el->_bounds.width() * display->_samples_on_screen + display->_scrollbar->position();
 
       if (rf - lf >= display->_minimum_zoom) {
          display->_scrollbar->position() = lf;
@@ -7154,8 +7171,8 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          factor *= perDivision, divisions--;
       while (divisions < 0)
          factor /= perDivision, divisions++;
-      double mouse   = (double)(pos.x - el->_bounds.l) / el->_bounds.width();
-      double newZoom = (double)display->_samples_on_screen / display->_sample_count * factor;
+      double mouse   = static_cast<double>(pos.x - el->_bounds.l) / el->_bounds.width();
+      double newZoom = static_cast<double>(display->_samples_on_screen) / display->_sample_count * factor;
 
       if (newZoom * display->_sample_count >= display->_minimum_zoom) {
          display->_scrollbar->position() += mouse * display->_samples_on_screen * (1 - factor);
@@ -7170,7 +7187,7 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       const auto& thm    = el->theme();
       client.b -= display->_scrollbar->_bounds.height();
 
-      auto*       painter = (UIPainter*)dp;
+      auto*       painter = static_cast<UIPainter*>(dp);
       UIRectangle oldClip = painter->_clip;
       painter->_clip      = intersection(client, painter->_clip);
       int ym              = (client.t + client.b) / 2;
@@ -7182,10 +7199,10 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       float yScale =
          (display->_normalize->has_flag(UIButton::CHECKED)) && display->_peak > 0.00001f ? 1.0f / display->_peak : 1.0f;
 
-      int    sampleOffset = (int)display->_scrollbar->position();
+      int    sampleOffset = static_cast<int>(display->_scrollbar->position());
       float* samples      = &display->_samples[display->_channels * sampleOffset];
       int    sampleCount  = display->_samples_on_screen;
-      UI_ASSERT(sampleOffset + sampleCount <= (int)display->_sample_count);
+      UI_ASSERT(sampleOffset + sampleCount <= static_cast<int>(display->_sample_count));
 
       auto pos = el->cursor_pos();
 
@@ -7195,8 +7212,8 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          for (size_t channel = 0; channel < display->_channels; channel++) {
             for (int32_t x = painter->_clip.l; x < painter->_clip.r; x++) {
                int32_t x0  = x - client.l;
-               float   xf0 = (float)x0 / (client.r - client.l);
-               float   xf1 = (float)(x0 + 1) / (client.r - client.l);
+               float   xf0 = static_cast<float>(x0) / (client.r - client.l);
+               float   xf1 = static_cast<float>(x0 + 1) / (client.r - client.l);
                float   yf = 0.0f, yt = 0.0f;
                int     i0 = xf0 * sampleCount;
                int     i1 = xf1 * sampleCount;
@@ -7210,7 +7227,8 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
                      yf = t;
                }
 
-               UIRectangle r = UIRectangle(x, x + 1, ym - (int)(yt * h2 * yScale), ym + (int)(yf * h2 * yScale));
+               UIRectangle r = UIRectangle(x, x + 1, ym - static_cast<int>(yt * h2 * yScale),
+                                           ym + static_cast<int>(yf * h2 * yScale));
                WaveformDisplayDrawVerticalLineWithTranslucency(painter, r, thm.text, alpha);
             }
          }
@@ -7219,9 +7237,9 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
             yp = ym + h2 * yScale * samples[channel + 0];
 
             for (int32_t i = 0; i < sampleCount; i++) {
-               int32_t x0 = (int)((float)i / sampleCount * client.width()) + client.l;
-               int32_t x1 = (int)((float)(i + 1) / sampleCount * client.width()) + client.l;
-               int32_t y  = ym + h2 * yScale * samples[channel + display->_channels * (int)i];
+               int32_t x0 = static_cast<int>(static_cast<float>(i) / sampleCount * client.width()) + client.l;
+               int32_t x1 = static_cast<int>(static_cast<float>(i + 1) / sampleCount * client.width()) + client.l;
+               int32_t y  = ym + h2 * yScale * samples[channel + display->_channels * static_cast<int>(i)];
                painter->draw_line(x0, yp, x1, y, thm.text);
                yp = y;
             }
@@ -7230,14 +7248,15 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          if (sampleCount < client.width() / 4) {
             for (size_t channel = 0; channel < display->_channels; channel++) {
                for (int32_t i = 0; i < sampleCount; i++) {
-                  int32_t x1 = (int)((float)(i + 1) / sampleCount * client.width()) + client.l;
-                  int32_t y  = ym + h2 * yScale * samples[channel + display->_channels * (int)i];
+                  int32_t x1 = static_cast<int>(static_cast<float>(i + 1) / sampleCount * client.width()) + client.l;
+                  int32_t y  = ym + h2 * yScale * samples[channel + display->_channels * static_cast<int>(i)];
                   painter->draw_block(UIRectangle(x1 - 2, x1 + 2, y - 2, y + 2), channel % 2 ? 0xFFFF00FF : 0xFF00FFFF);
                }
             }
          }
 
-         int mouseXSample = (float)(pos.x - client.l) / el->_bounds.width() * display->_samples_on_screen - 0.5f;
+         int mouseXSample =
+            static_cast<float>(pos.x - client.l) / el->_bounds.width() * display->_samples_on_screen - 0.5f;
 
          if (mouseXSample >= 0 && mouseXSample < sampleCount && el->_clip.contains(pos) &&
              !display->_scrollbar->_clip.contains(pos)) {
@@ -7246,7 +7265,8 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
                UIRectangle(client.l + stringOffset, client.r - stringOffset, client.t + stringOffset,
                            client.t + stringOffset + el->ui()->string_height());
             char buffer[100];
-            std_format_to_n(buffer, sizeof(buffer), "{}: ", (int)(mouseXSample + display->_scrollbar->position()));
+            std_format_to_n(buffer, sizeof(buffer),
+                            "{}: ", static_cast<int>(mouseXSample + display->_scrollbar->position()));
 
             for (size_t channel = 0; channel < display->_channels; channel++) {
                char  buffer2[30];
@@ -7260,7 +7280,8 @@ int WaveformDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
             painter->draw_string(stringRectangle, buffer, thm.text, UIAlign::right, nullptr);
 
-            int32_t x1 = (int)((float)(mouseXSample + 1) / sampleCount * client.width()) + client.l;
+            int32_t x1 =
+               static_cast<int>(static_cast<float>(mouseXSample + 1) / sampleCount * client.width()) + client.l;
             WaveformDisplayDrawVerticalLineWithTranslucency(painter, UIRectangle(x1, x1 + 1, client.t, client.b),
                                                             0xFFFFFF, 100);
          }
@@ -7311,7 +7332,7 @@ WaveformDisplay* WaveformDisplayCreate(UIElement* parent, uint32_t flags) { retu
 void WaveformDisplaySetContent(WaveformDisplay* display, float* samples, size_t sampleCount, size_t channels) {
    UI_ASSERT(channels >= 1);
    free(display->_samples);
-   display->_samples = (float*)malloc(sizeof(float) * sampleCount * channels);
+   display->_samples = static_cast<float*>(malloc(sizeof(float) * sampleCount * channels));
    std::memcpy(display->_samples, samples, sizeof(float) * sampleCount * channels);
    display->_sample_count      = sampleCount;
    display->_channels          = channels;
@@ -7378,7 +7399,7 @@ const char* WaveformViewerGetSamples(const std::string& pointerString, const std
    }
 
    size_t byteCount = sampleCount * channels * 4;
-   auto*  samples   = (float*)malloc(byteCount);
+   auto*  samples   = static_cast<float*>(malloc(byteCount));
 
    char transferPath[PATH_MAX];
    realpath(".transfer.gf", transferPath);
@@ -7507,7 +7528,7 @@ void WaveformViewerUpdate(const std::string& pointerString, const std::string& s
                                .set_user_proc(WaveformViewerWindowMessage)
                                .set_cp(viewer);
       viewer->_auto_toggle = &window->add_button(UIButton::SMALL | UIElement::non_client_flag, "Auto")
-                                 .set_cp((void*)WaveformViewerAutoUpdateCallback)
+                                 .set_cp(reinterpret_cast<void*>(WaveformViewerAutoUpdateCallback))
                                  .set_user_proc(DataViewerAutoUpdateButtonMessage);
       window->add_button(UIButton::SMALL | UIElement::non_client_flag, "Refresh")
          .set_user_proc(WaveformViewerRefreshMessage);
@@ -7520,7 +7541,7 @@ void WaveformViewerUpdate(const std::string& pointerString, const std::string& s
       viewer->_display->set_user_proc(WaveformViewerDisplayMessage);
    }
 
-   auto* viewer                 = (WaveformViewer*)owner->_cp;
+   auto* viewer                 = static_cast<WaveformViewer*>(owner->_cp);
    viewer->_parsed_sample_count = sampleCount, viewer->_parsed_channels = channels;
 
    if (error) {
