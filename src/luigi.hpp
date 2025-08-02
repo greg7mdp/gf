@@ -433,7 +433,7 @@ struct UIPoint {
    int x = 0;
    int y = 0;
 
-   bool approx_equal(const UIPoint&o, int diff = 6) const {
+   [[nodiscard]] bool approx_equal(const UIPoint&o, int diff = 6) const {
       return std::abs(x - o.x) <= diff && std::abs(y - o.y) <= diff;
    }
 };
@@ -442,19 +442,19 @@ struct UIPoint {
 struct UIRectangle {
    int l, r, t, b;
 
-   UIRectangle() {}
+   UIRectangle() = default;
    UIRectangle(int v) : l(v), r(v), t(v), b(v) {}
    UIRectangle(int lr, int tb) : l(lr), r(lr), t(tb), b(tb) {}
    UIRectangle(int l, int r, int t, int b)  : l(l), r(r), t(t), b(b) {}
 
-   int     width()  const { return r - l; }
-   int     height() const { return b - t; }
-   UIPoint dims() const { return {width(), height()}; }
-   UIPoint center() const { return { l + width() / 2, t + height() / 2 }; }
+   [[nodiscard]] int     width()  const { return r - l; }
+   [[nodiscard]] int     height() const { return b - t; }
+   [[nodiscard]] UIPoint dims() const { return {width(), height()}; }
+   [[nodiscard]] UIPoint center() const { return { l + width() / 2, t + height() / 2 }; }
 
-   bool    valid()  const { return l < r && t < b; }
-   bool    contains(const UIPoint& p) const { return p.x >= l && p.x < r && p.y >= t && p.y < b; }
-   bool    contains(int x, int y) const { return x >= l && x < r && y >= t && y < b; }
+   [[nodiscard]] bool    valid()  const { return l < r && t < b; }
+   [[nodiscard]] bool    contains(const UIPoint& p) const { return p.x >= l && p.x < r && p.y >= t && p.y < b; }
+   [[nodiscard]] bool    contains(int x, int y) const { return x >= l && x < r && y >= t && y < b; }
 
    friend UIRectangle intersection(const UIRectangle& a, const UIRectangle& b) {
       return {std::max(a.l, b.l), std::min(a.r, b.r), std::max(a.t, b.t), std::min(a.b, b.b)};
@@ -486,12 +486,12 @@ struct UIRectangle {
 
    // following APIs  use `UIRectangle& o` as widths for left,right, top, bottom, instead of a proper rect.
    // -----------------------------------------------------------------------------------------------------
-   UIRectangle shrink(const UIRectangle& o) const { return {l + o.l, r - o.r, t + o.t, b - o.b}; }
-   int         total_width() const { return r + l; }
-   int         total_height() const { return b + t; }
+   [[nodiscard]] UIRectangle shrink(const UIRectangle& o) const { return {l + o.l, r - o.r, t + o.t, b - o.b}; }
+   [[nodiscard]] int         total_width() const { return r + l; }
+   [[nodiscard]] int         total_height() const { return b + t; }
 
    // returns the 4 rectangles for drawing a border where the widths are from `o`
-   std::array<UIRectangle, 4> border(const UIRectangle& o) const {
+   [[nodiscard]] std::array<UIRectangle, 4> border(const UIRectangle& o) const {
       return {{ { l, r, t, t + o.t },
                 { l, l + o.l, t + o.t, b - o.b },
                 { r - o.r, r, t + o.t, b - o.b },
@@ -611,8 +611,8 @@ struct UITableGetItem {
       return std_format_to_n(&_buffer[0], _buffer.size(), fmt, std::forward<Args>(args)...);
    }
 
-   std::string_view buff(int num_chars) { return std::string_view(&_buffer[0], (size_t)num_chars); }
-   size_t           buff_size() const { return _buffer.size(); }
+   std::string_view buff(int num_chars) { return {&_buffer[0], (size_t)num_chars}; }
+   [[nodiscard]] size_t           buff_size() const { return _buffer.size(); }
 };
 
 inline float ui_color_alpha_f(uint32_t x) { return static_cast<float>(((x >> 24) & 0xFF)) / 255.0f; }
@@ -781,7 +781,7 @@ public:
    float          get_scale() const;          // returns the scale of the associated window
 
    message_proc_t get_class_proc() const { return _class_proc; }
-   std::string_view class_name() const { return std::string_view(_class_name); }
+   std::string_view class_name() const { return {_class_name}; }
 
    UIElement&     set_user_proc(message_proc_t proc) { _user_proc = proc; return *this; }
    message_proc_t user_proc() const { return _user_proc; }
@@ -791,24 +791,24 @@ public:
    UIElement&     set_flag(uint32_t flag)   { _flags |= flag; return *this; }
    UIElement&     toggle_flag(uint32_t flag)   { _flags ^= flag; return *this; }
 
-   bool           has_flag(uint32_t flag) const { return !!(_flags & flag); } // checks if at least one flag bit is set
+   [[nodiscard]] bool has_flag(uint32_t flag) const { return !!(_flags & flag); } // checks if at least one flag bit is set
 
-   bool           is_hovered() const;
-   bool           is_focused() const;
-   bool           is_pressed() const;
-   bool           is_disabled() const { return !!(_flags & disabled_flag); }
+   [[nodiscard]] bool is_hovered() const;
+   [[nodiscard]] bool is_focused() const;
+   [[nodiscard]] bool is_pressed() const;
+   [[nodiscard]] bool is_disabled() const { return !!(_flags & disabled_flag); }
 
-   bool           is_shift_on() const;
-   bool           is_ctrl_on() const;
-   bool           is_alt_on() const;
-   bool           is_modifier_on() const;
-   bool           is_only_shift_on() const;
-   bool           is_only_ctrl_on() const;
-   bool           is_only_alt_on() const;
+   [[nodiscard]] bool is_shift_on() const;
+   [[nodiscard]] bool is_ctrl_on() const;
+   [[nodiscard]] bool is_alt_on() const;
+   [[nodiscard]] bool is_modifier_on() const;
+   [[nodiscard]] bool is_only_shift_on() const;
+   [[nodiscard]] bool is_only_ctrl_on() const;
+   [[nodiscard]] bool is_only_alt_on() const;
 
-   UI*            ui() const;
-   UITheme&       theme() const;                 // indirect access to `UI`
-   UIFont*        active_font() const;           // indirect access to `UI`
+   [[nodiscard]] UI*      ui() const;
+   [[nodiscard]] UITheme& theme() const;                 // indirect access to `UI`
+   [[nodiscard]] UIFont*  active_font() const;           // indirect access to `UI`
    
    // functions to create child UI elements (alphabetical order)
    // ----------------------------------------------------------
@@ -898,7 +898,7 @@ private:
    int        _class_message_proc_common(UIMessage msg, int di, void* dp);
 
    static int _ClassMessageProcCommon(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<UIWindow*>(el)->_class_message_proc_common(msg, di, dp);
+      return dynamic_cast<UIWindow*>(el)->_class_message_proc_common(msg, di, dp);
    }
 
 public:
@@ -935,7 +935,7 @@ public:
 #endif
 
    UIWindow(UI* ui, UIElement* parent, uint32_t flags, message_proc_t message_proc, const char* cClassName);
-   virtual ~UIWindow();
+   ~UIWindow() override;
 
    void        endpaint(UIPainter* painter) const;
    void        get_screen_position(int* _x, int* _y) const;
@@ -980,7 +980,7 @@ public:
 
    int         cursor_style() const { return _cursor_style; }
 
-   UIWindow&   register_shortcut(UIShortcut shortcut);
+   UIWindow&   register_shortcut(const UIShortcut& shortcut);
 
    bool        input_event(UIMessage message, int di, void* dp);
 
@@ -997,9 +997,9 @@ public:
    UIWindow&   grab_focus();                // when a breakpoint is hit for example
 
    // ------ delete functions from UIElement we shouldn't use on a UIWindow --------------
-   bool        is_hovered() const = delete; // do not call on UIWindow. only on UIElement
-   bool        is_focused() const = delete; // do not call on UIWindow. only on UIElement
-   bool        is_pressed() const = delete; // do not call on UIWindow. only on UIElement
+   [[nodiscard]] bool is_hovered() const = delete; // do not call on UIWindow. only on UIElement
+   [[nodiscard]] bool is_focused() const = delete; // do not call on UIWindow. only on UIElement
+   [[nodiscard]] bool is_pressed() const = delete; // do not call on UIWindow. only on UIElement
 
 #if defined(UI_LINUX)
    ui_handle native_window() const { return _xwindow; }
@@ -1036,7 +1036,7 @@ private:
    int        _class_message_proc(UIMessage msg, int di, void* dp);
    
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<UIPanel*>(el)->_class_message_proc(msg, di, dp);
+      return dynamic_cast<UIPanel*>(el)->_class_message_proc(msg, di, dp);
    }
 
    int _layout(UIRectangle bounds, bool measure);
@@ -1058,12 +1058,12 @@ public:
    UIPanel(UIElement* parent, uint32_t flags);
 
    UIPanel& set_border(const UIRectangle& b) { _border = b; return *this; }
-   const UIRectangle& border() const { return _border; }
+   [[nodiscard]] const UIRectangle& border() const { return _border; }
 
    UIPanel& set_gap(int gap) { _gap = gap;  return *this; }
-   int gap() const { return _gap; }
+   [[nodiscard]] int gap() const { return _gap; }
 
-   UIScrollBar* scrollbar() const { return _scrollBar; }
+   [[nodiscard]] UIScrollBar* scrollbar() const { return _scrollBar; }
 };
 
 // ------------------------------------------------------------------------------------------
@@ -1076,7 +1076,7 @@ private:
 
 public:
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<UIButton*>(el)->_class_message_proc(msg, di, dp);
+      return dynamic_cast<UIButton*>(el)->_class_message_proc(msg, di, dp);
    }
 
    enum {
@@ -1092,7 +1092,7 @@ public:
    UIButton& on_click(std::function<void(UIButton&)> f) { _on_click = std::move(f); return *this; }
 
    UIButton& set_label(std::string_view s); 
-   std::string_view label() const { return _label; }
+   [[nodiscard]] std::string_view label() const { return _label; }
 };
 
 // ------------------------------------------------------------------------------------------
@@ -1106,7 +1106,7 @@ private:
    int        _class_message_proc(UIMessage msg, int di, void* dp);
    
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<UICheckbox*>(el)->_class_message_proc(msg, di, dp);
+      return dynamic_cast<UICheckbox*>(el)->_class_message_proc(msg, di, dp);
    }
 
 public:
@@ -1136,7 +1136,7 @@ private:
    int        _class_message_proc(UIMessage msg, int di, void* dp);
    
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<UILabel*>(el)->_class_message_proc(msg, di, dp);
+      return dynamic_cast<UILabel*>(el)->_class_message_proc(msg, di, dp);
    }
    
 public:
@@ -1155,14 +1155,14 @@ private:
    int        _class_message_proc(UIMessage msg, int di, void* dp);
 
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<UISpacer*>(el)->_class_message_proc(msg, di, dp);
+      return dynamic_cast<UISpacer*>(el)->_class_message_proc(msg, di, dp);
    }
 
 public:
    UISpacer(UIElement* parent, uint32_t flags, int width, int height);
 
-   size_t width()  const { return _width; }
-   size_t height() const { return _height; }
+   [[nodiscard]] size_t width()  const { return _width; }
+   [[nodiscard]] size_t height() const { return _height; }
 };
 
 // ------------------------------------------------------------------------------------------
@@ -1174,7 +1174,7 @@ private:
 
 public:
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<UISplitPane*>(el)->_class_message_proc(msg, di, dp);
+      return dynamic_cast<UISplitPane*>(el)->_class_message_proc(msg, di, dp);
    }
 
    UISplitPane(UIElement* parent, uint32_t flags, float weight);
@@ -1186,7 +1186,7 @@ public:
 // ------------------------------------------------------------------------------------------
 struct UISplitter : public UIElementCast<UISplitter> {
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<UISplitter*>(el)->_class_message_proc(msg, di, dp);
+      return dynamic_cast<UISplitter*>(el)->_class_message_proc(msg, di, dp);
    }
 
 private:
@@ -1206,7 +1206,7 @@ private:
    
 public:
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<UITabPane*>(el)->_class_message_proc(msg, di, dp);
+      return dynamic_cast<UITabPane*>(el)->_class_message_proc(msg, di, dp);
    }
 
    UITabPane(UIElement* parent, uint32_t flags,  const char* tabs);
@@ -1242,7 +1242,7 @@ private:
    int        _class_message_proc(UIMessage msg, int di, void* dp);
 
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<UIScrollBar*>(el)->_class_message_proc(msg, di, dp);
+      return dynamic_cast<UIScrollBar*>(el)->_class_message_proc(msg, di, dp);
    }
 
 public:
@@ -1322,7 +1322,7 @@ private:
    int        _class_message_proc(UIMessage msg, int di, void* dp);
    
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<UICode*>(el)->_class_message_proc(msg, di, dp);
+      return dynamic_cast<UICode*>(el)->_class_message_proc(msg, di, dp);
    }
 
 public:
@@ -1334,23 +1334,23 @@ public:
    UICode&    insert_content(std::string_view new_content, bool replace);
    UICode&    load_file(const char* path, std::optional<std::string_view> err = {});
 
-   std::string_view line(size_t line) const {
+   [[nodiscard]] std::string_view line(size_t line) const {
       const auto& l = _lines[line];
       return std::string_view{&_content[l.offset], l.bytes};
    }
-   size_t     line_offset(size_t line) const { return _lines[line].offset; }
+   [[nodiscard]] size_t     line_offset(size_t line) const { return _lines[line].offset; }
    
-   size_t     num_lines() const { return _lines.size(); }
-   size_t     size() const { return _content.size(); }
-   bool       empty() const { return _lines.empty(); }
+   [[nodiscard]] size_t     num_lines() const { return _lines.size(); }
+   [[nodiscard]] size_t     size() const { return _content.size(); }
+   [[nodiscard]] bool       empty() const { return _lines.empty(); }
 
-   std::string_view selection() const {
+   [[nodiscard]] std::string_view selection() const {
       size_t from = offset(selection(0));
       size_t to   = offset(selection(1));
       return from >= to ?  std::string_view{} : std::string_view{&(*this)[from], to - from};
    }
 
-   code_pos   selection(size_t idx) const { assert(idx < _sel.size()); return _sel[idx]; }
+   [[nodiscard]] code_pos   selection(size_t idx) const { assert(idx < _sel.size()); return _sel[idx]; }
    UICode&    set_selection(size_t idx, size_t line, size_t offset) {
                             assert(idx < _sel.size());  _sel[idx] = {line, offset}; return *this; }
    UICode&    update_selection();
@@ -1401,15 +1401,15 @@ public:
 
    const char& operator[](size_t idx) const { return _content[idx]; }
 
-   size_t     offset(const code_pos& pos) const { return _lines[pos.line].offset + pos.offset; }
+   [[nodiscard]] size_t     offset(const code_pos& pos) const { return _lines[pos.line].offset + pos.offset; }
 
    UICode&    set_font(UIFont* font) { _font = font; return *this; }
-   UIFont*    font() const { return _font; }
+   [[nodiscard]] UIFont*    font() const { return _font; }
 
    UICode&    copy(sel_target_t t);
 
-   int        column_to_byte(size_t ln, size_t column) const;
-   int        byte_to_column(size_t ln, size_t byte) const;
+   [[nodiscard]] int        column_to_byte(size_t ln, size_t column) const;
+   [[nodiscard]] int        byte_to_column(size_t ln, size_t byte) const;
 
    UICode&    add_selection_menu_item(std::string_view label, std::function<void(std::string_view)> invoke) {
       _menu_items.emplace_back(std::string{label}, std::move(invoke)); return *this;
@@ -1425,16 +1425,16 @@ private:
    int        _class_message_proc(UIMessage msg, int di, void* dp);
 
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<UIGauge*>(el)->_class_message_proc(msg, di, dp);
+      return dynamic_cast<UIGauge*>(el)->_class_message_proc(msg, di, dp);
    }
 
 public:
    UIGauge(UIElement* parent, uint32_t flags);
 
-   UIGauge& set_position(double position);
-   double   position() const { return _position; }
+   UIGauge&             set_position(double position);
+   [[nodiscard]] double position() const { return _position; }
 
-   bool     vertical() const { return _vertical; }
+   [[nodiscard]] bool   vertical() const { return _vertical; }
 };
 
 // ------------------------------------------------------------------------------------------
@@ -1448,21 +1448,23 @@ private:
    int        _class_message_proc(UIMessage msg, int di, void* dp);
 
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<UISlider*>(el)->_class_message_proc(msg, di, dp);
+      return dynamic_cast<UISlider*>(el)->_class_message_proc(msg, di, dp);
    }
 
 public:
    UISlider(UIElement* parent, uint32_t flags);
 
-   UISlider& set_position(double position);
-   double    position() const { return _position; }
+   UISlider&            set_position(double position);
+   [[nodiscard]] double position() const { return _position; }
 
-   bool      vertical() const { return _vertical; }
+   [[nodiscard]] bool   vertical() const { return _vertical; }
 
-   UISlider& set_steps(int steps) { _steps = steps; return *this; }
-   int       steps() const { return _steps; }
+   UISlider&            set_steps(int steps) { _steps = steps; return *this; }
+   [[nodiscard]] int    steps() const { return _steps; }
 
-   UISlider& on_value_changed(std::function<void(UISlider&)> f) { _on_value_changed = std::move(f); return *this; }
+   UISlider&            on_value_changed(std::function<void(UISlider&)> f) {
+      _on_value_changed = std::move(f); return *this;
+   }
 };
 
 // -----------------------------------------------------------------------------------------
@@ -1481,20 +1483,20 @@ private:
    int        _class_message_proc(UIMessage msg, int di, void* dp);
 
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<UITable*>(el)->_class_message_proc(msg, di, dp);
+      return dynamic_cast<UITable*>(el)->_class_message_proc(msg, di, dp);
    }
 
 public:
    UITable(UIElement* parent, uint32_t flags, const char* columns);
 
-   size_t column_end(size_t start) const {
+   [[nodiscard]] size_t column_end(size_t start) const {
       size_t end = start;
       for (; _columns[end] != '\t' && _columns[end]; ++end)
          ;
       return end;
    }
 
-   std::string_view column(size_t start, size_t end) const {
+   [[nodiscard]] std::string_view column(size_t start, size_t end) const {
       return std::string_view{_columns.c_str() + start, end - start};
    }
 
@@ -1546,7 +1548,7 @@ private:
    int     _class_message_proc(UIMessage msg, int di, void* dp);
 
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<UITextbox*>(el)->_class_message_proc(msg, di, dp);
+      return dynamic_cast<UITextbox*>(el)->_class_message_proc(msg, di, dp);
    }
 
    int  _byte_to_column(std::string_view string, int byte);
@@ -1566,7 +1568,7 @@ public:
 
    UITextbox(UIElement* parent, uint32_t flags);
    
-   std::string_view text() const { return std::string_view(_buffer); }
+   [[nodiscard]] std::string_view text() const { return std::string_view(_buffer); }
    
    UITextbox& replace_text(std::string_view text, bool sendChangedMessage);
    UITextbox& clear(bool sendChangedMessage);
@@ -1593,7 +1595,7 @@ private:
    int        _class_message_proc(UIMessage msg, int di, void* dp);
 
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<UIMenu*>(el)->_class_message_proc(msg, di, dp);
+      return dynamic_cast<UIMenu*>(el)->_class_message_proc(msg, di, dp);
    }
    
    static int _MenuItemMessageProc(UIElement* el, UIMessage msg, int di, void* dp);
@@ -1606,7 +1608,7 @@ public:
 
    UIMenu(UI* ui, UIElement* parent, uint32_t flags);
 
-   UIMenu& add_item(uint32_t flags, std::string_view label, std::function<void(UIButton&)> invoke);
+   UIMenu& add_item(uint32_t flags, std::string_view label, const std::function<void(UIButton&)>& invoke);
    UIMenu& show();
 };
 
@@ -1621,7 +1623,7 @@ private:
    int        _class_message_proc(UIMessage msg, int di, void* dp);
 
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<UIMDIClient*>(el)->_class_message_proc(msg, di, dp);
+      return dynamic_cast<UIMDIClient*>(el)->_class_message_proc(msg, di, dp);
    }
 
    friend struct UIMDIChild;
@@ -1643,7 +1645,7 @@ private:
    int        _class_message_proc(UIMessage msg, int di, void* dp);
    
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<UIMDIChild*>(el)->_class_message_proc(msg, di, dp);
+      return dynamic_cast<UIMDIChild*>(el)->_class_message_proc(msg, di, dp);
    }
 
 
@@ -1666,7 +1668,7 @@ struct UIBitmapBits {
 
    const uint32_t& operator[](size_t i) const {
       assert(i < stride * height);
-      uint32_t* line = reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(bits.get()) + stride * (i / width));
+      auto* line = reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(bits.get()) + stride * (i / width));
       return line[i % width];
    }
 };
@@ -1682,7 +1684,7 @@ private:
    int        _class_message_proc(UIMessage msg, int di, void* dp);
 
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<UIImageDisplay*>(el)->_class_message_proc(msg, di, dp);
+      return dynamic_cast<UIImageDisplay*>(el)->_class_message_proc(msg, di, dp);
    }
    
    UIImageDisplay& _update_viewport();
@@ -1707,7 +1709,7 @@ private:
    int        _class_message_proc(UIMessage msg, int di, void* dp);
    
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<UIWrapPanel*>(el)->_class_message_proc(msg, di, dp);
+      return dynamic_cast<UIWrapPanel*>(el)->_class_message_proc(msg, di, dp);
    }
 
 public:
@@ -1720,7 +1722,7 @@ private:
    int        _class_message_proc(UIMessage msg, int di, void* dp);
    
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
-      return static_cast<UISwitcher*>(el)->_class_message_proc(msg, di, dp);
+      return dynamic_cast<UISwitcher*>(el)->_class_message_proc(msg, di, dp);
    }
 
 public:
@@ -1898,9 +1900,9 @@ struct UIPainter {
 
    UIPainter(UIWindow* w);
 
-   UI*        ui() const { return _ui; }
-   UITheme&   theme() const { return ui()->theme(); }              // indirect access to `UI`
-   UIFont*    active_font() const { return ui()->active_font(); }  // indirect access to `UI`
+   [[nodiscard]] UI*        ui() const { return _ui; }
+   [[nodiscard]] UITheme&   theme() const { return ui()->theme(); }              // indirect access to `UI`
+   [[nodiscard]] UIFont*    active_font() const { return ui()->active_font(); }  // indirect access to `UI`
 
    UIPainter& draw_glyph(int x0, int y0, int c, uint32_t color);
    UIPainter& draw_block(UIRectangle rectangle, uint32_t color);
@@ -1936,7 +1938,7 @@ inline UIFont*  UIElement::active_font() const { return ui()->active_font(); }
 
 /**/ void UISwitcherSwitchTo(UISwitcher* switcher, UIElement* child);
 
-typedef void (*UIDialogUserCallback)(UIElement*);
+using UIDialogUserCallback = void (*)(UIElement *);
 
 uint64_t UIAnimateClock(); // In ms.
 
@@ -2054,7 +2056,7 @@ struct INI_Parser {
    INI_Parser(std::string_view buff)
       : _buff(buff) {}
 
-   const_iterator cbegin() const {
+   [[nodiscard]] const_iterator cbegin() const {
       if (_buff.empty())
          return cend();
       iterator res(_buff.data(), _buff.size());
@@ -2062,8 +2064,8 @@ struct INI_Parser {
       return res;
    }
 
-   const_iterator cend() const {
-      return iterator();
+   [[nodiscard]] const_iterator cend() const {
+      return {};
    }
 
    iterator begin() { return cbegin(); }
