@@ -4885,8 +4885,10 @@ struct LogWindow {
                int num_read = read(file, p, sz);
                return num_read > 0 ? num_read : 0;
             });
-            if (s->empty())
+            if (s->empty()) {
+               delete s;
                break;
+            }
             s_main_window->post_message(msgReceivedLog, s); // `s` freed in callback (see unique_ptr in MainWindowMessageProc)
          }
       }
