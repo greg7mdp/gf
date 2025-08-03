@@ -277,47 +277,75 @@ struct ExeStartInfo {
 // Used for managing a command history saved in a file for example.
 // --------------------------------------------------------------------------------------------
 struct FileImage {
-   std::string                   _path;
-   std::string                   _contents;
-   std::vector<std::string_view> _lines;   // lines from _contents
-   size_t                        _idx = 0; // current line of interest
+   std::string              _path;
+   std::vector<std::string> _lines;
 
-   FileImage(std::string_view path)
-      : _path(path) {
+   void set_path(std::string_view path) {
+      _path = path;
       load();
    }
 
    ~FileImage() { dump(); }
 
    void load() {
-      _contents = LoadFile(_path);
-      _lines    = get_lines(_contents);
+      if (_path.empty())
+         return;
+      _lines.clear();
+      auto data = LoadFile(_path);
+      _lines.reserve(data.size() / 50);
+      for_each_line(data, [&](std::string_view sv) { _lines.emplace_back(sv); return false; });
    }
 
    void dump() {
+      if (_path.empty())
+         return;
       std::ofstream out(_path);
-      out << _contents;
+      if (out.is_open()) {
+         for (const auto& l : _lines)
+            out << l << '\n';
+      }
    }
+};
+
+struct HistoryManager : public FileImage {
+   size_t _idx = 0; // current line of interest
+   size_t _max_size;
+   size_t _size_incr;
+
+   static constexpr size_t  increment = 20;
+
+   HistoryManager(size_t max_size = 600, size_t incr = 20)
+      : _max_size(max_size)
+      , _size_incr(incr) {}
 
    void add_line(std::string_view line) {
-      assert(line.find('\n') == std::string_view::npos);
-      auto sz = _contents.size();
-      if (_contents.capacity() < sz + line.size())
-         _contents.reserve(_contents.capacity() * 2);
-      _contents += line;
-      _contents += '\n';
-      _lines.emplace_back(&_contents[sz], line.size());
-      _idx = _lines.size() - 1;
+      _lines.emplace_back(line);
+      if (_lines.size() > _max_size)
+         _lines.erase(_lines.cbegin(), _lines.cbegin() + _size_incr);
+      _idx = _lines.size();
    }
 
-   std::string_view incr(int offset) {
+   std::optional<std::string_view> last_line() const {
+      if (!_lines.empty())
+         return _lines[(_idx < _lines.size() - 1) ? _idx : _idx - 1];
+      return {};
+   }
+
+   std::optional<std::string_view> incr(int offset) {
       assert(offset >= -1 && offset <= 1);
-      _idx = std::clamp(_idx, 0ul, _lines.size() - 1);
-      if (offset == 1)
-         _idx = _idx == _lines.size() - 1 ? 0ul : _idx + 1;
-      else if (offset == -1)
-         _idx = _idx == 0ul ? _lines.size() - 1 : _idx - 1;
-      return _lines[_idx];
+      _idx = std::clamp(_idx, 0ul, _lines.size());
+      if (offset == 1) {
+         if (_idx < _lines.size() - 1) {
+            ++_idx;
+            return _lines[_idx];
+         }
+      } else if (offset == -1) {
+         if (_idx > 0) {
+            _idx--;
+            return _lines[_idx];
+         }
+      }
+      return {};
    }
 };
 
@@ -2764,31 +2792,15 @@ void BitmapAddDialog() {
 
 struct ConsoleWindow {
 private:
-   vector<std::string> _command_history;
-   size_t              _command_history_index = 0;
+   HistoryManager      _history;
    FILE*               _command_log           = nullptr;
 
-   bool previous_command() {
-      if (_command_history_index < _command_history.size()) {
+   void incr_command(int offset) {
+      if (auto sv = _history.incr(offset)) {
          s_input_textbox->clear(false);
-         s_input_textbox->replace_text(_command_history[_command_history_index], false);
-         if (_command_history_index < _command_history.size() - 1)
-            _command_history_index++;
+         s_input_textbox->replace_text(*sv, false);
          s_input_textbox->refresh();
       }
-      return true;
-   }
-
-   bool next_command() {
-      s_input_textbox->clear(false);
-
-      if (_command_history_index > 0) {
-         _command_history_index--;
-         s_input_textbox->replace_text(_command_history[_command_history_index], false);
-      }
-
-      s_input_textbox->refresh();
-      return true;
    }
 
    bool clear_output() {
@@ -2812,24 +2824,17 @@ private:
             textbox->set_reject_next_key(true);
          } else if (m->code == UIKeycode::ENTER && !textbox->is_shift_on()) {
             if (!sz) {
-               if (_command_history.size()) {
-                  CommandSendToGDB(_command_history[0]);
-               }
+               if (auto sv = _history.last_line())
+                  CommandSendToGDB(*sv);
 
                return 1;
             }
 
-            auto buffer = std::format("{}", textbox->text());
             if (_command_log)
-               print(_command_log, "{}\n", buffer);
-            CommandSendToGDB(buffer);
+               print(_command_log, "{}\n", cur_text);
+            CommandSendToGDB(cur_text);
 
-            _command_history.insert(_command_history.cbegin(), std::string(cur_text));
-            _command_history_index = 0;
-
-            if (_command_history.size() > 500) {
-               _command_history.pop_back();
-            }
+            _history.add_line(cur_text);
 
             textbox->clear(false);
             textbox->refresh();
@@ -2845,7 +2850,7 @@ private:
                   DisplaySetPosition(nullptr, *currentLine - 1);
                }
             } else {
-               previous_command();
+               incr_command(-1);
             }
          } else if (m->code == UIKeycode::DOWN) {
             auto currentLine = s_display_code->current_line();
@@ -2854,7 +2859,7 @@ private:
                   DisplaySetPosition(nullptr, *currentLine + 1);
                }
             } else {
-               next_command();
+               incr_command(1);
             }
          }
       }
