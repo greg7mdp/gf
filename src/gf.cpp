@@ -464,7 +464,7 @@ struct Context {
       write(_pipe_to_gdb, &newline, 1);
    }
 
-   void interrupt_gdb(size_t wait_time_us = 20 * 1000) {
+   void interrupt_gdb(size_t wait_time_us = 20ull * 1000) {
       if (_program_running) {
          kill(_gdb_pid, SIGINT);
          std::this_thread::sleep_for(std::chrono::microseconds{wait_time_us});
@@ -1124,7 +1124,7 @@ private:
       [[nodiscard]] bool match(int line, std::string_view path) const { return _line == line && path == _full_path; }
 
       void command(bp_command cmd) const {
-         const char* s;
+         const char* s = nullptr;
          switch (cmd) {
          case bp_command::ena:
             s = "ena";
@@ -1755,7 +1755,7 @@ UIConfig Context::load_settings(bool earlyPass) {
          } else if (section == "pipe" && earlyPass && key == "control") {
             gfc._control_pipe_path = mk_cstring(value);
             mkfifo(gfc._control_pipe_path, 6 + 6 * 8 + 6 * 64);
-            pthread_t thread;
+            pthread_t thread = 0;
             pthread_create(&thread, nullptr, ControlPipe::thread_proc, nullptr);
          } else if (section == "executable" && !key.empty() && earlyPass) {
             // spec for program start config found in `gf2_config.ini`
@@ -2682,7 +2682,7 @@ int BitmapViewerDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
                       FILE* f       = fopen(path.c_str(), "wb");
                       print(f, "P6\n{} {}\n255\n", display->_bb.width, display->_bb.height);
 
-                      for (size_t i = 0; i < display->_bb.width * display->_bb.height; i++) {
+                      for (uint32_t i = 0; i < display->_bb.width * display->_bb.height; i++) {
                          uint32_t src_pix  = display->_bb[i];
                          uint8_t  pixel[3] = {static_cast<uint8_t>(src_pix >> 16), static_cast<uint8_t>(src_pix >> 8),
                                               static_cast<uint8_t>(src_pix)};
@@ -3355,7 +3355,7 @@ public:
 
             char*         buffer = strdup(res.c_str());
             char*         s      = buffer;
-            char*         end;
+            char*         end = nullptr;
             vector<char*> expressions = {};
 
             // we get a list of variables separated by `\n` characters, followed by the prompt
@@ -4209,10 +4209,10 @@ bool WatchLoggerUpdate(std::string _data) {
       }
    }
 
-   if (strlen(value) >= sizeof(entry._value))
-      value[sizeof(entry._value) - 1] = 0;
-   if (strlen(where) >= sizeof(entry._where))
-      where[sizeof(entry._where) - 1] = 0;
+   if (strlen(value) >= entry._value.size())
+      value[entry._value.size() - 1] = 0;
+   if (strlen(where) >= entry._where.size())
+      where[entry._where.size() - 1] = 0;
    entry._value = value;
    entry._where = where;
 
@@ -4639,9 +4639,9 @@ struct FilesWindow {
    void update_path() { _directory = get_realpath(_directory); }
 
    bool populate_panel() {
-      size_t         oldLength;
+      size_t         oldLength = 0;
       DIR*           directory = opendir(_directory.c_str());
-      struct dirent* entry;
+      struct dirent* entry = nullptr;
       if (!directory)
          return false;
       vector<std::string> names = {};
@@ -4692,7 +4692,7 @@ struct FilesWindow {
 
    int _button_message_proc(UIButton* button, UIMessage msg, int di, void* dp) {
       if (msg == UIMessage::CLICKED) {
-         size_t oldLength;
+         size_t oldLength = 0;
          mode_t mode = get_mode(button, &oldLength);
 
          if (S_ISDIR(mode)) {
@@ -4920,7 +4920,7 @@ struct LogWindow {
 
    static UIElement* Create(UIElement* parent) {
       UICode*   code = &parent->add_code(UICode::SELECTABLE);
-      pthread_t thread;
+      pthread_t thread = 0;
       pthread_create(&thread, nullptr, LogWindow::_thread_fn, code);
       return code;
    }
@@ -5311,7 +5311,7 @@ void ThumbnailResize(uint32_t* bits, uint32_t originalWidth, uint32_t originalHe
    float cy = static_cast<float>(originalHeight) / targetHeight;
 
    for (uint32_t i = 0; i < originalHeight; i++) {
-      uint32_t* output = bits + i * originalWidth;
+      uint32_t* output = bits + static_cast<size_t>(i * originalWidth);
       uint32_t* input  = output;
 
       for (uint32_t j = 0; j < targetWidth; j++) {
@@ -5521,7 +5521,7 @@ void ProfDrawTransparentOverlay(UIPainter* painter, UIRectangle rectangle, uint3
       return;
 
    for (int line = rectangle.t; line < rectangle.b; line++) {
-      uint32_t* bits = painter->_bits + line * painter->_width + rectangle.l;
+      uint32_t* bits = painter->_bits + static_cast<size_t>(line * painter->_width + rectangle.l);
 
       for (int x = 0; x < rectangle.width(); x++) {
          uint32_t original = bits[x];
@@ -7462,8 +7462,8 @@ void WaveformViewerSaveToFile(WaveformDisplay* display) {
       s_main_window->show_dialog(0, "Unable to open file for writing.\n%f%b", "OK");
       return;
    }
-   int32_t i;
-   int16_t s;
+   int32_t i = 0;
+   int16_t s = 0;
    fwrite("RIFF", 1, 4, f);
    i = 36 + display->_channels * 4 * display->_sample_count;
    fwrite(&i, 1, 4, f); // Total file size, minus 8.
@@ -8077,7 +8077,7 @@ void Context::generate_layout_string(UIElement* e, std::string& sb) {
          sb.push_back('h');
       }
       sb.push_back('(');
-      int n = snprintf(buf, sizeof(buf), "%d", (int)std::round(((UISplitPane*)e)->weight() * 100));
+      int n = snprintf(buf, sizeof(buf), "%d", (int)std::round((dynamic_cast<UISplitPane*>(e))->weight() * 100));
       sb.insert(sb.end(), buf, buf + n);
       sb.push_back(',');
       generate_layout_string(e->_children[1], sb);

@@ -236,7 +236,7 @@ inline constexpr size_t _UNICODE_MAX_CODEPOINT = 0x10FFFF;
 inline constexpr int    max_glyphs             = _UNICODE_MAX_CODEPOINT + 1;
 
 int Utf8GetCodePoint(const char* cString, size_t bytesLength, size_t* bytesConsumed) {
-   UI_ASSERT(bytesLength > 0 && "Attempted to get UTF-8 code point from an empty string");
+   assert(bytesLength > 0 && "Attempted to get UTF-8 code point from an empty string");
 
    if (bytesConsumed == nullptr) {
       size_t bytesConsumed;
@@ -314,7 +314,7 @@ size_t Utf8StringLength(const char* cString, size_t bytes) {
       byteIndex += bytesConsumed;
       length++;
 
-      UI_ASSERT(byteIndex <= bytes && "Overran the end of the string while counting the number of UTF-8 code points");
+      assert(byteIndex <= bytes && "Overran the end of the string while counting the number of UTF-8 code points");
    }
 
    return length;
@@ -599,7 +599,7 @@ bool UI::animate(UIElement* el, bool stop) {
       return true;
 
    _animating.push_back(el);
-   UI_ASSERT(!el->has_flag(UIElement::destroy_flag));
+   assert(!el->has_flag(UIElement::destroy_flag));
    return true;
 }
 
@@ -643,7 +643,7 @@ UIPainter& UIPainter::draw_block(UIRectangle rectangle, uint32_t color) {
 #endif
 
    for (int line = rectangle.t; line < rectangle.b; line++) {
-      uint32_t* bits  = _bits + line * _width + rectangle.l;
+      uint32_t* bits  = _bits + static_cast<size_t>(line * _width + rectangle.l);
       int       count = rectangle.width();
 
 #ifdef UI_SSE2
@@ -709,7 +709,7 @@ UIPainter& UIPainter::draw_line(int x0, int y0, int x1, int y1, uint32_t color) 
 
    // Draw the line using Bresenham's line algorithm.
 
-   uint32_t* bits = _bits + y0 * _width + x0;
+   uint32_t* bits = _bits + static_cast<size_t>(y0 * _width + x0);
 
    if (dy * dy < dx * dx) {
       int m = 2 * dy - dx;
@@ -860,7 +860,7 @@ UIPainter& UIPainter::draw_invert(UIRectangle rectangle) {
 
    if (rectangle.valid()) {
       for (int line = rectangle.t; line < rectangle.b; line++) {
-         uint32_t* bits  = _bits + line * _width + rectangle.l;
+         uint32_t* bits  = _bits + static_cast<size_t>(line * _width + rectangle.l) ;
          int       count = rectangle.width();
 
          while (count--) {
@@ -918,7 +918,7 @@ UIPainter& UIPainter::draw_string(UIRectangle r, std::string_view string, uint32
 
 #ifdef UI_UNICODE
       int c = Utf8GetCodePoint(string.data(), bytes - j, &bytesConsumed);
-      UI_ASSERT(bytesConsumed > 0);
+      assert(bytesConsumed > 0);
       string = string.substr(bytesConsumed);
 #else
       char c = string[0];
@@ -1271,7 +1271,7 @@ int _UIDialogWrapperMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          for (auto item : row->_children) {
 
             if (item->_class_proc == UIButton::_ClassMessageProc) {
-               UIButton* button = (UIButton*)item;
+               UIButton* button = dynamic_cast<UIButton*>(item);
                auto      label  = button->label();
                if (!label.empty() && (label[0] == c0 || label[0] == c1)) {
                   if (!target) {
@@ -1316,7 +1316,7 @@ UIElement* UIElement::change_parent(UIElement* newParent, UIElement* insertBefor
       }
    }
 
-   UI_ASSERT(found && !has_flag(destroy_flag));
+   assert(found && !has_flag(destroy_flag));
 
    auto& to = newParent->_children;
    for (uint32_t i = 0; i <= to.size(); i++) {
@@ -1453,7 +1453,7 @@ static int _DialogTextboxMessageProc(UIElement* el, UIMessage msg, int di, void*
 std::string_view UIWindow::show_dialog(uint32_t flags, const char* format, ...) {
    // Create the dialog wrapper and panel.
    // ------------------------------------
-   UI_ASSERT(!_dialog);
+   assert(!_dialog);
    _dialog        = &add_element(0, _UIDialogWrapperMessage, "DialogWrapper");
    UIPanel* panel = &_dialog->add_panel(UIPanel::MEDIUM_SPACING | UIPanel::COLOR_1)
                         .set_border(UIRectangle(ui_size::pane_medium_border * 2));
@@ -1529,7 +1529,7 @@ std::string_view UIWindow::show_dialog(uint32_t flags, const char* format, ...) 
 
    // Run the modal message loop.
    // ---------------------------
-   int result;
+   int result = 0;
    UI* ui               = this->ui();
    ui->_dialog_result   = nullptr;
    ui->_dialog_can_exit = buttonCount != 0;
@@ -1751,13 +1751,12 @@ UIElement::UIElement(UIElement* parent, uint32_t flags, message_proc_t message_p
    , _class_name(cClassName)
    , _parent(parent)
    , _bounds(0)
-   , _clip(0) {
-
-   _class_proc = message_proc;
+   , _clip(0)
+   , _class_proc(message_proc) {
 
    assert(has_flag(window_flag) || parent); // if `window_flag`, set, `_window` will be set by `_init_toplevel()`
    if (parent) {
-      UI_ASSERT(!parent->has_flag(destroy_flag));
+      assert(!parent->has_flag(destroy_flag));
       _window = parent->_window;
       parent->_children.push_back(this);
       parent->relayout();
@@ -2025,7 +2024,7 @@ void UISwitcher::switch_to(UIElement* child) {
    for (auto sw_child : _children)
       sw_child->set_flag(UIElement::hide_flag);
 
-   UI_ASSERT(child->_parent == this);
+   assert(child->_parent == this);
    child->clear_flag(UIElement::hide_flag);
    _active = child;
    measurements_changed(3);
@@ -2652,7 +2651,7 @@ int UIPainter::draw_string_highlighted(UIRectangle lineBounds, std::string_view 
       size_t bytesConsumed;
       int    c = Utf8GetCodePoint(string.data(), bytes, &bytesConsumed);
 
-      UI_ASSERT(bytesConsumed > 0);
+      assert(bytesConsumed > 0);
       string = string.substr(bytesConsumed);
       bytes -= bytesConsumed;
 #else
@@ -3688,7 +3687,7 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
          handled = _on_key_up_down(*this, m->code);
       } else if (m->code == UIKeycode::HOME || m->code == UIKeycode::END) {
          _move_to_end(m->code == UIKeycode::HOME, shift);
-      } else if (m->text.size() && !alt && !ctrl && m->text[0] >= 0x20) {
+      } else if (!m->text.empty() && !alt && !ctrl && m->text[0] >= 0x20) {
          replace_text(m->text, true);
       } else if ((m->is('c') || m->is('x') || m->code == UIKeycode::INSERT) && ctrl && !shift) {
          copy();
@@ -3962,8 +3961,8 @@ int UIMDIClient::_class_message_proc(UIMessage msg, int di, void* dp) {
       }
    } else if (msg == UIMessage::LAYOUT) {
       for (auto child : _children) {
-         UIMDIChild* mdiChild = (UIMDIChild*)child;
-         UI_ASSERT(mdiChild->_class_proc == UIMDIChild::_ClassMessageProc);
+         UIMDIChild* mdiChild = dynamic_cast<UIMDIChild*>(child);
+         assert(mdiChild->_class_proc == UIMDIChild::_ClassMessageProc);
 
          if (mdiChild->_mdi_bounds == UIRectangle(0)) {
             int width  = mdiChild->message(UIMessage::GET_WIDTH, 0, 0);
@@ -4001,7 +4000,7 @@ UIMDIChild::UIMDIChild(UIElement* parent, uint32_t flags, const UIRectangle& ini
    : UIElementCast<UIMDIChild>(parent, flags, UIMDIChild::_ClassMessageProc, "MDIChild")
    , _mdi_bounds(initialBounds)
    , _title(title) {
-   UI_ASSERT(parent->_class_proc == UIMDIClient::_ClassMessageProc);
+   assert(parent->_class_proc == UIMDIClient::_ClassMessageProc);
    auto* mdiClient = dynamic_cast<UIMDIClient*>(parent);
 
    mdiClient->_active = this;
@@ -4069,8 +4068,9 @@ int UIImageDisplay::_class_message_proc(UIMessage msg, int di, void* dp) {
          return 0;
 
       if (_zoom == 1) {
-         uint32_t*       lineStart       = painter->_bits + bounds.t * painter->_width + bounds.l;
-         const uint32_t* sourceLineStart = &_bb[bounds.l - image.l] + _bb.width * (bounds.t - image.t);
+         uint32_t*       lineStart = painter->_bits + static_cast<size_t>(bounds.t * painter->_width + bounds.l);
+         const uint32_t* sourceLineStart =
+            &_bb[bounds.l - image.l] + static_cast<size_t>(_bb.width * (bounds.t - image.t));
 
          for (int i = 0; i < bounds.b - bounds.t; i++, lineStart += painter->_width, sourceLineStart += _bb.width) {
             uint32_t*       destination = lineStart;
@@ -4399,7 +4399,7 @@ UIElement* UIElement::next_or_previous_sibling(bool previous) {
       }
    }
 
-   UI_ASSERT(false);
+   assert(false);
    return nullptr;
 }
 
@@ -4724,10 +4724,10 @@ UIPainter& UIPainter::draw_glyph(int x0, int y0, int c, uint32_t color) {
    assert(_bits != nullptr);
    UIRectangle rectangle = intersection(_clip, UIRectangle(x0, x0 + 8, y0, y0 + 16));
 
-   const uint8_t* data = reinterpret_cast<const uint8_t*>(_uiFont) + c * 16;
+   const uint8_t* data = reinterpret_cast<const uint8_t*>(_uiFont) + static_cast<size_t>(c * 16);
 
    for (int i = rectangle.t; i < rectangle.b; i++) {
-      uint32_t* bits = _bits + i * _width + rectangle.l;
+      uint32_t* bits = _bits + static_cast<size_t>(i * _width + rectangle.l);
       uint8_t   byte = data[i - y0];
 
       for (int j = rectangle.l; j < rectangle.r; j++) {
@@ -4947,7 +4947,7 @@ void UIInspector::notify_destroyed_window(UIWindow* window) {
 int UI::automation_run_tests() { return 1; }
 
 void UI::automation_process_message() {
-   int result;
+   int result = 0;
    UI::platform_message_loop_single(&result);
 }
 
@@ -5104,7 +5104,7 @@ enum atom_id_t {
 
 int UI::_platform_message_proc(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::DEALLOCATE) {
-      UIWindow* window     = (UIWindow*)el;
+      UIWindow* window     = dynamic_cast<UIWindow*>(el);
       window->_image->data = nullptr;
       XDestroyImage(window->_image);
       XDestroyIC(window->_xic);
@@ -5246,11 +5246,11 @@ std::string UI::selection::read_clipboard_text(UI& ui, UIWindow* w) {
    }
 
    if (event.type == SelectionNotify && event.xselection.selection == _atom && event.xselection.property) {
-      Atom target;
+      Atom target = 0;
       // This `itemAmount` is actually `bytes_after_return`
-      unsigned long size, itemAmount;
-      char*         data;
-      int           format;
+      unsigned long size = 0, itemAmount = 0;
+      char*         data = nullptr;
+      int           format = 0;
       const auto&   sel_event = event.xselection;
       XGetWindowProperty(sel_event.display, sel_event.requestor, sel_event.property, 0L, ~0L, 0, AnyPropertyType,
                          &target, &format, &size, &itemAmount, (unsigned char**)&data);
@@ -5286,7 +5286,7 @@ std::string UI::selection::read_clipboard_text(UI& ui, UIWindow* w) {
          if (event.type == PropertyNotify) {
             // The other case - PropertyDelete would be caused by us and can be ignored
             if (event.xproperty.state == PropertyNewValue) {
-               unsigned long chunkSize;
+               unsigned long chunkSize = 0;
 
                // Note that this call deletes the property.
                XGetWindowProperty(dpy, event.xproperty.window, event.xproperty.atom, 0L, ~0L, True, AnyPropertyType,
@@ -5474,22 +5474,22 @@ void UIWindow::endpaint(UIPainter* painter) const {
 
 void UIWindow::get_screen_position(int* _x, int* _y) const {
    Display* dpy = _ui->native_display();
-   Window   child;
+   Window   child = 0;
    XTranslateCoordinates(dpy, _window->_xwindow, DefaultRootWindow(dpy), 0, 0, _x, _y, &child);
 }
 
 UIMenu& UIMenu::show() {
    UI*      ui  = this->ui();
    Display* dpy = ui->native_display();
-   Window   child;
+   Window   child = 0;
 
    // Find the screen that contains the point the menu was created at.
    Screen* menuScreen = nullptr;
-   int     screenX, screenY;
+   int     screenX = 0, screenY = 0;
 
    for (int i = 0; i < ScreenCount(dpy); i++) {
       Screen* screen = ScreenOfDisplay(dpy, i);
-      int     x, y;
+      int     x = 0, y = 0;
       XTranslateCoordinates(dpy, screen->root, DefaultRootWindow(dpy), 0, 0, &x, &y, &child);
 
       if (_point.x >= x && _point.x < x + screen->width && _point.y >= y && _point.y < y + screen->height) {
@@ -5499,14 +5499,14 @@ UIMenu& UIMenu::show() {
       }
    }
 
-   int width, height;
+   int width = 0, height = 0;
    _prepare(&width, &height);
 
    {
       // Clamp the menu to the bounds of the window.
       // This step shouldn't be necessary with the screen clamping below, but there are some buggy X11 drivers that
       // report screen sizes incorrectly.
-      int       wx, wy;
+      int       wx = 0, wy = 0;
       UIWindow* parentWindow = this->_parent_window;
       XTranslateCoordinates(dpy, parentWindow->_xwindow, DefaultRootWindow(dpy), 0, 0, &wx, &wy, &child);
       if (_point.x + width > wx + (int)parentWindow->width())
@@ -5704,7 +5704,7 @@ bool UI::_process_x11_event(Display* dpy, XEvent* event) {
       } else {
          char   text[32];
          KeySym symbol = NoSymbol;
-         Status status;
+         Status status = 0;
          // std_print("{}, {}\n", symbol, text);
          UIKeyTyped m;
          auto       sz = Xutf8LookupString(window->_xic, &event->xkey, text, sizeof(text) - 1, &symbol, &status);
@@ -5766,7 +5766,7 @@ bool UI::_process_x11_event(Display* dpy, XEvent* event) {
       } else {
          char       text[32];
          KeySym     symbol = NoSymbol;
-         Status     status;
+         Status     status = 0;
          UIKeyTyped m;
          auto       sz = Xutf8LookupString(window->_xic, &event->xkey, text, sizeof(text) - 1, &symbol, &status);
          m.text        = {text, static_cast<size_t>(sz)};
@@ -5990,8 +5990,8 @@ void UI::set_focus(ui_handle window) const {
 }
 
 ui_handle UI::get_focus() const {
-   Window win;
-   int    revert_to_return;
+   Window win = 0;
+   int    revert_to_return = 0;
    XGetInputFocus(native_display(), &win, &revert_to_return);
    return static_cast<ui_handle>(win);
 }
@@ -6240,7 +6240,7 @@ UIWindow& UI::_platform_create_window(UIWindow* owner, uint32_t flags, const cha
       window->set_scale(owner->_scale);
 
    if (flags & UIWindow::MENU) {
-      UI_ASSERT(owner);
+      assert(owner);
 
       window->_hwnd = CreateWindowEx(WS_EX_TOPMOST | WS_EX_NOACTIVATE, "shadow", 0, WS_POPUP, 0, 0, 0, 0, owner->_hwnd,
                                      NULL, NULL, NULL);
