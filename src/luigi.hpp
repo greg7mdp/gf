@@ -2146,7 +2146,6 @@ struct INI_Updater {
       Section sect = _find_section(section_string);
 
       std::string config     = LoadFile(_path);
-      auto        insert_pos = config.find(section_string);
 
       std::ofstream ofs(_path, std::ofstream::out | std::ofstream::binary);
       if (!ofs)
