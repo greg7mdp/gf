@@ -49,12 +49,7 @@ set_property(TARGET luigi PROPERTY PUBLIC_HEADER src/luigi.hpp)
 if (NOT MSVC)
     target_link_libraries(luigi ${FREETYPE_LIBRARIES} ${X11_LIBRARIES})
     target_include_directories(luigi PUBLIC ${FREETYPE_INCLUDE_DIRS} PRIVATE ${X11_INCLUDE_DIR})
-    
-    target_compile_options(luigi PRIVATE -DUI_SSE2 -DUI_UNICODE)
-    target_compile_options(luigi PUBLIC  -DUI_LINUX -DUI_FREETYPE -DUI_FREETYPE_SUBPIXEL)
-else()
-    target_compile_options(luigi PRIVATE -DUI_SSE2)
-    target_compile_options(luigi PUBLIC -DUI_WINDOWS)
+    target_compile_options(luigi PUBLIC -DUI_FREETYPE -DUI_FREETYPE_SUBPIXEL)
 endif()
 
 ## ------------------------------------------------------------------------------------

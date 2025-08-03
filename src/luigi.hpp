@@ -33,6 +33,14 @@ using std::unique_ptr;
 
 #define UI_DEBUG 0
 #define UI_AUTOMATION_TESTS 1
+#define UI_SSE2
+
+#ifdef __linux__
+   #define UI_LINUX
+   #define UI_UNICODE # requires freetype
+#elif defined(_WIN32)
+   #define UI_WINDOWS
+#endif
 
 #ifdef UI_LINUX
    #include <X11/Xlib.h>
