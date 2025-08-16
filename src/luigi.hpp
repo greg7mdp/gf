@@ -18,6 +18,7 @@
 #include <cstring>
 #include <cctype>
 #include <charconv>
+#include <filesystem>
 #include <fstream>
 #include <functional>
 #include <memory>
@@ -30,6 +31,8 @@ using std::make_shared;
 using std::make_unique;
 using std::shared_ptr;
 using std::unique_ptr;
+
+namespace fs = std::filesystem;
 
 #define UI_DEBUG 0
 #define UI_AUTOMATION_TESTS 1
@@ -2091,6 +2094,8 @@ static_assert(std::ranges::input_range<INI_Parser>);
 struct INI_Updater {
    std::string _path;
 
+   INI_Updater(const fs::path& path) : _path(path.native()) {}
+
    struct Section {
       std::string config;     // the whole config file in a string
       size_t      start_pos;  // index of the section *after* section_string
@@ -2145,7 +2150,7 @@ struct INI_Updater {
    bool replace_section(std::string_view section_string, std::string_view text) {
       Section sect = _find_section(section_string);
 
-      std::string config     = LoadFile(_path);
+      std::string config = LoadFile(_path);
 
       std::ofstream ofs(_path, std::ofstream::out | std::ofstream::binary);
       if (!ofs)

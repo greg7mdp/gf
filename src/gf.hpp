@@ -181,7 +181,8 @@ public:
 
    std::string       get_path() const { return std::string{_path->text()}; }
    std::string       get_arguments() const { return std::string{_arguments->text()}; }
-   void              update_args(int incr); // should be -1, 0 or +1
+   void              update_args(const fs::path& prog_config_path, int incr, // should be -1, 0 or +1
+                                 bool update_exe_path);
 };
 
 

@@ -412,7 +412,7 @@ private:
    }
 
 public:
-   const std::string& get_prog_config_path() {
+   const fs::path& get_prog_config_path() {
       _prog_config_path = get_prog_config_dir();
 
       // and we have one config file for each program name. Update as path
@@ -422,7 +422,7 @@ public:
       _prog_config_path.append(exe.filename().native() + ".ini");
 
       // print("_prog_config_path={}\n", _prog_config_path);
-      return _prog_config_path.native();
+      return _prog_config_path;
    }
 
    const std::string& get_command_history_path() {
@@ -433,19 +433,17 @@ public:
       return _command_history_path.native();
    }
 
-   std::vector<std::string> get_progs() {
-      std::vector<std::string> res;
-      fs::path                 path{get_prog_config_dir()};
+   std::vector<fs::path> get_progs() {
+      std::vector<fs::path> res;
+      fs::path              path{get_prog_config_dir()};
       assert(fs::is_directory(path));
 
-      for (const auto& entry : fs::directory_iterator(path)) {
-         auto f = entry.path().filename().native();
-         if (f.ends_with(".ini"))
-            f.resize(f.size() - 4);
-         res.push_back(f);
-      }
+      for (const auto& entry : fs::directory_iterator(path))
+         res.push_back(entry);
+
       return res;
    }
+
 };
 
 GF_Config gfc;
@@ -5111,8 +5109,9 @@ void ExecutableWindow::save(bool confirm) {
       s_main_window->show_dialog(0, "Saved executable settings!\n%f%B", "OK");
 }
 
-void ExecutableWindow::update_args(int incr) { // should be -1, 0 or +1
-   INI_Updater ini{gfc.get_prog_config_path()};
+void ExecutableWindow::update_args(const fs::path& prog_config_path, int incr, // should be -1, 0 or +1
+                                   bool update_exe_path) {
+   INI_Updater ini{prog_config_path};
 
    ini.with_section("[program]\n", [&](std::string_view sv) {
       auto v = get_lines(sv);
@@ -5132,6 +5131,11 @@ void ExecutableWindow::update_args(int incr) { // should be -1, 0 or +1
       from_json(j, si);
       _arguments->select_all();
       _arguments->replace_text(si._args, false);
+
+      if (update_exe_path) {
+         _path->select_all();
+         _path->replace_text(si._path, false);
+      }
    });
 }
 
@@ -5146,18 +5150,20 @@ UIElement* ExecutableWindow::Create(UIElement* parent) {
             &p.add_textbox(0).replace_text(gfc._exe._path, false).on_key_up_down([win](UITextbox& t, UIKeycode code) {
                auto v = gfc.get_progs();
                if (!v.empty()) {
-                  auto& cur = win->_current_prog_index;
-                  cur       = std::clamp(cur, 0u, (uint32_t)v.size() - 1);
+                  auto cur = std::clamp(win->_current_prog_index, 0u, (uint32_t)v.size() - 1);
                   if (code == UIKeycode::DOWN) {
-                     cur = cur >= v.size() - 1 ? 0 : cur + 1;
+                     cur = (cur + 1) % v.size();
                   } else {
                      assert(code == UIKeycode::UP);
                      cur = cur == 0 ? v.size() - 1 : cur - 1;
                   }
-                  t.select_all();
-                  t.replace_text(v[cur], false);
-                  win->_current_arg_index = 0;
-                  win->update_args(0);
+                  if (cur != win->_current_prog_index) {
+                     win->_current_prog_index = cur;
+
+                     // switch to other prog
+                     win->_current_arg_index = 0;
+                     win->update_args(v[cur], 0, true);
+                  }
                }
                return true;
             });
@@ -5167,10 +5173,10 @@ UIElement* ExecutableWindow::Create(UIElement* parent) {
          win->_arguments =
             &p.add_textbox(0).replace_text(gfc._exe._args, false).on_key_up_down([win](UITextbox& t, UIKeycode code) {
                if (code == UIKeycode::DOWN) {
-                  win->update_args(1);
+                  win->update_args(gfc.get_prog_config_path(), 1, false);
                } else {
                   assert(code == UIKeycode::UP);
-                  win->update_args(-1);
+                  win->update_args(gfc.get_prog_config_path(), -1, false);
                }
                return true;
             });
@@ -8232,7 +8238,7 @@ int main(int argc, char** argv) {
 
       if (!INI_Updater{gfc.get_prog_config_path()}.replace_section("[watch]\n", ss.str())) {
          print(std::cerr, "Warning: Could not save the contents of the watch window; '{}' was not accessible.\n",
-               gfc.get_prog_config_path());
+               gfc.get_prog_config_path().native());
       }
    }
 
