@@ -307,6 +307,7 @@ struct FileImage {
    }
 };
 
+// --------------------------------------------------------------------------------------------
 struct HistoryManager : public FileImage {
    size_t _idx = 0; // current line of interest
    size_t _max_size;

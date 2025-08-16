@@ -1783,7 +1783,7 @@ int UIPanel::_calculate_per_fill(int* _count, int hSpace, int vSpace, float scal
    int  count = 0, fill = 0, perFill = 0;
 
    for (auto child : _children) {
-      if (child->has_flag(hide_flag | non_client_flag)) {
+      if (child->has_flag(hide_flag) || child->has_flag(non_client_flag)) {
          continue;
       }
 
@@ -1825,7 +1825,7 @@ int UIPanel::_measure(int di) {
    int  size       = 0;
 
    for (auto child : _children) {
-      if (child->has_flag(hide_flag | non_client_flag))
+      if (child->has_flag(hide_flag) || child->has_flag(non_client_flag))
          continue;
       int childSize = child->message(horizontal ? UIMessage::GET_HEIGHT : UIMessage::GET_WIDTH,
                                      child->has_flag(horizontal ? h_fill : v_fill) ? perFill : 0, 0);
@@ -1851,7 +1851,7 @@ int UIPanel::_layout(UIRectangle bounds, bool measure) {
    bool expand        = has_flag(UIPanel::EXPAND);
 
    for (auto child : _children) {
-      if (child->has_flag(hide_flag | non_client_flag)) {
+      if (child->has_flag(hide_flag) || child->has_flag(non_client_flag)) {
          continue;
       }
 
@@ -4824,7 +4824,7 @@ std::pair<UIElement*, size_t> _UIInspectorFindNthElement(UIElement* el, int* ind
    *index = *index - 1;
 
    for (auto child : el->_children) {
-      if (!child->has_flag(UIElement::destroy_flag | UIElement::hide_flag)) {
+      if (!child->has_flag(UIElement::destroy_flag) && !child->has_flag(UIElement::hide_flag)) {
          auto [result, depth] = _UIInspectorFindNthElement(child, index);
          if (result)
             return {result, depth + 1};
