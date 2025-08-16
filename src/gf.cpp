@@ -325,9 +325,9 @@ struct HistoryManager : public FileImage {
       _idx = _lines.size();
    }
 
-   std::optional<std::string_view> last_line() const {
+   std::optional<std::string_view> current_line() const {
       if (!_lines.empty())
-         return _lines[(_idx < _lines.size() - 1) ? _idx : _idx - 1];
+         return _lines[std::min(_idx, _lines.size() - 1)];
       return {};
    }
 
@@ -2824,7 +2824,7 @@ private:
             textbox->set_reject_next_key(true);
          } else if (m->code == UIKeycode::ENTER && !textbox->is_shift_on()) {
             if (!sz) {
-               if (auto sv = _history.last_line())
+               if (auto sv = _history.current_line())
                   CommandSendToGDB(*sv);
 
                return 1;
