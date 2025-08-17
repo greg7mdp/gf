@@ -40,6 +40,8 @@ enum class multiline_t { off, on };
 // ---------------------------------------------------
 // User interface:
 // ---------------------------------------------------
+struct ConsoleWindow;
+
 UIWindow*         s_main_window       = nullptr;
 UISwitcher*       s_main_switcher     = nullptr;
 UICode*           s_display_code      = nullptr;
@@ -51,6 +53,7 @@ UIMDIClient*      s_data_window       = nullptr;
 UIPanel*          s_data_tab          = nullptr;
 StackWindow*      s_stack_window      = nullptr;
 ExecutableWindow* s_executable_window = nullptr;
+ConsoleWindow*    s_console_window    = nullptr;
 
 // ---------------------------------------------------------------------------------------------
 //                              Generic Data structures
@@ -281,6 +284,8 @@ struct FileImage {
    std::vector<std::string> _lines;
 
    void set_path(std::string_view path) {
+      if (path != _path)
+         dump();
       _path = path;
       load();
    }
@@ -315,15 +320,24 @@ struct HistoryManager : public FileImage {
 
    static constexpr size_t  increment = 20;
 
-   HistoryManager(size_t max_size = 600, size_t incr = 20)
+   HistoryManager(size_t max_size = 512, size_t incr = 20)
       : _max_size(max_size)
-      , _size_incr(incr) {}
+      , _size_incr(incr) {
+      load();
+   }
 
    void add_line(std::string_view line) {
-      _lines.emplace_back(line);
-      if (_lines.size() > _max_size)
-         _lines.erase(_lines.cbegin(), _lines.cbegin() + _size_incr);
-      _idx = _lines.size();
+      if (_lines.empty() || _lines.back() != line) { // don't insert the same line twice in a row
+         _lines.emplace_back(line);
+         if (_lines.size() > _max_size)
+            _lines.erase(_lines.cbegin(), _lines.cbegin() + _size_incr);
+         _idx = _lines.size();
+         if (_idx % 20 == 0) {
+            try {
+               dump();
+            } catch (...) {}
+         }
+      }
    }
 
    std::optional<std::string_view> current_line() const {
@@ -334,16 +348,18 @@ struct HistoryManager : public FileImage {
 
    std::optional<std::string_view> incr(int offset) {
       assert(offset >= -1 && offset <= 1);
-      _idx = std::clamp(_idx, 0ul, _lines.size());
-      if (offset == 1) {
-         if (_idx < _lines.size() - 1) {
-            ++_idx;
-            return _lines[_idx];
-         }
-      } else if (offset == -1) {
-         if (_idx > 0) {
-            _idx--;
-            return _lines[_idx];
+      if (!_lines.empty()) {
+         _idx = std::clamp(_idx, 0ul, _lines.size());
+         if (offset == 1) {
+            if (_idx < _lines.size() - 1) {
+               ++_idx;
+               return _lines[_idx];
+            }
+         } else if (offset == -1) {
+            if (_idx > 0) {
+               _idx--;
+               return _lines[_idx];
+            }
          }
       }
       return {};
@@ -388,10 +404,8 @@ struct GF_Config {
 
 private:
    fs::path _prog_config_dir;      // <path>/.gf where path is `prog` dir or the one above
-   fs::path _prog_config_path;     // <path>/.gf/<progname>.ini where path is `prog` dir or the one above
-   fs::path _command_history_path; // <path>/.gf/gf.hist
 
-   fs::path get_prog_config_dir() {
+   const fs::path& get_prog_config_dir() {
       if (_prog_config_dir.empty()) {
          // start from current dir
          // ----------------------
@@ -411,26 +425,30 @@ private:
       return _prog_config_dir;
    }
 
-public:
-   const fs::path& get_prog_config_path() {
-      _prog_config_path = get_prog_config_dir();
+   // return <path>/.gf/<progname>.<extension> where path is `cwd` dir where `gf` was launched,
+   // or the one above
+   fs::path get_prog_path(std::string_view extension) {
+      auto path = get_prog_config_dir();
 
       // and we have one config file for each program name. Update as path
       // in executable window can change.
       // -----------------------------------------------------------------
       fs::path exe{s_executable_window->get_path()};
-      _prog_config_path.append(exe.filename().native() + ".ini");
+      path.append(exe.filename().native() + std::string(extension));
 
       // print("_prog_config_path={}\n", _prog_config_path);
-      return _prog_config_path;
+      return path;
    }
 
-   const std::string& get_command_history_path() {
-      if (_command_history_path.empty()) {
-         _command_history_path = get_prog_config_dir();
-         _command_history_path.append("gf.hist");
-      }
-      return _command_history_path.native();
+public:
+   // <path>/.gf/<progname>.ini
+   fs::path get_prog_config_path() {
+      return get_prog_path(".ini");
+   }
+
+   // <path>/.gf/<progname>.hist
+   fs::path get_command_history_path() {
+      return get_prog_path(".hist");
    }
 
    std::vector<fs::path> get_progs() {
@@ -2867,12 +2885,22 @@ private:
    }
 
 public:
+   void set_history_path(const std::string& history_file_path) {
+      _history.set_path(history_file_path);
+   }
+
+   void save_command_history() {
+      _history.dump();
+   }
+
    static int TextboxInputMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<ConsoleWindow*>(el->_cp)->_textbox_message_proc(dynamic_cast<UITextbox*>(el), msg, di, dp);
    }
 
    static UIElement* Create(UIElement* parent) {
       auto*    w       = new ConsoleWindow;
+      s_console_window = w;
+
       UIPanel* panel2  = &parent->add_panel(UIPanel::EXPAND);
       s_display_output = &panel2->add_code(UICode::NO_MARGIN | UIElement::v_fill | UICode::SELECTABLE);
       UIPanel* panel3  = &panel2->add_panel(UIPanel::HORIZONTAL | UIPanel::EXPAND | UIPanel::COLOR_1)
@@ -5042,6 +5070,8 @@ void ExecutableWindow::start_or_run(bool pause) {
       INI_Updater ini{gfc.get_prog_config_path()};
       ini.with_section("[breakpoints]\n", [&](std::string_view sv) { s_breakpoint_mgr.restore_breakpoints(sv); });
    }
+
+   s_console_window->set_history_path(gfc.get_command_history_path().native());
 
    if (!pause) {
       (void)CommandParseInternal("run", false);
@@ -8259,6 +8289,8 @@ int main(int argc, char** argv) {
          print(std::cerr, "Warning: Could not save breakpoints.");
       }
    }
+
+   s_console_window->save_command_history();
 
    return 0;
 }
