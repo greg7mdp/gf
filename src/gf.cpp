@@ -686,11 +686,15 @@ def gf_locals():
     try:
         frame = gdb.selected_frame()
         block = frame.block()
+        sal = gdb.find_pc_line(frame.pc())
+        cur_line = sal.line if (sal and sal.symtab and sal.line) else 0
     except:
         return
     names = set()
     while block and not (block.is_global or block.is_static):
         for symbol in block:
+            if symbol.line >= cur_line or not symbol.is_valid:
+                continue
             if (symbol.is_argument or symbol.is_variable or symbol.is_constant):
                 names.add(symbol.name)
         block = block.superblock
@@ -7660,7 +7664,8 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
    ctx._program_running = false;
 
    if (ctx._first_update) {
-      (void)ctx.eval_command(pythonCode);
+      auto eval_res = ctx.eval_command(pythonCode);
+      // print("python code eval ==> {}\n", eval_res);
 
       if (gfc._restore_watch_window) {
          INI_Updater ini{gfc.get_prog_config_path()};
