@@ -168,7 +168,7 @@ static inline T sv_atoi_impl(string_view str, size_t offset = 0) {
    return negative ? result : -result;
 }
 
-static inline char* mk_cstring(std::string_view sv) {
+static inline char* mk_cstring(string_view sv) {
    auto  sz = sv.size();
    auto* s  = new char[sz + 1];
    for (size_t i = 0; i < sz; ++i)
@@ -193,7 +193,7 @@ static inline uint32_t sv_atoui(string_view str, size_t offset = 0) { return sv_
    return sv_atoi_impl<uint64_t>(str, offset);
 }
 
-void print(const std::string_view str) { std::cout << str; }
+void print(const string_view str) { std::cout << str; }
 
 // Variadic template for print with format arguments
 template <typename... Args>
@@ -222,7 +222,7 @@ void set_thread_name(const char* name) {
 
 // hacky way to remove all occurences of `pattern` from `str`
 // ----------------------------------------------------------
-void remove_pattern(std::string& str, std::string_view pattern) {
+void remove_pattern(std::string& str, string_view pattern) {
    char* s = const_cast<char*>(str.c_str());
    for (size_t i = 0; s[i]; ++i) {
       bool pattern_matches = strncmp(&s[i], &pattern[0], pattern.size()) == 0;
@@ -283,7 +283,7 @@ struct FileImage {
    std::string              _path;
    std::vector<std::string> _lines;
 
-   void set_path(std::string_view path) {
+   void set_path(string_view path) {
       if (path != _path)
          dump();
       _path = path;
@@ -298,7 +298,7 @@ struct FileImage {
       _lines.clear();
       auto data = LoadFile(_path);
       _lines.reserve(data.size() / 50);
-      for_each_line(data, [&](std::string_view sv) { _lines.emplace_back(sv); return false; });
+      for_each_line(data, [&](string_view sv) { _lines.emplace_back(sv); return false; });
    }
 
    void dump() {
@@ -326,7 +326,7 @@ struct HistoryManager : public FileImage {
       load();
    }
 
-   void add_line(std::string_view line) {
+   void add_line(string_view line) {
       if (_lines.empty() || _lines.back() != line) { // don't insert the same line twice in a row
          _lines.emplace_back(line);
          if (_lines.size() > _max_size)
@@ -340,13 +340,13 @@ struct HistoryManager : public FileImage {
       }
    }
 
-   std::optional<std::string_view> current_line() const {
+   std::optional<string_view> current_line() const {
       if (!_lines.empty())
          return _lines[std::min(_idx, _lines.size() - 1)];
       return {};
    }
 
-   std::optional<std::string_view> incr(int offset) {
+   std::optional<string_view> incr(int offset) {
       assert(offset >= -1 && offset <= 1);
       if (!_lines.empty()) {
          _idx = std::clamp(_idx, 0ul, _lines.size());
@@ -427,7 +427,7 @@ private:
 
    // return <path>/.gf/<progname>.<extension> where path is `cwd` dir where `gf` was launched,
    // or the one above
-   fs::path get_prog_path(std::string_view extension) {
+   fs::path get_prog_path(string_view extension) {
       auto path = get_prog_config_dir();
 
       // and we have one config file for each program name. Update as path
@@ -714,7 +714,7 @@ bool        CommandInspectLine();
 // Utilities:
 // ------------------------------------------------------
 
-inline uint64_t Hash(std::string_view sv) {
+inline uint64_t Hash(string_view sv) {
    uint64_t hash = 0xCBF29CE484222325;
    for (auto c : sv)
       hash = (hash ^ c) * 0x100000001B3;
@@ -1064,7 +1064,7 @@ void StackWindow::update_stack() {
       position                 = strchr(position, ' ');
       if (!position || position >= next)
          break;
-      entry._function = std::string_view{functionName, static_cast<size_t>(position - functionName)};
+      entry._function = string_view{functionName, static_cast<size_t>(position - functionName)};
 
       const char* file = strstr(position, " at ");
 
@@ -1073,7 +1073,7 @@ void StackWindow::update_stack() {
          const char* end = file;
          while (*end != '\n' && end < next)
             end++;
-         entry._location = std::string_view{file, static_cast<size_t>(end - file)};
+         entry._location = string_view{file, static_cast<size_t>(end - file)};
       }
 
       append(entry);
@@ -1170,7 +1170,7 @@ private:
       string   _condition;
       uint64_t _condition_hash = 0; // hash of _condition, computed
 
-      [[nodiscard]] bool match(int line, std::string_view path) const { return _line == line && path == _full_path; }
+      [[nodiscard]] bool match(int line, string_view path) const { return _line == line && path == _full_path; }
 
       void command(bp_command cmd) const {
          const char* s = nullptr;
@@ -1224,7 +1224,7 @@ public:
    [[nodiscard]] size_t num_breakpoints() const { return _breakpoints.size(); }
 
    template <class F>
-   void for_all_matching_breakpoints(int line, std::string_view path, F&& f) {
+   void for_all_matching_breakpoints(int line, string_view path, F&& f) {
       for (size_t i = 0; i < _breakpoints.size(); i++) {
          if (_breakpoints[i].match(line, path)) {
             std::forward<F>(f)(i, _breakpoints[i]);
@@ -1263,12 +1263,12 @@ public:
       (void)ctx.send_command_to_debugger(std::format("b {}:{}", s_source_window->_current_file, line), true, false);
    }
 
-   void restore_breakpoints(std::string_view sv) {
+   void restore_breakpoints(string_view sv) {
       for (size_t idx = 0; idx < sv.size();) {
          size_t end = sv.find('\n', idx);
          if (end == std::string::npos)
             break;
-         auto       j = json_parse(std::string_view{&sv[idx], end - idx});
+         auto       j = json_parse(string_view{&sv[idx], end - idx});
          Breakpoint bp;
          from_json(j, bp);
 
@@ -1326,7 +1326,7 @@ public:
          if (condition && condition < next) {
             const char* end = strchr(condition, '\n');
             condition += 13;
-            breakpoint._condition      = std::string_view{condition, static_cast<size_t>(end - condition)};
+            breakpoint._condition      = string_view{condition, static_cast<size_t>(end - condition)};
             breakpoint._condition_hash = Hash(breakpoint._condition); // leave it there, used for `bp._multiple`
          }
 
@@ -1345,7 +1345,7 @@ public:
             if (end && isdigit(end[1])) {
                if (file[0] == '.' && file[1] == '/')
                   file += 2;
-               breakpoint._file = std::string_view{file, static_cast<size_t>(end - file)};
+               breakpoint._file = string_view{file, static_cast<size_t>(end - file)};
                breakpoint._line = sv_atoi(end, 1);
             } else
                recognised = false;
@@ -1373,7 +1373,7 @@ public:
                   const char* end = strchr(address, '\n');
                   if (end) {
                      breakpoint._watchpoint = true;
-                     breakpoint._file       = std::string_view{address, static_cast<size_t>(end - address)};
+                     breakpoint._file       = string_view{address, static_cast<size_t>(end - address)};
                      _breakpoints.push_back(std::move(breakpoint).update());
                   }
                }
@@ -1756,7 +1756,7 @@ UIConfig Context::load_settings(bool earlyPass) {
                   }
 
                   std_format_to_n(buffer, sizeof(buffer), "{}",
-                                  std::string_view{&val[argumentStart], (argumentEnd - argumentStart)});
+                                  string_view{&val[argumentStart], (argumentEnd - argumentStart)});
                   _gdb_argv.emplace_back(mk_cstring(buffer));
                }
             } else if (key == "path") {
@@ -1881,7 +1881,7 @@ bool SourceWindow::display_set_position(const char* file, std::optional<size_t> 
             const char* end = strchr(f, '\n');
 
             if (end) {
-               cleaned_file = std::string_view{f, static_cast<size_t>(end - f)};
+               cleaned_file = string_view{f, static_cast<size_t>(end - f)};
             }
          }
       }
@@ -2082,7 +2082,7 @@ void SourceWindow::draw_inspect_line_mode_overlay(UIPainter* painter) {
    if (!currentLine)
       return;
 
-   std::string_view cur_line = s_display_code->line(*currentLine);
+   string_view cur_line = s_display_code->line(*currentLine);
    for (auto c : cur_line) {
       if (c == '\t' || c == ' ') {
          xOffset += (c == '\t' ? 4 : 1) * active_font->_glyph_width;
@@ -2335,7 +2335,7 @@ void SourceWindow::_update(const char* data, UICode* el) {
 #endif
 
       // Parse the new source line.
-      std::string_view text_sv  = s_display_code->line(*currentLine);
+      string_view text_sv  = s_display_code->line(*currentLine);
       size_t           bytes    = text_sv.size();
       const char*      text     = &text_sv[0];
       uintptr_t        position = 0;
@@ -2398,7 +2398,7 @@ void SourceWindow::_update(const char* data, UICode* el) {
 
       if (position != bytes && text[position] == '=') {
          std_format_to_n(&_auto_print_expression[0], sizeof(_auto_print_expression), "{}",
-                         std::string_view{text + expressionStart, expressionEnd - expressionStart});
+                         string_view{text + expressionStart, expressionEnd - expressionStart});
       }
 
       _auto_print_expression_line = *currentLine + 1;
@@ -2838,8 +2838,8 @@ private:
          bool                lastKeyWasTab = tabCompleter._last_key_was_tab;
          tabCompleter._last_key_was_tab    = false;
 
-         std::string_view cur_text = textbox->text();
-         auto             sz       = cur_text.size();
+         string_view cur_text = textbox->text();
+         auto        sz       = cur_text.size();
 
          if (m->text == "`" && !textbox->is_ctrl_on() && !textbox->is_alt_on() && !sz) {
             textbox->set_reject_next_key(true);
@@ -2945,7 +2945,7 @@ private:
    Watch*      _parent       = nullptr;
    uint64_t    _update_index = 0;
 
-   [[nodiscard]] std::string evaluate(std::string_view function) const {
+   [[nodiscard]] std::string evaluate(string_view function) const {
       char      buffer[4096];
       uintptr_t position = 0;
 
@@ -3389,20 +3389,19 @@ public:
          if (newFrame) {
             _last_local_list = res;
 
-            char*         buffer = strdup(res.c_str());
-            char*         s      = buffer;
-            char*         end = nullptr;
-            vector<char*> expressions = {};
+            const char*         s           = res.c_str();
+            const char*         end         = nullptr;
+            vector<string_view> expressions = {};
 
             // we get a list of variables separated by `\n` characters, followed by the prompt
             // extract all the variable names into `expressions`.
             // we could use a regex here
             // -------------------------------------------------------------------------------
             while ((end = strchr(s, '\n')) != nullptr) {
-               *end = '\0';
-               if (strstr(s, "(gdb)"))
+               auto sv = string_view{s, static_cast<size_t>(end - s)};
+               if (sv.starts_with("(gdb)"))
                   break;
-               expressions.push_back(s);
+               expressions.push_back(sv);
                s = end + 1;
             }
 
@@ -3411,7 +3410,7 @@ public:
                   const shared_ptr<Watch>& watch   = _base_expressions[watchIndex];
                   bool                     matched = false;
 
-                  if (auto it = rng::find_if(expressions, [&](char* e) { return watch->_key == e; });
+                  if (auto it = rng::find_if(expressions, [&](string_view e) { return watch->_key == e; });
                       it != rng::end(expressions)) {
                      expressions.erase(it);
                      matched = true;
@@ -3440,9 +3439,6 @@ public:
 
                _selected_row = _rows.size();
             }
-
-            free(buffer);
-            expressions.clear();
          }
       }
 
@@ -4145,7 +4141,7 @@ void WatchWindow::WatchChangeLoggerCreate() {
          if (expressionsToEvaluate[i] == ';' || !expressionsToEvaluate[i]) {
             position +=
                std_format_to_n(logger->_columns + position, sizeof(logger->_columns) - position, "\t{}",
-                               std::string_view{&expressionsToEvaluate[start], static_cast<size_t>(i - start)});
+                               string_view{&expressionsToEvaluate[start], static_cast<size_t>(i - start)});
             start = i + 1;
          }
 
@@ -4829,7 +4825,7 @@ public:
          const char* stringEnd   = format2End;
 
          RegisterData data;
-         data._string  = std::string_view{stringStart, static_cast<size_t>(stringEnd - stringStart)};
+         data._string  = string_view{stringStart, static_cast<size_t>(stringEnd - stringStart)};
          bool modified = false;
 
          if (_reg_data.size() > new_reg_data.size()) {
@@ -4867,8 +4863,8 @@ public:
 
             int position = strlen(ap_result.data());
             std_format_to_n(&ap_result[position], sizeof(ap_result) - position, "{}={}",
-                            std::string_view{nameStart, static_cast<size_t>(nameEnd - nameStart)},
-                            std::string_view{format1Start, static_cast<size_t>(format1End - format1Start)});
+                            string_view{nameStart, static_cast<size_t>(nameEnd - nameStart)},
+                            string_view{format1Start, static_cast<size_t>(format1End - format1Start)});
          }
       }
 
@@ -5072,7 +5068,7 @@ void ExecutableWindow::start_or_run(bool pause) {
       gfc._breakpoints_restored = true;
 
       INI_Updater ini{gfc.get_prog_config_path()};
-      ini.with_section("[breakpoints]\n", [&](std::string_view sv) { s_breakpoint_mgr.restore_breakpoints(sv); });
+      ini.with_section("[breakpoints]\n", [&](string_view sv) { s_breakpoint_mgr.restore_breakpoints(sv); });
    }
 
    s_console_window->set_history_path(gfc.get_command_history_path().native());
@@ -5103,7 +5099,7 @@ void ExecutableWindow::save_prog_args(const std::string& text) {
    bool        present = false;
    std::string old_section;
 
-   ini.with_section("[program]\n", [&](std::string_view sv) {
+   ini.with_section("[program]\n", [&](string_view sv) {
       present = sv.find(text) != std::string::npos;
       if (!present)
          old_section = sv;
@@ -5147,7 +5143,7 @@ void ExecutableWindow::update_args(const fs::path& prog_config_path, int incr, /
                                    bool update_exe_path) {
    INI_Updater ini{prog_config_path};
 
-   ini.with_section("[program]\n", [&](std::string_view sv) {
+   ini.with_section("[program]\n", [&](string_view sv) {
       auto v = get_lines(sv);
       if (v.empty())
          return;
@@ -7669,7 +7665,7 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
 
       if (gfc._restore_watch_window) {
          INI_Updater ini{gfc.get_prog_config_path()};
-         ini.with_section("[watch]\n", [&](std::string_view watches) {
+         ini.with_section("[watch]\n", [&](string_view watches) {
             // print ("watches={}\n", watches);
             for (size_t idx = 0; idx < watches.size();) {
                size_t end = watches.find('\n', idx);
@@ -8058,7 +8054,7 @@ const char* InterfaceLayoutNextToken(const char*& current, const char* expected 
 
 void Context::additional_setup() {
    if (s_display_code && firstWatchWindow) {
-      s_display_code->add_selection_menu_item("Add watch", [&](std::string_view sel) { WatchAddExpression(sel); });
+      s_display_code->add_selection_menu_item("Add watch", [&](string_view sel) { WatchAddExpression(sel); });
    }
 }
 
