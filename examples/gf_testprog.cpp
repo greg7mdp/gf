@@ -2,6 +2,7 @@
 #include <iostream>
 #include <variant>
 #include <string>
+#include <cstdint>
 #include <algorithm>
 
 using namespace std;

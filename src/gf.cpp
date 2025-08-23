@@ -12,7 +12,6 @@
 
 #include "gf.hpp"
 
-namespace views        = std::views;
 namespace rng          = std::ranges;
 static const auto npos = std::string::npos;
 
@@ -90,7 +89,7 @@ public:
 
    void signal_quit() {
       _quit = true;
-      _cv.notify_one();
+      _cv.notify_all();
    }
 
    bool is_quitting() { return _quit; }
