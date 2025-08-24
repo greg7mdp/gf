@@ -177,7 +177,7 @@ std::unordered_map<std::string, UITheme> ui_themes{
 // ---------------------------------------------------------------------------------------------
 //                              Utilities
 // ---------------------------------------------------------------------------------------------
-std::string LoadFile(std::string_view sv_path) {
+std::optional<std::string> LoadFile(std::string_view sv_path) {
    bool null_terminated =
       (sv_path[sv_path.size()] == 0); // ahhh ugly accessing past the end of the `string_view`, hopefully OK.
    std::ifstream ifs(null_terminated ? sv_path.data() : std::string{sv_path}.c_str(), std::ifstream::binary);
@@ -195,7 +195,7 @@ std::string LoadFile(std::string_view sv_path) {
    });
    s.resize(sz); // shouldn't be necessary
 
-   return s;
+   return std::optional<std::string>{std::move(s)};
 }
 
 #if 0
@@ -2549,11 +2549,20 @@ inline void UIScrollbarPair::key_input_vscroll(UIKeyTyped* m, int rowHeight, int
 // --------------------------------------------------
 // Code views.
 // --------------------------------------------------
+UICode::buffer_mgr_t UICode::buffer_mgr;
 
-UICode::buffer_ptr UICode::buffer_mgr::load_buffer(const std::string& path, std::optional<std::string_view> err /* = {} */) {
+std::optional<UICode::buffer_ptr> UICode::buffer_mgr_t::load_buffer(const std::string& path, std::optional<std::string_view> err /* = {} */) {
    if (auto it = _buffers.find(path); it != _buffers.end())
       return it->second;
-   return {};
+
+   std::optional<std::string> contents = LoadFile(path);
+   if (!contents)
+      return {};
+
+   auto buff = std::make_shared<buffer_t>();
+   buff->insert_content(*contents);
+   _buffers[path] = buff;
+   return std::optional<UICode::buffer_ptr>{buff};
 }
 
 int UICode::column_to_byte(size_t ln, size_t column) const {
@@ -2570,11 +2579,11 @@ UICode& UICode::clear() {
 }
 
 UICode& UICode::load_file(const std::string& path, std::optional<std::string_view> err /* = {} */) {
-   std::string buff = LoadFile(path);
-   if (buff.empty())
+   std::optional<std::string> buff = LoadFile(path);
+   if (!buff)
       insert_content(err ? *err : std::format("The file '{}' could not be loaded.\n", path), true);
    else
-      insert_content(buff, true);
+      insert_content(*buff, true);
    _current_line.reset();
    return *this;
 }

@@ -296,8 +296,13 @@ struct FileImage {
          return;
       _lines.clear();
       auto data = LoadFile(_path);
-      _lines.reserve(data.size() / 50);
-      for_each_line(data, [&](string_view sv) { _lines.emplace_back(sv); return false; });
+      if (data) {
+         _lines.reserve(data->size() / 50);
+         for_each_line(*data, [&](string_view sv) {
+            _lines.emplace_back(sv);
+            return false;
+         });
+      }
    }
 
    void dump() {
@@ -1543,20 +1548,25 @@ static void CommandCustom(string_view command) {
          s_display_output->insert_content(std::format("Running shell command \"{}\"...\n", command), false);
       int         start  = time(nullptr);
       int         result = system(std::format("{} > .output.gf 2>&1", command).c_str());
-      std::string output = LoadFile(".output.gf");
-      size_t      bytes  = output.size();
+      std::optional<std::string> output = LoadFile(".output.gf");
       unlink(".output.gf");
+      if (!output)
+         return;
+
+      const std::string& out = *output;
+
+      size_t      bytes  = out.size();
 
       std::string copy;
-      copy.resize_and_overwrite(output.size(), [&](char* p, size_t sz) {
+      copy.resize_and_overwrite(out.size(), [&](char* p, size_t sz) {
          size_t j = 0;
          for (size_t i = 0; i <= bytes;) {
-            if (static_cast<uint8_t>(output[i]) == 0xE2 && static_cast<uint8_t>(output[i + 1]) == 0x80 &&
-                (static_cast<uint8_t>(output[i + 2]) == 0x98 || static_cast<uint8_t>(output[i + 2]) == 0x99)) {
+            if (static_cast<uint8_t>(out[i]) == 0xE2 && static_cast<uint8_t>(out[i + 1]) == 0x80 &&
+                (static_cast<uint8_t>(out[i + 2]) == 0x98 || static_cast<uint8_t>(out[i + 2]) == 0x99)) {
                p[j++] = '\'';
                i += 3;
             } else {
-               p[j++] = output[i++];
+               p[j++] = out[i++];
             }
          }
          return j;
@@ -1624,8 +1634,10 @@ UIConfig Context::load_settings(bool earlyPass) {
    // load global config first (from ~/.config/gf2_config.ini), and then local config
    for (int i = 0; i < 2; i++) {
       const auto config = LoadFile(i ? gfc._local_config_path : gfc._global_config_path);
+      if (!config)
+         continue;
 
-      if (earlyPass && i && !currentFolderIsTrusted && !config.empty()) {
+      if (earlyPass && i && !currentFolderIsTrusted && !config->empty()) {
          print(std::cerr, "Would you like to load the config file .project.gf from your current directory?\n");
          print(std::cerr, "You have not loaded this config file before.\n");
          print(std::cerr, "(Y) - Yes, and add it to the list of trusted files\n");
@@ -1642,7 +1654,7 @@ UIConfig Context::load_settings(bool earlyPass) {
          break;
       }
 
-      INI_Parser config_view(config);
+      INI_Parser config_view(*config);
 
       for (auto parse_res : config_view) {
          auto [section, key, value] = parse_res;

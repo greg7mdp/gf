@@ -176,7 +176,7 @@ void print(FILE* f, std::format_string<Args...> fmt, Args&&... args) {
    fprintf(f, "%s", formatted.c_str());
 }
 
-std::string LoadFile(std::string_view path); // load whole file into string
+std::optional<std::string> LoadFile(std::string_view path); // load whole file into string
 
 template<class T>
 inline T ui_atoi(std::string_view sv) {
@@ -1374,12 +1374,12 @@ private:
    // ------------------------------------------------------------------------------------------
    // Stores loaded files to avoid reloading them all the time
    // ------------------------------------------------------------------------------------------
-   struct buffer_mgr {
+   struct buffer_mgr_t {
    private:
       std::unordered_map<std::string, buffer_ptr> _buffers;
 
    public:
-      buffer_ptr load_buffer(const std::string& path, std::optional<std::string_view> err = {});
+      std::optional<UICode::buffer_ptr> load_buffer(const std::string& path, std::optional<std::string_view> err = {});
    };
 
    struct menu_item {
@@ -1400,6 +1400,8 @@ private:
    bool                    _use_vertical_motion_column       = false;
    std::array<code_pos_t, 4> _sel{};                            // start, end (ordered), anchor, caret (unordered)
    std::vector<menu_item>  _menu_items;                       // added to right click menu on selection
+
+   static buffer_mgr_t buffer_mgr;
 
    UICode&    _set_vertical_motion_column(bool restore);
 
@@ -2207,7 +2209,9 @@ struct INI_Updater {
    bool replace_section(std::string_view section_string, std::string_view text) {
       Section sect = _find_section(section_string);
 
-      std::string config = LoadFile(_path);
+      std::optional<std::string> config = LoadFile(_path);
+      if (!config)
+         return false;
 
       std::ofstream ofs(_path, std::ofstream::out | std::ofstream::binary);
       if (!ofs)
@@ -2219,11 +2223,11 @@ struct INI_Updater {
             ofs << '\n';
          ofs << section_string << text;
       } else {
-         ofs << config.substr(0, sect.start_pos);
+         ofs << config->substr(0, sect.start_pos);
          ofs << text;
 
          if (sect.end_pos != std::string::npos)
-            ofs << config.substr(sect.end_pos, sect.config.size());
+            ofs << config->substr(sect.end_pos, sect.config.size());
       }
       return true;
    }
@@ -2233,7 +2237,10 @@ private:
    // ------------------------------------------------------------------
    Section _find_section(std::string_view section_string) {
       Section sect;
-      sect.config = LoadFile(_path);
+      auto    contents = LoadFile(_path);
+      if (!contents)
+         return {};
+      sect.config = std::move(*contents);
       sect.start_pos = sect.config.find(section_string);
       if (sect.start_pos != std::string::npos) {
          sect.start_pos  += section_string.size();
