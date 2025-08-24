@@ -1379,7 +1379,7 @@ private:
       std::unordered_map<std::string, buffer_ptr> _buffers;
 
    public:
-      std::optional<UICode::buffer_ptr> load_buffer(const std::string& path, std::optional<std::string_view> err = {});
+      UICode::buffer_ptr load_buffer(const std::string& path, std::optional<std::string_view> err = {});
    };
 
    struct menu_item {

@@ -2551,18 +2551,19 @@ inline void UIScrollbarPair::key_input_vscroll(UIKeyTyped* m, int rowHeight, int
 // --------------------------------------------------
 UICode::buffer_mgr_t UICode::buffer_mgr;
 
-std::optional<UICode::buffer_ptr> UICode::buffer_mgr_t::load_buffer(const std::string& path, std::optional<std::string_view> err /* = {} */) {
+UICode::buffer_ptr UICode::buffer_mgr_t::load_buffer(const std::string& path, std::optional<std::string_view> err /* = {} */) {
    if (auto it = _buffers.find(path); it != _buffers.end())
       return it->second;
 
-   std::optional<std::string> contents = LoadFile(path);
-   if (!contents)
-      return {};
-
    auto buff = std::make_shared<buffer_t>();
-   buff->insert_content(*contents);
-   _buffers[path] = buff;
-   return std::optional<UICode::buffer_ptr>{buff};
+   std::optional<std::string> contents = LoadFile(path);
+   if (contents) {
+      buff->insert_content(*contents);
+      _buffers[path] = buff;
+   } else {
+      buff->insert_content(err ? *err : std::format("The file '{}' could not be loaded.\n", path));
+   }
+   return buff;
 }
 
 int UICode::column_to_byte(size_t ln, size_t column) const {
@@ -2579,11 +2580,15 @@ UICode& UICode::clear() {
 }
 
 UICode& UICode::load_file(const std::string& path, std::optional<std::string_view> err /* = {} */) {
-   std::optional<std::string> buff = LoadFile(path);
-   if (!buff)
-      insert_content(err ? *err : std::format("The file '{}' could not be loaded.\n", path), true);
-   else
-      insert_content(*buff, true);
+   if (has_flag(UICode::MANAGE_BUFFER)) {
+      _buffer = buffer_mgr.load_buffer(path, err);
+   } else {
+      std::optional<std::string> buff = LoadFile(path);
+      if (!buff)
+         insert_content(err ? *err : std::format("The file '{}' could not be loaded.\n", path), true);
+      else
+         insert_content(*buff, true);
+   }
    _current_line.reset();
    return *this;
 }
