@@ -2550,6 +2550,12 @@ inline void UIScrollbarPair::key_input_vscroll(UIKeyTyped* m, int rowHeight, int
 // Code views.
 // --------------------------------------------------
 
+UICode::buffer_ptr UICode::buffer_mgr::load_buffer(const std::string& path, std::optional<std::string_view> err /* = {} */) {
+   if (auto it = _buffers.find(path); it != _buffers.end())
+      return it->second;
+   return {};
+}
+
 int UICode::column_to_byte(size_t ln, size_t column) const {
    return UI::column_to_byte(line(ln), column, tab_columns());
 }
@@ -2557,14 +2563,13 @@ int UICode::column_to_byte(size_t ln, size_t column) const {
 int UICode::byte_to_column(size_t ln, size_t byte) const { return UI::byte_to_column(line(ln), byte, tab_columns()); }
 
 UICode& UICode::clear() {
-   _content.clear();
-   _lines.clear();
-   _max_columns = 0;
+   assert(!has_flag(UICode::MANAGE_BUFFER));
+   _buffer->clear();
    _sel         = {};
    return *this;
 }
 
-UICode& UICode::load_file(const char* path, std::optional<std::string_view> err /* = {} */) {
+UICode& UICode::load_file(const std::string& path, std::optional<std::string_view> err /* = {} */) {
    std::string buff = LoadFile(path);
    if (buff.empty())
       insert_content(err ? *err : std::format("The file '{}' could not be loaded.\n", path), true);
@@ -2574,19 +2579,18 @@ UICode& UICode::load_file(const char* path, std::optional<std::string_view> err 
    return *this;
 }
 
-UICode::code_pos UICode::code_pos_from_point(UIPoint pt) {
-   UI*      ui           = this->ui();
-   UIFont*  previousFont = _font->activate();
+UICode::code_pos_t UICode::code_pos_from_point(UIPoint pt) {
+   with_font fnt(_font); // measure using _font
+   UI* ui = this->ui();
    int      lineHeight   = ui->string_height();
    UIFont*  active_font  = ui->active_font();
-   code_pos pos;
+   code_pos_t pos;
    pos.line = std::max(static_cast<int64_t>(0), (pt.y - _bounds.t + _vscroll->position()) / lineHeight);
    if (pos.line >= num_lines())
       pos.line = num_lines() - 1;
    int column = (pt.x - _bounds.l + _hscroll->position() + active_font->_glyph_width / 2) / active_font->_glyph_width;
    if (!has_flag(UICode::NO_MARGIN))
       column -= (ui->code_margin() + ui->code_margin_gap()) / active_font->_glyph_width;
-   previousFont->activate();
    pos.offset = column_to_byte(pos.line, column);
    return pos;
 }
@@ -2602,10 +2606,9 @@ int UICode::hittest(int x, int y) {
 
    y -= _bounds.t - _vscroll->position();
 
-   UIFont* previousFont = _font->activate();
+   with_font fnt(_font); // measure using _font
    int     lineHeight   = ui->string_height();
    bool    inMargin     = x < ui->code_margin() + ui->code_margin_gap() / 2 && !has_flag(UICode::NO_MARGIN);
-   previousFont->activate();
 
    if (y < 0 || y >= lineHeight * static_cast<int>(num_lines())) {
       return 0;
@@ -2781,7 +2784,7 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::LAYOUT) {
       auto str_height = ui->string_height();
 
-      UIFont* previousFont  = font()->activate();
+      with_font fnt(font()); // measure using font()
       int     scrollBarSize = scale(ui_size::scroll_bar);
       _vscroll->set_maximum(num_lines() * str_height);
       _hscroll->set_maximum(max_columns() * font()->_glyph_width); // TODO This doesn't take into account tab sizes!
@@ -2809,9 +2812,8 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
          hSpace -= ui->code_margin() + ui->code_margin_gap();
       layout_scrollbar_pair(hSpace, vSpace, scrollBarSize, this);
 
-      previousFont->activate();
    } else if (msg == UIMessage::PAINT) {
-      UIFont* previousFont = font()->activate();
+      with_font fnt(font()); // measure using font()
 
       auto*       painter    = static_cast<UIPainter*>(dp);
       UIRectangle lineBounds = _bounds;
@@ -2896,8 +2898,6 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
 
          lineBounds.t += lineHeight;
       }
-
-      previousFont->activate();
    } else if (msg == UIMessage::SCROLLED) {
       _move_scroll_to_focus_next_layout = false;
       refresh();
@@ -2938,23 +2938,24 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
          }
          set_last_animate_time(current);
 
-         UIFont* previousFont = font()->activate();
-         auto    pos          = cursor_pos();
-         if (pos.x < _bounds.l + (has_flag(UICode::NO_MARGIN) ? ui->code_margin_gap()
-                                                              : (ui->code_margin() + ui->code_margin_gap() * 2))) {
-            _hscroll->position() -= delta;
-         } else if (pos.x >= _vscroll->_bounds.l - ui->code_margin_gap()) {
-            _hscroll->position() += delta;
-         }
+         {
+            with_font fnt(font()); // measure using font()
+            auto      pos = cursor_pos();
+            if (pos.x < _bounds.l + (has_flag(UICode::NO_MARGIN) ? ui->code_margin_gap()
+                                                                 : (ui->code_margin() + ui->code_margin_gap() * 2))) {
+               _hscroll->position() -= delta;
+            } else if (pos.x >= _vscroll->_bounds.l - ui->code_margin_gap()) {
+               _hscroll->position() += delta;
+            }
 
-         if (pos.y < _bounds.t + ui->code_margin_gap()) {
-            _vscroll->position() -= delta;
-         } else if (pos.y >= _hscroll->_bounds.t - ui->code_margin_gap()) {
-            _vscroll->position() += delta;
-         }
+            if (pos.y < _bounds.t + ui->code_margin_gap()) {
+               _vscroll->position() -= delta;
+            } else if (pos.y >= _hscroll->_bounds.t - ui->code_margin_gap()) {
+               _vscroll->position() += delta;
+            }
 
-         _move_scroll_to_focus_next_layout = false;
-         previousFont->activate();
+            _move_scroll_to_focus_next_layout = false;
+         }
          UICode::_ClassMessageProc(this, UIMessage::MOUSE_DRAG, di, dp);
          refresh();
       }
@@ -2973,8 +2974,8 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
       } else if ((m->code == UIKeycode::UP || m->code == UIKeycode::DOWN || m->code == UIKeycode::PAGE_UP ||
                   m->code == UIKeycode::PAGE_DOWN) &&
                  !is_ctrl_on() && !is_alt_on()) {
-         UIFont* previousFont = font()->activate();
-         int     lineHeight   = ui->string_height();
+         with_font fnt(font()); // measure using font()
+         int       lineHeight = ui->string_height();
 
          if (is_shift_on()) {
             if (m->code == UIKeycode::UP) {
@@ -3006,8 +3007,6 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
             key_input_vscroll(m, lineHeight,
                               (_bounds.t - _hscroll->_bounds.t) * 4 / 5 /* leave a few lines for context */, this);
          }
-
-         previousFont->activate();
       } else if ((m->code == UIKeycode::HOME || m->code == UIKeycode::END) && !is_alt_on()) {
          if (is_shift_on()) {
             if (m->code == UIKeycode::HOME) {
@@ -3076,27 +3075,27 @@ UICode& UICode::move_caret(bool backward, bool word) {
          if (static_cast<int>(_sel[3].offset) - 1 < 0) {
             if (_sel[3].line > 0) {
                _sel[3].line--;
-               _sel[3].offset = _lines[_sel[3].line].bytes;
+               _sel[3].offset = code_line(_sel[3].line).bytes;
             } else
                break;
          } else
-            _ui_move_caret_backwards(_sel[3].offset, &_content[0], offset(_sel[3]), _lines[_sel[3].line].offset);
+            _ui_move_caret_backwards(_sel[3].offset, &(*_buffer)[0], offset(_sel[3]), code_line(_sel[3].line).offset);
       } else {
-         if (_sel[3].offset + 1 > _lines[_sel[3].line].bytes) {
+         if (_sel[3].offset + 1 > code_line(_sel[3].line).bytes) {
             if (_sel[3].line + 1 < num_lines()) {
                _sel[3].line++;
                _sel[3].offset = 0;
             } else
                break;
          } else
-            _ui_move_caret_forward(_sel[3].offset, std::string_view(&_content[0], size()), offset(_sel[3]));
+            _ui_move_caret_forward(_sel[3].offset, std::string_view(&(*_buffer)[0], size()), offset(_sel[3]));
       }
 
       if (!word)
          break;
 
-      if (_sel[3].offset != 0 && _sel[3].offset != _lines[_sel[3].line].bytes) {
-         if (_ui_move_caret_by_word(std::string_view{&_content[0], size()}, offset(_sel[3])))
+      if (_sel[3].offset != 0 && _sel[3].offset != code_line(_sel[3].line).bytes) {
+         if (_ui_move_caret_by_word(std::string_view{&(*_buffer)[0], size()}, offset(_sel[3])))
             break;
       }
    }
@@ -3114,22 +3113,11 @@ UICode& UICode::set_focus_line(size_t index) {
    return *this;
 }
 
-UICode& UICode::insert_content(std::string_view new_content, bool replace) {
-   constexpr size_t max_size = 1000000000;
-   if (new_content.size() > max_size)
-      new_content = new_content.substr(0, max_size);
+void UICode::buffer_t::insert_content(std::string_view new_content) {
+   size_t sz = new_content.size();
+   if (!sz)
+      return;
 
-   _use_vertical_motion_column = false;
-
-   UIFont* previousFont = _font->activate();
-
-   if (replace)
-      clear();
-
-   if (new_content.empty())
-      return *this;
-
-   size_t sz                  = new_content.size();
    size_t orig_size           = _content.size();
    bool   append_to_last_line = (!_content.empty() && _content.back() != '\n');
 
@@ -3159,11 +3147,26 @@ UICode& UICode::insert_content(std::string_view new_content, bool replace) {
       }
    }
 
+}
+
+UICode& UICode::insert_content(std::string_view new_content, bool replace) {
+   assert(!has_flag(UICode::MANAGE_BUFFER));
+   constexpr size_t max_size = 1000000000;
+   if (new_content.size() > max_size)
+      new_content = new_content.substr(0, max_size);
+
+   _use_vertical_motion_column = false;
+
+   if (replace)
+      clear();
+
+   _buffer->insert_content(new_content);
+
    if (!replace) {
-      _vscroll->position() = _lines.size() * ui()->string_height();
+      with_font fnt(_font); // measure using _font
+      _vscroll->position() = num_lines() * ui()->string_height();
    }
 
-   previousFont->activate();
    repaint(nullptr);
    return *this;
 }
@@ -3171,7 +3174,9 @@ UICode& UICode::insert_content(std::string_view new_content, bool replace) {
 UICode::UICode(UIElement* parent, uint32_t flags)
    : UIElementCast<UICode>(parent, flags, UICode::_ClassMessageProc, "Code")
    , UIScrollbarPair(this)
-   , _font(parent->ui()->active_font()) {}
+   , _font(parent->ui()->active_font()) {
+   _buffer = std::make_shared<buffer_t>();
+}
 
 // --------------------------------------------------
 // Gauges.
@@ -4243,7 +4248,7 @@ int UIMenu::_class_message_proc(UIMessage msg, int di, void* dp) {
    return 0;
 }
 
-UIMenu& UIMenu::add_item(uint32_t flags, std::string_view label, const std::function<void(UIButton&)>& invoke) {
+UIMenu& UIMenu::add_item(uint32_t flags, std::string_view label, std::function<void(UIButton&)> invoke) {
    add_button(flags | UIButton::MENU_ITEM, label)
       .on_click(std::move(invoke))
       .set_user_proc(UIMenu::_MenuItemMessageProc);

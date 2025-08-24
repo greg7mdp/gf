@@ -572,6 +572,20 @@ struct UIFont {
 };
 
 // ------------------------------------------------------------------------------------------
+struct with_font {
+   UIFont* previous;
+
+   [[nodiscard]] with_font(UIFont* fnt) {
+      previous = fnt->activate();
+   }
+
+   ~with_font() {
+      previous->activate();
+   }
+};
+
+
+// ------------------------------------------------------------------------------------------
 struct UIShortcut {
    UIKeycode             code  = static_cast<UIKeycode>(0);
    bool                  ctrl  = false;
@@ -1295,16 +1309,77 @@ public:
 };
 
 // ------------------------------------------------------------------------------------------
+// Stores loaded files to avoid reloading them all the time
+// ------------------------------------------------------------------------------------------
+
+
+// ------------------------------------------------------------------------------------------
 struct UICode : public UIElementCast<UICode>, public UIScrollbarPair {
 private:
-   struct code_pos {
+   struct code_pos_t {
       size_t line   = 0;
       size_t offset = 0;
    };
 
-   struct code_line {
+   struct code_line_t {
       size_t offset = 0;
       size_t bytes  = 0;
+   };
+
+   struct buffer_t {
+      std::vector<char>         _content;
+      std::vector<code_line_t>  _lines;
+      size_t                    _max_columns = 0;
+
+      void clear() {
+         _content.clear();
+         _lines.clear();
+         _max_columns = 0;
+      }
+
+      [[nodiscard]] std::string_view line(size_t line) const {
+         const auto& l = _lines[line];
+         return std::string_view{&_content[l.offset], l.bytes};
+      }
+      [[nodiscard]] size_t      line_offset(size_t line) const { return _lines[line].offset; }
+      [[nodiscard]] code_line_t code_line(size_t idx) { return _lines[idx]; }
+
+      [[nodiscard]] size_t      num_lines() const { return _lines.size(); }
+      [[nodiscard]] size_t      size() const { return _content.size(); }
+      [[nodiscard]] bool        empty() const { return _lines.empty(); }
+
+      [[nodiscard]] const char& operator[](size_t idx) const { return _content[idx]; }
+      [[nodiscard]] size_t      offset(const code_pos_t& pos) const { return _lines[pos.line].offset + pos.offset; }
+      [[nodiscard]] size_t      max_columns() const { return _max_columns; }
+
+      void emplace_back_line(size_t offset, size_t bytes) {
+         if (bytes > _max_columns)
+            _max_columns = bytes;
+         _lines.emplace_back(offset, bytes);
+      }
+
+      void increase_last_line_length(size_t num_new_chars) {
+         assert(!_lines.empty());
+         auto& last_line = _lines.back();
+         last_line.bytes += num_new_chars;
+         if (last_line.bytes > _max_columns)
+            _max_columns = last_line.bytes;
+      }
+
+      void insert_content(std::string_view new_content);
+   };
+
+   using buffer_ptr = std::shared_ptr<buffer_t>;
+
+   // ------------------------------------------------------------------------------------------
+   // Stores loaded files to avoid reloading them all the time
+   // ------------------------------------------------------------------------------------------
+   struct buffer_mgr {
+   private:
+      std::unordered_map<std::string, buffer_ptr> _buffers;
+
+   public:
+      buffer_ptr load_buffer(const std::string& path, std::optional<std::string_view> err = {});
    };
 
    struct menu_item {
@@ -1312,20 +1387,18 @@ private:
       std::function<void(std::string_view)> invoke; // invoked on selection
    };
 
-   std::vector<char>       _content;
-   std::vector<code_line>  _lines;
-   std::optional<size_t>   _current_line                     = 0;  // if set, 0 <= currentLine < lines.size()
+   buffer_ptr              _buffer;
+   std::optional<size_t>   _current_line                     = 0;  // if set, 0 <= _current_line < num_lines()
    size_t                  _focus_line                       = 0;
    UIFont*                 _font;
    bool                    _move_scroll_to_focus_next_layout = false;
    bool                    _move_scroll_to_caret_next_layout = false;
    int                     _tab_columns                      = 4;
-   size_t                  _max_columns                      = 0;
    UI_CLOCK_T              _last_animate_time                = 0;
    bool                    _left_down_in_margin              = false;
    int                     _vertical_motion_column           = 0;
    bool                    _use_vertical_motion_column       = false;
-   std::array<code_pos, 4> _sel{};                            // start, end (ordered), anchor, caret (unordered)
+   std::array<code_pos_t, 4> _sel{};                            // start, end (ordered), anchor, caret (unordered)
    std::vector<menu_item>  _menu_items;                       // added to right click menu on selection
 
    UICode&    _set_vertical_motion_column(bool restore);
@@ -1337,23 +1410,21 @@ private:
    }
 
 public:
-   enum { NO_MARGIN = 1 << 0, SELECTABLE = 1 << 1 };
+   enum { NO_MARGIN = 1 << 0, SELECTABLE = 1 << 1, MANAGE_BUFFER = 1 << 2 };
 
    UICode(UIElement* parent, uint32_t flags);
 
    UICode&    clear();
    UICode&    insert_content(std::string_view new_content, bool replace);
-   UICode&    load_file(const char* path, std::optional<std::string_view> err = {});
+   UICode&    load_file(const std::string& path, std::optional<std::string_view> err = {});
 
-   [[nodiscard]] std::string_view line(size_t line) const {
-      const auto& l = _lines[line];
-      return std::string_view{&_content[l.offset], l.bytes};
-   }
-   [[nodiscard]] size_t     line_offset(size_t line) const { return _lines[line].offset; }
+   [[nodiscard]] std::string_view line(size_t line) const { return _buffer->line(line); }
+   [[nodiscard]] size_t           line_offset(size_t line) const { return _buffer->line_offset(line); }
+   [[nodiscard]] code_line_t      code_line(size_t idx) const { return _buffer->code_line(idx); }
    
-   [[nodiscard]] size_t     num_lines() const { return _lines.size(); }
-   [[nodiscard]] size_t     size() const { return _content.size(); }
-   [[nodiscard]] bool       empty() const { return _lines.empty(); }
+   [[nodiscard]] size_t           num_lines() const   { return _buffer->num_lines(); }
+   [[nodiscard]] size_t           size() const        { return _buffer->size(); }
+   [[nodiscard]] bool             empty() const       { return _buffer->empty(); }
 
    [[nodiscard]] std::string_view selection() const {
       size_t from = offset(selection(0));
@@ -1361,27 +1432,13 @@ public:
       return from >= to ?  std::string_view{} : std::string_view{&(*this)[from], to - from};
    }
 
-   [[nodiscard]] code_pos   selection(size_t idx) const { assert(idx < _sel.size()); return _sel[idx]; }
+   [[nodiscard]] code_pos_t selection(size_t idx) const { assert(idx < _sel.size()); return _sel[idx]; }
    UICode&    set_selection(size_t idx, size_t line, size_t offset) {
                             assert(idx < _sel.size());  _sel[idx] = {line, offset}; return *this; }
    UICode&    update_selection();
-   
-   void       emplace_back_line(size_t offset, size_t bytes) {
-      if (bytes > _max_columns)
-         _max_columns = bytes;
-      _lines.emplace_back(offset, bytes);
-   }
-
-   void       increase_last_line_length(size_t num_new_chars) {
-      assert(!_lines.empty());
-      auto& last_line = _lines.back();
-      last_line.bytes += num_new_chars;
-      if (last_line.bytes > _max_columns)
-         _max_columns = last_line.bytes;
-   }
 
    UICode&    move_caret(bool backward, bool word);
-   code_pos   code_pos_from_point(UIPoint pt);
+   code_pos_t code_pos_from_point(UIPoint pt);
 
    int        hittest(int x, int y);
    int        hittest(UIPoint p) { return hittest(p.x, p.y); }           // returns negative value if in margin
@@ -1397,7 +1454,7 @@ public:
    UICode&    set_last_animate_time(UI_CLOCK_T t) { _last_animate_time = t; return *this; }
    UI_CLOCK_T last_animate_time() const { return _last_animate_time; }
 
-   size_t     max_columns() const { return _max_columns; }
+   size_t     max_columns() const { return _buffer->max_columns(); }
       
    UICode&    set_current_line(std::optional<size_t> l) {
       if (!l || *l < num_lines())
@@ -1410,17 +1467,17 @@ public:
       return _current_line;
    }
 
-   const char& operator[](size_t idx) const { return _content[idx]; }
+   [[nodiscard]] const char& operator[](size_t idx) const { return (*_buffer)[idx]; }
 
-   [[nodiscard]] size_t     offset(const code_pos& pos) const { return _lines[pos.line].offset + pos.offset; }
+   [[nodiscard]] size_t      offset(const code_pos_t& pos) const { return _buffer->offset(pos); }
 
    UICode&    set_font(UIFont* font) { _font = font; return *this; }
    [[nodiscard]] UIFont*    font() const { return _font; }
 
    UICode&    copy(sel_target_t t);
 
-   [[nodiscard]] int        column_to_byte(size_t ln, size_t column) const;
-   [[nodiscard]] int        byte_to_column(size_t ln, size_t byte) const;
+   [[nodiscard]] int column_to_byte(size_t ln, size_t column) const;
+   [[nodiscard]] int byte_to_column(size_t ln, size_t byte) const;
 
    UICode&    add_selection_menu_item(std::string_view label, std::function<void(std::string_view)> invoke) {
       _menu_items.emplace_back(std::string{label}, std::move(invoke)); return *this;
@@ -1619,7 +1676,7 @@ public:
 
    UIMenu(UI* ui, UIElement* parent, uint32_t flags);
 
-   UIMenu& add_item(uint32_t flags, std::string_view label, const std::function<void(UIButton&)>& invoke);
+   UIMenu& add_item(uint32_t flags, std::string_view label, std::function<void(UIButton&)> invoke);
    UIMenu& show();
 };
 

@@ -1846,6 +1846,8 @@ std::string SourceWindow::s_previous_file_loc;
 
 UIElement* SourceWindow::Create(UIElement* parent) {
    s_source_window = new SourceWindow;
+   uint32_t flags  = gfc._selectable_source ? UICode::SELECTABLE : 0;
+   flags |= UICode::MANAGE_BUFFER;
    s_display_code  = &parent->add_code(gfc._selectable_source ? UICode::SELECTABLE : 0)
                         .set_font(s_code_font)
                         .set_cp(s_source_window)
@@ -1908,7 +1910,7 @@ bool SourceWindow::display_set_position(const char* file, std::optional<size_t> 
       if (!_current_file_full.empty()) {
          s_main_window->set_name(_current_file_full);
 
-         s_display_code->load_file(_current_file_full.c_str(),
+         s_display_code->load_file(_current_file_full,
                                    std::format("The file '{}' (from '{}') could not be loaded.", file, originalFile));
       }
       _auto_print_result[0] = 0;
@@ -2217,9 +2219,8 @@ int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* 
       code->_class_proc(code, msg, di, dp);
 
       if (_in_inspect_line_mode) {
-         UIFont* previousFont = code->font()->activate();
+         with_font fnt(code->font()); // measure using code->font()
          draw_inspect_line_mode_overlay(static_cast<UIPainter*>(dp));
-         previousFont->activate();
       }
 
       return 1;
@@ -5674,7 +5675,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    auto* report = dynamic_cast<ProfFlameGraphReport*>(el);
 
    if (msg == UIMessage::PAINT) {
-      UIFont* previousFont = report->_font->activate();
+      with_font fnt(report->_font); // measure using report->_font
 
       if (report->_x_start < 0)
          report->_x_start = 0;
@@ -5817,8 +5818,6 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          painter->draw_string(UIRectangle(x, x + width, y + lineHeight * 2, y + lineHeight * 3), line3, 0xFFFFFFFF,
                               UIAlign::left, nullptr);
       }
-
-      previousFont->activate();
    } else if (msg == UIMessage::MOUSE_MOVE) {
       double               zoomX = static_cast<double>(report->_client.width()) / (report->_x_end - report->_x_start);
       ProfFlameGraphEntry* hover = nullptr;
@@ -6410,9 +6409,8 @@ UIElement* ProfWindowCreate(UIElement* parent) {
    // Since we will do multithreaded painting with fontFlameGraph, we need to make sure all its glyphs are ready to go.
    for (uintptr_t i = 0; i < sizeof(window->_font_flame_graph->_glyphs_rendered); i++) {
       UIPainter fakePainter(parent->ui(), 0, 0, nullptr);
-      UIFont*   previousFont = window->_font_flame_graph->activate();
+      with_font fnt( window->_font_flame_graph); // measure using window->_font_flame_graph
       fakePainter.draw_glyph(0, 0, i, 0xFF000000);
-      previousFont->activate();
    }
 #endif
 
