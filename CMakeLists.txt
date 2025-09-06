@@ -2,6 +2,9 @@
 ## Example of use:
 ##    cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=clang++-18 -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -GNinja ..
 ##
+## Build with `libc++`
+##    cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=clang++-20 -DCMAKE_C_COMPILER=clang-20 -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DCMAKE_CXX_FLAGS="-stdlib=libc++" -DCMAKE_EXE_LINKER_FLAGS="-stdlib=libc++ -lc++abi" -GNinja ..
+##
 ## ----------------------------------------------------------------------------------
 
 cmake_minimum_required(VERSION 3.24...4.0)

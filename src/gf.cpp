@@ -1141,14 +1141,9 @@ public:
    }
 };
 
-static bool DisplaySetPosition(const char* file, std::optional<size_t> line) {
+static bool DisplaySetPosition(std::string_view file, std::optional<size_t> line) {
    return s_source_window->display_set_position(file, line, false);
 }
-
-static bool DisplaySetPosition(const std::string& file, std::optional<size_t> line) {
-   return s_source_window->display_set_position(file.c_str(), line, false);
-}
-
 
 // ---------------------------------------------------
 // Breakpoints:
@@ -1923,15 +1918,17 @@ bool SourceWindow::display_set_position(const std::string_view file, std::option
 void SourceWindow::display_set_position_from_stack() {
    if (s_stack_window->has_selection()) {
       auto&       current = s_stack_window->current();
-      std::string location{current._location};
-      s_previous_file_loc        = current._location;
-      char*                 line = const_cast<char*>(strchr(location.c_str(), ':'));
-      std::optional<size_t> position;
-      if (line) {
-         *line    = 0;
-         position = sv_atoul(line + 1) - 1; // lines in gdb are 1-based
+      // std::string location{current._location};
+      const auto& loc =  current._location;
+      s_previous_file_loc = loc;
+      auto colon_pos = loc.find(':');
+      if (colon_pos != string::npos) {
+         std::optional<size_t> position = sv_atoul(loc.substr(colon_pos + 1)) - 1; // lines in gdb are 1-based
+         // std::print("{} - {}\n", string_view{&loc[0], &loc[colon_pos]}, *position);
+         display_set_position(string_view{&loc[0], &loc[colon_pos]}, position, true);
+      } else {
+         display_set_position(loc, {}, true);
       }
-      display_set_position(location.c_str(), position, true);
    }
 }
 
@@ -2856,7 +2853,7 @@ private:
             auto currentLine = s_display_code->current_line();
             if (textbox->is_shift_on()) {
                if (currentLine && *currentLine > 0) {
-                  DisplaySetPosition(nullptr, *currentLine - 1);
+                  DisplaySetPosition({}, *currentLine - 1);
                }
             } else {
                incr_command(-1);
@@ -2865,7 +2862,7 @@ private:
             auto currentLine = s_display_code->current_line();
             if (textbox->is_shift_on()) {
                if (currentLine && *currentLine + 1 < s_display_code->num_lines()) {
-                  DisplaySetPosition(nullptr, *currentLine + 1);
+                  DisplaySetPosition({}, *currentLine + 1);
                }
             } else {
                incr_command(1);
@@ -3348,12 +3345,11 @@ public:
          position++;
       if (!(*position))
          return false;
-      char* file = position + 1;
-      char* end  = strchr(file, '"');
+      const char* file = position + 1;
+      const char* end  = strchr(file, '"');
       if (!end)
          return false;
-      *end = 0;
-      s_source_window->display_set_position(file, line - 1, false);
+      s_source_window->display_set_position(std::string_view{file, end}, line - 1, false);
       return true;
    }
 
@@ -3809,7 +3805,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
          if (is_shift_on()) {
             auto currentLine = s_display_code->current_line();
             if (currentLine && *currentLine > 0) {
-               DisplaySetPosition(nullptr, *currentLine - 1);
+               DisplaySetPosition({}, *currentLine - 1);
             }
          } else {
             destroy_textbox();
@@ -3820,7 +3816,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
          if (is_shift_on()) {
             auto currentLine = s_display_code->current_line();
             if (currentLine && *currentLine + 1 < s_display_code->num_lines()) {
-               DisplaySetPosition(nullptr, *currentLine + 1);
+               DisplaySetPosition({}, *currentLine + 1);
             }
          } else {
             destroy_textbox();
@@ -4002,11 +3998,10 @@ void WatchLoggerTraceSelectFrame(UIElement* el, int index, WatchLogger* logger) 
 
    StackEntry* entry = &logger->_entries[logger->_selected_entry]._trace[index];
    std::string location{entry->_location};
-   char*       colon = const_cast<char*>(strchr(location.c_str(), ':'));
+   const char* colon = const_cast<char*>(strchr(location.c_str(), ':'));
 
    if (colon) {
-      *colon = 0;
-      DisplaySetPosition(location, sv_atoul(colon + 1) - 1);
+      DisplaySetPosition({location.c_str(), colon}, sv_atoul(colon + 1) - 1);
       el->refresh();
    }
 }
@@ -7741,7 +7736,7 @@ void ControlPipe::on_command(std::unique_ptr<std::string> input) {
    if (start[0] == 'f' && start[1] == ' ') {
       DisplaySetPosition(start + 2, 0);
    } else if (start[0] == 'l' && start[1] == ' ') {
-      DisplaySetPosition(nullptr, sv_atoul(start + 2) - 1);
+      DisplaySetPosition({}, sv_atoul(start + 2) - 1);
    } else if (start[0] == 'c' && start[1] == ' ') {
       (void)CommandParseInternal(start + 2, false);
    }
