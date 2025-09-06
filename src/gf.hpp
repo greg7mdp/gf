@@ -55,7 +55,6 @@ struct SourceWindow {
 
    std::string _current_file;
    std::string _current_file_full;
-   time_t      _current_file_read_time = 0;
    bool        _showing_disassembly    = false;
 
 private:
@@ -90,7 +89,7 @@ private:
 public:
    std::array<char, 1024>& auto_print_result() { return _auto_print_result; }
 
-   bool display_set_position(const char* file, std::optional<size_t> line, bool useGDBToGetFullPath);
+   bool display_set_position(const std::string_view file, std::optional<size_t> line, bool useGDBToGetFullPath);
    void display_set_position_from_stack();
    void disassembly_load();
    void disassembly_update_line();

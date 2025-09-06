@@ -1014,7 +1014,7 @@ public:
 
    void        post_message(UIMessage msg, void* _dp) const;
 
-   UIWindow&   set_name(std::string_view name); // must be null terminated
+   UIWindow&   set_name(const char* name); // must be null terminated
    
    UI*         ui() const { assert(_ui == _window->_ui); return _window->_ui; }
 
@@ -1315,6 +1315,8 @@ public:
 
 // ------------------------------------------------------------------------------------------
 struct UICode : public UIElementCast<UICode>, public UIScrollbarPair {
+   enum buffer_flags_t { reload_if_modified = 1 << 0 };
+
 private:
    struct code_pos_t {
       size_t line   = 0;
@@ -1376,10 +1378,16 @@ private:
    // ------------------------------------------------------------------------------------------
    struct buffer_mgr_t {
    private:
-      std::unordered_map<std::string, buffer_ptr> _buffers;
+      struct buffer_data_t {
+         buffer_ptr ptr;
+         time_t     mtime = 0;
+      };
+
+      std::unordered_map<std::string, buffer_data_t> _buffers;
 
    public:
-      UICode::buffer_ptr load_buffer(const std::string& path, std::optional<std::string_view> err = {});
+      UICode::buffer_ptr load_buffer(const std::string& path, uint32_t flags,
+                                     std::optional<std::string_view> err = {});
    };
 
    struct menu_item {
@@ -1387,6 +1395,7 @@ private:
       std::function<void(std::string_view)> invoke; // invoked on selection
    };
 
+   std::string             _path;                                  // path of currently loaded buffer if `MANAGE_BUFFER`
    buffer_ptr              _buffer;
    std::optional<size_t>   _current_line                     = 0;  // if set, 0 <= _current_line < num_lines()
    size_t                  _focus_line                       = 0;
@@ -1398,7 +1407,7 @@ private:
    bool                    _left_down_in_margin              = false;
    int                     _vertical_motion_column           = 0;
    bool                    _use_vertical_motion_column       = false;
-   std::array<code_pos_t, 4> _sel{};                            // start, end (ordered), anchor, caret (unordered)
+   std::array<code_pos_t, 4> _sel{};                          // start, end (ordered), anchor, caret (unordered)
    std::vector<menu_item>  _menu_items;                       // added to right click menu on selection
 
    static buffer_mgr_t buffer_mgr;
@@ -1418,7 +1427,7 @@ public:
 
    UICode&    clear();
    UICode&    insert_content(std::string_view new_content, bool replace);
-   UICode&    load_file(const std::string& path, std::optional<std::string_view> err = {});
+   UICode&    load_file(const std::string& path, uint32_t flags = 0, std::optional<std::string_view> err = {});
 
    [[nodiscard]] std::string_view line(size_t line) const { return _buffer->line(line); }
    [[nodiscard]] size_t           line_offset(size_t line) const { return _buffer->line_offset(line); }
@@ -1895,6 +1904,8 @@ public:
    static bool  is_alpha(int c) { return std::isalpha(c) || c > 127; }
    static bool  is_alnum(int c) { return std::isalnum(c) || c > 127; }
    static bool  is_alnum_or_underscore(int c) { return is_alnum(c) || c == '_'; }
+
+   time_t       get_file_modif_time(const char* path);
 
    // ----------- internal library use - do not call ----------------------------------------
    bool         platform_message_loop_single(int* result);

@@ -20,6 +20,7 @@
 #include <tuple>
 #include <ranges>
 #include <algorithm>
+#include <sys/stat.h>
 
 namespace views = std::views;
 namespace rng   = std::ranges;
@@ -181,7 +182,7 @@ std::optional<std::string> LoadFile(std::string_view sv_path) {
    bool null_terminated =
       (sv_path[sv_path.size()] == 0); // ahhh ugly accessing past the end of the `string_view`, hopefully OK.
    std::ifstream ifs(null_terminated ? sv_path.data() : std::string{sv_path}.c_str(), std::ifstream::binary);
-   if (ifs.fail())
+   if (!ifs)
       return {};
 
    std::filebuf* pbuf = ifs.rdbuf();
@@ -2551,16 +2552,27 @@ inline void UIScrollbarPair::key_input_vscroll(UIKeyTyped* m, int rowHeight, int
 // --------------------------------------------------
 UICode::buffer_mgr_t UICode::buffer_mgr;
 
-UICode::buffer_ptr UICode::buffer_mgr_t::load_buffer(const std::string& path, std::optional<std::string_view> err /* = {} */) {
-   if (auto it = _buffers.find(path); it != _buffers.end())
-      return it->second;
+time_t get_file_modif_time(const char* path) {
+   struct stat buf;
+
+   int res = stat(path, &buf);
+   return res == 0 ? buf.st_mtime : 0;
+}
+
+UICode::buffer_ptr UICode::buffer_mgr_t::load_buffer(const std::string& path, uint32_t flags,
+                                                     std::optional<std::string_view> err /* = {} */) {
+   if (auto it = _buffers.find(path); it != _buffers.end()) {
+      if (!(flags & reload_if_modified) || get_file_modif_time(path.c_str()) == it->second.mtime)
+         return it->second.ptr;
+   }
 
    auto buff = std::make_shared<buffer_t>();
    std::optional<std::string> contents = LoadFile(path);
    if (contents) {
       buff->insert_content(*contents);
-      _buffers[path] = buff;
+      _buffers[path] = buffer_data_t{buff, get_file_modif_time(path.c_str())};
    } else {
+      _buffers.erase(path);
       buff->insert_content(err ? *err : std::format("The file '{}' could not be loaded.\n", path));
    }
    return buff;
@@ -2575,13 +2587,16 @@ int UICode::byte_to_column(size_t ln, size_t byte) const { return UI::byte_to_co
 UICode& UICode::clear() {
    assert(!has_flag(UICode::MANAGE_BUFFER));
    _buffer->clear();
-   _sel         = {};
+   _sel = {};
    return *this;
 }
 
-UICode& UICode::load_file(const std::string& path, std::optional<std::string_view> err /* = {} */) {
+UICode& UICode::load_file(const std::string& path, uint32_t flags /* = 0 */, std::optional<std::string_view> err /* = {} */) {
    if (has_flag(UICode::MANAGE_BUFFER)) {
-      _buffer = buffer_mgr.load_buffer(path, err);
+      auto new_buffer = buffer_mgr.load_buffer(path, flags, err);
+      if (new_buffer == _buffer)
+         return *this; // do not reset `_current_line`
+      _buffer = new_buffer;
    } else {
       std::optional<std::string> buff = LoadFile(path);
       if (!buff)
@@ -2589,7 +2604,7 @@ UICode& UICode::load_file(const std::string& path, std::optional<std::string_vie
       else
          insert_content(*buff, true);
    }
-   _current_line.reset();
+   _current_line.reset(); // serves as indication that the file has changed
    return *this;
 }
 
@@ -5983,8 +5998,9 @@ void UIWindow::post_message(UIMessage msg, void* _dp) const {
    XFlush(dpy);
 }
 
-UIWindow& UIWindow::set_name(std::string_view name) {
-   XStoreName(ui()->native_display(), _xwindow, name.data());
+UIWindow& UIWindow::set_name(const char* name) {
+   if (name)
+      XStoreName(ui()->native_display(), _xwindow, name);
    return *this;
 }
 

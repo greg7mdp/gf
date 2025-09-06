@@ -709,8 +709,7 @@ end
 )";
 
 // Forward declarations:
-
-static bool DisplaySetPosition(const char* file, std::optional<size_t> line);
+// ---------------------
 void        WatchAddExpression(string_view string);
 bool        CommandInspectLine();
 
@@ -1258,13 +1257,13 @@ public:
 
       for (const auto& bp : _breakpoints) {
          if (bp.match(line, s_source_window->_current_file_full)) {
-            (void)ctx.send_command_to_debugger(std::format("clear {}:{}", s_source_window->_current_file, line), true,
+            (void)ctx.send_command_to_debugger(std::format("clear {}:{}", s_source_window->_current_file_full, line), true,
                                                false);
             return;
          }
       }
 
-      (void)ctx.send_command_to_debugger(std::format("b {}:{}", s_source_window->_current_file, line), true, false);
+      (void)ctx.send_command_to_debugger(std::format("b {}:{}", s_source_window->_current_file_full, line), true, false);
    }
 
    void restore_breakpoints(string_view sv) {
@@ -1870,22 +1869,18 @@ UIElement* SourceWindow::Create(UIElement* parent) {
 // --------------------------------
 // `line`, if present, is `0-based`
 // --------------------------------
-bool SourceWindow::display_set_position(const char* file, std::optional<size_t> line, bool useGDBToGetFullPath) {
-   if (_showing_disassembly) {
+bool SourceWindow::display_set_position(const std::string_view file, std::optional<size_t> line, bool useGDBToGetFullPath) {
+   if (_showing_disassembly)
       return false;
-   }
 
-   const char* originalFile = file;
-   bool        reloadFile   = false;
-
-   if (file && *file) {
+   if (!file.empty()) {
       std::string cleaned_file{file};
 
       char buffer[PATH_MAX];
       if (file[0] == '~') {
-         cleaned_file = std::format("{}/{}", getenv("HOME"), &file[1]);
-      } else if (/* file[0] != '/' && */ useGDBToGetFullPath) { // don't check leading '/' => see
-                                                                // https://github.com/nakst/gf/pull/204/files
+         cleaned_file = std::format("{}/{}", getenv("HOME"), file.substr(1));
+      } else if (useGDBToGetFullPath) { // don't check leading '/' => see
+                                        // https://github.com/nakst/gf/pull/204/files
          auto        res = ctx.eval_command("info source");
          const char* f   = strstr(res.c_str(), "Located in ");
 
@@ -1902,35 +1897,21 @@ bool SourceWindow::display_set_position(const char* file, std::optional<size_t> 
       std::string cleaned_file_full = get_realpath(cleaned_file);
 
       if (cleaned_file_full != _current_file_full) {
-         reloadFile = true;
-      } else {
-         struct stat buf;
-         if (!stat(cleaned_file_full.c_str(), &buf) && buf.st_mtime != _current_file_read_time) {
-            reloadFile              = true;
-            _current_file_read_time = buf.st_mtime;
-         }
-      }
-
-      if (reloadFile) {
          _current_file      = std::move(cleaned_file);
          _current_file_full = std::move(cleaned_file_full);
+         if (!_current_file_full.empty())
+            s_main_window->set_name(_current_file_full.c_str());
       }
    }
 
+   if (!_current_file_full.empty())
+      s_display_code->load_file(_current_file_full, UICode::reload_if_modified);
 
-   if (reloadFile) {
-      if (!_current_file_full.empty()) {
-         s_main_window->set_name(_current_file_full);
-
-         s_display_code->load_file(_current_file_full,
-                                   std::format("The file '{}' (from '{}') could not be loaded.", file, originalFile));
-      }
-      _auto_print_result[0] = 0;
-   }
-
-   bool changed = reloadFile;
+   _auto_print_result[0] = 0;
 
    auto currentLine = s_display_code->current_line();
+   bool changed = !currentLine;
+
    if (line && (!currentLine || currentLine != line)) {
       s_display_code->set_current_line(*line);
       s_display_code->set_focus_line(*line);
@@ -2047,8 +2028,7 @@ bool SourceWindow::toggle_disassembly() {
    } else {
       s_display_code->set_current_line({});
       _current_end_of_block = -1;
-      _current_file.clear();
-      _current_file_read_time = 0;
+      _current_file_full.clear();
       display_set_position_from_stack();
       s_display_code->set_tab_columns(4);
    }
@@ -7975,7 +7955,7 @@ UIElement* Context::switch_to_window_and_focus(string_view target_name) {
 int MainWindowMessageProc(UIElement*, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::WINDOW_ACTIVATE) {
       // make a copy as DisplaySetPosition modifies `s_source_window->_current_file_full`
-      DisplaySetPosition(std::string{s_source_window->_current_file_full}, s_display_code->current_line());
+      DisplaySetPosition(s_source_window->_current_file_full, s_display_code->current_line());
    } else {
       for (const auto& msgtype : receiveMessageTypes) {
          if (msgtype._msg == msg) {
