@@ -15,7 +15,11 @@
 namespace rng          = std::ranges;
 static const auto npos = std::string::npos;
 
-using namespace std;
+using std::string;
+using std::string_view;
+using std::vector;
+using std::unordered_map;
+using namespace std::string_literals;
 
 #include <ctre.hpp>
 using namespace ctre::literals;
@@ -192,14 +196,6 @@ static inline uint32_t sv_atoui(string_view str, size_t offset = 0) { return sv_
    return sv_atoi_impl<uint64_t>(str, offset);
 }
 
-void print(const string_view str) { std::cout << str; }
-
-// Variadic template for print with format arguments
-template <typename... Args>
-void print(std::format_string<Args...> fmt, Args&&... args) {
-   std::cout << std::format(fmt, std::forward<Args>(args)...);
-}
-
 std::string get_realpath(const std::string& path) {
    char buff[PATH_MAX] = "";
    realpath(path.c_str(), buff); // realpath can return 0 if path doesn'tr exist (ENOENT)
@@ -250,8 +246,8 @@ struct InterfaceWindow {
 };
 
 struct InterfaceDataViewer {
-   const char* _add_button_label = nullptr;
-   void (*_add_button_callback)();
+   const char* _add_button_label  = nullptr;
+   void (*_add_button_callback)() = nullptr;
 };
 
 // --------------------------------------------------------------------------------------------
@@ -440,7 +436,7 @@ private:
       fs::path exe{s_executable_window->get_path()};
       path.append(exe.filename().native() + std::string(extension));
 
-      // print("_prog_config_path={}\n", _prog_config_path);
+      // std::print("_prog_config_path={}\n", _prog_config_path);
       return path;
    }
 
@@ -522,7 +518,7 @@ struct Context {
    }
 
    void kill_gdb_thread() {
-      print(std::cerr, "killing gdb thread.\n");
+      std::print(std::cerr, "killing gdb thread.\n");
       _kill_gdb_thread = true;
       _gdb_thread.join();
       _kill_gdb_thread = false;
@@ -530,7 +526,7 @@ struct Context {
 
    void kill_gdb() {
       kill_gdb_thread();
-      print(std::cerr, "killing gdb process {}.\n", _gdb_pid);
+      std::print(std::cerr, "killing gdb process {}.\n", _gdb_pid);
       kill(_gdb_pid, SIGKILL);
    }
 
@@ -542,7 +538,7 @@ struct Context {
 
    std::string eval_command(string_view command, bool echo = false) {
       auto res = send_command_to_debugger(command, echo, true);
-      // if (res) print("{} ==> {}\n", command, *res);
+      // if (res) std::print("{} ==> {}\n", command, *res);
       return std::move(*res);
    }
 
@@ -872,7 +868,7 @@ void Context::debugger_thread_fn() {
       _gdb_argv.push_back(nullptr);
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__APPLE__)
-   print(std::cerr, "Using fork\n");
+   std::print(std::cerr, "Using fork\n");
    _gdb_pid = fork();
 
    if (_gdb_pid == 0) {
@@ -881,15 +877,15 @@ void Context::debugger_thread_fn() {
       dup2(outputPipe[1], 1);                   // outputPipe[1] == stdout
       dup2(outputPipe[1], 2);                   // outputPipe[1] == stderr
       execvp(_gdb_path, (char**)&_gdb_argv[0]); // execute gdb with arguments _gdb_argv
-      print(std::cerr, "Error: Couldn't execute gdb.\n");
+      std::print(std::cerr, "Error: Couldn't execute gdb.\n");
       exit(EXIT_FAILURE);
 
    } else if (_gdb_pid < 0) {
-      print(std::cerr, "Error: Couldn't fork.\n");
+      std::print(std::cerr, "Error: Couldn't fork.\n");
       exit(EXIT_FAILURE);
    }
 #else
-   print(std::cerr, "Using spawn\n");
+   std::print(std::cerr, "Using spawn\n");
    posix_spawn_file_actions_t actions = {};
    posix_spawn_file_actions_init(&actions);
    posix_spawn_file_actions_adddup2(&actions, inputPipe[0], 0);  // inputPipe[0]  == stdin
@@ -957,7 +953,7 @@ void Context::debugger_thread_fn() {
          // wait till we get the prompt again so we know we received the complete output
          // ----------------------------------------------------------------------------
          // if (catBuffer.contains("(gdb) ") && !catBuffer.contains("\n(gdb) "))
-         //   print("================ got catBuffer=\"{}\"\n", catBuffer);
+         //  std:: print("================ got catBuffer=\"{}\"\n", catBuffer);
 
          // just checking for `"(gdb) "` fails when I'm debugging `gf` itself, as a string containing `"(gdb) "`
          // is passed to `MsgReceivedData` sometimes, and therefore appears on the stack trace.
@@ -965,7 +961,7 @@ void Context::debugger_thread_fn() {
          if (!(catBuffer.contains("\n(gdb) ") || catBuffer.contains(">(gdb) ") || catBuffer == "(gdb) ")) {
             continue;
          }
-         // print("================ got ({}) catBuffer=\"{}\"\n", evaluateMode, catBuffer);
+         // std::print("================ got ({}) catBuffer=\"{}\"\n", evaluateMode, catBuffer);
 
          // Notify the main thread we have data.
          // ------------------------------------
@@ -1014,7 +1010,7 @@ std::optional<std::string> Context::send_command_to_debugger(string_view command
       auto res  = _evaluate_result_queue.pop();
       bool quit = !res;
       if (!res) {
-         print("Hit timeout on command \"{}\"\n", command);
+         std::print("Hit timeout on command \"{}\"\n", command);
          res = std::string{}; // in synchronous mode we always return a (possibly empty) string
       } else {
          _program_running = false;
@@ -1023,7 +1019,7 @@ std::optional<std::string> Context::send_command_to_debugger(string_view command
       }
       return res;
    }
-   // print("{} ==> {}\n", command, res ? *res : "???"s);
+   // std::print("{} ==> {}\n", command, res ? *res : "???"s);
    return std::optional<std::string>{};
 }
 
@@ -1605,7 +1601,7 @@ static void SettingsAddTrustedFolder() {
       // OK, add it
       // ----------
       if (!updater.insert_after_section(section_string, text))
-         print(std::cerr, "Error: Could not modify the global config file!\n");
+         std::print(std::cerr, "Error: Could not modify the global config file!\n");
    }
 }
 
@@ -1637,10 +1633,10 @@ UIConfig Context::load_settings(bool earlyPass) {
          continue;
 
       if (earlyPass && i && !currentFolderIsTrusted && !config->empty()) {
-         print(std::cerr, "Would you like to load the config file .project.gf from your current directory?\n");
-         print(std::cerr, "You have not loaded this config file before.\n");
-         print(std::cerr, "(Y) - Yes, and add it to the list of trusted files\n");
-         print(std::cerr, "(N) - No\n");
+         std::print(std::cerr, "Would you like to load the config file .project.gf from your current directory?\n");
+         std::print(std::cerr, "You have not loaded this config file before.\n");
+         std::print(std::cerr, "(Y) - Yes, and add it to the list of trusted files\n");
+         std::print(std::cerr, "(N) - No\n");
          char c = 'n';
          fread(&c, 1, 1, stdin);
 
@@ -1703,7 +1699,7 @@ UIConfig Context::load_settings(bool earlyPass) {
             }
 
             if ((int)shortcut.code == 0) {
-               print(std::cerr, "Warning: Could not register shortcut for '{}'.\n", key);
+               std::print(std::cerr, "Warning: Could not register shortcut for '{}'.\n", key);
             } else {
                s_main_window->register_shortcut(std::move(shortcut));
             }
@@ -1777,8 +1773,8 @@ UIConfig Context::load_settings(bool earlyPass) {
                   ctx._log_window            = static_cast<UICode*>(window._el);
                }
                if (!ctx._log_window) {
-                  print(std::cerr, "Warning: gdb.log_all_output was enabled, "
-                                   "but your layout does not have a 'Log' window.\n");
+                  std::print(std::cerr, "Warning: gdb.log_all_output was enabled, "
+                             "but your layout does not have a 'Log' window.\n");
                }
             } else {
                // clang-format off
@@ -1949,21 +1945,21 @@ void SourceWindow::disassembly_load() {
    const char* end = strstr(res.c_str(), "End of assembler dump.");
 
    if (!end) {
-      print("Disassembly failed. GDB output:\n{}\n", res);
+      std::print("Disassembly failed. GDB output:\n{}\n", res);
       return;
    }
 
    const char* start = strstr(res.c_str(), ":\n");
 
    if (!start) {
-      print("Disassembly failed. GDB output:\n{}\n", res);
+      std::print("Disassembly failed. GDB output:\n{}\n", res);
       return;
    }
 
    start += 2;
 
    if (start >= end) {
-      print("Disassembly failed. GDB output:\n{}\n", res);
+      std::print("Disassembly failed. GDB output:\n{}\n", res);
       return;
    }
 
@@ -2721,7 +2717,7 @@ int BitmapViewerDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
 
                       auto* display = dynamic_cast<UIImageDisplay*>(el);
                       FILE* f       = fopen(path.c_str(), "wb");
-                      print(f, "P6\n{} {}\n255\n", display->_bb.width, display->_bb.height);
+                      std::print(f, "P6\n{} {}\n255\n", display->_bb.width, display->_bb.height);
 
                       for (uint32_t i = 0; i < display->_bb.width * display->_bb.height; i++) {
                          uint32_t src_pix  = display->_bb[i];
@@ -2844,7 +2840,7 @@ private:
             }
 
             if (_command_log)
-               print(_command_log, "{}\n", cur_text);
+               std::print(_command_log, "{}\n", cur_text);
             CommandSendToGDB(cur_text);
 
             _history.add_line(cur_text);
@@ -3084,16 +3080,16 @@ public:
    }
 
    void save_as(FILE* file, int indent, int indexInParentArray) {
-      print(file, "{:.{}}", "\t\t\t\t\t\t\t\t\t\t\t\t\t\t", indent);
+      std::print(file, "{:.{}}", "\t\t\t\t\t\t\t\t\t\t\t\t\t\t", indent);
 
       if (indexInParentArray == -1) {
-         print(file, "{} = ", _key);
+         std::print(file, "{} = ", _key);
       } else {
-         print(file, "[{}] = ", indexInParentArray);
+         std::print(file, "[{}] = ", indexInParentArray);
       }
 
       if (_open) {
-         print(file, "\n");
+         std::print(file, "\n");
 
          for (size_t i = 0; i < _fields.size(); i++)
             _fields[i]->save_as(file, indent + 1, _is_array ? i : -1);
@@ -3101,7 +3097,7 @@ public:
          auto res = evaluate("gf_valueof");
          if (!res.empty()) {
             resize_to_lf(res);
-            print(file, "{}\n", res);
+            std::print(file, "{}\n", res);
          }
       }
    }
@@ -4905,14 +4901,14 @@ struct CommandsWindow {
 struct LogWindow {
    static void* _thread_fn(void* context) {
       if (gfc._log_pipe_path.empty()) {
-         print(std::cerr, "Warning: The log pipe path has not been set in the configuration file!\n");
+         std::print(std::cerr, "Warning: The log pipe path has not been set in the configuration file!\n");
          return nullptr;
       }
 
       int file = open(gfc._log_pipe_path.c_str(), O_RDONLY | O_NONBLOCK);
 
       if (file == -1) {
-         print(std::cerr, "Warning: Could not open the log pipe!\n");
+         std::print(std::cerr, "Warning: Could not open the log pipe!\n");
          return nullptr;
       }
 
@@ -5684,7 +5680,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
             profRenderThreadCount = 1;
          if (profRenderThreadCount > prof_max_render_thread_count)
             profRenderThreadCount = prof_max_render_thread_count;
-         print("Using {} render threads.\n", profRenderThreadCount);
+         std::print("Using {} render threads.\n", profRenderThreadCount);
 
          sem_init(&profRenderEndSemaphore, 0, 0);
 
@@ -6109,7 +6105,7 @@ void ProfLoadProfileData(void* _window) {
 
    auto pos           = ctx.eval_expression("gfProfilingBufferPosition");
    int  rawEntryCount = sv_atoi(strstr(pos.c_str(), "= "), 2);
-   print("Reading {} profiling entries...\n", rawEntryCount);
+   std::print("Reading {} profiling entries...\n", rawEntryCount);
 
    if (rawEntryCount == 0) {
       return;
@@ -6149,7 +6145,7 @@ void ProfLoadProfileData(void* _window) {
    fclose(f);
    unlink(path);
 
-   print("Got raw profile data.\n");
+   std::print("Got raw profile data.\n");
 
    unordered_map<void*, ProfFunctionEntry> functions   = {};
    vector<ProfSourceFileEntry>             sourceFiles = {};
@@ -6336,7 +6332,7 @@ void ProfLoadProfileData(void* _window) {
       function._total_time += entry._end_time - entry._start_time;
    }
 
-   print("Found {} functions over {} source files.\n", report->_functions.size(), report->_source_files.size());
+   std::print("Found {} functions over {} source files.\n", report->_functions.size(), report->_source_files.size());
 
    report->_v_scroll->set_maximum((maxDepth + 2) * 30);
 
@@ -6893,7 +6889,7 @@ void ViewWindowView(void* cp) {
 
    res             = watch->get_value(multiline_t::off);
    watch->format() = oldFormat;
-   // print("valueof: {}\n", ctx.evaluateResult);
+   // std::print("valueof: {}\n", ctx.evaluateResult);
 
    // Create the specific display for the given type.
    if (0 == strcmp(type, "uint8_t") || 0 == strcmp(type, "uint16_t") || 0 == strcmp(type, "uint32_t") ||
@@ -6944,12 +6940,12 @@ void ViewWindowView(void* cp) {
       }
    } else if ((0 == memcmp(type, "char [", 6) && !strstr(type, "][")) || 0 == strcmp(type, "const char *") ||
               0 == strcmp(type, "char *")) {
-      print("string '{}'\n", res);
+      std::print("string '{}'\n", res);
       char address[64];
 
       if ((res)[0] != '(') {
          res = watch->get_address();
-         print("addressof '{}'\n", res);
+         std::print("addressof '{}'\n", res);
          resize_to_lf(res, ' ');
          resize_to_lf(res);
          std_format_to_n(address, sizeof(address), "{}", res);
@@ -6964,7 +6960,7 @@ void ViewWindowView(void* cp) {
       char tempPath[PATH_MAX];
       realpath(".temp.gf", tempPath);
       res = ctx.eval_expression(std::format("(size_t)strlen((const char *)({}))", address));
-      print("'{}' -> '{}'\n", buffer, res);
+      std::print("'{}' -> '{}'\n", buffer, res);
       const char* lengthString = res.c_str() ? strstr(res.c_str(), "= ") : nullptr;
       size_t      length       = lengthString ? sv_atoi(lengthString, 2) : 0;
       // TODO Preventing errors when calling strlen from crashing the target?
@@ -6981,7 +6977,7 @@ void ViewWindowView(void* cp) {
 
       std_format_to_n(buffer, sizeof(buffer), "dump binary memory {} ({}) ({}+{})", tempPath, address, address, length);
       res = ctx.eval_command(buffer);
-      print("'{}' -> '{}'\n", buffer, res);
+      std::print("'{}' -> '{}'\n", buffer, res);
       FILE* f = fopen(tempPath, "rb");
 
       if (f) {
@@ -6989,7 +6985,7 @@ void ViewWindowView(void* cp) {
          fclose(f);
          unlink(tempPath);
          data[length] = 0;
-         // print("got '{}'\n", data);
+         // std::print("got '{}'\n", data);
          new ViewWindowString(panel, std::move(data), length);
          std_format_to_n(buffer, sizeof(buffer), "{}+1 bytes", length);
          panel->add_label(UIElement::h_fill, buffer);
@@ -7650,7 +7646,7 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
 
    if (ctx._first_update) {
       auto eval_res = ctx.eval_command(pythonCode);
-      // print("python code eval ==> {}\n", eval_res);
+      // std::print("python code eval ==> {}\n", eval_res);
 
       if (gfc._restore_watch_window) {
          INI_Updater ini{gfc.get_prog_config_path()};
@@ -7763,21 +7759,21 @@ auto gdb_invoker(string_view cmd, int flags = 0) {
 }
 
 void Context::add_builtin_windows_and_commands() {
-   _interface_windows["Stack"]       = {StackWindow::Create, StackWindow::Update};
-   _interface_windows["Source"]      = {SourceWindow::Create, SourceWindow::Update};
-   _interface_windows["Breakpoints"] = {BreakpointsWindow::Create, BreakpointsWindow::Update};
-   _interface_windows["Registers"]   = {RegistersWindow::Create, RegistersWindow::Update};
-   _interface_windows["Watch"]       = {WatchWindow::Create, WatchWindow::Update, WatchWindow::Focus};
-   _interface_windows["Locals"]      = {WatchWindow::CreateLocalsWindow, WatchWindow::Update, WatchWindow::Focus};
-   _interface_windows["Commands"]    = {CommandsWindow::Create, nullptr};
-   _interface_windows["Data"]        = {DataWindow::Create, nullptr};
-   _interface_windows["Struct"]      = {StructWindow::Create, nullptr};
-   _interface_windows["Files"]       = {FilesWindow::Create, nullptr};
-   _interface_windows["Console"]     = {ConsoleWindow::Create, nullptr};
-   _interface_windows["Log"]         = {LogWindow::Create, nullptr};
-   _interface_windows["Thread"]      = {ThreadsWindow::Create, ThreadsWindow::Update};
-   _interface_windows["Exe"]         = {ExecutableWindow::Create, nullptr};
-   _interface_windows["CmdSearch"]   = {CommandSearchWindow::Create, nullptr};
+   _interface_windows["Stack"s]       = InterfaceWindow{StackWindow::Create, StackWindow::Update};
+   _interface_windows["Source"s]      = InterfaceWindow{SourceWindow::Create, SourceWindow::Update};
+   _interface_windows["Breakpoints"s] = InterfaceWindow{BreakpointsWindow::Create, BreakpointsWindow::Update};
+   _interface_windows["Registers"s]   = InterfaceWindow{RegistersWindow::Create, RegistersWindow::Update};
+   _interface_windows["Watch"s]       = InterfaceWindow{WatchWindow::Create, WatchWindow::Update, WatchWindow::Focus};
+   _interface_windows["Locals"s]      = InterfaceWindow{WatchWindow::CreateLocalsWindow, WatchWindow::Update, WatchWindow::Focus};
+   _interface_windows["Commands"s]    = InterfaceWindow{CommandsWindow::Create, nullptr};
+   _interface_windows["Data"s]        = InterfaceWindow{DataWindow::Create, nullptr};
+   _interface_windows["Struct"s]      = InterfaceWindow{StructWindow::Create, nullptr};
+   _interface_windows["Files"s]       = InterfaceWindow{FilesWindow::Create, nullptr};
+   _interface_windows["Console"s]     = InterfaceWindow{ConsoleWindow::Create, nullptr};
+   _interface_windows["Log"s]         = InterfaceWindow{LogWindow::Create, nullptr};
+   _interface_windows["Thread"s]      = InterfaceWindow{ThreadsWindow::Create, ThreadsWindow::Update};
+   _interface_windows["Exe"s]         = InterfaceWindow{ExecutableWindow::Create, nullptr};
+   _interface_windows["CmdSearch"s]   = InterfaceWindow{CommandSearchWindow::Create, nullptr};
 
    _interface_data_viewers.push_back({"Add bitmap...", BitmapAddDialog});
 
@@ -8015,7 +8011,7 @@ const char* InterfaceLayoutNextToken(const char*& current, const char* expected 
 
       *out = 0;
    } else {
-      print(std::cerr, "Error: Invalid character in layout string '{}'.\n", first);
+      std::print(std::cerr, "Error: Invalid character in layout string '{}'.\n", first);
       exit(1);
    }
 
@@ -8029,11 +8025,11 @@ const char* InterfaceLayoutNextToken(const char*& current, const char* expected 
          }
 
          if (!valid) {
-            print(std::cerr, "Error: Expected a number in layout string; got '{}'.\n", buffer);
+            std::print(std::cerr, "Error: Expected a number in layout string; got '{}'.\n", buffer);
             exit(1);
          }
       } else if (strcmp(expected, buffer) != 0) {
-         print(std::cerr, "Error: Expected '{}' in layout string; got '{}'.\n", expected, buffer);
+         std::print(std::cerr, "Error: Expected '{}' in layout string; got '{}'.\n", expected, buffer);
          exit(1);
       }
    }
@@ -8082,7 +8078,7 @@ void Context::create_layout(UIElement* parent, const char*& layout_string_curren
          } else if (0 == strcmp(token, ")")) {
             break;
          } else {
-            print(std::cerr, "Error: Invalid layout string! Expected ',' or ')' in tab container list; got '{}'.\n",
+            std::print(std::cerr, "Error: Invalid layout string! Expected ',' or ')' in tab container list; got '{}'.\n",
                   token);
             exit(1);
          }
@@ -8092,7 +8088,7 @@ void Context::create_layout(UIElement* parent, const char*& layout_string_curren
          auto& [name, w] = *it;
          w._el           = w._create(parent);
       } else {
-         print(std::cerr, "Error: Invalid layout string! The window '{}' was not found.\n", token);
+         std::print(std::cerr, "Error: Invalid layout string! The window '{}' was not found.\n", token);
          exit(1);
       }
    }
@@ -8145,11 +8141,11 @@ bool Context::copy_layout_to_clipboard() {
 
 unique_ptr<UI> Context::gf_main(int argc, char** argv) {
    if (argc == 2 && (0 == strcmp(argv[1], "-?") || 0 == strcmp(argv[1], "-h") || 0 == strcmp(argv[1], "--help"))) {
-      print(std::cerr,
-            "Usage: {} [GDB args]\n\n"
-            "GDB args: Pass any GDB arguments here, they will be forwarded to GDB.\n\n"
-            "For more information, view the README at https://github.com/nakst/gf/blob/master/README.md.\n",
-            argv[0]);
+      std::print(std::cerr,
+                 "Usage: {} [GDB args]\n\n"
+                 "GDB args: Pass any GDB arguments here, they will be forwarded to GDB.\n\n"
+                 "For more information, view the README at https://github.com/nakst/gf/blob/master/README.md.\n",
+                 argv[0]);
       return {};
    }
 
@@ -8159,7 +8155,7 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
       ctx.kill_gdb();
       exit(0);
    });
-   std::signal(SIGPIPE, [](int) { print(std::cerr, "SIGPIPE Received - ignored.\n"); });
+   std::signal(SIGPIPE, [](int) { std::print(std::cerr, "SIGPIPE Received - ignored.\n"); });
 
    // process command arguments and create updated version to pass to gdb
    // -------------------------------------------------------------------
@@ -8220,7 +8216,7 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
    s_main_switcher->switch_to(s_main_switcher->_children[0]);
 
    if (*InterfaceLayoutNextToken(layout_string_current)) {
-      print(std::cerr, "Warning: Layout string has additional text after the end of the top-level entry.\n");
+      std::print(std::cerr, "Warning: Layout string has additional text after the end of the top-level entry.\n");
    }
 
    additional_setup();
@@ -8257,8 +8253,8 @@ int main(int argc, char** argv) {
          ss << ';' << exp->key() << '\n'; // semicolon to protect the rest of the json in case it contains a '='
 
       if (!INI_Updater{gfc.get_prog_config_path()}.replace_section("[watch]\n", ss.str())) {
-         print(std::cerr, "Warning: Could not save the contents of the watch window; '{}' was not accessible.\n",
-               gfc.get_prog_config_path().native());
+         std::print(std::cerr, "Warning: Could not save the contents of the watch window; '{}' was not accessible.\n",
+                    gfc.get_prog_config_path().native());
       }
    }
 
@@ -8276,7 +8272,7 @@ int main(int argc, char** argv) {
       });
 
       if (!INI_Updater{gfc.get_prog_config_path()}.replace_section("[breakpoints]\n", ss.str())) {
-         print(std::cerr, "Warning: Could not save breakpoints.");
+         std::print(std::cerr, "Warning: Could not save breakpoints.");
       }
    }
 

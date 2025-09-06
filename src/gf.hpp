@@ -1,5 +1,7 @@
 #pragma once
 
+#include "luigi.hpp"
+
 #include <algorithm>
 #include <cassert>
 #include <condition_variable>
@@ -27,11 +29,8 @@
 #include <unordered_map>
 #include <vector>
 #include <iostream>
-#include <format>
 
 namespace fs = std::filesystem;
-
-#include "luigi.hpp"
 
 #define ALLOW_SIDE_EFFECTS 0   // evaluating expressions with side effects in debugger can change program behavior
 

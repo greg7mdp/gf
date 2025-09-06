@@ -48,14 +48,14 @@ int main(int argc, char** argv) {
    UISplitPane& uisplit_top_leftright = uisplit_topbottom.add_splitpane(0, 0.3f);
 
    auto button_cb = [](UIButton& button) {
-      std_print("clicked button '{}'...", button.label());
+      std::print("clicked button '{}'...", button.label());
 
       if (check_delete->checked()) {
          button.parent().refresh();
          button.destroy();
-         std_print(" and deleted it!\n");
+         std::print("{}", " and deleted it!\n");
       } else {
-         std_print(" but not deleted!\n");
+         std::print("{}", " but not deleted!\n");
       }
    };
 

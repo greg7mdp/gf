@@ -3,6 +3,7 @@
 
 #include <re/re.hpp>
 #include <re/cpp.cpp>
+#include <ranges>
 
 namespace rng   = std::ranges;
 namespace views = rng::views;

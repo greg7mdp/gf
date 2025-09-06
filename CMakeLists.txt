@@ -67,6 +67,8 @@ endif ()
 
 ## ------------------------------------------------------------------------------------
 ##                                    Sanitizers
+##                                    ----------
+##    set break at: __sanitizer::Die()
 ## ------------------------------------------------------------------------------------
 option(ENABLE_SANITIZERS         "Build with sanitizers enabled" OFF)
 option(ENABLE_ADDRESS_SANITIZER  "Build with address sanitizers enabled" OFF)

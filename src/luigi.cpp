@@ -593,10 +593,14 @@ bool UIElement::animate(bool stop) { return ui()->animate(this, stop); }
 
 bool UI::animate(UIElement* el, bool stop) {
    if (stop) {
-      return !!std::erase(_animating, el);
+      if (auto it = std::find(_animating.begin(), _animating.end(), el); it != _animating.end()) {
+         _animating.erase(it);
+         return true;
+      }
+      return false;
    }
 
-   if (auto it = std::ranges::find(_animating, el); it != _animating.end())
+   if (auto it = rng::find(_animating, el); it != _animating.end())
       return true;
 
    _animating.push_back(el);
@@ -4675,7 +4679,7 @@ UIPainter& UIPainter::draw_glyph(int x0, int y0, int c, uint32_t color) {
    UI* ui = this->ui();
 
    UIFont* font = ui->active_font();
-   // std_print("font = {}\n", (void *)font);
+   // std::print("font = {}\n", (void *)font);
 
    if (font->_is_freetype) {
       if (c < 0 || c >= max_glyphs)
@@ -4821,7 +4825,7 @@ UIFont* UI::create_font(std::string_view cPath, uint32_t size) {
       font->_glyph_height = (font->_font->size->metrics.ascender - font->_font->size->metrics.descender) / 64;
       font->_is_freetype  = true;
    } else {
-      std_print("Cannot load font {} : {}\n", cPath, ret);
+      std::print("Cannot load font {} : {}\n", cPath, ret);
       return nullptr;
    }
 #endif // UI_FREETYPE
@@ -5406,7 +5410,7 @@ unique_ptr<UI> UI::initialise(const UIConfig& cfg) {
             *newline = 0;
             font_path.resize(newline - &font_path[0]);
          }
-         print(std::cerr, "Using font {}\n", font_path);
+         std::print(std::cerr, "Using font {}\n", font_path);
       }
    }
    #endif
@@ -5422,7 +5426,7 @@ unique_ptr<UI> UI::initialise(const UIConfig& cfg) {
 
    auto screen      = DefaultScreen(dpy);
    ui->_screen_size = {DisplayWidth(dpy, screen), DisplayHeight(dpy, screen)};
-   // std_print("{}, {}\n", ui->_screen_size.x, ui->_screen_size.y);
+   // std::print("{}, {}\n", ui->_screen_size.x, ui->_screen_size.y);
 
    ui->_atoms[windowClosedID]   = XInternAtom(dpy, "WM_DELETE_WINDOW", 0);
    ui->_atoms[primaryID]        = XInternAtom(dpy, "PRIMARY", 0);
@@ -5680,15 +5684,15 @@ bool UI::_process_x11_event(Display* dpy, XEvent* event) {
                return win == o.win && t < (o.t + 500) && pos.approx_equal(o.pos, 8);
             }
 
-            void print(std::string_view sv) {
-               std_print("{} -> ({}, {}), t={}, win={}\n", sv, pos.x, pos.y, t, (void*)win);
+            void printx(std::string_view sv) {
+               std::print("{} -> ({}, {}), t={}, win={}\n", sv, pos.x, pos.y, t, (void*)win);
             }
          };
 
          static std::array<last_click_t, 2> last_clicks;
          last_click_t        click{
                    .pos = {event->xbutton.x, event->xbutton.y},
-                     .t = event->xbutton.time, .win = window
+                   .t = event->xbutton.time, .win = window
          };
 
          if (event->type == ButtonPress) {
@@ -5739,7 +5743,7 @@ bool UI::_process_x11_event(Display* dpy, XEvent* event) {
          char   text[32];
          KeySym symbol = NoSymbol;
          Status status = 0;
-         // std_print("{}, {}\n", symbol, text);
+         // std::print("{}, {}\n", symbol, text);
          UIKeyTyped m;
          auto       sz = Xutf8LookupString(window->_xic, &event->xkey, text, sizeof(text) - 1, &symbol, &status);
          m.text        = {text, static_cast<size_t>(sz)};

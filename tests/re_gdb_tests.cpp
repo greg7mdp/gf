@@ -3,6 +3,7 @@
 
 #include <re/re.hpp>
 #include <re/gdb.cpp>  // include cpp file as not a library
+#include <ranges>
 
 namespace rng   = std::ranges;
 namespace views = rng::views;

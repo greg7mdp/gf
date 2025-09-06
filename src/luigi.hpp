@@ -26,6 +26,11 @@
 #include <iostream>
 #include <format>
 #include <unordered_map>
+#include <version>
+
+#ifdef __cpp_lib_print
+   #include <print>
+#endif
 
 using std::make_shared;
 using std::make_unique;
@@ -159,8 +164,13 @@ int std_format_to_n(OutputIt buffer, std::iter_difference_t<OutputIt> n, std::fo
    return (int)written;
 }
 
+#ifndef __cpp_lib_print
+// ------------------------------------------------------------
+// Emulation of `std::print` functions for compilers without it
+// ------------------------------------------------------------
+namespace std {
 template <class... Args>
-void std_print(std::format_string<Args...> fmt, Args&&... args) {
+void print(std::format_string<Args...> fmt, Args&&... args) {
    std::ostreambuf_iterator<char> out(std::cout);
    std::format_to(out, fmt, std::forward<Args>(args)...);
 }
@@ -175,6 +185,10 @@ void print(FILE* f, std::format_string<Args...> fmt, Args&&... args) {
    std::string formatted = std::format(fmt, std::forward<Args>(args)...);
    fprintf(f, "%s", formatted.c_str());
 }
+} // namespace std
+#endif
+
+//inline void print(std::string_view str) { std::cout << str; }
 
 std::optional<std::string> LoadFile(std::string_view path); // load whole file into string
 
