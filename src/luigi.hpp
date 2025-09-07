@@ -153,6 +153,43 @@ enum class UIKeycode : int {
 // ---------------------------------------------------------------------------------------------
 //                              Utilities
 // ---------------------------------------------------------------------------------------------
+class ensure_null_terminated {
+   static constexpr size_t buff_sz = 1024;
+   std::array<char, buff_sz+1> buff;
+   char*                       p;
+   bool                        do_free = false;
+
+public:
+   [[nodiscard]] ensure_null_terminated(std::string_view sv) {
+      auto sz = sv.size();
+      if (sz && sv[sz] == 0) { // ahhh ugly accessing past the end of the `string_view`, hopefully OK.
+         p = const_cast<char*>(sv.data());
+      } else {
+         if (sz < buff_sz) {
+            p = &buff[0];
+         } else {
+            p = new char[sz + 1];
+            do_free = true;
+         }
+         std::memcpy(p, sv.data(), sz);
+         p[sz] = 0; // add null terminator
+      }
+      assert(p != nullptr);
+   }
+
+   ~ensure_null_terminated() {
+      if (do_free)
+         delete p;
+   }
+
+   ensure_null_terminated(const ensure_null_terminated&) = delete;
+   ensure_null_terminated& operator=(const ensure_null_terminated&) = delete;
+
+   char* data() const {
+      return p;
+   }
+};
+
 template <class OutputIt, class... Args>
 int std_format_to_n(OutputIt buffer, std::iter_difference_t<OutputIt> n, std::format_string<Args...> fmt,
                     Args&&... args) {

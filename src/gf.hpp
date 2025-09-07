@@ -53,7 +53,6 @@ struct SourceWindow {
    std::array<char, 1024> _auto_print_result;
 
    std::string _current_file;
-   std::string _current_file_full;
    bool        _showing_disassembly    = false;
 
 private:

@@ -196,18 +196,21 @@ static inline uint32_t sv_atoui(string_view str, size_t offset = 0) { return sv_
    return sv_atoi_impl<uint64_t>(str, offset);
 }
 
-std::string get_realpath(const std::string& path) {
+
+static std::string get_realpath(std::string_view sv_path) {
+   ensure_null_terminated path(sv_path);
+
    char buff[PATH_MAX] = "";
-   realpath(path.c_str(), buff); // realpath can return 0 if path doesn'tr exist (ENOENT)
-   return *buff ? std::string{buff} : path;
+   realpath(path.data(), buff); // realpath can return 0 if path doesn'tr exist (ENOENT)
+   return *buff ? std::string{buff} : std::string{sv_path};
 }
 
-std::string my_getcwd() {
+static inline std::string my_getcwd() {
    char buff[PATH_MAX] = "";
    return std::string{getcwd(buff, sizeof(buff))};
 }
 
-void set_thread_name(const char* name) {
+static inline void set_thread_name(const char* name) {
 #if defined(__linux__) || defined(__FreeBSD__)
    pthread_setname_np(pthread_self(), name);
 #elif defined(__APPLE__)
@@ -217,7 +220,7 @@ void set_thread_name(const char* name) {
 
 // hacky way to remove all occurences of `pattern` from `str`
 // ----------------------------------------------------------
-void remove_pattern(std::string& str, string_view pattern) {
+static inline void remove_pattern(std::string& str, string_view pattern) {
    char* s = const_cast<char*>(str.c_str());
    for (size_t i = 0; s[i]; ++i) {
       bool pattern_matches = strncmp(&s[i], &pattern[0], pattern.size()) == 0;
@@ -1247,14 +1250,14 @@ public:
       }
 
       for (const auto& bp : _breakpoints) {
-         if (bp.match(line, s_source_window->_current_file_full)) {
-            (void)ctx.send_command_to_debugger(std::format("clear {}:{}", s_source_window->_current_file_full, line), true,
+         if (bp.match(line, s_source_window->_current_file)) {
+            (void)ctx.send_command_to_debugger(std::format("clear {}:{}", s_source_window->_current_file, line), true,
                                                false);
             return;
          }
       }
 
-      (void)ctx.send_command_to_debugger(std::format("b {}:{}", s_source_window->_current_file_full, line), true, false);
+      (void)ctx.send_command_to_debugger(std::format("b {}:{}", s_source_window->_current_file, line), true, false);
    }
 
    void restore_breakpoints(string_view sv) {
@@ -1865,11 +1868,12 @@ bool SourceWindow::display_set_position(const std::string_view file, std::option
       return false;
 
    if (!file.empty()) {
-      std::string cleaned_file{file};
+      std::string cleaned_file;
 
       char buffer[PATH_MAX];
       if (file[0] == '~') {
-         cleaned_file = std::format("{}/{}", getenv("HOME"), file.substr(1));
+         auto s = std::format("{}/{}", getenv("HOME"), file.substr(1));
+         cleaned_file = get_realpath(s);
       } else if (useGDBToGetFullPath) { // don't check leading '/' => see
                                         // https://github.com/nakst/gf/pull/204/files
          auto        res = ctx.eval_command("info source");
@@ -1880,28 +1884,27 @@ bool SourceWindow::display_set_position(const std::string_view file, std::option
             const char* end = strchr(f, '\n');
 
             if (end) {
-               cleaned_file = string_view{f, static_cast<size_t>(end - f)};
+               cleaned_file = get_realpath(string_view{f, static_cast<size_t>(end - f)});
             }
          }
       }
 
-      std::string cleaned_file_full = get_realpath(cleaned_file);
+      if (cleaned_file.empty())
+         cleaned_file = get_realpath(file);
 
-      if (cleaned_file_full != _current_file_full) {
-         _current_file      = std::move(cleaned_file);
-         _current_file_full = std::move(cleaned_file_full);
-         if (!_current_file_full.empty())
-            s_main_window->set_name(_current_file_full.c_str());
+      if (cleaned_file != _current_file) {
+         _current_file = std::move(cleaned_file);
+         s_main_window->set_name(_current_file.c_str());
       }
    }
 
-   if (!_current_file_full.empty())
-      s_display_code->load_file(_current_file_full, UICode::reload_if_modified);
+   if (!_current_file.empty())
+      s_display_code->load_file(_current_file, UICode::reload_if_modified);
 
    _auto_print_result[0] = 0;
 
    auto currentLine = s_display_code->current_line();
-   bool changed = !currentLine;
+   bool changed     = !currentLine; // `load_file` does `_current_line.reset();` when file was reloaded
 
    if (line && (!currentLine || currentLine != line)) {
       s_display_code->set_current_line(*line);
@@ -2021,7 +2024,7 @@ bool SourceWindow::toggle_disassembly() {
    } else {
       s_display_code->set_current_line({});
       _current_end_of_block = -1;
-      _current_file_full.clear();
+      _current_file.clear();
       display_set_position_from_stack();
       s_display_code->set_tab_columns(4);
    }
@@ -2107,17 +2110,17 @@ void SourceWindow::draw_inspect_line_mode_overlay(UIPainter* painter) {
 }
 
 void CommandDeleteAllBreakpointsOnLine(int line) {
-   s_breakpoint_mgr.for_all_matching_breakpoints(line, s_source_window->_current_file_full,
+   s_breakpoint_mgr.for_all_matching_breakpoints(line, s_source_window->_current_file,
                                                  [](int line, auto& bp) { bp.command(bp_command::del); });
 }
 
 void CommandDisableAllBreakpointsOnLine(int line) {
-   s_breakpoint_mgr.for_all_matching_breakpoints(line, s_source_window->_current_file_full,
+   s_breakpoint_mgr.for_all_matching_breakpoints(line, s_source_window->_current_file,
                                                  [](int line, auto& bp) { bp.command(bp_command::dis); });
 }
 
 void CommandEnableAllBreakpointsOnLine(int line) {
-   s_breakpoint_mgr.for_all_matching_breakpoints(line, s_source_window->_current_file_full,
+   s_breakpoint_mgr.for_all_matching_breakpoints(line, s_source_window->_current_file,
                                                  [](int line, auto& bp) { bp.command(bp_command::ena); });
 }
 
@@ -2169,12 +2172,12 @@ int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* 
 
       bool atLeastOneBreakpointEnabled = false;
 
-      s_breakpoint_mgr.for_all_matching_breakpoints(-result, _current_file_full, [&](int line, auto& bp) {
+      s_breakpoint_mgr.for_all_matching_breakpoints(-result, _current_file, [&](int line, auto& bp) {
          if (bp._enabled)
             atLeastOneBreakpointEnabled = true;
       });
 
-      s_breakpoint_mgr.for_all_matching_breakpoints(-result, _current_file_full, [&](int line, auto&) {
+      s_breakpoint_mgr.for_all_matching_breakpoints(-result, _current_file, [&](int line, auto&) {
          UIMenu& menu = code->ui()->create_menu(code->_window, UIMenu::NO_SCROLL).add_item(0, "Delete", [=](UIButton&) {
             CommandDeleteAllBreakpointsOnLine(-result);
          });
@@ -2188,7 +2191,7 @@ int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* 
       const auto& theme       = code->theme();
       int         num_enabled = 0, num_disabled = 0;
 
-      s_breakpoint_mgr.for_all_matching_breakpoints(di, _current_file_full, [&](int line, auto& bp) {
+      s_breakpoint_mgr.for_all_matching_breakpoints(di, _current_file, [&](int line, auto& bp) {
          if (bp._enabled)
             ++num_enabled;
          else
@@ -4694,7 +4697,7 @@ struct FilesWindow {
    }
 
    void navigate_to_active_file() {
-      _directory = s_source_window->_current_file_full;
+      _directory = s_source_window->_current_file;
       size_t p   = _directory.size();
       while (p--) {
          if (_directory[p] == '/') {
@@ -7946,7 +7949,7 @@ UIElement* Context::switch_to_window_and_focus(string_view target_name) {
 int MainWindowMessageProc(UIElement*, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::WINDOW_ACTIVATE) {
       // make a copy as DisplaySetPosition modifies `s_source_window->_current_file_full`
-      DisplaySetPosition(s_source_window->_current_file_full, s_display_code->current_line());
+      DisplaySetPosition(s_source_window->_current_file, s_display_code->current_line());
    } else {
       for (const auto& msgtype : receiveMessageTypes) {
          if (msgtype._msg == msg) {

@@ -179,9 +179,9 @@ std::unordered_map<std::string, UITheme> ui_themes{
 //                              Utilities
 // ---------------------------------------------------------------------------------------------
 std::optional<std::string> LoadFile(std::string_view sv_path) {
-   bool null_terminated =
-      (sv_path[sv_path.size()] == 0); // ahhh ugly accessing past the end of the `string_view`, hopefully OK.
-   std::ifstream ifs(null_terminated ? sv_path.data() : std::string{sv_path}.c_str(), std::ifstream::binary);
+   ensure_null_terminated path(sv_path);
+
+   std::ifstream ifs(path.data(), std::ifstream::binary);
    if (!ifs)
       return {};
 
