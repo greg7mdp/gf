@@ -2571,6 +2571,7 @@ UICode::buffer_ptr UICode::buffer_mgr_t::load_buffer(const std::string& path, ui
    }
 
    auto buff = std::make_shared<buffer_t>();
+   // print("loading {}\n", path);
    std::optional<std::string> contents = LoadFile(path);
    if (contents) {
       buff->insert_content(*contents);

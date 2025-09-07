@@ -1850,7 +1850,7 @@ UIElement* SourceWindow::Create(UIElement* parent) {
    s_source_window = new SourceWindow;
    uint32_t flags  = gfc._selectable_source ? UICode::SELECTABLE : 0;
    flags |= UICode::MANAGE_BUFFER;
-   s_display_code  = &parent->add_code(gfc._selectable_source ? UICode::SELECTABLE : 0)
+   s_display_code  = &parent->add_code(flags)
                         .set_font(s_code_font)
                         .set_cp(s_source_window)
                         .set_user_proc(SourceWindow::DisplayCodeMessage);
