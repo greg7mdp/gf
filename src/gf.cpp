@@ -383,7 +383,7 @@ struct GF_Config {
    // misc
    // ----
    const char*     _control_pipe_path = nullptr;
-   std::string     _vim_server_name   = "GVIM";
+   std::string     _vim_server_name;
    std::string     _log_pipe_path;
    vector<Command> _preset_commands;
    std::string     _global_config_path; // ~/.config/gf2_config.ini (main config file)
@@ -871,7 +871,7 @@ void Context::debugger_thread_fn() {
       _gdb_argv.push_back(nullptr);
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__APPLE__)
-   std::print(std::cerr, "Using fork\n");
+   //std::print(std::cerr, "Using fork\n");
    _gdb_pid = fork();
 
    if (_gdb_pid == 0) {
@@ -888,7 +888,7 @@ void Context::debugger_thread_fn() {
       exit(EXIT_FAILURE);
    }
 #else
-   std::print(std::cerr, "Using spawn\n");
+   //std::print(std::cerr, "Using spawn\n");
    posix_spawn_file_actions_t actions = {};
    posix_spawn_file_actions_init(&actions);
    posix_spawn_file_actions_adddup2(&actions, inputPipe[0], 0);  // inputPipe[0]  == stdin
@@ -1489,6 +1489,9 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
 static void CommandSendToGDB(string_view s) { (void)CommandParseInternal(s, false); }
 
 static bool CommandSyncWithGvim() {
+   if (gfc._vim_server_name.empty())
+      return false;
+
    char buffer[1024];
    std_format_to_n(buffer, sizeof(buffer), "vim --servername {} --remote-expr \"execute(\\\"ls\\\")\" | grep %%",
                    gfc._vim_server_name);
