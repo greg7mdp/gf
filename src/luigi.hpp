@@ -2272,14 +2272,12 @@ struct INI_Updater {
       Section sect = _find_section(section_string);
 
       std::optional<std::string> config = LoadFile(_path);
-      if (!config)
-         return false;
 
       std::ofstream ofs(_path, std::ofstream::out | std::ofstream::binary);
       if (!ofs)
          return false;
 
-      if (sect.start_pos == std::string::npos) {
+      if (!config || sect.start_pos == std::string::npos) {
          ofs << sect.config;
          if (!sect.config.empty())
             ofs << '\n';

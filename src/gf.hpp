@@ -167,8 +167,8 @@ private:
    bool       _should_ask{false};
 
 public:
-   uint32_t   _current_prog_index = 0;  // current index of <prog>.ini in .gf
-   uint32_t   _current_arg_index = 0;   // current index of `_arguments` in `get_prog_config_path()`
+   size_t     _current_prog_index = 0;  // current index of <prog>.ini in .gf
+   size_t     _current_arg_index = 0;   // current index of `_arguments` in `get_prog_config_path()`
 
    void              start_or_run(bool pause);
    std::string       start_info_json();

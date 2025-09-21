@@ -459,8 +459,14 @@ public:
       fs::path              path{get_prog_config_dir()};
       assert(fs::is_directory(path));
 
-      for (const auto& entry : fs::directory_iterator(path))
-         res.push_back(entry);
+      for (const auto& entry : fs::directory_iterator(path)) {
+         std::filesystem::path p = entry.path();
+         if (std::filesystem::is_regular_file(p)) {
+            print("{}", p.extension().string());
+            if (p.extension() == ".ini")
+               res.push_back(entry);
+         }
+      }
 
       return res;
    }
@@ -5137,7 +5143,7 @@ void ExecutableWindow::update_args(const fs::path& prog_config_path, int incr, /
       if (v.empty())
          return;
       auto& cur = _current_arg_index;
-      cur       = std::clamp(cur, 0u, static_cast<uint32_t>(v.size()) - 1);
+      cur       = std::clamp(cur, 0ul, v.size() - 1);
       if (incr == 1) {
          cur = cur >= v.size() - 1 ? 0 : cur + 1;
       } else if (incr == -1) {
@@ -5169,7 +5175,9 @@ UIElement* ExecutableWindow::Create(UIElement* parent) {
             &p.add_textbox(0).replace_text(gfc._exe._path, false).on_key_up_down([win](UITextbox& t, UIKeycode code) {
                auto v = gfc.get_progs();
                if (!v.empty()) {
-                  auto cur = std::clamp(win->_current_prog_index, 0u, (uint32_t)v.size() - 1);
+                  auto cur = std::clamp(win->_current_prog_index, 0ul, v.size() - 1);
+                  if (cur == v.size())
+                     cur = 0;
                   if (code == UIKeycode::DOWN) {
                      cur = (cur + 1) % v.size();
                   } else {
