@@ -462,7 +462,6 @@ public:
       for (const auto& entry : fs::directory_iterator(path)) {
          std::filesystem::path p = entry.path();
          if (std::filesystem::is_regular_file(p)) {
-            print("{}", p.extension().string());
             if (p.extension() == ".ini")
                res.push_back(entry);
          }
@@ -5143,7 +5142,7 @@ void ExecutableWindow::update_args(const fs::path& prog_config_path, int incr, /
       if (v.empty())
          return;
       auto& cur = _current_arg_index;
-      cur       = std::clamp(cur, 0ul, v.size() - 1);
+      cur       = std::clamp(cur, 0ul, v.size()  - 1);
       if (incr == 1) {
          cur = cur >= v.size() - 1 ? 0 : cur + 1;
       } else if (incr == -1) {
@@ -5168,6 +5167,19 @@ UIElement* ExecutableWindow::Create(UIElement* parent) {
    ExecutableWindow* win = s_executable_window = new ExecutableWindow;
    UIPanel*          panel                     = &parent->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND);
 
+   // figure out index of current program in `.gf` directory list of `.ini` files
+   // ---------------------------------------------------------------------------
+   size_t cur = 0;
+   auto   v   = gfc.get_progs();
+   if (!v.empty()) {
+      for (cur = 0; cur < v.size(); ++cur)
+         if (gfc._exe._path.contains(v[cur].stem().native()))
+            break;
+   }
+   if (cur == v.size())
+      cur = 0;
+   win->_current_prog_index = cur;
+
    panel->add_n(
       [&](auto& p) { p.add_label(0, "Path to executable:"); },
       [&](auto& p) {
@@ -5176,8 +5188,6 @@ UIElement* ExecutableWindow::Create(UIElement* parent) {
                auto v = gfc.get_progs();
                if (!v.empty()) {
                   auto cur = std::clamp(win->_current_prog_index, 0ul, v.size() - 1);
-                  if (cur == v.size())
-                     cur = 0;
                   if (code == UIKeycode::DOWN) {
                      cur = (cur + 1) % v.size();
                   } else {
