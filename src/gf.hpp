@@ -167,8 +167,8 @@ private:
       ef_watches_restored     = 1 << 1,
    };
 
-   std::string _current_exe;
-   uint32_t    _current_exe_flags;
+   std::string _current_exe;           // path of current executable once it has started at least once.
+   uint32_t    _current_exe_flags;     // reset to 0 when executable changes. So we restore stuff only once.
    fs::path    _prog_config_path;
    bool        _same_prog = false;
 
@@ -195,6 +195,9 @@ public:
    void              save_watches();
    void              save_breakpoints();
    void              save_prog_args();
+
+private:
+
 };
 
 

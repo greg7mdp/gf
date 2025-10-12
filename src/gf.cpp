@@ -5116,9 +5116,9 @@ void ExecutableWindow::save_watches() {
 
    auto new_watches = ss.str();
    if (!new_watches.empty()) {
-      if (!INI_Updater{gfc.get_prog_config_path()}.replace_section("[watch]\n", new_watches)) {
+      if (!INI_Updater{_prog_config_path}.replace_section("[watch]\n", new_watches)) {
          std::print(std::cerr, "Warning: Could not save the contents of the watch window; '{}' was not accessible.\n",
-                    gfc.get_prog_config_path().native());
+                    _prog_config_path.native());
       }
    }
 }
@@ -7789,6 +7789,7 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
 
       ctx.grab_focus(s_input_textbox->_window); // grab focus when breakpoint is hit!
    }
+   s_source_window->display_set_position_from_stack();
 
    for (auto& [name, iw] : ctx._interface_windows) {
       InterfaceWindow* window = &iw;
