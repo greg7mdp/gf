@@ -169,7 +169,8 @@ private:
 
    std::string _current_exe;           // path of current executable once it has started at least once.
    uint32_t    _current_exe_flags;     // reset to 0 when executable changes. So we restore stuff only once.
-   fs::path    _prog_config_path;
+   fs::path    _prog_config_path;      // set to `.ini` config file path for current running program
+   fs::path    _prog_history_path;     // set to `.hist` history file path for current running program
    bool        _same_prog = false;
 
    UITextbox* _path      = nullptr;
@@ -197,6 +198,8 @@ public:
    void              save_prog_args();
 
 private:
+   void maybe_clear_exe_info();
+   void maybe_set_exe_info(std::string_view exe_path);
 
 };
 

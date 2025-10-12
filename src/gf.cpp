@@ -281,10 +281,11 @@ struct FileImage {
    std::vector<std::string> _lines;
 
    void set_path(string_view path) {
-      if (path != _path)
+      if (path != _path) {
          dump();
-      _path = path;
-      load();
+         _path = path;
+         load();
+      }
    }
 
    ~FileImage() { dump(); }
@@ -5177,6 +5178,23 @@ void ExecutableWindow::save_prog_args() {
    }
 }
 
+
+void ExecutableWindow::maybe_clear_exe_info() {
+   if (!_same_prog) {
+      _current_exe.clear();
+      _prog_config_path.clear();
+      _prog_history_path.clear();
+   }
+}
+
+void ExecutableWindow::maybe_set_exe_info(std::string_view exe_path) {
+   if (!_same_prog) {
+      _current_exe       = exe_path;
+      _prog_config_path  = gfc.get_prog_config_path();
+      _prog_history_path = gfc.get_command_history_path();
+   }
+}
+
 void ExecutableWindow::start_or_run(bool pause) {
    std::string_view exe_path = _path->text();
 
@@ -5187,6 +5205,7 @@ void ExecutableWindow::start_or_run(bool pause) {
       // --------------------------------------------------
       save_watches();
       save_breakpoints();
+      s_console_window->save_command_history();
 
       // then if the one we want to run now is different, delete breakpoints and watches
       // -------------------------------------------------------------------------------
@@ -5199,8 +5218,8 @@ void ExecutableWindow::start_or_run(bool pause) {
          _current_exe_flags = 0;
       }
    }
-   _current_exe.clear();
-   _prog_config_path.clear();
+
+   maybe_clear_exe_info();
 
    if (exe_path.empty())
       return;
@@ -5215,8 +5234,7 @@ void ExecutableWindow::start_or_run(bool pause) {
 
    // OK, program was found
    // ---------------------
-   _current_exe = exe_path;
-   _prog_config_path = gfc.get_prog_config_path();
+   maybe_set_exe_info(exe_path);
 
    [[maybe_unused]] auto start_res = ctx.eval_command(std::format("start {}", _arguments->text()));
    //std::print("start_res={}\n", start_res);
@@ -5225,11 +5243,12 @@ void ExecutableWindow::start_or_run(bool pause) {
       CommandParseInternal("gf-get-pwd", true);
    }
 
+   if (!_same_prog)
+      s_console_window->set_history_path(_prog_history_path.native());
+
    save_prog_args();      // do it here when we are actually running the program
    restore_breakpoints();
    // `restore_watches();` done in `MsgReceivedData()`
-
-   s_console_window->set_history_path(gfc.get_command_history_path().native());
 
    if (!pause) {
       (void)CommandParseInternal("run", false);
