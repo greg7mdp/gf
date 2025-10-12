@@ -171,11 +171,10 @@ static inline T sv_atoi_impl(string_view str, size_t offset = 0) {
    return negative ? result : -result;
 }
 
-static inline char* mk_cstring(string_view sv) {
+static inline std::unique_ptr<const char[]> mk_cstring(string_view sv) {
    auto  sz = sv.size();
-   auto* s  = new char[sz + 1];
-   for (size_t i = 0; i < sz; ++i)
-      s[i] = sv[i];
+   auto  s  = std::make_unique<char[]>(sz + 1);
+   std::memcpy(&s[0], &sv[0], sz);
    s[sz] = 0;
    return s;
 }
@@ -382,13 +381,15 @@ struct GF_Config {
 
    // misc
    // ----
-   const char*     _control_pipe_path = nullptr;
+   std::unique_ptr<const char[]>  _control_pipe_path;
    std::string     _vim_server_name;
    std::string     _log_pipe_path;
    vector<Command> _preset_commands;
-   std::string     _global_config_path; // ~/.config/gf2_config.ini (main config file)
-   std::string     _local_config_dir;   // <cwd>
-   std::string     _local_config_path;  // <cwd>/.project.gf (store overrides to `gf2_config.ini`?)
+   fs::path        _global_config_path; // ~/.config/gf_config.ini or ~/.config/gf2_config.ini (main config file)
+   fs::path        _current_directory;  // <cwd>
+   fs::path        _local_config_dir;   // <path>/.gf where <path> is `cwd` dir or the one above<cwd>
+   fs::path        _local_config_path;  // <path>/.gf/gf_config.ini (stores overrides to `gf_config.ini`?)
+
    int             _code_font_size           = 13;
    int             _interface_font_size      = 11;
    int             _window_width             = -1;
@@ -399,39 +400,47 @@ struct GF_Config {
    bool            _restore_watch_window     = true;
    bool            _restore_breakpoints      = true;
    bool            _restore_prog_args        = true;
-   bool            _breakpoints_restored     = false;
    bool            _confirm_command_connect  = true;
    bool            _confirm_command_kill     = true;
    int             _backtrace_count_limit    = 50;
    bool            _grab_focus_on_breakpoint = true;
 
-private:
-   fs::path _prog_config_dir;      // <path>/.gf where path is `prog` dir or the one above
+   void init() {
+      assert(_current_directory.empty() && _local_config_dir.empty()); // make sure it is called only once
 
-   const fs::path& get_prog_config_dir() {
-      if (_prog_config_dir.empty()) {
-         // start from current dir
-         // ----------------------
-         _prog_config_dir = _local_config_dir;
+      _current_directory = get_realpath(my_getcwd());
 
-         // go one dir up is current directory starts with "build"
-         // ------------------------------------------------------
-         if (_prog_config_dir.filename().native().starts_with("build"))
-            _prog_config_dir = _prog_config_dir.parent_path();
+      // ----------------------------
+      // Figure out local config dir.
+      // start from current dir
+      // ----------------------------
+      _local_config_dir = _current_directory;
 
-         // `.gf` is the directory holding the local config files
-         // -----------------------------------------------------
-         _prog_config_dir.append(".gf");
-         fs::create_directories(_prog_config_dir); // create directory if it doesn't exist
-         return _prog_config_dir;
+      // go one dir up is current directory starts with "build"
+      // ------------------------------------------------------
+      if (_local_config_dir.filename().native().starts_with("build"))
+         _local_config_dir = _local_config_dir.parent_path();
+
+      // `.gf` is the directory holding the local config files
+      // -----------------------------------------------------
+      _local_config_dir.append(".gf");
+      fs::create_directories(_local_config_dir); // create directory if it doesn't exist
+
+      _global_config_path = std::format("{}/.config/gf_config.ini", getenv("HOME"));
+      if (!fs::exists(_global_config_path)) {
+         // if `gf_config.ini` not present, also accept `gf2_config.ini`
+         _global_config_path = std::format("{}/.config/gf2_config.ini", getenv("HOME"));
       }
-      return _prog_config_dir;
+
+      _local_config_path = std::format("{}/gf_config.ini", _local_config_dir.native());
    }
+
+private:
 
    // return <path>/.gf/<progname>.<extension> where path is `cwd` dir where `gf` was launched,
    // or the one above
    fs::path get_prog_path(string_view extension) {
-      auto path = get_prog_config_dir();
+      auto path = get_local_config_dir();
 
       // and we have one config file for each program name. Update as path
       // in executable window can change.
@@ -444,6 +453,10 @@ private:
    }
 
 public:
+   const fs::path& get_local_config_dir() {
+      return _local_config_dir;
+   }
+
    // <path>/.gf/<progname>.ini
    fs::path get_prog_config_path() {
       return get_prog_path(".ini");
@@ -456,12 +469,15 @@ public:
 
    std::vector<fs::path> get_progs() {
       std::vector<fs::path> res;
-      fs::path              path{get_prog_config_dir()};
+      fs::path              path{get_local_config_dir()};
       assert(fs::is_directory(path));
 
       for (const auto& entry : fs::directory_iterator(path)) {
          std::filesystem::path p = entry.path();
          if (std::filesystem::is_regular_file(p)) {
+            if (p.filename() == "gf_config.ini")
+               continue; // skip local config file
+
             if (p.extension() == ".ini")
                res.push_back(entry);
          }
@@ -469,7 +485,6 @@ public:
 
       return res;
    }
-
 };
 
 GF_Config gfc;
@@ -585,6 +600,7 @@ struct Context {
    bool           copy_layout_to_clipboard();
    void           additional_setup();
    UIElement*     switch_to_window_and_focus(string_view name);
+   UIElement*     find_window(string_view name);
    unique_ptr<UI> gf_main(int argc, char** argv);
 };
 
@@ -871,7 +887,7 @@ void Context::debugger_thread_fn() {
    pipe(outputPipe);
    pipe(inputPipe);
 
-   _gdb_argv[0].reset(mk_cstring(_gdb_path)); // make sure prog name is correct in arg list
+   _gdb_argv[0] = mk_cstring(_gdb_path);      // make sure prog name is correct in arg list
    if (_gdb_argv.back() != nullptr)           // make sure arg list is null-terminated
       _gdb_argv.push_back(nullptr);
 
@@ -1241,6 +1257,10 @@ public:
       }
    }
 
+   void delete_all_breakpoints() {
+      for_all_breakpoints([](int idx, auto& bp) { bp.command(bp_command::del); });
+   }
+
    void toggle_breakpoint(int line = 0) {
       if (s_source_window->_showing_disassembly) {
          // TODO.
@@ -1598,8 +1618,8 @@ const char* themeItems[] = {
 
 static void SettingsAddTrustedFolder() {
    const char* section_string = "[trusted_folders]\n";
-   auto        updater        = INI_Updater{gfc._global_config_path};
-   auto        text           = std::format("{}\n", gfc._local_config_dir);
+   auto        updater        = INI_Updater{gfc._global_config_path.native()};
+   auto        text           = std::format("{}\n", gfc.get_local_config_dir().native());
 
    // check that it is not already there
    // ----------------------------------
@@ -1634,12 +1654,13 @@ UIConfig Context::load_settings(bool earlyPass) {
 
    // load global config first (from ~/.config/gf2_config.ini), and then local config
    for (int i = 0; i < 2; i++) {
-      const auto config = LoadFile(i ? gfc._local_config_path : gfc._global_config_path);
+      const auto config = LoadFile(i ? gfc._local_config_path.native() : gfc._global_config_path.native());
       if (!config)
          continue;
 
+#if 0
       if (earlyPass && i && !currentFolderIsTrusted && !config->empty()) {
-         std::print(std::cerr, "Would you like to load the config file .project.gf from your current directory?\n");
+         std::print(std::cerr, "Would you like to load the config file gf_config.ini from your current directory?\n");
          std::print(std::cerr, "You have not loaded this config file before.\n");
          std::print(std::cerr, "(Y) - Yes, and add it to the list of trusted files\n");
          std::print(std::cerr, "(N) - No\n");
@@ -1654,6 +1675,7 @@ UIConfig Context::load_settings(bool earlyPass) {
       } else if (!earlyPass && cwdConfigNotTrusted && i) {
          break;
       }
+#endif
 
       INI_Parser config_view(*config);
 
@@ -1792,7 +1814,7 @@ UIConfig Context::load_settings(bool earlyPass) {
          } else if (section == "commands" && earlyPass && !key.empty() && !value.empty()) {
             gfc._preset_commands.push_back(Command{._key = std::string(key), ._value = std::string(value)});
          } else if (section == "trusted_folders" && earlyPass && !key.empty()) {
-            if (key == gfc._local_config_dir)
+            if (key == gfc.get_local_config_dir().native())
                currentFolderIsTrusted = true;
          } else if (section == "theme" && !earlyPass && !key.empty() && !value.empty()) {
             for (uintptr_t i = 0; i < sizeof(themeItems) / sizeof(themeItems[0]); i++) {
@@ -1815,7 +1837,7 @@ UIConfig Context::load_settings(bool earlyPass) {
             mkfifo(gfc._log_pipe_path.c_str(), 6 + 6 * 8 + 6 * 64);
          } else if (section == "pipe" && earlyPass && key == "control") {
             gfc._control_pipe_path = mk_cstring(value);
-            mkfifo(gfc._control_pipe_path, 6 + 6 * 8 + 6 * 64);
+            mkfifo(gfc._control_pipe_path.get(), 6 + 6 * 8 + 6 * 64);
             pthread_t thread = 0;
             pthread_create(&thread, nullptr, ControlPipe::thread_proc, nullptr);
          } else if (section == "executable" && !key.empty() && earlyPass) {
@@ -1828,8 +1850,8 @@ UIConfig Context::load_settings(bool earlyPass) {
             parse_res.parse_bool("ask_directory", gfc._exe._ask_dir);
             // clang-format on
          } else if (section == "program" && !key.empty() && earlyPass) {
-            // spec for program start config found in `.project.gf` and config files
-            // in `.gf` dir. Use json single-line format.
+            // spec for program start config found in `~/.config/gf_config.ini` and
+            // `.gf/gf_config.ini`. Use json single-line format.
             // overrides the above!
             // ---------------------------------------------------------------------
             auto j = json_parse(key);
@@ -2119,17 +2141,17 @@ void SourceWindow::draw_inspect_line_mode_overlay(UIPainter* painter) {
 
 void CommandDeleteAllBreakpointsOnLine(int line) {
    s_breakpoint_mgr.for_all_matching_breakpoints(line, s_source_window->_current_file,
-                                                 [](int line, auto& bp) { bp.command(bp_command::del); });
+                                                 [](int idx, auto& bp) { bp.command(bp_command::del); });
 }
 
 void CommandDisableAllBreakpointsOnLine(int line) {
    s_breakpoint_mgr.for_all_matching_breakpoints(line, s_source_window->_current_file,
-                                                 [](int line, auto& bp) { bp.command(bp_command::dis); });
+                                                 [](int idx, auto& bp) { bp.command(bp_command::dis); });
 }
 
 void CommandEnableAllBreakpointsOnLine(int line) {
    s_breakpoint_mgr.for_all_matching_breakpoints(line, s_source_window->_current_file,
-                                                 [](int line, auto& bp) { bp.command(bp_command::ena); });
+                                                 [](int idx, auto& bp) { bp.command(bp_command::ena); });
 }
 
 int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* dp) {
@@ -3191,6 +3213,13 @@ public:
       if (_textbox || _selected_row > _rows.size() || _rows.empty())
          return {};
       return _rows[_selected_row == _rows.size() ? _selected_row - 1 : _selected_row];
+   }
+
+   void delete_all_watches() {
+      while (_rows.size()) {
+         _selected_row = 0;
+         delete_expression();
+      }
    }
 
    void delete_expression(bool fieldsOnly = false) {
@@ -5044,34 +5073,72 @@ public:
 // ---------------------------------------------------/
 // Executable window:
 // ---------------------------------------------------/
-void ExecutableWindow::start_or_run(bool pause) {
-   auto res = ctx.eval_command(std::format("file \"{}\"", _path->text()));
-
-   if (res.contains("No such file or directory.")) {
-      s_main_window->show_dialog(0, "The executable path is invalid.\n%f%B", "OK");
+void ExecutableWindow::restore_watches() {
+   if (_current_exe.empty() || _same_prog || _prog_config_path.empty())
       return;
+
+   if (gfc._restore_watch_window && !(_current_exe_flags & ef_watches_restored)) {
+      _current_exe_flags |= ef_watches_restored;
+      INI_Updater ini{_prog_config_path};
+      ini.with_section("[watch]\n", [&](string_view watches) {
+         // print ("watches={}\n", watches);
+         for (size_t idx = 0; idx < watches.size();) {
+            size_t end = watches.find('\n', idx);
+            if (end == std::string::npos)
+               break;
+            if (idx < end && watches[idx] == ';')
+               ++idx;
+            WatchAddExpression(string_view{&watches[idx], end - idx});
+            idx = end + 1;
+         }
+      });
    }
+}
 
-   (void)ctx.eval_command(std::format("start {}", _arguments->text()));
+void ExecutableWindow::restore_breakpoints() {
+   if (!gfc._restore_breakpoints || _current_exe.empty() || _same_prog || _prog_config_path.empty())
+      return;
 
-   if (_should_ask) {
-      CommandParseInternal("gf-get-pwd", true);
-   }
-
-   if (gfc._restore_breakpoints && !gfc._breakpoints_restored) {
-      gfc._breakpoints_restored = true;
-
-      INI_Updater ini{gfc.get_prog_config_path()};
+   if (!(_current_exe_flags & ef_breakpoints_restored)) {
+      _current_exe_flags |= ef_breakpoints_restored;
+      INI_Updater ini{_prog_config_path};
       ini.with_section("[breakpoints]\n", [&](string_view sv) { s_breakpoint_mgr.restore_breakpoints(sv); });
    }
+}
 
-   s_console_window->set_history_path(gfc.get_command_history_path().native());
+void ExecutableWindow::save_watches() {
+   if (!gfc._restore_watch_window || _current_exe.empty() || _prog_config_path.empty() || !firstWatchWindow)
+      return;
 
-   if (!pause) {
-      (void)CommandParseInternal("run", false);
-   } else {
-      s_stack_window->update_stack();
-      s_source_window->display_set_position_from_stack();
+   std::stringstream ss;
+   for (const auto& exp : firstWatchWindow->base_expressions())
+      ss << ';' << exp->key() << '\n'; // semicolon to protect the rest of the json in case it contains a '='
+
+   auto new_watches = ss.str();
+   if (!new_watches.empty()) {
+      if (!INI_Updater{gfc.get_prog_config_path()}.replace_section("[watch]\n", new_watches)) {
+         std::print(std::cerr, "Warning: Could not save the contents of the watch window; '{}' was not accessible.\n",
+                    gfc.get_prog_config_path().native());
+      }
+   }
+}
+
+void ExecutableWindow::save_breakpoints() {
+   if (!gfc._restore_breakpoints || _current_exe.empty() || _prog_config_path.empty())
+      return;
+
+   std::stringstream ss;
+   s_breakpoint_mgr.for_all_breakpoints([&](size_t, const auto& breakpoint) {
+      json j;
+      to_json(j, breakpoint);
+      ss << ';' << j << "\n"; // semicolon to protect the rest of the json in case it contains a '='
+   });
+
+   auto new_breakpoints = ss.str();
+   if (!new_breakpoints.empty()) {
+      if (!INI_Updater{_prog_config_path}.replace_section("[breakpoints]\n", new_breakpoints)) {
+         std::print(std::cerr, "Warning: Could not save breakpoints.");
+      }
    }
 }
 
@@ -5085,52 +5152,91 @@ std::string ExecutableWindow::start_info_json() {
    return text;
 }
 
-void ExecutableWindow::save_prog_args(const std::string& text) {
+void ExecutableWindow::save_prog_args() {
+   if (!gfc._restore_prog_args || _current_exe.empty() || _prog_config_path.empty())
+      return;
+
+   std::string exe_json = start_info_json();
+
    // Save in `_prog_config_path`
    // ---------------------------
-   INI_Updater ini{gfc.get_prog_config_path()};
+   INI_Updater ini{_prog_config_path};
 
    bool        present = false;
    std::string old_section;
 
    ini.with_section("[program]\n", [&](string_view sv) {
-      present = sv.find(text) != std::string::npos;
+      present = sv.find(exe_json) != std::string::npos;
       if (!present)
          old_section = sv;
    });
 
    if (!present) {
-      old_section.insert(0, ";" + text);
+      old_section.insert(0, ";" + exe_json);
       ini.replace_section("[program]\n", old_section);
    }
 }
 
-void ExecutableWindow::save(bool confirm) {
-   if (fs::exists(fs::path{gfc._local_config_path})) {
-      if (false) {
-         if (auto result = s_main_window->show_dialog(0, ".project.gf already exists in the current directory.\n%f%B%C",
-                                                      "Overwrite", "Cancel");
-             result != "Overwrite")
-            return;
+void ExecutableWindow::start_or_run(bool pause) {
+   std::string_view exe_path = _path->text();
+
+   _same_prog = (_current_exe == exe_path);
+   if (!_current_exe.empty()) {
+      // We have been running a program.
+      // first save breakpoints and watches for current exe
+      // --------------------------------------------------
+      save_watches();
+      save_breakpoints();
+
+      // then if the one we want to run now is different, delete breakpoints and watches
+      // -------------------------------------------------------------------------------
+      if (!_same_prog) {
+         s_breakpoint_mgr.delete_all_breakpoints();
+
+         if (firstWatchWindow)
+            firstWatchWindow->delete_all_watches();
+
+         _current_exe_flags = 0;
       }
    }
+   _current_exe.clear();
+   _prog_config_path.clear();
 
-   // update `.project.gf` to store the executable parameters. We always save in `.project.gf`
-   // in the current directory, but also in `_prog_config_path` so we have a history of commands
-   // for this program.
-   // ------------------------------------------------------------------------------------------
-   auto text = start_info_json();
-   INI_Updater{gfc._local_config_path}.replace_section(
-      "[program]\n", ";" + text); // semicolon so that whole line read as keyword (not just to '=' character)
+   if (exe_path.empty())
+      return;
 
-   // store in `gf2_config.ini` that we trust this folder
-   // ---------------------------------------------------
-   SettingsAddTrustedFolder();
+   auto res = ctx.eval_command(std::format("file \"{}\"", exe_path));
+   //std::print("res={}\n", res);
 
-   save_prog_args(text);
+   if (res.contains("No such file or directory.")) {
+      s_main_window->show_dialog(0, "The executable path is invalid.\n%f%B", "OK");
+      return;
+   }
 
-   if (confirm)
-      s_main_window->show_dialog(0, "Saved executable settings!\n%f%B", "OK");
+   // OK, program was found
+   // ---------------------
+   _current_exe = exe_path;
+   _prog_config_path = gfc.get_prog_config_path();
+
+   [[maybe_unused]] auto start_res = ctx.eval_command(std::format("start {}", _arguments->text()));
+   //std::print("start_res={}\n", start_res);
+
+   if (_should_ask) {
+      CommandParseInternal("gf-get-pwd", true);
+   }
+
+   save_prog_args();      // do it here when we are actually running the program
+   restore_breakpoints();
+   // `restore_watches();` done in `MsgReceivedData()`
+
+   s_console_window->set_history_path(gfc.get_command_history_path().native());
+
+   if (!pause) {
+      (void)CommandParseInternal("run", false);
+   } else {
+      s_stack_window->update_stack();
+      s_source_window->display_set_position_from_stack();
+   }
 }
 
 void ExecutableWindow::update_args(const fs::path& prog_config_path, int incr, // should be -1, 0 or +1
@@ -5225,11 +5331,9 @@ UIElement* ExecutableWindow::Create(UIElement* parent) {
          p.add_panel(UIPanel::HORIZONTAL)
             .add_n([&](auto& p) { p.add_button(0, "Run").on_click([win](UIButton&) { win->start_or_run(false); }); },
                    [&](auto& p) { p.add_button(0, "Start").on_click([win](UIButton&) { win->start_or_run(true); }); },
-                   [&](auto& p) { p.add_spacer(0, 10, 0); },
-                   [&](auto& p) {
-                      p.add_button(0, "Save to .project.gf").on_click([win](UIButton&) { win->save(true); });
-                   });
+                   [&](auto& p) { p.add_spacer(0, 10, 0); });
       });
+
    return panel;
 }
 
@@ -7667,23 +7771,10 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
       auto eval_res = ctx.eval_command(pythonCode);
       // std::print("python code eval ==> {}\n", eval_res);
 
-      if (gfc._restore_watch_window) {
-         INI_Updater ini{gfc.get_prog_config_path()};
-         ini.with_section("[watch]\n", [&](string_view watches) {
-            // print ("watches={}\n", watches);
-            for (size_t idx = 0; idx < watches.size();) {
-               size_t end = watches.find('\n', idx);
-               if (end == std::string::npos)
-                  break;
-               if (idx < end && watches[idx] == ';')
-                  ++idx;
-               WatchAddExpression(string_view{&watches[idx], end - idx});
-               idx = end + 1;
-            }
-         });
-      }
       ctx._first_update = false;
    }
+
+   s_executable_window->restore_watches();
 
    if (WatchLoggerUpdate(*input))
       return;
@@ -7736,7 +7827,7 @@ void* ControlPipe::thread_proc(void*) {
    set_thread_name("ctrlpipe_thread");
    bool quit = false;
    while (!quit) {
-      FILE* file = fopen(gfc._control_pipe_path, "rb");
+      FILE* file = fopen(gfc._control_pipe_path.get(), "rb");
       auto* s    = new std::string;
       s->resize_and_overwrite(255, [&](char* p, size_t sz) {
          return fread(p, 1, sz, file); // returns size actually read which will resize the string accordingly
@@ -7931,6 +8022,14 @@ void Context::show_menu(UIButton* self) {
          menu.add_item(0, ic._label, [&](UIButton&) { ic._shortcut.invoke(); });
    }
    menu.show();
+}
+
+UIElement* Context::find_window(string_view target_name) {
+   for (auto& [name, w] : _interface_windows) {
+      if (w._el && target_name == name)
+         return w._el;
+   }
+   return nullptr;
 }
 
 UIElement* Context::switch_to_window_and_focus(string_view target_name) {
@@ -8191,9 +8290,7 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
 
    // load settings and initialize ui
    // -------------------------------
-   gfc._local_config_dir   = get_realpath(my_getcwd());
-   gfc._global_config_path = std::format("{}/.config/gf2_config.ini", getenv("HOME"));
-   gfc._local_config_path  = std::format("{}/.project.gf", gfc._local_config_dir);
+   gfc.init();
 
    UIConfig ui_config = ctx.load_settings(true);
 
@@ -8266,34 +8363,9 @@ int main(int argc, char** argv) {
    ui_ptr->message_loop();
    ctx.kill_gdb();
 
-   if (gfc._restore_watch_window && firstWatchWindow) {
-      std::stringstream ss;
-      for (const auto& exp : firstWatchWindow->base_expressions())
-         ss << ';' << exp->key() << '\n'; // semicolon to protect the rest of the json in case it contains a '='
-
-      if (!INI_Updater{gfc.get_prog_config_path()}.replace_section("[watch]\n", ss.str())) {
-         std::print(std::cerr, "Warning: Could not save the contents of the watch window; '{}' was not accessible.\n",
-                    gfc.get_prog_config_path().native());
-      }
-   }
-
-   if (gfc._restore_prog_args && s_executable_window) {
-      auto exe_json = s_executable_window->start_info_json();
-      s_executable_window->save_prog_args(exe_json);
-   }
-
-   if (gfc._restore_breakpoints && s_breakpoint_mgr.num_breakpoints()) {
-      std::stringstream ss;
-      s_breakpoint_mgr.for_all_breakpoints([&](size_t, const auto& breakpoint) {
-         json j;
-         to_json(j, breakpoint);
-         ss << ';' << j << "\n"; // semicolon to protect the rest of the json in case it contains a '='
-      });
-
-      if (!INI_Updater{gfc.get_prog_config_path()}.replace_section("[breakpoints]\n", ss.str())) {
-         std::print(std::cerr, "Warning: Could not save breakpoints.");
-      }
-   }
+   s_executable_window->save_prog_args();
+   s_executable_window->save_watches();
+   s_executable_window->save_breakpoints();
 
    s_console_window->save_command_history();
 

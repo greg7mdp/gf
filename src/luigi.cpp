@@ -200,7 +200,7 @@ std::optional<std::string> LoadFile(std::string_view sv_path) {
 }
 
 #if 0
-void read_file_contents( const std::filesystem::path& filename, std::string& result )
+void read_file_contents(const std::filesystem::path& filename, std::string& result )
    {
       std::ifstream f( filename.string(), std::ios::in | std::ios::binary );
       FC_ASSERT(f, "Failed to open ${filename}", ("filename", filename.string()));

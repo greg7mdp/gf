@@ -2271,23 +2271,22 @@ struct INI_Updater {
    bool replace_section(std::string_view section_string, std::string_view text) {
       Section sect = _find_section(section_string);
 
-      std::optional<std::string> config = LoadFile(_path);
+      std::optional<std::string> config2 = LoadFile(_path);
 
       std::ofstream ofs(_path, std::ofstream::out | std::ofstream::binary);
       if (!ofs)
          return false;
 
-      if (!config || sect.start_pos == std::string::npos) {
-         ofs << sect.config;
-         if (!sect.config.empty())
-            ofs << '\n';
+      if (sect.config.empty()) {
+         ofs << section_string << text;
+      } else if (sect.start_pos == std::string::npos) {
+         ofs << sect.config << '\n';
          ofs << section_string << text;
       } else {
-         ofs << config->substr(0, sect.start_pos);
+         ofs << sect.config.substr(0, sect.start_pos);
          ofs << text;
-
          if (sect.end_pos != std::string::npos)
-            ofs << config->substr(sect.end_pos, sect.config.size());
+            ofs << sect.config.substr(sect.end_pos, sect.config.size());
       }
       return true;
    }

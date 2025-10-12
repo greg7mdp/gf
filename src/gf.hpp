@@ -162,6 +162,16 @@ public:
 // ---------------------------------------------------/
 struct ExecutableWindow {
 private:
+   enum exe_flags {
+      ef_breakpoints_restored = 1 << 0,
+      ef_watches_restored     = 1 << 1,
+   };
+
+   std::string _current_exe;
+   uint32_t    _current_exe_flags;
+   fs::path    _prog_config_path;
+   bool        _same_prog = false;
+
    UITextbox* _path      = nullptr;
    UITextbox* _arguments = nullptr;
    bool       _should_ask{false};
@@ -172,14 +182,19 @@ public:
 
    void              start_or_run(bool pause);
    std::string       start_info_json();
-   void              save_prog_args(const std::string& text);
-   void              save(bool confirm);
    static UIElement* Create(UIElement* parent);
 
    std::string       get_path() const { return std::string{_path->text()}; }
    std::string       get_arguments() const { return std::string{_arguments->text()}; }
    void              update_args(const fs::path& prog_config_path, int incr, // should be -1, 0 or +1
                                  bool update_exe_path);
+
+   void              restore_watches();
+   void              restore_breakpoints();
+
+   void              save_watches();
+   void              save_breakpoints();
+   void              save_prog_args();
 };
 
 
