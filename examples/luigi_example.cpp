@@ -34,12 +34,12 @@ int main(int argc, char** argv) {
       return 1;
 #if 1
    std::string home     = getenv("HOME");
-   std::string fontPath = home + "/fonts/FiraCode-Regular.ttf";
+   std::string fontPath = home + "/.fonts/FiraCode-Regular.ttf";
    auto        fontCode = ui_ptr->create_font(fontPath, 12);
    fontCode->activate();
 #endif
    
-   UIWindow& window = ui_ptr->create_window(0, 0, "luigi2 - Example Application", 0, 0);
+   UIWindow& window = ui_ptr->create_window(0, 0, "luigi - Example Application", 0, 0);
 
    // Split window (vertically) into top/bottom panes.
    UISplitPane& uisplit_topbottom = window.add_splitpane(UIElement::vertical_flag, 0.75f);
@@ -181,7 +181,7 @@ int main(int argc, char** argv) {
 
    {
       // Create a separate window demonstrating the MDI element
-      UIMDIClient& client = ui_ptr->create_window(0, 0, "luigi 2 - MDI Example", 0, 0).add_mdiclient(0);
+      UIMDIClient& client = ui_ptr->create_window(0, 0, "luigi - MDI Example", 0, 0).add_mdiclient(0);
 
       client.add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(10, 600, 10, 400), "My Window")
          .add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING)
