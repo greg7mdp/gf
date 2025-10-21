@@ -133,6 +133,133 @@ panel.add_button(0, "Click Me").on_click([](UIButton& btn) {
 });
 ```
 
+## Keyboard and Mouse Shortcuts
+
+### Debugging Control
+
+**Function Keys:**
+- `F2`: Sync with gvim
+- `F3`: Kill debugged process
+- `F4`: Connect to remote target (target remote :1234)
+- `F5`: Continue execution
+- `F8`: Break (interrupt debugger)
+- `F9`: Toggle breakpoint at current line
+- `F10`: Step over (next line, don't enter functions)
+- `F11`: Step in (enter functions)
+
+**Function Keys with Shift:**
+- `Shift+F5`: Run program from start
+- `Shift+F8`: Step into outer scope
+- `Shift+F10`: Step out of current block
+- `Shift+F11`: Step out (finish current function)
+
+**Function Keys with Ctrl:**
+- `Ctrl+F5`: Run paused (start command)
+
+**Function Keys with Ctrl+Shift:**
+- `Ctrl+Shift+F5`: Reverse continue (record/replay debugging)
+- `Ctrl+Shift+F10`: Reverse step over
+- `Ctrl+Shift+F11`: Reverse step in
+
+### Inspection and Navigation
+
+- **Backtick (`)**: Inspect line (shows expressions at current line in popup)
+  - In inspect mode: `1-9` keys add selected expression to watch
+  - `Escape` or backtick again exits inspect mode
+  - `Up/Down` arrows navigate lines while inspecting
+
+### Watch Window
+
+- **Ctrl+C**: Copy value to clipboard
+- **Ctrl+E**: Add entry for address (context menu also available)
+- **Ctrl+G**: View source at address
+- **Enter**: Edit watch expression
+- **Backspace**: Edit watch expression
+- **Delete**: Remove watch expression
+- **Left Arrow** (when collapsed): Edit expression
+- **/ (forward slash)**: Change format specifier (e.g., `/x` for hexadecimal, `/d` for decimal)
+- **Format keys**: After pressing `/`, type format character (x, d, f, etc.)
+- **Tab**: Auto-complete watch expression while typing
+
+### Console/Command Window
+
+- **Enter**: Send command to GDB (or repeat last command if empty)
+- **Shift+Enter**: Insert newline in textbox
+- **Tab**: Tab completion for GDB commands and symbols
+- **Backtick (`)**: Exit to source window (when empty)
+
+### Breakpoints Window
+
+- **Delete**: Remove selected breakpoint(s)
+- **0-9**: Toggle breakpoint by number
+- **Double-click**: Toggle breakpoint enable/disable
+
+### Stack Window
+
+- **Up/Down arrows**: Navigate stack frames
+
+### General Commands
+
+- **Ctrl+R**: Restart GDB
+- **Ctrl+M**: Set disassembly mode
+- **Ctrl+Shift+P**: Ask GDB for current working directory (PWD)
+- **Ctrl+Shift+V**: View window command
+
+### Commented Out (Conflicts with Textbox Bindings)
+The following shortcuts are defined but disabled due to conflicts:
+- `Ctrl+D`: Toggle disassembly
+- `Ctrl+E`: Add watch (alternative)
+- `Ctrl+B`: Toggle fill data tab
+- `Ctrl+L`: Clear output
+- `Ctrl+P`: Previous command
+- `Ctrl+N`: Next command
+
+### Mouse Actions
+
+**Source Window:**
+- **Left click**: Set cursor, select text
+- **Ctrl+Left click**: Run "until" that line (continue execution until reaching the clicked line)
+- **Shift+Left click**: Skip to that line without executing code in between (jump command)
+- **Left double-click**: Select expression under cursor (for inspection)
+- **Right click**: Context menu
+  - Enable/disable breakpoints on line
+  - Breakpoint management options
+- **Mouse move/hover**: Shows expression evaluation tooltip
+
+**Watch Window:**
+- **Left click**: Select watch expression
+- **Right click**: Context menu
+  - Edit expression
+  - Delete expression
+  - Copy value to clipboard (Ctrl+C)
+  - Log writes to address
+  - Break on writes to address
+  - Add entry for address (Ctrl+E)
+  - View source at address (Ctrl+G)
+
+**Breakpoints Window:**
+- **Left click**: Select breakpoint
+- **Left double-click**: Toggle breakpoint enable/disable
+- **Right click**: Context menu
+  - Delete selected breakpoint(s)
+  - Enable/disable selected breakpoint(s)
+
+**Stack Window:**
+- **Left click**: Select and switch to stack frame
+- **Left drag**: Select frame while dragging
+
+**Data/Memory/Profiling Windows:**
+- **Left click/drag**: Selection and interaction
+- **Middle click/drag**: Zoom and pan operations (profiling flame graph)
+- **Mouse move**: Update hover information
+
+### Text Selection
+
+- Standard text selection works in all `UICode` elements (source, output, log windows)
+- Click and drag to select
+- Double-click to select word/expression
+- Clipboard operations available via context menus
+
 ## Dependencies
 
 External (must be installed):
