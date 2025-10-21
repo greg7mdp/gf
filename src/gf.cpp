@@ -1,12 +1,12 @@
 // TODO Disassembly window:
-// 	- Setting/clearing/showing breakpoints.
-// 	- Jump/run to line.
-// 	- Shift+F10: run to next instruction (for skipping past loops).
-// 	- Split source and disassembly view.
+//     - Setting/clearing/showing breakpoints.
+//     - Jump/run to line.
+//     - Shift+F10: run to next instruction (for skipping past loops).
+//     - Split source and disassembly view.
 
 // TODO Inspect line mode:
-// 	- Jump/run to selected line.
-// 	- How to show overloaded variables correctly when moving lines?
+//     - Jump/run to selected line.
+//     - How to show overloaded variables correctly when moving lines?
 
 // TODO More data visualization tools in the data window.
 

@@ -1,375 +1,348 @@
-# gf – A GDB Frontend
+# gf – A Modern GDB Frontend
 
- [![Linux](https://github.com/greg7mdp/gf/actions/workflows/linux.yml/badge.svg)](https://github.com/greg7mdp/gf/actions/workflows/linux.yml)
- 
-## Get the source and build
+[![Linux](https://github.com/greg7mdp/gf/actions/workflows/linux.yml/badge.svg)](https://github.com/greg7mdp/gf/actions/workflows/linux.yml)
 
-Get the source code:
+**[Features](#features)** • **[Installation](#installation)** • **[Quick Start](#quick-start)** • **[Documentation](#documentation)** • **[Configuration](#configuration)** • **[Contributing](doc/contributing.md)** • **[Contributors](#contributors)**
+
+---
+
+gf is a lightweight, modern GDB frontend built with C++23, featuring an intuitive UI and powerful debugging capabilities. Built on the custom [Luigi GUI framework](doc/luigi.md), gf provides a responsive debugging experience for Linux.
+
+## Features
+
+### Core Debugging Features
+- **Interactive Source View** - View and navigate source code with syntax highlighting
+- **Watch Expressions** - Monitor variables with format specifiers (hex, decimal, etc.)
+- **Stack Navigation** - Browse call stack and switch between frames
+- **Breakpoint Management** - Set, disable, and manage breakpoints visually
+- **Register View** - Inspect CPU registers in real-time
+- **Memory Window** - View and edit raw memory with various display formats
+- **Disassembly View** - Step through assembly with instruction-level debugging
+
+### Advanced Features
+- **Line Inspect Mode** - Press backtick (`) to evaluate all expressions on current line
+- **Reverse Debugging** - Full support for rr (record/replay) with reverse continue/step
+- **Custom Watch Hooks** - Python integration for custom type visualization
+- **Control Pipe** - Text editor integration via named pipe commands
+- **Log Window** - Real-time application logging via pipe
+- **Embedded Profiler** - Tracing profiler with flame graph visualization
+- **Waveform Viewer** - Signal visualization for embedded/hardware debugging
+
+### Power User Features
+- **Smart Click Actions**
+  - `Ctrl+Click` a line → run until that line
+  - `Shift+Click` a line → skip to it without executing
+  - Double-click → select expression for inspection
+- **Keyboard Shortcuts** - Full keyboard navigation (F5-F11, Ctrl+shortcuts)
+- **Tab Completion** - Auto-complete GDB commands and symbols
+- **Custom Commands** - Define preset command sequences
+- **Flexible Layout** - Configure window layout via INI file
+- **Theme Support** - Customize colors and appearance
+
+## Installation
+
+### Prerequisites
+- C++23 compiler: `clang++-18` or `g++-13` or higher
+- CMake 3.15+
+- GDB (15.2+ recommended for best C++ expression evaluation)
+- Linux: X11, FreeType
+- Windows: Native Win32
+
+### Build from Source
 
 ```bash
+# Clone the repository
 git clone https://github.com/greg7mdp/gf.git
-```
-
-build:
-
-```bash
 cd gf
-cmake -Bbuild . 
+
+# Configure with CMake
+cmake -Bbuild -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++-18 -GNinja .
+
+# Build
 cmake --build build
-```
 
-Some useful `cmake` options:
-
-- `CMAKE_BUILD_TYPE`:  `Release`, `Debug`, `RelWithDebInfo`
-- `CMAKE_CXX_COMPILER`: specify a specific installed C++ compiler, must be `clang++-18` or `g++-13` or higher.
-- `CMAKE_EXPORT_COMPILE_COMMANDS`: useful for `clangd`
-
-
-example:
-
-```bash
-cmake -Bbuild -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=clang++-18 -DCMAKE_EXPORT_COMPILE_COMMANDS=1  -GNinja .
-```
-
-
-## Recommended
-
-Install a newer version of `gdb` (I'm using `gdb 15.2`) and make sure it is found first in your `PATH`. 
-Old versions sometimes crash when evaluating C++ expressions. 
-
-> Note: when building and using a new version of `gdb`, it is likely that the auto-load allowing pretty 
-> printing of STL containers will not be found. This can be fixed with a symbolic link. 
-> So for example if your new gdb was installed in `/usr/local/bin`, do: 
-> `sudo ln -s /usr/share/gdb/auto-load /usr/local/share/gdb`.
-
-> Note: The gdb prompt including the version can be found on the top of the `Log` window.
-
-## Run
-
-```bash
+# Run
 ./build/gf
 ```
 
-Please read the rest of this file to learn about using and configuring `gf`. 
+### CMake Options
 
-If you're new to GDB, see [this article](https://handmade.network/forums/articles/t/2883-gdb).
+| Option | Values | Description |
+|--------|--------|-------------|
+| `CMAKE_BUILD_TYPE` | `Release`, `Debug`, `RelWithDebInfo` | Build configuration |
+| `CMAKE_CXX_COMPILER` | `clang++-18`, `g++-13`, etc. | C++ compiler (must support C++23) |
+| `CMAKE_EXPORT_COMPILE_COMMANDS` | `ON`, `OFF` | Generate compile_commands.json for clangd |
 
+## Quick Start
 
-## Tips
+### First Run
 
-- You can run the application with `./gf`. Any additional command line arguments passed to `gf` will be forwarded to GDB.
-- Press Ctrl+Shift+P to synchronize your working directory with GDB after you start your target executable. 
-  This is necessary if you open `gf` in a different directory to the one you compile in.
-- To view RGBA bitmaps, select the `Data` tab and then select `Add bitmap...`.
-- Ctrl+Click a line in the source view to run "until" that line. Shift+Click a line in the source view to 
-  skip to it without executing the code in between.
-- Press Shift+F10 to step out of a block, and press Shift+F11 to step out a function.
-- Press Tab while entering a watch expression to auto-complete it.
-- Press `/` with a watch expression highlighted to change the format specifier. 
-  For example, `/x` switches to hexadecimal view.
-- Press backtick to enter line inspect mode. This mode evaluates all expressions on the current line.
-- Use `gf --rr-replay` for replaying a trace recorded by [rr](https://rr-project.org/). 
-  Use Ctrl+Shift+(F5/F10/F11) for reverse continue and step.
+```bash
+# Run gf
+./build/gf
 
-You may want to add the following commands to your `~/.gdbinit` file:
-```
-set breakpoint pending on
-set disassembly-flavor intel
+# Or with command-line arguments forwarded to GDB
+./build/gf --args ./your_program arg1 arg2
 ```
 
-## Settings
+### Essential Shortcuts
 
-On startup, settings are loaded from `~/.config/gf2_config.ini`, followed by `.project.gf`. 
-This is an INI-style file.
+| Action | Shortcut | Description |
+|--------|----------|-------------|
+| **Continue** | `F5` | Resume execution |
+| **Step Over** | `F10` | Execute next line without entering functions |
+| **Step In** | `F11` | Step into function calls |
+| **Step Out** | `Shift+F11` | Finish current function |
+| **Toggle Breakpoint** | `F9` | Add/remove breakpoint at current line |
+| **Break** | `F8` | Interrupt running program |
+| **Run Until Line** | `Ctrl+Click` | Continue execution to clicked line |
+| **Jump to Line** | `Shift+Click` | Skip to line without executing |
+| **Inspect Line** | `` ` `` (backtick) | Evaluate all expressions on current line |
 
-### GDB configuration
+### Using with rr (Record/Replay)
 
-You can pass additional arguments to GDB in the `[gdb]` section. For example,
+```bash
+# Record your program
+rr record ./your_program
+
+# Replay in gf
+gf --rr-replay
+```
+
+Use `Ctrl+Shift+F5/F10/F11` for reverse continue/step.
+
+### Quick Tips
+- Press `Ctrl+Shift+P` to sync working directory with GDB after starting your executable
+- Use `Tab` for auto-completion while typing watch expressions or GDB commands
+- Press `/` in watch window to change format specifier (e.g., `/x` for hexadecimal)
+- Right-click for context menus with additional options
+- Add recommended GDB settings to `~/.gdbinit`:
+  ```
+  set breakpoint pending on
+  set disassembly-flavor intel
+  ```
+
+## Documentation
+
+### User Guides
+- **[Quick Tips](https://github.com/greg7mdp/gf#tips)** - Essential keyboard shortcuts and features
+- **[Configuration Guide](https://github.com/greg7mdp/gf#configuration)** - Customize gf to your workflow
+- **[Special Commands](https://github.com/greg7mdp/gf#special-commands)** - gf-specific GDB commands
+- **[Watch Hooks](https://github.com/greg7mdp/gf#watch-window-hooks)** - Python integration for custom types
+
+### Developer Documentation
+- **[Luigi GUI Framework](doc/luigi.md)** - Documentation for the UI framework powering gf
+- **[Plugin System](doc/plugins.md)** - Extend gf with custom windows and commands
+- **[Profiler Guide](doc/profiler_instructions.txt)** - Using the embedded profiler
+
+### External Resources
+- **[GDB Tutorial](https://handmade.network/forums/articles/t/2883-gdb)** - Introduction to GDB debugging
+- **[rr Project](https://rr-project.org/)** - Record and replay framework
+
+## Screenshots
+
+![Main debugging interface](https://raw.githubusercontent.com/nakst/cdn/main/unknown2.png)
+*Main debugging interface showing source view, watch window, and stack*
+
+![Memory window and extended watch view](https://raw.githubusercontent.com/nakst/cdn/main/%20memory%20window%20and%20extended%20view%20window.png)
+*Memory window and extended watch expression view*
+
+## Configuration
+
+gf loads configuration from two files on startup (in order):
+1. `~/.config/gf2_config.ini` - Global user settings
+2. `.project.gf` - Project-specific settings
+
+### Basic Configuration
 
 ```ini
+[ui]
+scale=1.5
+font_path=/usr/share/fonts/TTF/DejaVuSansMono.ttf
+font_size_code=14
+window_width=1920
+window_height=1080
+maximize=1
+
 [gdb]
-arguments=-nx -ex record
-```
-
-You can also change the location of the GDB executable. For example,
-
-```ini
-[gdb]
-path=/home/a/opt/gdb
-```
-
-You can direct all output from GDB to be sent to the "Log" window, if you have one in your layout string. 
-This will work even if you haven't setup a log pipe. This can be used to view the stderr output from your 
-target dynamically as it is running.
-
-```ini
-[gdb]
+path=/usr/local/bin/gdb
 log_all_output=1
+
+[shortcuts]
+Ctrl+I=print i
+F12=continue
 ```
 
-You can disable the confirmation dialogs for the kill (F3) and connect (F4) commands.
+### Layout Customization
+
+Configure window layout with horizontal (`h`) and vertical (`v`) splits:
 
 ```ini
-[gdb]
-confirm_command_kill=0
-confirm_command_connect=0
+[ui]
+layout=h(75,v(75,Source,Console),v(50,t(Watch,Breakpoints),Stack))
 ```
 
-You can limit the number of stack frames in the stack window (the default is 50).
+- `h(position,left,right)` - Horizontal split
+- `v(position,top,bottom)` - Vertical split
+- `t(tab1,tab2,...)` - Tab pane
 
-```ini
-[gdb]
-backtrace_count_limit=50
-```
-
-### Custom keyboard shortcuts
-
-Keyboard shortcuts are placed in the `[shortcuts]` section. For example,
+### Custom Keyboard Shortcuts
 
 ```ini
 [shortcuts]
 Ctrl+I=print i
 Ctrl+Shift+F10=reverse-next
 Ctrl+Shift+F11=reverse-step
+F12=continue
 ```
 
-You can use any standard GDB command, or any of the commands listed in "Special commands" below.
+You can use any GDB command or gf special commands.
 
-### User interface
+### Preset Commands
 
-You can change the font, user interface scaling, and window width and height in the `[ui]` section. For example,
-
-```ini
-[ui]
-scale=1.5
-font_path=/usr/share/fonts/TTF/DejaVuSansMono.ttf
-font_size_interface=17
-font_size_code=20
-window_width=3000
-window_height=1700
-```
-
-To change the font, FreeType must have been available when you compiled gf. 
-You can enable subpixel font rendering by recompiling with `extra_flags=-DUI_FREETYPE_SUBPIXEL ./build.sh`.
-    
-You can also configure the interface layout, with the `layout` parameter. 
-Use `h(position,left,right)` to create a horizontal split, `v(position,top,bottom)` to create a vertical split, 
-and `t(...)` to create a tab pane. This value should not contain any whitespace. 
-Please note this value is not validated, so make sure it is formatted correctly!
-
-```ini
-layout=h(75,v(75,Source,Console),v(50,t(Watch,Breakpoints,Commands,Struct,Exe),t(Stack,Files,Registers,Data,Thread))))
-```
-
-**NB: Horizontal and vertical splits must have exactly two children.** Instead, you can nest them to create 
-more complex layouts.
-
-You can maximize the window at startup with `maximize=1`.
-
-You can request for the expressions in the watch window to be saved and restored by setting `restore_watch_window=1`.
-
-You can allow selecting text in the source window by setting `selectable_source=1`.
-
-### Themes
-
-You can change the theme in the `theme` section. See https://github.com/nakst/gf/wiki/Themes for a list of examples.
-
-### Preset commands
-
-You can create a list of quickly accessible commands, available in the "Commands" tab in the UI. 
-Separate individual commands using a semicolon. Each command in the list is run one after another; 
-to run the final command asynchronously, put a `&` at the end. For example,
+Create quick-access command buttons:
 
 ```ini
 [commands]
 Compile=shell gcc -o bin/app src/main.c
-Run normal=file bin/app;run&
-Run tests=file bin/app;run test_cases.txt&
-Set breakpoints=b main;b LoadFile;b AssertionFailure
+Run=file bin/app;run&
+Debug Tests=file bin/tests;b main;run test_suite&
 ```
 
-You can use any standard GDB command, or any of the commands listed in "Special commands" below.
+Separate commands with `;`, use `&` at the end to run asynchronously.
 
-### Vim integration
+### Themes
 
-You can change the server name with the `server_name` key in the `vim` section. For example,
+Customize colors in the `[theme]` section. See [theme examples](https://github.com/nakst/gf/wiki/Themes).
+
+### GDB Configuration
+
+```ini
+[gdb]
+# Path to GDB executable
+path=/usr/local/bin/gdb
+
+# Pass arguments to GDB
+arguments=-nx -ex record
+
+# Log all GDB output to Log window
+log_all_output=1
+
+# Disable confirmation dialogs
+confirm_command_kill=0
+confirm_command_connect=0
+
+# Stack frame limit
+backtrace_count_limit=50
+```
+
+### Text Editor Integration
+
+Configure control pipe for editor integration:
+
+```ini
+[pipe]
+control=/tmp/gf_control.pipe
+log=/tmp/gf_log.pipe
+```
+
+Send commands to the pipe:
+
+```bash
+# Jump to file and line
+echo "f /path/to/file.cpp" > /tmp/gf_control.pipe
+echo "l 123" > /tmp/gf_control.pipe
+
+# Execute GDB command
+echo "c file myapp" > /tmp/gf_control.pipe
+```
+
+### Vim Integration
 
 ```ini
 [vim]
-server_name=MyVimServer
+server_name=GVIMServer
 ```
 
-## Control pipe
+Use `F2` in gf to sync with gvim.
 
-You can change the loaded file and line by sending commands to the control pipe. 
+## Special Commands
 
-First, you must set the location of the control pipe. In the `[pipe]` section of the configuration file, 
-set the `control` key to the absolute path where you want the control pipe to be.
+gf provides custom GDB commands:
 
-Then, you can send commands to the pipe. For example,
+| Command | Description |
+|---------|-------------|
+| `gf-step` | Step line or instruction (context-aware) |
+| `gf-next` | Step over line or instruction (context-aware) |
+| `gf-step-out-of-block` | Step to next line after closing `}` |
+| `gf-restart-gdb` | Restart GDB process (loses state) |
+| `gf-get-pwd` | Sync working directory from executable |
+| `gf-switch-to <window>` | Switch to named window |
+| `gf-command <name>` | Run preset command from `[commands]` section |
+| `gf-inspect-line` | Toggle line inspect mode (bound to backtick) |
 
-```bash
-# Load the specified file (must be a full path).
-echo f /home/a/test.c > /home/a/control_pipe.dat
+## Watch Window Hooks
 
-# Go to line 123.
-echo l 123 > /home/a/control_pipe.dat
+Extend the watch window with Python to customize display of complex types:
 
-# Send a GDB command.
-echo c file myapp > /home/a/control_pipe.dat
-```
-
-This can be used for text editor integration.
-
-## Log window
-
-You can show messages send to a pipe using the log window.
-
-First, you must set the location of the log pipe. In the `[pipe]` section of the configuration file, 
-set the `log` key to the absolute path where you want the log pipe to be. 
-Next, you must add the "Log" window somewhere in your layout string (see the "User interface" section above). 
-Once configured, you can then send messages to the pipe and they will appear in the log window. 
-
-Here is an example of how to send messages to the pipe:
-
-```c
-#define LOG(...) do { fprintf(logFile, __VA_ARGS__); fflush(logFile); } while (0)
-#define LOG_OPEN(path) logFile = fopen(path, "w")
-FILE *logFile;
-
-...
-
-LOG_OPEN("...");
-LOG("Hello, world!\n");
-```
-
-## Special commands
-
-### gf-step
-
-`gf-step` either steps a single line (`step`) or single instruction (`stepi`), 
-depending whether disassembly view is active.
-
-### gf-next
-
-`gf-next` either steps over a single line (`next`) or single instruction (`nexti`), 
-depending whether disassembly view is active.
-
-### gf-step-out-of-block
-
-`gf-step-out-of-block` steps out of the current block. 
-That is, it steps to the next line after the first unmatched `}`, starting from the current line. 
-
-### gf-restart-gdb
-
-`gf-restart-gdb` restarts the GDB process immediately. 
-Any state such as loaded symbol files or breakpoints will be lost.
-
-### gf-get-pwd
-
-`gf-get-pwd` asks GDB for the working directory in which the current executable file was compiled. 
-This ensures the source view tries to load files from the correct directory.
-
-### gf-switch-to
-
-`gf-switch-to <window-name>` switches to a specific window.
-The window names are the same as given in the layout string, as seen in the "User interface" section.
-
-### gf-command
-
-`gf-command <name>` runs the command(s) corresponding to `<name>` in the `[commands]` section of 
-your configuration file.
-
-### gf-inspect-line
-
-`gf-inspect-line` toggles inspect line mode. By default, this is bound to the backtick key.
-
-## Watch window hooks
-
-You can customize the behaviour of the watch window when displaying specific types using Python. 
-When the watch window wants to display the fields of a value, it will look a hook function at `gf_hooks[type_of_value]`. 
-The hook function should take two arguments, `item` and `field`. 
-If the hook function exists, it will be called in one of two ways:
-
-1. When the watch window needs a list of the fields in the value, it calls the hook with `item` set to 
-   an opaque handle and `field` set to `None`. 
-   You should print out a list of all the names of the fields in the value, one on each line. 
-   You can print out all the standard fields by calling `_gf_fields_recurse(item)`. 
-   **When adding custom fields, their names must be enclosed by `[]`.**
-2. When the watch window needs to get the value of a specific custom field in the value, 
-   it calls the hook with `item` set to a `gdb.Value` for the value, and `field` to the 
-   name of the custom field that was added. 
-   **The hook is not called for standard fields.** 
-   You should return a `gdb.Value` that gives the value of the field.
-
-For example, the following hook add a width and height custom field for a rectangle type.
-
-```py
+```python
 def RectangleHook(item, field):
     if field:
-        if field == '[width]':  
-            # item['...'] looks up a field in the struct, returned as a gdb.Value
-            # int(...) converts the gdb.Value to an int so we can do arithmetic on it
-            # gdb.Value(...) converts the result back to a gdb.Value
+        if field == '[width]':
             return gdb.Value(int(item['right']) - item['left'])
-        if field == '[height]': 
-            # do something similar for the height
+        if field == '[height]':
             return gdb.Value(int(item['bottom']) - item['top'])
     else:
-        print('[width]')         # add the width custom field
-        print('[height]')        # add the height custom field
-        _gf_fields_recurse(item) # add the fields actually in the struct
+        print('[width]')
+        print('[height]')
+        _gf_fields_recurse(item)
 
-gf_hooks = { 'Rectangle': RectangleHook } # create the hook dictionary
+gf_hooks = { 'Rectangle': RectangleHook }
 ```
 
-If you want to create a custom dynamic array type, instead of printing field names, print `(d_arr)` followed 
-by the number of array items. 
-The fields will then be automatically populated in the form of `[%d]`, where `%d` is the index. 
-For example, given the following structure:
+### Dynamic Arrays
 
-```cpp
-struct MyArray {
-	int length;
-	float *items;
-};
-```
-
-This is the hook definition:
-
-```py
+```python
 def MyArrayHook(item, field):
-	if field: return item['items'][int(field[1:-1])]
-	else: print('(d_arr)', int(item['length']))
+    if field:
+        return item['items'][int(field[1:-1])]
+    else:
+        print('(d_arr)', int(item['length']))
 ```
 
-Templates are removed from the name of the type. 
-For example, `Array<int>`, `Array<char *>` and `Array<float>` would all use the `Array` hook.
+Template parameters are removed from type names, so `Array<int>` uses the `Array` hook.
 
+## Contributing
+
+See **[CONTRIBUTING.md](doc/contributing.md)** for details on how to contribute to gf.
 
 
 ## Contributors
 
+gf was originally created by nakst (see https://github.com/nakst/gf), without which this current repo wouldn't exist. Much of that original version still lives in this repo. Beside its creator, @nakst, it also was improved by the contributors listed below:
+
 ```
 nakst
-Philippe Mongeau phmongeau 
-Jimmy "Keeba" Lefevre JimmyLefevre 
-John Blat johnblat64 
+Philippe Mongeau (phmongeau)
+Jimmy "Keeba" Lefevre (JimmyLefevre)
+John Blat (johnblat64)
 IWouldRatherUsePasteBin
-Gavin Beatty gavinbeatty
-Michael Stopa StomyPX
-Anders Kaare sqaxomonophonen
-Arseniy Khvorov khvorov45
+Gavin Beatty (gavinbeatty)
+Michael Stopa (StomyPX)
+Anders Kaare (sqaxomonophonen)
+Arseniy Khvorov (khvorov45)
 ```
 
-## Extension pack
+I (`Gregory Popovitch, @greg7mdp`) found `gf` quite useful, but felt like fixing some issues that I bothered me in my daily use. The more I hacked at `gf`, the more I was amazed as what it achieved to implement in so few lines of code, and the more fun I had with this process. 
 
-![A screenshot showing the embedded profiler, which is displaying a multi-colored flame graph.](https://raw.githubusercontent.com/nakst/cdn/main/unknown2.png)
-![A screenshot showing the memory window and extended watch expression view.](https://raw.githubusercontent.com/nakst/cdn/main/%20memory%20window%20and%20extended%20view%20window.png)
+Eventually I decided to update the code to a more typical C++ implementation, even at the cost of making a few extra string copies if needed. Still, I attempted to stay as close to the metal as possible, in order to retain gf's amazing responsiveness. This is the code you can see in my current repository.
 
-This currently includes:
-- Embedded tracing profiler
-- Memory window
-- Extended watch expression view (for strings, matrices and base conversion)
-- [Waveform viewer](https://raw.githubusercontent.com/nakst/cdn/main/waveform_viewer.mp4)
-- Full source code for the pack
+Thank you for contributing to gf!
+
+## License
+
+Check the repository for license information.
+
+---
+
+**Built with ❤️ using C++23 and the Luigi GUI framework**

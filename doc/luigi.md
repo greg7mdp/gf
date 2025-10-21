@@ -1,4 +1,10 @@
-# luigi
+# Luigi GUI Framework
+
+**[Introduction](#introduction)** • **[Getting Started](#getting-started)** • **[Core Concepts](#core-concepts)** • **[UI Elements](#ui-elements)** • **[Layout System](#layout-system)** • **[Event Handling](#event-handling)** • **[Examples](#examples)** • **[Advanced Topics](#advanced-topics)**
+
+---
+
+## Introduction
 
 Luigi is a lightweight, modern C++ GUI framework that provides a simple yet powerful API for building desktop applications. It features a retained-mode element hierarchy with immediate-mode style APIs and supports both Linux (X11) and Windows platforms.
 
@@ -12,20 +18,9 @@ Luigi example app screenshot:
 `luigi` consists of two files, `luigi.hpp` and `luigi.cpp`. To integrate directly into your application, you can #include `luigi.cpp` in one file, in `luigi.hpp` in any other file that needs to make gui calls.
 
 
-## Documentation
+## Getting Started
 
-### Table of Contents
-
-- [Getting Started](#getting-started)
-- [Core Concepts](#core-concepts)
-- [UI Elements](#ui-elements)
-- [Layout System](#layout-system)
-- [Event Handling](#event-handling)
-- [Examples](#examples)
-
-### Getting Started
-
-#### Basic Application Structure
+### Basic Application Structure
 
 Every Luigi application follows this basic pattern:
 
@@ -55,7 +50,7 @@ int main(int argc, char** argv) {
 }
 ```
 
-#### Custom Fonts (Optional)
+### Custom Fonts (Optional)
 
 Luigi supports custom fonts via FreeType:
 
@@ -69,9 +64,9 @@ auto fontCode = ui_ptr->create_font(fontPath, 12);
 fontCode->activate();  // Set as active font
 ```
 
-### Core Concepts
+## Core Concepts
 
-#### Element Hierarchy
+### Element Hierarchy
 
 Luigi uses a tree structure where every UI element has:
 - A **parent** element (except the root window)
@@ -79,7 +74,7 @@ Luigi uses a tree structure where every UI element has:
 - A **bounds** rectangle defining its position and size
 - A **window** pointer to the top-level window
 
-#### Message System
+### Message System
 
 All UI communication happens through messages (`UIMessage` enum):
 
@@ -93,7 +88,7 @@ UIMessage::UPDATE             // Element state changed
 UIMessage::VALUE_CHANGED      // Value changed (sliders, checkboxes)
 ```
 
-#### Flags
+### Flags
 
 Elements are configured using bitwise flags:
 
@@ -105,7 +100,7 @@ UIElement::hv_fill       // Fill both directions
 UIElement::disabled_flag // Disable user interaction
 ```
 
-#### CRTP Pattern and Method Chaining
+### CRTP Pattern and Method Chaining
 
 Luigi uses the CRTP (Curiously Recurring Template Pattern) via `UIElementCast<T>` to enable fluent method chaining that returns the correct derived type:
 
@@ -116,9 +111,9 @@ UIButton& btn = panel.add_button(0, "Hello")
     .focus();  // All methods return UIButton&, not UIElement&
 ```
 
-### UI Elements
+## UI Elements
 
-#### UIWindow
+### UIWindow
 
 The top-level container for all UI elements.
 
@@ -147,7 +142,7 @@ window.write_clipboard_text("Hello", sel_target_t::clipboard);
 std::string text = window.read_clipboard_text(sel_target_t::clipboard);
 ```
 
-#### UIPanel
+### UIPanel
 
 Container for organizing child elements vertically or horizontally.
 
@@ -170,7 +165,7 @@ panel.set_border(ui_rect_1(10))  // 10px border on all sides
 // - EXPAND: Expand to fill available space
 ```
 
-#### UIButton
+### UIButton
 
 Clickable button with label and callback.
 
@@ -194,7 +189,7 @@ button.on_click([](UIButton& btn) {
 // - UIButton::CHECKED: Show as checked/selected
 ```
 
-#### UICheckbox
+### UICheckbox
 
 Checkbox with label and checked state.
 
@@ -216,7 +211,7 @@ checkbox.set_checked(true);
 bool is_checked = checkbox.checked();
 ```
 
-#### UILabel
+### UILabel
 
 Static text label.
 
@@ -230,7 +225,7 @@ label.set_label("New text");
 std::string_view text = label.label();
 ```
 
-#### UITextbox
+### UITextbox
 
 Single-line text input field.
 
@@ -263,7 +258,7 @@ textbox.on_key_up_down([](UITextbox& tb, UIKeycode code) {
 });
 ```
 
-#### UICode
+### UICode
 
 Multi-line code/text editor with syntax highlighting support.
 
@@ -305,7 +300,7 @@ code.add_selection_menu_item("To Upper", [](std::string_view sel) {
 });
 ```
 
-#### UISlider
+### UISlider
 
 Horizontal or vertical slider control.
 
@@ -326,7 +321,7 @@ slider.on_value_changed([](UISlider& s) {
 slider.set_steps(10);  // Snap to 10 discrete positions
 ```
 
-#### UIGauge
+### UIGauge
 
 Progress bar or level indicator.
 
@@ -339,7 +334,7 @@ gauge.set_position(0.75);  // Set to 75%
 double pos = gauge.position();
 ```
 
-#### UITable
+### UITable
 
 Table/list view with columns and rows.
 
@@ -378,7 +373,7 @@ table.on_click([&selected_row](UITable& tbl) {
 table.resize_columns();
 ```
 
-#### UISplitPane
+### UISplitPane
 
 Resizable split container for two child elements.
 
@@ -400,7 +395,7 @@ UISplitPane& hsplit = parent.add_splitpane(
 );
 ```
 
-#### UITabPane
+### UITabPane
 
 Tabbed container for multiple pages.
 
@@ -420,7 +415,7 @@ tabs.set_active(1);  // Switch to Tab 2 (0-indexed)
 uint32_t active = tabs.get_active();
 ```
 
-#### UIMenu
+### UIMenu
 
 Context menu or popup menu.
 
@@ -444,7 +439,7 @@ menu.show();  // Display the menu
 // - UIMenu::NO_SCROLL: Don't add scrollbar for long menus
 ```
 
-#### UIMDIClient and UIMDIChild
+### UIMDIClient and UIMDIChild
 
 Multiple Document Interface (MDI) for floating child windows.
 
@@ -468,7 +463,7 @@ client.add_mdichild(
  .add_label(0, "More content");
 ```
 
-#### UISpacer
+### UISpacer
 
 Empty space element for layout control.
 
@@ -481,7 +476,7 @@ UISpacer& spacer = parent.add_spacer(
 );
 ```
 
-#### UIScrollBar
+### UIScrollBar
 
 Scrollbar control (usually created automatically by scrollable containers).
 
@@ -497,16 +492,16 @@ int64_t pos = scrollbar.position();  // Get scroll position
 scrollbar.position() = 500;          // Set scroll position
 ```
 
-### Layout System
+## Layout System
 
-#### Understanding Layout
+### Understanding Layout
 
 Luigi uses a two-pass layout system:
 
 1. **Measure Pass**: Elements report their preferred size
 2. **Arrange Pass**: Parents assign actual bounds to children
 
-#### Fill Flags
+### Fill Flags
 
 Elements can request to fill available space:
 
@@ -521,7 +516,7 @@ element.set_flag(UIElement::v_fill);
 element.set_flag(UIElement::hv_fill);
 ```
 
-#### Panel Layout
+### Panel Layout
 
 Panels lay out children in sequence (vertically by default, or horizontally with the `HORIZONTAL` flag):
 
@@ -534,7 +529,7 @@ panel.add_button(0, "Button 2");   // Middle
 panel.add_button(0, "Button 3");   // Right
 ```
 
-#### Border and Gap
+### Border and Gap
 
 Control spacing within panels:
 
@@ -552,7 +547,7 @@ panel.set_gap(5);  // 5px between each child
 // - UIPanel::LARGE_SPACING
 ```
 
-#### Nested Layouts
+### Nested Layouts
 
 Create complex layouts by nesting panels:
 
@@ -572,7 +567,7 @@ middle.add_panel(UIPanel::COLOR_2).add_label(0, "Right");
 main.add_button(0, "OK");
 ```
 
-#### Helper Functions for UIRectangle
+### Helper Functions for UIRectangle
 
 ```cpp
 ui_rect_1(x)           // {x, x, x, x}
@@ -582,9 +577,9 @@ ui_rect_2s(x, y)       // {0, x, 0, y}
 ui_rect_4pd(x,y,w,h)   // {x, x+w, y, y+h} - point+dimensions
 ```
 
-### Event Handling
+## Event Handling
 
-#### Mouse Events
+### Mouse Events
 
 ```cpp
 element.set_user_proc([](UIElement* el, UIMessage msg, int di, void* dp) {
@@ -604,7 +599,7 @@ element.set_user_proc([](UIElement* el, UIMessage msg, int di, void* dp) {
 // - MOUSE_WHEEL (di = delta)
 ```
 
-#### Keyboard Events
+### Keyboard Events
 
 ```cpp
 element.set_user_proc([](UIElement* el, UIMessage msg, int di, void* dp) {
@@ -639,7 +634,7 @@ element.set_user_proc([](UIElement* el, UIMessage msg, int di, void* dp) {
 // - UI_KEYCODE_DIGIT('0') through UI_KEYCODE_DIGIT('9')
 ```
 
-#### Modifier Key Checking
+### Modifier Key Checking
 
 ```cpp
 // Check individual modifiers
@@ -656,7 +651,7 @@ if (element.is_only_shift_on()) { /* Only Shift */ }
 if (element.is_only_alt_on()) { /* Only Alt */ }
 ```
 
-#### Custom Message Handlers
+### Custom Message Handlers
 
 Elements can have custom message handlers:
 
@@ -673,7 +668,7 @@ int MyElementMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
 element.set_user_proc(MyElementMessageProc);
 ```
 
-#### Element State Queries
+### Element State Queries
 
 ```cpp
 // Check element state
@@ -686,9 +681,9 @@ if (element.is_disabled()) { /* Element is disabled */ }
 int button = element.pressed_button();  // 1=left, 2=middle, 3=right
 ```
 
-### Examples
+## Examples
 
-#### Example 1: Simple Button Counter
+### Example 1: Simple Button Counter
 
 ```cpp
 int counter = 0;
@@ -711,7 +706,7 @@ panel.add_button(0, "Reset").on_click([&counter](UIButton&) {
 });
 ```
 
-#### Example 2: Slider Controlling Gauges
+### Example 2: Slider Controlling Gauges
 
 ```cpp
 UIGauge* gauge1 = nullptr;
@@ -733,7 +728,7 @@ slider.on_value_changed([&](UISlider& s) {
 slider.set_position(0.5);  // Initial position
 ```
 
-#### Example 3: Text Editor with File Loading
+### Example 3: Text Editor with File Loading
 
 ```cpp
 UIPanel& panel = window.add_panel(UIPanel::COLOR_1);
@@ -756,7 +751,7 @@ toolbar.add_button(0, "Clear").on_click([&](UIButton&) {
 });
 ```
 
-#### Example 4: Split Pane Layout
+### Example 4: Split Pane Layout
 
 ```cpp
 // Vertical split (top 75%, bottom 25%)
@@ -778,7 +773,7 @@ hsplit.add_code(0).load_file("../src/luigi.hpp");
 vsplit.add_code(UICode::NO_MARGIN).insert_content("Console output here\n", false);
 ```
 
-#### Example 5: Tabbed Interface
+### Example 5: Tabbed Interface
 
 ```cpp
 UITabPane& tabs = window.add_tabpane(0, "Editor\tSettings\tAbout");
@@ -797,7 +792,7 @@ tabs.add_panel(UIPanel::COLOR_1)
     .add_label(0, "Luigi GUI Framework v2.0");
 ```
 
-#### Example 6: Custom Context Menu
+### Example 6: Custom Context Menu
 
 ```cpp
 UICode& code = window.add_code(UICode::SELECTABLE);
@@ -814,7 +809,7 @@ code.add_selection_menu_item("Count Characters", [](std::string_view sel) {
 });
 ```
 
-#### Example 7: Keyboard Shortcuts
+### Example 7: Keyboard Shortcuts
 
 ```cpp
 UIWindow& window = ui_ptr->create_window(0, 0, "Shortcut Demo", 0, 0);
@@ -850,7 +845,7 @@ window.register_shortcut(UIShortcut{
 });
 ```
 
-#### Example 8: Dynamic Table
+### Example 8: Dynamic Table
 
 ```cpp
 struct Person {
@@ -892,9 +887,9 @@ table.on_click([&](UITable& tbl) {
 table.resize_columns();
 ```
 
-### Advanced Topics
+## Advanced Topics
 
-#### Refresh and Repaint
+### Refresh and Repaint
 
 ```cpp
 // Request full relayout and repaint
@@ -908,7 +903,7 @@ UIRectangle region = {0, 100, 0, 50};
 element.repaint(&region);
 ```
 
-#### Element Destruction
+### Element Destruction
 
 ```cpp
 // Mark element for destruction (happens in next update cycle)
@@ -918,7 +913,7 @@ element.destroy();
 element.destroy_descendents();
 ```
 
-#### Focus Management
+### Focus Management
 
 ```cpp
 // Set keyboard focus to element
@@ -930,7 +925,7 @@ if (element.is_focused()) {
 }
 ```
 
-#### Scaling and DPI
+### Scaling and DPI
 
 ```cpp
 // Get window scale factor (for HiDPI displays)
@@ -940,7 +935,7 @@ float scale = element.get_scale();
 int scaled_size = element.scale(20);  // Scale 20px by window scale
 ```
 
-#### Context Pointer
+### Context Pointer
 
 Store custom data with any element:
 
@@ -957,9 +952,9 @@ element.set_cp(data);
 MyData* retrieved = static_cast<MyData*>(element._cp);
 ```
 
-### Utility Functions
+## Utility Functions
 
-#### String Operations
+### String Operations
 
 ```cpp
 // Trim whitespace
@@ -981,7 +976,7 @@ for_each_line(text, [](std::string_view line) {
 std::vector<std::string_view> lines = get_lines(text);
 ```
 
-#### File Loading
+### File Loading
 
 ```cpp
 // Load entire file into string
@@ -991,7 +986,7 @@ if (content) {
 }
 ```
 
-#### Value Setting with Change Detection
+### Value Setting with Change Detection
 
 ```cpp
 int value = 10;
@@ -1002,23 +997,23 @@ if (ui_set(value, 20)) {
 }
 ```
 
-### Platform-Specific Features
+## Platform-Specific Features
 
-#### Linux (X11)
+### Linux (X11)
 
 ```cpp
 // Access native X11 window handle
 ui_handle xwindow = window.native_window();
 ```
 
-#### Windows
+### Windows
 
 ```cpp
 // Access native Win32 HWND
 ui_handle hwnd = window.native_window();
 ```
 
-### Tips and Best Practices
+## Tips and Best Practices
 
 1. **Use method chaining**: Take advantage of the fluent API for cleaner code
 2. **Prefer `add_*` functions**: Use the provided element creation functions rather than constructing elements manually
@@ -1029,7 +1024,7 @@ ui_handle hwnd = window.native_window();
 7. **Check state with `is_*` functions**: Use `is_hovered()`, `is_focused()`, etc. for state-based logic
 8. **Return proper values from handlers**: Return `1` from message handlers when you've handled the message
 
-### Further Reading
+##  Further Reading
 
 - See `src/luigi.hpp` for complete API reference
 - See `src/luigi.cpp` for implementation details
