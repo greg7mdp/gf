@@ -1,17 +1,18 @@
 # luigi
 
-A barebones GUI library for Win32 and X11. 
+Luigi is a lightweight, modern C++ GUI framework that provides a simple yet powerful API for building desktop applications. It features a retained-mode element hierarchy with immediate-mode style APIs and supports both Linux (X11) and Windows platforms.
 
 The debugger frontend [gf](https://github.com/greg7mdp/gf) is built with `luigi`.
 
 Also, to get an idea of how luigi works, you can check out the [example](https://github.com/greg7mdp/gf/blob/main/examples/luigi_example.cpp).
 
+Luigi example app screenshot:
+![Screenshot luigi example application.](https://github.com/greg7mdp/gf/blob/main/img/luigi_example.png)
+
 `luigi` consists of two files, `luigi.hpp` and `luigi.cpp`. To integrate directly into your application, you can #include `luigi.cpp` in one file, in `luigi.hpp` in any other file that needs to make gui calls.
 
 
 ## Documentation
-
-Luigi is a lightweight, modern C++ GUI framework that provides a simple yet powerful API for building desktop applications. It features a retained-mode element hierarchy with immediate-mode style APIs and supports both Linux (X11) and Windows platforms.
 
 ### Table of Contents
 
