@@ -790,8 +790,8 @@ protected:
 
 public:
    enum {
-      v_fill           = 1 << 16,
-      h_fill           = 1 << 17,
+      v_fill           = 1 << 16,  // all UIElement widgets must have v_fill or h_fill to allow children
+      h_fill           = 1 << 17,  // within descendant panels to be resized correctly.
       hv_fill          = v_fill | h_fill,
       window_flag      = 1 << 18,  // `parent` passed to `UIElement` constructor is the `UIWindow`, parent should be set to nullptr
       parent_push_flag = 1 << 19,

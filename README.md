@@ -319,10 +319,9 @@ See **[CONTRIBUTING.md](doc/contributing.md)** for details on how to contribute 
 
 ## Contributors
 
-gf was originally created by nakst (see https://github.com/nakst/gf), without which this current repo wouldn't exist. Much of that original version still lives in this repo. Beside its creator, @nakst, it also was improved by the contributors listed below:
+gf was originally created by `nakst` (see https://github.com/nakst/gf), without which this current repo wouldn't exist. Much of that original version still lives in this repo. Beside its creator, `nakst`, it also was improved by the contributors listed below:
 
 ```
-nakst
 Philippe Mongeau (phmongeau)
 Jimmy "Keeba" Lefevre (JimmyLefevre)
 John Blat (johnblat64)
@@ -333,9 +332,9 @@ Anders Kaare (sqaxomonophonen)
 Arseniy Khvorov (khvorov45)
 ```
 
-I (`Gregory Popovitch, @greg7mdp`) found `gf` quite useful, but felt like fixing some issues that I bothered me in my daily use. The more I hacked at `gf`, the more I was amazed as what it achieved to implement in so few lines of code, and the more fun I had with this process. 
+I (`Gregory Popovitch, @greg7mdp`) found `gf` quite useful, but felt like fixing some issues that bothered me in my daily use. The more I hacked at `gf`, the more I was amazed as what it achieved to implement in so few lines of code, and the more fun I had with this process. 
 
-Eventually I decided to update the code to a more typical C++ implementation, even at the cost of making a few extra string copies if needed. Still, I attempted to stay as close to the metal as possible, in order to retain gf's amazing responsiveness. This is the code you can see in my current repository.
+Eventually I decided to update the code to a more typical C++ implementation, even at the cost of making a few extra string copies if needed. Still, I attempted to stay as close to the metal as possible, in order to retain gf's impressive responsiveness. This is the code you can see in my current repository.
 
 Thank you for contributing to gf!
 

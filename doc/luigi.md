@@ -52,16 +52,18 @@ int main(int argc, char** argv) {
 
 ### Custom Fonts (Optional)
 
-Luigi supports custom fonts via FreeType:
+Luigi supports custom fonts via FreeType. You can set the font path in the UIConfig before initialization:
 
 ```cpp
 UIConfig cfg;
-auto ui_ptr = UI::initialise(cfg);
 
-// Load a custom font
-std::string fontPath = "/path/to/font.ttf";
-auto fontCode = ui_ptr->create_font(fontPath, 12);
-fontCode->activate();  // Set as active font
+// Optional: set custom font if present
+std::string home = getenv("HOME");
+std::string fontPath = home + "/.fonts/FiraCode-Regular.ttf";
+if (fs::exists(fontPath))
+    cfg.font_path = fontPath;
+
+auto ui_ptr = UI::initialise(cfg);
 ```
 
 ## Core Concepts
@@ -503,7 +505,7 @@ Luigi uses a two-pass layout system:
 
 ### Fill Flags
 
-Elements can request to fill available space:
+Elements can request to fill available space. This is crucial for proper layout - elements without fill flags will use their minimum size:
 
 ```cpp
 // Fill horizontally
@@ -512,9 +514,11 @@ element.set_flag(UIElement::h_fill);
 // Fill vertically
 element.set_flag(UIElement::v_fill);
 
-// Fill both directions
+// Fill both directions (most commonly used)
 element.set_flag(UIElement::hv_fill);
 ```
+
+**Important**: Many container elements (like `UISplitPane`, `UITabPane`, `UIPanel`) and content elements (like `UICode`, `UITable`) typically need `UIElement::hv_fill` to be visible and properly sized. Always use fill flags when you want elements to expand to use available space.
 
 ### Panel Layout
 
@@ -718,11 +722,9 @@ gauge1 = &panel.add_gauge(0);
 gauge2 = &panel.add_gauge(0);
 
 UISlider& slider = panel.add_slider(0);
-slider.on_value_changed([&](UISlider& s) {
+slider.on_value_changed([gauge1, gauge2](UISlider& s) {
     gauge1->set_position(s.position());
     gauge2->set_position(s.position() * 0.5);  // Half speed
-    gauge1->refresh();
-    gauge2->refresh();
 });
 
 slider.set_position(0.5);  // Initial position
@@ -731,21 +733,23 @@ slider.set_position(0.5);  // Initial position
 ### Example 3: Text Editor with File Loading
 
 ```cpp
-UIPanel& panel = window.add_panel(UIPanel::COLOR_1);
+UIPanel& panel = window.add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND | UIElement::hv_fill);
 
-UIPanel& toolbar = panel.add_panel(UIPanel::HORIZONTAL | UIPanel::MEDIUM_SPACING);
+UIPanel& toolbar = panel.add_panel(UIPanel::HORIZONTAL | UIPanel::MEDIUM_SPACING)
+                        .set_border(UIRectangle(5))
+                        .set_gap(5);
 
-UITextbox& pathbox = toolbar.add_textbox(0);
-pathbox.replace_text("../src/luigi.hpp", false);
+UITextbox& pathbox = toolbar.add_textbox(0).replace_text("../src/luigi.hpp", false);
 
-UICode& code = panel.add_code(UIElement::v_fill | UICode::SELECTABLE);
+UICode& code = panel.add_code(UIElement::hv_fill | UICode::SELECTABLE)
+                    .insert_content("// Text Display Example\n// Click 'Load' to display a file\n\n", false);
 
-toolbar.add_button(0, "Load").on_click([&](UIButton&) {
+toolbar.add_button(0, "Load").on_click([&pathbox, &code](UIButton&) {
     code.load_file(std::string{pathbox.text()});
     code.refresh();
 });
 
-toolbar.add_button(0, "Clear").on_click([&](UIButton&) {
+toolbar.add_button(0, "Clear").on_click([&code](UIButton&) {
     code.clear();
     code.refresh();
 });
@@ -755,31 +759,51 @@ toolbar.add_button(0, "Clear").on_click([&](UIButton&) {
 
 ```cpp
 // Vertical split (top 75%, bottom 25%)
-UISplitPane& vsplit = window.add_splitpane(UIElement::vertical_flag, 0.75f);
+UISplitPane& vsplit = window.add_splitpane(UIElement::vertical_flag | UIElement::hv_fill, 0.75f);
 
 // Top: horizontal split (left 30%, right 70%)
 UISplitPane& hsplit = vsplit.add_splitpane(0, 0.3f);
 
-// Top-left: buttons
-UIPanel& left = hsplit.add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING);
-left.add_button(0, "Button 1");
-left.add_button(0, "Button 2");
-left.add_button(0, "Button 3");
-
 // Top-right: code view
-hsplit.add_code(0).load_file("../src/luigi.hpp");
+UICode& code = hsplit.add_code(0).insert_content(
+   "// This is the split pane example\n// Top-right section with code\n\nint main() {\n    return 0;\n}\n", false);
 
 // Bottom: console output
-vsplit.add_code(UICode::NO_MARGIN).insert_content("Console output here\n", false);
+UICode& console = vsplit.add_code(UICode::NO_MARGIN)
+                     .insert_content("Console output:\nClick buttons on the left to see output here\n\n", false);
+
+// Top-left: buttons (created after console so we can capture it)
+UIPanel& left = hsplit.add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING);
+
+left.add_button(0, "Button 1").on_click([&console](UIButton&) {
+    console.insert_content("Button 1 clicked!\n", false);
+    console.refresh();
+});
+
+left.add_button(0, "Button 2").on_click([&console](UIButton&) {
+    console.insert_content("Button 2 clicked!\n", false);
+    console.refresh();
+});
+
+left.add_button(0, "Button 3").on_click([&console](UIButton&) {
+    console.insert_content("Button 3 clicked!\n", false);
+    console.refresh();
+});
 ```
 
 ### Example 5: Tabbed Interface
 
 ```cpp
-UITabPane& tabs = window.add_tabpane(0, "Editor\tSettings\tAbout");
+// This example shows how to create a tabbed interface
+UIPanel& panel = window.add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING | UIElement::hv_fill);
+
+panel.add_label(0, "This tab demonstrates the UITabPane element:");
+
+UITabPane& tabs = panel.add_tabpane(UIElement::hv_fill, "Editor\tSettings\tAbout");
 
 // Tab 1: Editor
-tabs.add_code(UICode::SELECTABLE).load_file("../src/luigi.cpp");
+UICode& editor = tabs.add_code(UICode::SELECTABLE);
+editor.insert_content("// Example code editor\n#include <iostream>\n\nint main() {\n    std::cout << \"Hello from tabbed interface!\\n\";\n    return 0;\n}\n", false);
 
 // Tab 2: Settings
 UIPanel& settings = tabs.add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING);
@@ -788,14 +812,18 @@ settings.add_checkbox(0, "Show line numbers");
 settings.add_checkbox(0, "Dark theme");
 
 // Tab 3: About
-tabs.add_panel(UIPanel::COLOR_1)
-    .add_label(0, "Luigi GUI Framework v2.0");
+tabs.add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING)
+    .add_label(0, "Luigi GUI Framework v2.0\n\nA lightweight, modern C++ GUI framework");
 ```
 
 ### Example 6: Custom Context Menu
 
 ```cpp
-UICode& code = window.add_code(UICode::SELECTABLE);
+UIPanel& panel = window.add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING | UIElement::hv_fill);
+
+panel.add_label(0, "Select text below and right-click to see custom context menu:");
+
+UICode& code = panel.add_code(UICode::SELECTABLE | UIElement::hv_fill);
 
 // Add custom menu items for selected text
 code.add_selection_menu_item("Convert to UPPERCASE", [](std::string_view sel) {
@@ -807,6 +835,8 @@ code.add_selection_menu_item("Convert to UPPERCASE", [](std::string_view sel) {
 code.add_selection_menu_item("Count Characters", [](std::string_view sel) {
     std::print("Character count: {}\n", sel.size());
 });
+
+code.insert_content("Select this text and right-click to see custom menu items.\n\nThe context menu will include:\n- Convert to UPPERCASE\n- Count Characters\n\nTry selecting different parts of this text!", false);
 ```
 
 ### Example 7: Keyboard Shortcuts
@@ -854,18 +884,26 @@ struct Person {
     std::string city;
 };
 
-std::vector<Person> people = {
+static std::vector<Person> people = {
     {"Alice", 30, "New York"},
     {"Bob", 25, "London"},
-    {"Charlie", 35, "Paris"}
+    {"Charlie", 35, "Paris"},
+    {"David", 28, "Tokyo"},
+    {"Eve", 32, "Berlin"},
+    {"Frank", 45, "Sydney"},
+    {"Grace", 27, "Toronto"},
+    {"Henry", 38, "Mumbai"}
 };
 
-int selected = -1;
+static int selected = -1;
 
-UITable& table = window.add_table(0, "Name\tAge\tCity");
+UIPanel& panel = window.add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING | UIElement::hv_fill);
+panel.add_label(0, "Click on rows to select them:");
+
+UITable& table = panel.add_table(UIElement::hv_fill, "Name\tAge\tCity");
 table.set_num_items(people.size());
 
-table.on_getitem([&](UITable&, UITableGetItem& m) -> int {
+table.on_getitem([](UITable&, UITableGetItem& m) -> int {
     m._is_selected = (selected == (int)m._row);
     const Person& p = people[m._row];
 
@@ -875,7 +913,7 @@ table.on_getitem([&](UITable&, UITableGetItem& m) -> int {
     return 0;
 });
 
-table.on_click([&](UITable& tbl) {
+table.on_click([](UITable& tbl) {
     int hit = tbl.hittest(tbl.cursor_pos());
     if (hit >= 0 && hit < (int)people.size()) {
         selected = hit;
@@ -1015,18 +1053,21 @@ ui_handle hwnd = window.native_window();
 
 ## Tips and Best Practices
 
-1. **Use method chaining**: Take advantage of the fluent API for cleaner code
-2. **Prefer `add_*` functions**: Use the provided element creation functions rather than constructing elements manually
-3. **Use lambdas for callbacks**: Capture variables by reference `[&]` to access surrounding scope
-4. **Call `refresh()` after changes**: After modifying element state, call `refresh()` to trigger a repaint
-5. **Use flags for configuration**: Combine flags with `|` operator for flexible element configuration
-6. **Store element pointers**: Keep pointers to elements you need to update later
-7. **Check state with `is_*` functions**: Use `is_hovered()`, `is_focused()`, etc. for state-based logic
-8. **Return proper values from handlers**: Return `1` from message handlers when you've handled the message
+1. **Always use fill flags for containers and content**: Use `UIElement::hv_fill` on elements like `UISplitPane`, `UITabPane`, `UICode`, `UITable`, and most panels to ensure they're visible and properly sized
+2. **Use method chaining**: Take advantage of the fluent API for cleaner code
+3. **Prefer `add_*` functions**: Use the provided element creation functions rather than constructing elements manually
+4. **Use lambdas for callbacks**: Capture variables by reference `[&]` or by value (for pointers) to access surrounding scope
+5. **Call `refresh()` after changes**: After modifying element state, call `refresh()` to trigger a repaint
+6. **Use flags for configuration**: Combine flags with `|` operator for flexible element configuration
+7. **Store element pointers**: Keep pointers to elements you need to update later
+8. **Check state with `is_*` functions**: Use `is_hovered()`, `is_focused()`, etc. for state-based logic
+9. **Return proper values from handlers**: Return `1` from message handlers when you've handled the message
+10. **Use `insert_content()` with method chaining**: For `UICode` elements, use `.insert_content(..., false)` which returns the element for further chaining
 
 ##  Further Reading
 
 - See `src/luigi.hpp` for complete API reference
 - See `src/luigi.cpp` for implementation details
-- See `examples/luigi_example.cpp` for usage examples
+- See `examples/luigi_example.cpp` for a comprehensive demonstration
+- See `examples/luigi_doc_examples.cpp` for all documentation examples (runnable)
 - See `src/gf.cpp` for real-world usage in the gf debugger frontend

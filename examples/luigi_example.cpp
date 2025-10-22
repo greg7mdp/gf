@@ -28,17 +28,18 @@ int selected;
 
 int main(int argc, char** argv) {
    UIConfig cfg;
+
+   // optional: set local font if present
+   std::string home     = getenv("HOME");
+   std::string fontPath = home + "/.fonts/FiraCode-Regular.ttf";
+   if (fs::exists(fontPath))
+      cfg.font_path = fontPath;
+
    auto     ui_ptr = UI::initialise(cfg);
 
    if (!ui_ptr)
       return 1;
-#if 1
-   std::string home     = getenv("HOME");
-   std::string fontPath = home + "/.fonts/FiraCode-Regular.ttf";
-   auto        fontCode = ui_ptr->create_font(fontPath, 12);
-   fontCode->activate();
-#endif
-   
+
    UIWindow& window = ui_ptr->create_window(0, 0, "luigi - Example Application", 0, 0);
 
    // Split window (vertically) into top/bottom panes.
