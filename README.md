@@ -100,9 +100,18 @@ cmake --build build
 # Run gf
 ./build/gf
 
+# if your program `./myprog` crashed and generated a core file
+./build/gf ./myprog <core_dump_file>
+
+# to attach to a running instance
+./build/gf ./myprog <pid>
+
 # Or with command-line arguments forwarded to GDB
-./build/gf --args ./your_program arg1 arg2
+./build/gf --args ./myprog arg1 arg2
 ```
+
+Running `gf` with `--args` is quite useful as it will load the correct config file from the `.gf` directory, which may contain additional setup commands. If you have run the same program before, no need to provide the arguments again, they will be loaded from the program `.ini` file in the `.gf` directory.
+
 
 ### Essential Shortcuts
 
@@ -169,8 +178,8 @@ Use `Ctrl+Shift+F5/F10/F11` for reverse continue/step.
 ## Configuration
 
 gf loads configuration from two files on startup (in order):
-1. `~/.config/gf2_config.ini` - Global user settings
-2. `.project.gf` - Project-specific settings
+1. `~/.config/gf_config.ini` - Global user settings
+2. `.gf/gf_config.ini` - Project-specific settings, with the `.gf` directory located either in current directory, or one directory up if the current directory starts with `build`. Project-specific settings override Global settings.
 
 ### Basic Configuration
 

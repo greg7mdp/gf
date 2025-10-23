@@ -34,8 +34,9 @@ void check_variants() {
     x = "def";
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char** argv) {
+   if (argc > 1)
+      printf("%s\n", argv[1]);
    C c;
    check_variants();
    std::vector<int> v { 2, 3, 4 };
