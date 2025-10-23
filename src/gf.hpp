@@ -19,6 +19,7 @@
 #include <memory>
 #include <mutex>
 #include <poll.h>
+#include <unistd.h>
 #include <queue>
 #include <ranges>
 #include <semaphore.h>

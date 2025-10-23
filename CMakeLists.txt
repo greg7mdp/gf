@@ -100,5 +100,10 @@ endif()
 ## ------------------------------------------------------------------------------------
 ##                                    Subdirectories
 ## ------------------------------------------------------------------------------------
-add_subdirectory(examples)
-add_subdirectory(tests)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/examples/CMakeLists.txt")
+    add_subdirectory(examples)
+endif()
+
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/CMakeLists.txt")
+    add_subdirectory(tests)
+endif()

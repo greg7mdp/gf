@@ -162,18 +162,15 @@ class ensure_null_terminated {
 public:
    [[nodiscard]] ensure_null_terminated(std::string_view sv) {
       auto sz = sv.size();
-      if (sz && sv[sz] == 0) { // ahhh ugly accessing past the end of the `string_view`, hopefully OK.
-         p = const_cast<char*>(sv.data());
+      // Always copy to ensure null termination (accessing sv[sz] is UB)
+      if (sz < buff_sz) {
+         p = &buff[0];
       } else {
-         if (sz < buff_sz) {
-            p = &buff[0];
-         } else {
-            p = new char[sz + 1];
-            do_free = true;
-         }
-         std::memcpy(p, sv.data(), sz);
-         p[sz] = 0; // add null terminator
+         p = new char[sz + 1];
+         do_free = true;
       }
+      std::memcpy(p, sv.data(), sz);
+      p[sz] = 0; // add null terminator
       assert(p != nullptr);
    }
 
@@ -241,9 +238,25 @@ inline T ui_atoi(std::string_view sv) {
 template<class T>
 inline T ui_atof(std::string_view sv) {
    T result{};
+#if defined(__cpp_lib_to_chars) && __cpp_lib_to_chars >= 201611L
+   // Use from_chars if available with full floating point support
    auto [ptr, ec] = std::from_chars(sv.data(), sv.data() + sv.size(), result);
    if (ec == std::errc())
       return result;
+#else
+   // Fallback for libc++ versions without floating point from_chars support
+   std::string temp(sv);
+   char* endptr;
+   if constexpr (std::is_same_v<T, float>) {
+      result = std::strtof(temp.c_str(), &endptr);
+   } else if constexpr (std::is_same_v<T, double>) {
+      result = std::strtod(temp.c_str(), &endptr);
+   } else {
+      result = static_cast<T>(std::strtod(temp.c_str(), &endptr));
+   }
+   if (endptr != temp.c_str())
+      return result;
+#endif
    return 0;
 }
 

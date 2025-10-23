@@ -41,14 +41,33 @@ gf is a lightweight, modern GDB frontend built with C++23, featuring an intuitiv
 
 ## Installation
 
-### Prerequisites
+### Download Pre-built Binary (Linux)
+
+Pre-built portable binaries are available for each release:
+
+```bash
+# Download latest release
+wget https://github.com/greg7mdp/gf/releases/latest/download/gf-VERSION-linux-x86_64.tar.gz
+
+# Extract
+tar -xzf gf-VERSION-linux-x86_64.tar.gz
+
+# Run
+./gf
+```
+
+**Requirements:** Linux with glibc 2.27+ (Ubuntu 18.04+, Debian 10+, etc.), X11, and FreeType installed.
+
+### Build from Source
+
+#### Prerequisites
 - C++23 compiler: `clang++-18` or `g++-13` or higher
 - CMake 3.15+
 - GDB (15.2+ recommended for best C++ expression evaluation)
 - Linux: X11, FreeType
 - Windows: Native Win32
 
-### Build from Source
+#### Building
 
 ```bash
 # Clone the repository
@@ -319,7 +338,7 @@ See **[CONTRIBUTING.md](doc/contributing.md)** for details on how to contribute 
 
 ## Contributors
 
-gf was originally created by `nakst` (see https://github.com/nakst/gf), without which this current repo wouldn't exist. Much of that original version still lives in this repo. Beside its creator, `nakst`, it also was improved by the contributors listed below:
+gf was originally created by `nakst` (see https://github.com/nakst/gf). Without him, this current repo wouldn't exist. Much of that original version still lives in this repo. Beside its creator, `nakst`, it also was improved by the contributors listed below:
 
 ```
 Philippe Mongeau (phmongeau)
