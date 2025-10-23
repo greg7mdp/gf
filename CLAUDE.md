@@ -260,6 +260,81 @@ The following shortcuts are defined but disabled due to conflicts:
 - Double-click to select word/expression
 - Clipboard operations available via context menus
 
+## Reproducible Build System
+
+The project includes a Docker-based reproducible build system for creating portable Linux binaries.
+
+### Location and Files
+
+- **Dockerfile**: `.github/tools/reproducible.Dockerfile`
+- **Build script**: `.github/tools/build-reproducible.sh`
+- **GitHub Actions**: `.github/workflows/release.yml` ("Release Build" workflow)
+- **Documentation**: `.github/tools/README.md`
+
+### Build Environment
+
+- **Base image**: Debian Bullseye (bullseye-20240722-slim) for glibc 2.31 compatibility
+- **Compiler**: LLVM/Clang 21.1.4 with libc++ (statically linked)
+- **CMake**: 3.27.6 (built from source)
+- **Bootstrap**: Uses LLVM 18 from apt.llvm.org to build LLVM 21.1.4
+- **Target**: Generic x86-64 (`-march=x86-64`) for maximum CPU compatibility
+
+### Key Design Decisions
+
+1. **Bootstrap compilation**: Debian Bullseye's g++ 10.2.1 cannot compile LLVM 21 (segfaults), so we install LLVM 18 from apt first, then use it to build LLVM 21.1.4
+
+2. **Generic CPU target**: Uses `-march=x86-64` (baseline x86-64 with SSE2 only) to ensure the binary runs on all x86-64 CPUs, not just the build host's CPU
+
+3. **Static libc++**: Statically links libc++ and libc++abi to avoid ABI compatibility issues across different Linux distributions
+
+4. **Security hardening**: Includes `-fstack-protector-strong`, `-D_FORTIFY_SOURCE=2`, PIE, and RELRO
+
+### Important Code Considerations
+
+**`ensure_null_terminated` class (luigi.hpp:156)**:
+- NEVER access `string_view[size()]` - this is undefined behavior
+- The class always copies data to ensure null termination
+- Previous optimization attempt (`if (sz && sv[sz] == 0)`) caused illegal instruction errors with LLVM 21's stricter UB detection
+
+**CMakeLists.txt subdirectories**:
+- `examples/` and `tests/` subdirectories are made optional with `if(EXISTS ...)` checks
+- This allows building without these directories (excluded by `.dockerignore`)
+
+### Local Testing
+
+```bash
+# Build reproducible binary locally
+./.github/tools/build-reproducible.sh [output-dir]
+
+# Default output: build-reproducible/gf
+# Build time: ~20-30 minutes (mostly LLVM compilation)
+```
+
+### GitHub Actions
+
+The "Release Build" workflow can be triggered:
+1. **Automatically**: When a GitHub release is published
+2. **Manually**: Via Actions tab → Release Build → Run workflow
+
+Output:
+- `gf-{version}-linux-x86_64.tar.gz`
+- `gf-{version}-linux-x86_64.tar.gz.sha256`
+
+### Compatibility
+
+The resulting binary runs on:
+- Ubuntu 18.04+ (Bionic and newer)
+- Debian 10+ (Buster and newer)
+- RHEL/CentOS 8+
+- Fedora 28+
+- Most modern Linux distributions with glibc 2.31+
+
+Runtime dependencies:
+- libX11 (X11 libraries)
+- libfreetype (FreeType library)
+- Linux kernel 3.2+
+- glibc 2.31+
+
 ## Dependencies
 
 External (must be installed):

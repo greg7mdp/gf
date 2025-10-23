@@ -1,0 +1,43 @@
+# Build directories
+build/
+build_*/
+build-reproducible/
+.cache/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation (not needed for builds)
+doc/
+*.md
+!.github/tools/README.md
+
+# CI/CD (but keep tools for Dockerfile)
+.github/workflows/
+.github/actions/
+
+# Examples (not needed for main binary)
+examples/
+
+# Test binaries and outputs
+tests/
+*.log
+
+# Package files
+*.deb
+*.tar.gz
+*.tar.zst
+
+# Temporary files
+*.tmp
+output/

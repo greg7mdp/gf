@@ -1,5 +1,9 @@
 #pragma once
 
+#define GF_VERSION_MAJOR 0
+#define GF_VERSION_MINOR 7
+#define GF_VERSION_PATCH 0
+
 #include "luigi.hpp"
 
 #include <algorithm>
