@@ -1286,20 +1286,14 @@ public:
       (void)ctx.send_command_to_debugger(std::format("b {}:{}", s_source_window->_current_file, line), true, false);
    }
 
-   void restore_breakpoints(string_view sv) {
-      for (size_t idx = 0; idx < sv.size();) {
-         size_t end = sv.find('\n', idx);
-         if (end == std::string::npos)
-            break;
-         auto       j = json_parse(string_view{&sv[idx], end - idx});
+   void restore_breakpoints(const fs::path& ini_path) {
+      INI_Updater ini{ini_path};
+      ini.with_section_lines("[breakpoints]\n", [&](string_view line) {
+         auto       j = json_parse(line);
          Breakpoint bp;
          from_json(j, bp);
-
-         // send breakpoint to gdb
-         bp.set();
-
-         idx = end + 1;
-      }
+         bp.set(); // send breakpoint to gdb
+      });
       update_breakpoints_from_gdb();
    }
 
@@ -1619,7 +1613,7 @@ const char* themeItems[] = {
 
 static void SettingsAddTrustedFolder() {
    const char* section_string = "[trusted_folders]\n";
-   auto        updater        = INI_Updater{gfc._global_config_path.native()};
+   auto        updater        = INI_Updater{gfc._global_config_path};
    auto        text           = std::format("{}\n", gfc.get_local_config_dir().native());
 
    // check that it is not already there
@@ -5081,17 +5075,9 @@ void ExecutableWindow::restore_watches() {
    if (gfc._restore_watch_window && !(_current_exe_flags & ef_watches_restored)) {
       _current_exe_flags |= ef_watches_restored;
       INI_Updater ini{_prog_config_path};
-      ini.with_section("[watch]\n", [&](string_view watches) {
-         // print ("watches={}\n", watches);
-         for (size_t idx = 0; idx < watches.size();) {
-            size_t end = watches.find('\n', idx);
-            if (end == std::string::npos)
-               break;
-            if (idx < end && watches[idx] == ';')
-               ++idx;
-            WatchAddExpression(string_view{&watches[idx], end - idx});
-            idx = end + 1;
-         }
+      ini.with_section_lines("[watch]\n", [&](string_view line) {
+         // print ("watch={}\n", line);
+         WatchAddExpression(line);
       });
    }
 }
@@ -5102,8 +5088,7 @@ void ExecutableWindow::restore_breakpoints() {
 
    if (!(_current_exe_flags & ef_breakpoints_restored)) {
       _current_exe_flags |= ef_breakpoints_restored;
-      INI_Updater ini{_prog_config_path};
-      ini.with_section("[breakpoints]\n", [&](string_view sv) { s_breakpoint_mgr.restore_breakpoints(sv); });
+      s_breakpoint_mgr.restore_breakpoints(_prog_config_path);
    }
 }
 

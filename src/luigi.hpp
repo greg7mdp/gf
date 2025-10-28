@@ -2228,7 +2228,11 @@ static_assert(std::ranges::input_range<INI_Parser>);
 struct INI_Updater {
    std::string _path;
 
-   INI_Updater(const fs::path& path) : _path(path.native()) {}
+   INI_Updater(const fs::path& path)
+      : _path(path.native()) {}
+
+   INI_Updater(const std::string& path)
+       : _path(path) {}
 
    struct Section {
       std::string config;     // the whole config file in a string
@@ -2248,6 +2252,22 @@ struct INI_Updater {
    auto with_section(std::string_view section_string, F &&f) {
       Section sect = _find_section(section_string);
       return std::forward<F>(f)(sect.sv());
+   }
+
+   template <class F>
+   void with_section_lines(std::string_view section_string, F &&f) {
+      Section sect        = _find_section(section_string);
+      std::string_view sv = sect.sv();
+      for (size_t idx = 0; idx < sv.size();) {
+         size_t end = sv.find('\n', idx);
+         if (end == std::string::npos)
+            break;
+         if (idx < end && sv[idx] == ';')  // skip ';' characters are beg. of line
+            ++idx;
+         if (std::string_view line{&sv[idx], end - idx}; !line.empty())
+            std::forward<F>(f)(line);
+         idx = end + 1;                    // skip '\n'
+      }
    }
 
    // returns true if the section contains the text string (anywhere)
