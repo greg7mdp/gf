@@ -268,9 +268,8 @@ struct ReceiveMessageType {
 struct ExeStartInfo {
    std::string _path;
    std::string _args;
-   bool        _ask_dir = true;
 
-   NLOHMANN_DEFINE_TYPE_INTRUSIVE(ExeStartInfo, _path, _args, _ask_dir)
+   NLOHMANN_DEFINE_TYPE_INTRUSIVE(ExeStartInfo, _path, _args)
 };
 
 // --------------------------------------------------------------------------------------------
@@ -379,6 +378,7 @@ struct GF_Config {
    // executable window
    // -----------------
    ExeStartInfo _exe;
+   bool         _ask_dir = false;
 
    // misc
    // ----
@@ -1842,7 +1842,7 @@ UIConfig Context::load_settings(bool earlyPass) {
             // clang-format off
             parse_res.parse_str ("path", gfc._exe._path) ||
             parse_res.parse_str ("arguments", gfc._exe._args) ||
-            parse_res.parse_bool("ask_directory", gfc._exe._ask_dir);
+            parse_res.parse_bool("ask_directory", gfc._ask_dir);
             // clang-format on
          } else if (section == "program" && !key.empty() && earlyPass) {
             // spec for program start config found in `~/.config/gf_config.ini` and
@@ -5131,7 +5131,7 @@ void ExecutableWindow::save_breakpoints() {
 std::string ExecutableWindow::start_info_json() {
    json         j;
    ExeStartInfo esi{
-      ._path = std::string{_path->text()}, ._args = std::string{_arguments->text()}, ._ask_dir = _should_ask};
+      ._path = std::string{_path->text()}, ._args = std::string{_arguments->text()}};
    to_json(j, esi);
    auto text = j.dump(); // spec for program start config - json single-line format.
    text += "\n";
@@ -5329,7 +5329,7 @@ UIElement* ExecutableWindow::Create(UIElement* parent) {
             });
       },
       [&](auto& p) {
-         p.add_checkbox(0, "Ask GDB for working directory").set_checked(gfc._exe._ask_dir).track(&win->_should_ask);
+         p.add_checkbox(0, "Ask GDB for working directory").set_checked(gfc._ask_dir).track(&win->_should_ask);
       },
       [&](auto& p) {
          p.add_panel(UIPanel::HORIZONTAL)
