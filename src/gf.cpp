@@ -1900,7 +1900,7 @@ bool SourceWindow::display_set_position(const std::string_view file, std::option
          auto s = std::format("{}/{}", getenv("HOME"), file.substr(1));
          cleaned_file = get_realpath(s);
       } else if (useGDBToGetFullPath) { // don't check leading '/' => see
-                                        // https://github.com/nakst/gf/pull/204/files
+                                        // https://github.com/nakst/gf/pull/204
          auto        res = ctx.eval_command("info source");
          const char* f   = strstr(res.c_str(), "Located in ");
 
@@ -8267,7 +8267,7 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
       std::print(std::cerr,
                  "Usage: {} [GDB args]\n\n"
                  "GDB args: Pass any GDB arguments here, they will be forwarded to GDB.\n\n"
-                 "For more information, view the README at https://github.com/nakst/gf/blob/master/README.md.\n",
+                 "For more information, view the README at https://github.com/greg7mdp/gf/blob/main/README.md.\n",
                  argv[0]);
       return {};
    }

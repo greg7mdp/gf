@@ -169,11 +169,8 @@ Use `Ctrl+Shift+F5/F10/F11` for reverse continue/step.
 
 ## Screenshots
 
-![Main debugging interface](https://raw.githubusercontent.com/nakst/cdn/main/unknown2.png)
+![Main debugging interface](https://github.com/greg7mdp/gf/blob/main/img/gf.png)
 *Main debugging interface showing source view, watch window, and stack*
-
-![Memory window and extended watch view](https://raw.githubusercontent.com/nakst/cdn/main/%20memory%20window%20and%20extended%20view%20window.png)
-*Memory window and extended watch expression view*
 
 ## Configuration
 
@@ -184,21 +181,37 @@ gf loads configuration from two files on startup (in order):
 ### Basic Configuration
 
 ```ini
+[executable]
+path=/home/greg/myproj/build/prog
+args="--run_test=abi_tests/optional_*"
+ask_directory=0
+
 [ui]
 scale=1.5
 font_path=/usr/share/fonts/TTF/DejaVuSansMono.ttf
-font_size_code=14
+font_size_code=12
 window_width=1920
 window_height=1080
 maximize=1
+selectable_source=1
+grab_focus_on_breakpoint=1
+
+[theme]
+# predefined themes are "classic", "dark", "ice", "lotus" and "hero"
+predefined=ice
 
 [gdb]
 path=/usr/local/bin/gdb
 log_all_output=1
+confirm_command_kill=0
+confirm_command_connect=0
+backtrace_count_limit=100
+
+[commands]
+break in rbtree_best_fit=b rbtree_best_fit.hpp:1245
 
 [shortcuts]
 Ctrl+I=print i
-F12=continue
 ```
 
 ### Layout Customization
@@ -213,6 +226,14 @@ layout=h(75,v(75,Source,Console),v(50,t(Watch,Breakpoints),Stack))
 - `h(position,left,right)` - Horizontal split
 - `v(position,top,bottom)` - Vertical split
 - `t(tab1,tab2,...)` - Tab pane
+
+Default layout is:
+
+
+```ini
+[ui]
+layout=v(75,h(50,Source,v(50,t(Exe,Breakpoints,Commands,Struct),t(Stack,Files,Thread,CmdSearch))),h(40,Console,t(Watch,Locals,Registers,Data,Log)))
+```
 
 ### Custom Keyboard Shortcuts
 
@@ -241,7 +262,7 @@ Separate commands with `;`, use `&` at the end to run asynchronously.
 
 ### Themes
 
-Customize colors in the `[theme]` section. See [theme examples](https://github.com/nakst/gf/wiki/Themes).
+Customize colors in the `[theme]` section.
 
 ### GDB Configuration
 
