@@ -2225,13 +2225,18 @@ private:
 
 static_assert(std::ranges::input_range<INI_Parser>);
 
-struct INI_Updater {
+struct INI_File {
    std::string _path;
 
-   INI_Updater(const fs::path& path)
+   enum ini_opt {
+      allow_duplicates = 1 << 0,
+      at_end           = 1 << 1
+   };
+
+   INI_File(const fs::path& path)
       : _path(path.native()) {}
 
-   INI_Updater(const std::string& path)
+   INI_File(const std::string& path)
        : _path(path) {}
 
    struct Section {
@@ -2249,13 +2254,13 @@ struct INI_Updater {
    };
 
    template <class F>
-   auto with_section(std::string_view section_string, F &&f) {
+   auto with_section(std::string_view section_string, F &&f) const {
       Section sect = _find_section(section_string);
       return std::forward<F>(f)(sect.sv());
    }
 
    template <class F>
-   void with_section_lines(std::string_view section_string, F &&f) {
+   void with_section_lines(std::string_view section_string, F &&f) const {
       Section sect        = _find_section(section_string);
       std::string_view sv = sect.sv();
       for (size_t idx = 0; idx < sv.size();) {
@@ -2277,8 +2282,9 @@ struct INI_Updater {
 
    // `section_string` should be something like: "[trusted_folders]\n"
    // `text` should be one or more newline terminated lines
-   // ------------------------------------------------------------------
-   bool insert_after_section(std::string_view section_string, std::string_view text) {
+   // If text already there, new addition will be moved to the beginning or the end of the section
+   // --------------------------------------------------------------------------------------------
+   bool insert_in_section(std::string_view section_string, std::string_view text, uint32_t flags) {
       Section sect = _find_section(section_string);
 
       std::ofstream ofs(_path, std::ofstream::out | std::ofstream::binary);
@@ -2286,14 +2292,37 @@ struct INI_Updater {
          return false;
 
       if (sect.start_pos == std::string::npos) {
+         // section not already present... add it
+         // -------------------------------------
          ofs << sect.config;
          if (!sect.config.empty())
             ofs << '\n';
          ofs << section_string << text;
       } else {
+         // section found
+         // -------------
+         std::string_view sv = sect.sv();
+         auto             pos = sv.find(text);
+         bool             present = pos != std::string::npos;
+         bool             insert_at_end = !!(flags & at_end);
+
          ofs << sect.config.substr(0, sect.start_pos);
-         ofs << text;
-         ofs << sect.config.substr(sect.start_pos, sect.config.size());
+         if (!insert_at_end)
+            ofs << text;
+
+         if (!present || !!(flags & allow_duplicates))
+            ofs << sv;
+         else {
+            // skip test
+            // ---------
+            ofs << std::string_view(&sv[0], pos);
+            ofs << std::string_view(&sv[pos + text.size()]);
+         }
+
+         if (insert_at_end)
+            ofs << text;
+
+         ofs << sect.config.substr(sect.start_pos + sv.size());
       }
       return true;
    }
@@ -2327,7 +2356,7 @@ struct INI_Updater {
 private:
    // `section_string` should be something like: "[trusted_folders]\n"
    // ------------------------------------------------------------------
-   Section _find_section(std::string_view section_string) {
+   Section _find_section(std::string_view section_string) const {
       Section sect;
       auto    contents = LoadFile(_path);
       if (!contents)

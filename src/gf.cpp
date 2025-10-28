@@ -1287,8 +1287,7 @@ public:
    }
 
    void restore_breakpoints(const fs::path& ini_path) {
-      INI_Updater ini{ini_path};
-      ini.with_section_lines("[breakpoints]\n", [&](string_view line) {
+      INI_File{ini_path}.with_section_lines("[breakpoints]\n", [&](string_view line) {
          auto       j = json_parse(line);
          Breakpoint bp;
          from_json(j, bp);
@@ -1613,17 +1612,11 @@ const char* themeItems[] = {
 
 static void SettingsAddTrustedFolder() {
    const char* section_string = "[trusted_folders]\n";
-   auto        updater        = INI_Updater{gfc._global_config_path};
    auto        text           = std::format("{}\n", gfc.get_local_config_dir().native());
 
    // check that it is not already there
    // ----------------------------------
-   if (!updater.section_contains(section_string, text)) {
-      // OK, add it
-      // ----------
-      if (!updater.insert_after_section(section_string, text))
-         std::print(std::cerr, "Error: Could not modify the global config file!\n");
-   }
+   INI_File{gfc._global_config_path}.insert_in_section(section_string, text, INI_File::at_end);
 }
 
 // ------------------------------------------------------------------------------
@@ -5074,8 +5067,7 @@ void ExecutableWindow::restore_watches() {
 
    if (gfc._restore_watch_window && !(_current_exe_flags & ef_watches_restored)) {
       _current_exe_flags |= ef_watches_restored;
-      INI_Updater ini{_prog_config_path};
-      ini.with_section_lines("[watch]\n", [&](string_view line) {
+      INI_File{_prog_config_path}.with_section_lines("[watch]\n", [&](string_view line) {
          // print ("watch={}\n", line);
          WatchAddExpression(line);
       });
@@ -5102,7 +5094,7 @@ void ExecutableWindow::save_watches() {
 
    auto new_watches = ss.str();
    if (!new_watches.empty()) {
-      if (!INI_Updater{_prog_config_path}.replace_section("[watch]\n", new_watches)) {
+      if (!INI_File{_prog_config_path}.replace_section("[watch]\n", new_watches)) {
          std::print(std::cerr, "Warning: Could not save the contents of the watch window; '{}' was not accessible.\n",
                     _prog_config_path.native());
       }
@@ -5122,7 +5114,7 @@ void ExecutableWindow::save_breakpoints() {
 
    auto new_breakpoints = ss.str();
    if (!new_breakpoints.empty()) {
-      if (!INI_Updater{_prog_config_path}.replace_section("[breakpoints]\n", new_breakpoints)) {
+      if (!INI_File{_prog_config_path}.replace_section("[breakpoints]\n", new_breakpoints)) {
          std::print(std::cerr, "Warning: Could not save breakpoints.");
       }
    }
@@ -5142,25 +5134,12 @@ void ExecutableWindow::save_prog_args() {
    if (!gfc._restore_prog_args || _current_exe.empty() || _prog_config_path.empty())
       return;
 
-   std::string exe_json = start_info_json();
+   std::string exe_json = ";" + start_info_json(); // ends with '\n'
 
-   // Save in `_prog_config_path`
-   // ---------------------------
-   INI_Updater ini{_prog_config_path};
-
-   bool        present = false;
-   std::string old_section;
-
-   ini.with_section("[program]\n", [&](string_view sv) {
-      present = sv.find(exe_json) != std::string::npos;
-      if (!present)
-         old_section = sv;
-   });
-
-   if (!present) {
-      old_section.insert(0, ";" + exe_json);
-      ini.replace_section("[program]\n", old_section);
-   }
+   // Save in `_prog_config_path`, will be moved as the first entry in the
+   // "[program]" section.
+   // --------------------------------------------------------------------
+   INI_File{_prog_config_path}.insert_in_section("[program]\n", exe_json, 0);
 }
 
 
@@ -5245,9 +5224,7 @@ void ExecutableWindow::start_or_run(bool pause) {
 
 void ExecutableWindow::update_args(const fs::path& prog_config_path, int incr, // should be -1, 0 or +1
                                    bool update_exe_path) {
-   INI_Updater ini{prog_config_path};
-
-   ini.with_section("[program]\n", [&](string_view sv) {
+   INI_File{prog_config_path}.with_section("[program]\n", [&](string_view sv) {
       auto v = get_lines(sv);
       if (v.empty())
          return;
@@ -5327,6 +5304,8 @@ UIElement* ExecutableWindow::Create(UIElement* parent) {
                }
                return true;
             });
+         // make sure we initialize `args` with the first entry of the program ini file
+         win->update_args(gfc.get_prog_config_path(), 0, false);
       },
       [&](auto& p) {
          p.add_checkbox(0, "Ask GDB for working directory").set_checked(gfc._ask_dir).track(&win->_should_ask);
