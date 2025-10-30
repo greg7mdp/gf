@@ -17,8 +17,8 @@ static const auto npos = std::string::npos;
 
 using std::string;
 using std::string_view;
-using std::vector;
 using std::unordered_map;
+using std::vector;
 using namespace std::string_literals;
 
 #include <ctre.hpp>
@@ -172,8 +172,8 @@ static inline T sv_atoi_impl(string_view str, size_t offset = 0) {
 }
 
 static inline std::unique_ptr<const char[]> mk_cstring(string_view sv) {
-   auto  sz = sv.size();
-   auto  s  = std::make_unique<char[]>(sz + 1);
+   auto sz = sv.size();
+   auto s  = std::make_unique<char[]>(sz + 1);
    std::memcpy(&s[0], &sv[0], sz);
    s[sz] = 0;
    return s;
@@ -320,7 +320,7 @@ struct HistoryManager : public FileImage {
    size_t _max_size;
    size_t _size_incr;
 
-   static constexpr size_t  increment = 20;
+   static constexpr size_t increment = 20;
 
    HistoryManager(size_t max_size = 512, size_t incr = 20)
       : _max_size(max_size)
@@ -382,29 +382,29 @@ struct GF_Config {
 
    // misc
    // ----
-   std::unique_ptr<const char[]>  _control_pipe_path;
-   std::string     _vim_server_name;
-   std::string     _log_pipe_path;
-   vector<Command> _preset_commands;
-   fs::path        _global_config_path; // ~/.config/gf_config.ini or ~/.config/gf2_config.ini (main config file)
-   fs::path        _current_directory;  // <cwd>
-   fs::path        _local_config_dir;   // <path>/.gf where <path> is `cwd` dir or the one above<cwd>
-   fs::path        _local_config_path;  // <path>/.gf/gf_config.ini (stores overrides to `gf_config.ini`?)
+   std::unique_ptr<const char[]> _control_pipe_path;
+   std::string                   _vim_server_name;
+   std::string                   _log_pipe_path;
+   vector<Command>               _preset_commands;
+   fs::path _global_config_path; // ~/.config/gf_config.ini or ~/.config/gf2_config.ini (main config file)
+   fs::path _current_directory;  // <cwd>
+   fs::path _local_config_dir;   // <path>/.gf where <path> is `cwd` dir or the one above<cwd>
+   fs::path _local_config_path;  // <path>/.gf/gf_config.ini (stores overrides to `gf_config.ini`?)
 
-   int             _code_font_size           = 13;
-   int             _interface_font_size      = 11;
-   int             _window_width             = -1;
-   int             _window_height            = -1;
-   float           _ui_scale                 = 1;
-   bool            _maximize                 = false;
-   bool            _selectable_source        = true;
-   bool            _restore_watch_window     = true;
-   bool            _restore_breakpoints      = true;
-   bool            _restore_prog_args        = true;
-   bool            _confirm_command_connect  = true;
-   bool            _confirm_command_kill     = true;
-   int             _backtrace_count_limit    = 50;
-   bool            _grab_focus_on_breakpoint = true;
+   int   _code_font_size           = 13;
+   int   _interface_font_size      = 11;
+   int   _window_width             = -1;
+   int   _window_height            = -1;
+   float _ui_scale                 = 1;
+   bool  _maximize                 = false;
+   bool  _selectable_source        = true;
+   bool  _restore_watch_window     = true;
+   bool  _restore_breakpoints      = true;
+   bool  _restore_prog_args        = true;
+   bool  _confirm_command_connect  = true;
+   bool  _confirm_command_kill     = true;
+   int   _backtrace_count_limit    = 50;
+   bool  _grab_focus_on_breakpoint = true;
 
    void init() {
       assert(_current_directory.empty() && _local_config_dir.empty()); // make sure it is called only once
@@ -437,7 +437,6 @@ struct GF_Config {
    }
 
 private:
-
    // return <path>/.gf/<progname>.<extension> where path is `cwd` dir where `gf` was launched,
    // or the one above
    fs::path get_prog_path(string_view extension) {
@@ -454,19 +453,13 @@ private:
    }
 
 public:
-   const fs::path& get_local_config_dir() {
-      return _local_config_dir;
-   }
+   const fs::path& get_local_config_dir() { return _local_config_dir; }
 
    // <path>/.gf/<progname>.ini
-   fs::path get_prog_config_path() {
-      return get_prog_path(".ini");
-   }
+   fs::path get_prog_config_path() { return get_prog_path(".ini"); }
 
    // <path>/.gf/<progname>.hist
-   fs::path get_command_history_path() {
-      return get_prog_path(".hist");
-   }
+   fs::path get_command_history_path() { return get_prog_path(".hist"); }
 
    std::vector<fs::path> get_progs() {
       std::vector<fs::path> res;
@@ -603,6 +596,9 @@ struct Context {
    UIElement*     switch_to_window_and_focus(string_view name);
    UIElement*     find_window(string_view name);
    unique_ptr<UI> gf_main(int argc, char** argv);
+
+private:
+   void _emplace_gdb_args(std::string_view val);
 };
 
 Context ctx;
@@ -731,8 +727,8 @@ end
 
 // Forward declarations:
 // ---------------------
-void        WatchAddExpression(string_view string);
-bool        CommandInspectLine();
+void WatchAddExpression(string_view string);
+bool CommandInspectLine();
 
 // ------------------------------------------------------
 // Utilities:
@@ -888,12 +884,12 @@ void Context::debugger_thread_fn() {
    pipe(outputPipe);
    pipe(inputPipe);
 
-   _gdb_argv[0] = mk_cstring(_gdb_path);      // make sure prog name is correct in arg list
-   if (_gdb_argv.back() != nullptr)           // make sure arg list is null-terminated
+   _gdb_argv[0] = mk_cstring(_gdb_path); // make sure prog name is correct in arg list
+   if (_gdb_argv.back() != nullptr)      // make sure arg list is null-terminated
       _gdb_argv.push_back(nullptr);
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__APPLE__)
-   //std::print(std::cerr, "Using fork\n");
+   // std::print(std::cerr, "Using fork\n");
    _gdb_pid = fork();
 
    if (_gdb_pid == 0) {
@@ -910,7 +906,7 @@ void Context::debugger_thread_fn() {
       exit(EXIT_FAILURE);
    }
 #else
-   //std::print(std::cerr, "Using spawn\n");
+   // std::print(std::cerr, "Using spawn\n");
    posix_spawn_file_actions_t actions = {};
    posix_spawn_file_actions_init(&actions);
    posix_spawn_file_actions_adddup2(&actions, inputPipe[0], 0);  // inputPipe[0]  == stdin
@@ -1561,8 +1557,8 @@ static void CommandCustom(string_view command) {
 
       if (s_display_output)
          s_display_output->insert_content(std::format("Running shell command \"{}\"...\n", command), false);
-      int         start  = time(nullptr);
-      int         result = system(std::format("{} > .output.gf 2>&1", command).c_str());
+      int                        start  = time(nullptr);
+      int                        result = system(std::format("{} > .output.gf 2>&1", command).c_str());
       std::optional<std::string> output = LoadFile(".output.gf");
       unlink(".output.gf");
       if (!output)
@@ -1570,7 +1566,7 @@ static void CommandCustom(string_view command) {
 
       const std::string& out = *output;
 
-      size_t      bytes  = out.size();
+      size_t bytes = out.size();
 
       std::string copy;
       copy.resize_and_overwrite(out.size(), [&](char* p, size_t sz) {
@@ -1619,6 +1615,47 @@ static void SettingsAddTrustedFolder() {
    INI_File{gfc._global_config_path}.insert_in_section(section_string, text, INI_File::at_end);
 }
 
+void Context::_emplace_gdb_args(std::string_view value) {
+
+   char        buffer[2048];
+   auto        sz  = value.size();
+   const auto* val = value.data();
+
+   for (size_t i = 0; i < sz; i++) {
+      if (isspace(val[i])) {
+         continue;
+      }
+
+      size_t start = 0;
+      size_t end   = 0;
+
+      if (val[i] == '\"') {
+         i++;
+         start = i;
+         for (; i < sz && val[i] != '\"'; i++)
+            ;
+         end = i;
+         i++;
+      } else if (val[i] == '\'') {
+         i++;
+         start = i;
+         for (; i < sz && val[i] != '\''; i++)
+            ;
+         end = i;
+         i++;
+      } else {
+         start = i;
+         i++;
+         for (; i < sz && (val[i] != '\'' && val[i] != '\"' && !isspace(val[i])); i++)
+            ;
+         end = i;
+      }
+
+      std_format_to_n(buffer, sizeof(buffer), "{}", string_view{&val[start], (end - start)});
+      _gdb_argv.emplace_back(mk_cstring(buffer));
+   }
+}
+
 // ------------------------------------------------------------------------------
 // load settings (from both global and local config files) in two passes:
 //
@@ -1640,42 +1677,80 @@ UIConfig Context::load_settings(bool earlyPass) {
    static bool cwdConfigNotTrusted    = false;
    UIConfig    ui_config;
 
-   // load global config first (from ~/.config/gf2_config.ini), and then local config
-   for (int i = 0; i < 2; i++) {
-      const auto config = LoadFile(i ? gfc._local_config_path.native() : gfc._global_config_path.native());
-      if (!config)
+   // load global config (from ~/.config/gf_config.ini or, if not present, ~/.config/gf2_config.ini)
+   // ----------------------------------------------------------------------------------------------
+   const auto config = LoadFile(gfc._global_config_path.native());
+   if (!config)
+      return ui_config;
+
+   INI_Parser config_view(*config);
+
+   for (auto parse_res : config_view) {
+      auto [section, key, value] = parse_res;
+      if (section.empty())
+         break;
+
+      if (key.empty() || key[0] == '#')
          continue;
 
-#if 0
-      if (earlyPass && i && !currentFolderIsTrusted && !config->empty()) {
-         std::print(std::cerr, "Would you like to load the config file gf_config.ini from your current directory?\n");
-         std::print(std::cerr, "You have not loaded this config file before.\n");
-         std::print(std::cerr, "(Y) - Yes, and add it to the list of trusted files\n");
-         std::print(std::cerr, "(N) - No\n");
-         char c = 'n';
-         fread(&c, 1, 1, stdin);
-
-         if (c != 'y' && c != 'Y') {
-            cwdConfigNotTrusted = true;
-            break;
+      if (earlyPass) {
+         // earlyPass
+         // ---------
+         if (section == "ui") {
+            if (key == "font_size") {
+               gfc._interface_font_size = gfc._code_font_size = sv_atoi(value);
+            } else {
+               // clang-format off
+               parse_res.parse_str  ("font_path", ui_config.font_path) ||
+               parse_res.parse_int  ("font_size_code", gfc._code_font_size) ||
+               parse_res.parse_int  ("font_size_interface", gfc._interface_font_size) ||
+               parse_res.parse_float("scale", gfc._ui_scale) ||
+               parse_res.parse_str  ("layout", gfc._layout_string) ||
+               parse_res.parse_bool ("maximize", gfc._maximize) ||
+               parse_res.parse_bool ("restore_watch_window", gfc._restore_watch_window) ||
+               parse_res.parse_bool ("restore_breakpoints", gfc._restore_breakpoints) ||
+               parse_res.parse_bool ("restore_prog_args", gfc._restore_prog_args) ||
+               parse_res.parse_bool ("selectable_source", gfc._selectable_source) ||
+               parse_res.parse_int  ("window_width", gfc._window_width) ||
+               parse_res.parse_int  ("window_height", gfc._window_height) ||
+               parse_res.parse_bool ("grab_focus_on_breakpoint", gfc._grab_focus_on_breakpoint);
+               // clang-format on
+            }
+         } else if (section == "commands" && !value.empty()) {
+            gfc._preset_commands.push_back(Command{._key = std::string(key), ._value = std::string(value)});
+         } else if (section == "trusted_folders") {
+            if (key == gfc.get_local_config_dir().native())
+               currentFolderIsTrusted = true;
+         } else if (section == "vim" && key == "server_name") {
+            gfc._vim_server_name = value;
+         } else if (section == "pipe") {
+            if (key == "log") {
+               gfc._log_pipe_path = value;
+               mkfifo(gfc._log_pipe_path.c_str(), 6 + 6 * 8 + 6 * 64);
+            } else if (key == "control") {
+               gfc._control_pipe_path = mk_cstring(value);
+               mkfifo(gfc._control_pipe_path.get(), 6 + 6 * 8 + 6 * 64);
+               pthread_t thread = 0;
+               pthread_create(&thread, nullptr, ControlPipe::thread_proc, nullptr);
+            }
+         } else if (section == "executable") {
+            // clang-format off
+            parse_res.parse_str ("path", gfc._exe._path) ||
+            parse_res.parse_str ("arguments", gfc._exe._args) ||
+            parse_res.parse_bool("ask_directory", gfc._ask_dir);
+            // clang-format on
+         } else if (!section.empty() && !value.empty()) {
+            if (auto it = _interface_windows.find(std::string(section)); it != _interface_windows.end()) {
+               const auto& [name, window] = *it;
+               if (window._config) {
+                  window._config(key, value);
+               }
+            }
          }
-         SettingsAddTrustedFolder();
-      } else if (!earlyPass && cwdConfigNotTrusted && i) {
-         break;
-      }
-#endif
-
-      INI_Parser config_view(*config);
-
-      for (auto parse_res : config_view) {
-         auto [section, key, value] = parse_res;
-         if (section.empty())
-            break;
-
-         if (!key.empty() && key[0] == '#')
-            continue;
-
-         if (section == "shortcuts" && !key.empty() && !earlyPass) {
+      } else {
+         // !earlyPass
+         // ----------
+         if (section == "shortcuts") {
             UIShortcut shortcut;
 
             std::string k(key);
@@ -1719,68 +1794,11 @@ UIConfig Context::load_settings(bool earlyPass) {
             } else {
                s_main_window->register_shortcut(std::move(shortcut));
             }
-         } else if (section == "ui" && !key.empty() && earlyPass) {
-            if (key == "font_size") {
-               gfc._interface_font_size = gfc._code_font_size = sv_atoi(value);
-            } else {
-               // clang-format off
-               parse_res.parse_str  ("font_path", ui_config.font_path) ||
-               parse_res.parse_int  ("font_size_code", gfc._code_font_size) ||
-               parse_res.parse_int  ("font_size_interface", gfc._interface_font_size) ||
-               parse_res.parse_float("scale", gfc._ui_scale) ||
-               parse_res.parse_str  ("layout", gfc._layout_string) ||
-               parse_res.parse_bool ("maximize", gfc._maximize) ||
-               parse_res.parse_bool ("restore_watch_window", gfc._restore_watch_window) ||
-               parse_res.parse_bool ("restore_breakpoints", gfc._restore_breakpoints) ||
-               parse_res.parse_bool ("restore_prog_args", gfc._restore_prog_args) ||
-               parse_res.parse_bool ("selectable_source", gfc._selectable_source) ||
-               parse_res.parse_int  ("window_width", gfc._window_width) ||
-               parse_res.parse_int  ("window_height", gfc._window_height) ||
-               parse_res.parse_bool ("grab_focus_on_breakpoint", gfc._grab_focus_on_breakpoint);
-               // clang-format on
-            }
-         } else if (section == "gdb" && !key.empty() && !earlyPass) {
+         } else if (section == "gdb") {
             if (key == "argument") {
                _gdb_argv.emplace_back(mk_cstring(value));
             } else if (key == "arguments") {
-               char        buffer[2048];
-               auto        sz  = value.size();
-               const auto* val = value.data();
-
-               for (size_t i = 0; i < sz; i++) {
-                  if (isspace(val[i])) {
-                     continue;
-                  }
-
-                  size_t argumentStart = 0;
-                  size_t argumentEnd   = 0;
-
-                  if (val[i] == '\"') {
-                     i++;
-                     argumentStart = i;
-                     for (; i < sz && val[i] != '\"'; i++)
-                        ;
-                     argumentEnd = i;
-                     i++;
-                  } else if (val[i] == '\'') {
-                     i++;
-                     argumentStart = i;
-                     for (; i < sz && val[i] != '\''; i++)
-                        ;
-                     argumentEnd = i;
-                     i++;
-                  } else {
-                     argumentStart = i;
-                     i++;
-                     for (; i < sz && (val[i] != '\'' && val[i] != '\"' && !isspace(val[i])); i++)
-                        ;
-                     argumentEnd = i;
-                  }
-
-                  std_format_to_n(buffer, sizeof(buffer), "{}",
-                                  string_view{&val[argumentStart], (argumentEnd - argumentStart)});
-                  _gdb_argv.emplace_back(mk_cstring(buffer));
-               }
+               _emplace_gdb_args(value);
             } else if (key == "path") {
                ctx._gdb_path = value;
             } else if (key == "log_all_output" && sv_atoi(value)) {
@@ -1790,7 +1808,7 @@ UIConfig Context::load_settings(bool earlyPass) {
                }
                if (!ctx._log_window) {
                   std::print(std::cerr, "Warning: gdb.log_all_output was enabled, "
-                             "but your layout does not have a 'Log' window.\n");
+                                        "but your layout does not have a 'Log' window.\n");
                }
             } else {
                // clang-format off
@@ -1799,12 +1817,7 @@ UIConfig Context::load_settings(bool earlyPass) {
                parse_res.parse_int ("backtrace_count_limit", gfc._backtrace_count_limit);
                // clang-format on
             }
-         } else if (section == "commands" && earlyPass && !key.empty() && !value.empty()) {
-            gfc._preset_commands.push_back(Command{._key = std::string(key), ._value = std::string(value)});
-         } else if (section == "trusted_folders" && earlyPass && !key.empty()) {
-            if (key == gfc.get_local_config_dir().native())
-               currentFolderIsTrusted = true;
-         } else if (section == "theme" && !earlyPass && !key.empty() && !value.empty()) {
+         } else if (section == "theme" && !value.empty()) {
             for (uintptr_t i = 0; i < sizeof(themeItems) / sizeof(themeItems[0]); i++) {
                if (key != themeItems[i])
                   continue;
@@ -1816,39 +1829,6 @@ UIConfig Context::load_settings(bool earlyPass) {
                if (auto itr = ui_themes.find(std::string(value)); itr != ui_themes.end()) {
                   ui_config._theme     = itr->second;
                   ui_config._has_theme = true;
-               }
-            }
-         } else if (section == "vim" && earlyPass && key == "server_name") {
-            gfc._vim_server_name = value;
-         } else if (section == "pipe" && earlyPass && key == "log") {
-            gfc._log_pipe_path = value;
-            mkfifo(gfc._log_pipe_path.c_str(), 6 + 6 * 8 + 6 * 64);
-         } else if (section == "pipe" && earlyPass && key == "control") {
-            gfc._control_pipe_path = mk_cstring(value);
-            mkfifo(gfc._control_pipe_path.get(), 6 + 6 * 8 + 6 * 64);
-            pthread_t thread = 0;
-            pthread_create(&thread, nullptr, ControlPipe::thread_proc, nullptr);
-         } else if (section == "executable" && !key.empty() && earlyPass) {
-            // spec for program start config found in `gf2_config.ini`
-            // uses 3 separate lines format
-            // -------------------------------------------------------
-            // clang-format off
-            parse_res.parse_str ("path", gfc._exe._path) ||
-            parse_res.parse_str ("arguments", gfc._exe._args) ||
-            parse_res.parse_bool("ask_directory", gfc._ask_dir);
-            // clang-format on
-         } else if (section == "program" && !key.empty() && earlyPass) {
-            // spec for program start config found in `~/.config/gf_config.ini` and
-            // `.gf/gf_config.ini`. Use json single-line format.
-            // overrides the above!
-            // ---------------------------------------------------------------------
-            auto j = json_parse(key);
-            from_json(j, gfc._exe);
-         } else if (earlyPass && !section.empty() && !key.empty() && !value.empty()) {
-            if (auto it = _interface_windows.find(std::string(section)); it != _interface_windows.end()) {
-               const auto& [name, window] = *it;
-               if (window._config) {
-                  window._config(key, value);
                }
             }
          }
@@ -1871,7 +1851,7 @@ UIElement* SourceWindow::Create(UIElement* parent) {
    s_source_window = new SourceWindow;
    uint32_t flags  = gfc._selectable_source ? UICode::SELECTABLE : 0;
    flags |= UICode::MANAGE_BUFFER;
-   s_display_code  = &parent->add_code(flags)
+   s_display_code = &parent->add_code(flags)
                         .set_font(s_code_font)
                         .set_cp(s_source_window)
                         .set_user_proc(SourceWindow::DisplayCodeMessage);
@@ -1881,7 +1861,8 @@ UIElement* SourceWindow::Create(UIElement* parent) {
 // --------------------------------
 // `line`, if present, is `0-based`
 // --------------------------------
-bool SourceWindow::display_set_position(const std::string_view file, std::optional<size_t> line, bool useGDBToGetFullPath) {
+bool SourceWindow::display_set_position(const std::string_view file, std::optional<size_t> line,
+                                        bool useGDBToGetFullPath) {
    if (_showing_disassembly)
       return false;
 
@@ -1890,7 +1871,7 @@ bool SourceWindow::display_set_position(const std::string_view file, std::option
 
       char buffer[PATH_MAX];
       if (file[0] == '~') {
-         auto s = std::format("{}/{}", getenv("HOME"), file.substr(1));
+         auto s       = std::format("{}/{}", getenv("HOME"), file.substr(1));
          cleaned_file = get_realpath(s);
       } else if (useGDBToGetFullPath) { // don't check leading '/' => see
                                         // https://github.com/nakst/gf/pull/204
@@ -1938,11 +1919,11 @@ bool SourceWindow::display_set_position(const std::string_view file, std::option
 
 void SourceWindow::display_set_position_from_stack() {
    if (s_stack_window->has_selection()) {
-      auto&       current = s_stack_window->current();
+      auto& current = s_stack_window->current();
       // std::string location{current._location};
-      const auto& loc =  current._location;
+      const auto& loc     = current._location;
       s_previous_file_loc = loc;
-      auto colon_pos = loc.find(':');
+      auto colon_pos      = loc.find(':');
       if (colon_pos != string::npos) {
          std::optional<size_t> position = sv_atoul(loc.substr(colon_pos + 1)) - 1; // lines in gdb are 1-based
          // std::print("{} - {}\n", string_view{&loc[0], &loc[colon_pos]}, *position);
@@ -2342,9 +2323,9 @@ void SourceWindow::_update(const char* data, UICode* el) {
 
       // Parse the new source line.
       string_view text_sv  = s_display_code->line(*currentLine);
-      size_t           bytes    = text_sv.size();
-      const char*      text     = &text_sv[0];
-      uintptr_t        position = 0;
+      size_t      bytes    = text_sv.size();
+      const char* text     = &text_sv[0];
+      uintptr_t   position = 0;
 
       while (position < bytes) {
          if (text[position] != '\t')
@@ -2819,8 +2800,8 @@ void BitmapAddDialog() {
 
 struct ConsoleWindow {
 private:
-   HistoryManager      _history;
-   FILE*               _command_log           = nullptr;
+   HistoryManager _history;
+   FILE*          _command_log = nullptr;
 
    void incr_command(int offset) {
       if (auto sv = _history.incr(offset)) {
@@ -2895,20 +2876,16 @@ private:
    }
 
 public:
-   void set_history_path(const std::string& history_file_path) {
-      _history.set_path(history_file_path);
-   }
+   void set_history_path(const std::string& history_file_path) { _history.set_path(history_file_path); }
 
-   void save_command_history() {
-      _history.dump();
-   }
+   void save_command_history() { _history.dump(); }
 
    static int TextboxInputMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<ConsoleWindow*>(el->_cp)->_textbox_message_proc(dynamic_cast<UITextbox*>(el), msg, di, dp);
    }
 
    static UIElement* Create(UIElement* parent) {
-      auto*    w       = new ConsoleWindow;
+      auto* w          = new ConsoleWindow;
       s_console_window = w;
 
       UIPanel* panel2  = &parent->add_panel(UIPanel::EXPAND);
@@ -4150,9 +4127,8 @@ void WatchWindow::WatchChangeLoggerCreate() {
 
       for (uintptr_t i = 0; true; i++) {
          if (expressionsToEvaluate[i] == ';' || !expressionsToEvaluate[i]) {
-            position +=
-               std_format_to_n(logger->_columns + position, sizeof(logger->_columns) - position, "\t{}",
-                               string_view{&expressionsToEvaluate[start], static_cast<size_t>(i - start)});
+            position += std_format_to_n(logger->_columns + position, sizeof(logger->_columns) - position, "\t{}",
+                                        string_view{&expressionsToEvaluate[start], static_cast<size_t>(i - start)});
             start = i + 1;
          }
 
@@ -4684,7 +4660,7 @@ struct FilesWindow {
    bool populate_panel() {
       size_t         oldLength = 0;
       DIR*           directory = opendir(_directory.c_str());
-      struct dirent* entry = nullptr;
+      struct dirent* entry     = nullptr;
       if (!directory)
          return false;
       vector<std::string> names = {};
@@ -4736,7 +4712,7 @@ struct FilesWindow {
    int _button_message_proc(UIButton* button, UIMessage msg, int di, void* dp) {
       if (msg == UIMessage::CLICKED) {
          size_t oldLength = 0;
-         mode_t mode = get_mode(button, &oldLength);
+         mode_t mode      = get_mode(button, &oldLength);
 
          if (S_ISDIR(mode)) {
             if (populate_panel()) {
@@ -4962,7 +4938,7 @@ struct LogWindow {
    }
 
    static UIElement* Create(UIElement* parent) {
-      UICode*   code = &parent->add_code(UICode::SELECTABLE);
+      UICode*   code   = &parent->add_code(UICode::SELECTABLE);
       pthread_t thread = 0;
       pthread_create(&thread, nullptr, LogWindow::_thread_fn, code);
       return code;
@@ -5122,8 +5098,7 @@ void ExecutableWindow::save_breakpoints() {
 
 std::string ExecutableWindow::start_info_json() {
    json         j;
-   ExeStartInfo esi{
-      ._path = std::string{_path->text()}, ._args = std::string{_arguments->text()}};
+   ExeStartInfo esi{._path = std::string{_path->text()}, ._args = std::string{_arguments->text()}};
    to_json(j, esi);
    auto text = j.dump(); // spec for program start config - json single-line format.
    text += "\n";
@@ -5189,7 +5164,7 @@ void ExecutableWindow::start_or_run(bool pause) {
       return;
 
    auto res = ctx.eval_command(std::format("file \"{}\"", exe_path));
-   //std::print("res={}\n", res);
+   // std::print("res={}\n", res);
 
    if (res.contains("No such file or directory.")) {
       s_main_window->show_dialog(0, "The executable path is invalid.\n%f%B", "OK");
@@ -5201,7 +5176,7 @@ void ExecutableWindow::start_or_run(bool pause) {
    maybe_set_exe_info(exe_path);
 
    [[maybe_unused]] auto start_res = ctx.eval_command(std::format("start {}", _arguments->text()));
-   //std::print("start_res={}\n", start_res);
+   // std::print("start_res={}\n", start_res);
 
    if (_should_ask) {
       CommandParseInternal("gf-get-pwd", true);
@@ -5210,7 +5185,7 @@ void ExecutableWindow::start_or_run(bool pause) {
    if (!_same_prog)
       s_console_window->set_history_path(_prog_history_path.native());
 
-   save_prog_args();      // do it here when we are actually running the program
+   save_prog_args(); // do it here when we are actually running the program
    restore_breakpoints();
    // `restore_watches();` done in `MsgReceivedData()`
 
@@ -5229,7 +5204,7 @@ void ExecutableWindow::update_args(const fs::path& prog_config_path, int incr, /
       if (v.empty())
          return;
       auto& cur = _current_arg_index;
-      cur       = std::clamp(cur, 0ul, v.size()  - 1);
+      cur       = std::clamp(cur, 0ul, v.size() - 1);
       if (incr == 1) {
          cur = cur >= v.size() - 1 ? 0 : cur + 1;
       } else if (incr == -1) {
@@ -6503,7 +6478,7 @@ UIElement* ProfWindowCreate(UIElement* parent) {
    // Since we will do multithreaded painting with fontFlameGraph, we need to make sure all its glyphs are ready to go.
    for (uintptr_t i = 0; i < sizeof(window->_font_flame_graph->_glyphs_rendered); i++) {
       UIPainter fakePainter(parent->ui(), 0, 0, nullptr);
-      with_font fnt( window->_font_flame_graph); // measure using window->_font_flame_graph
+      with_font fnt(window->_font_flame_graph); // measure using window->_font_flame_graph
       fakePainter.draw_glyph(0, 0, i, 0xFF000000);
    }
 #endif
@@ -7858,16 +7833,17 @@ void Context::add_builtin_windows_and_commands() {
    _interface_windows["Breakpoints"s] = InterfaceWindow{BreakpointsWindow::Create, BreakpointsWindow::Update};
    _interface_windows["Registers"s]   = InterfaceWindow{RegistersWindow::Create, RegistersWindow::Update};
    _interface_windows["Watch"s]       = InterfaceWindow{WatchWindow::Create, WatchWindow::Update, WatchWindow::Focus};
-   _interface_windows["Locals"s]      = InterfaceWindow{WatchWindow::CreateLocalsWindow, WatchWindow::Update, WatchWindow::Focus};
-   _interface_windows["Commands"s]    = InterfaceWindow{CommandsWindow::Create, nullptr};
-   _interface_windows["Data"s]        = InterfaceWindow{DataWindow::Create, nullptr};
-   _interface_windows["Struct"s]      = InterfaceWindow{StructWindow::Create, nullptr};
-   _interface_windows["Files"s]       = InterfaceWindow{FilesWindow::Create, nullptr};
-   _interface_windows["Console"s]     = InterfaceWindow{ConsoleWindow::Create, nullptr};
-   _interface_windows["Log"s]         = InterfaceWindow{LogWindow::Create, nullptr};
-   _interface_windows["Thread"s]      = InterfaceWindow{ThreadsWindow::Create, ThreadsWindow::Update};
-   _interface_windows["Exe"s]         = InterfaceWindow{ExecutableWindow::Create, nullptr};
-   _interface_windows["CmdSearch"s]   = InterfaceWindow{CommandSearchWindow::Create, nullptr};
+   _interface_windows["Locals"s] =
+      InterfaceWindow{WatchWindow::CreateLocalsWindow, WatchWindow::Update, WatchWindow::Focus};
+   _interface_windows["Commands"s]  = InterfaceWindow{CommandsWindow::Create, nullptr};
+   _interface_windows["Data"s]      = InterfaceWindow{DataWindow::Create, nullptr};
+   _interface_windows["Struct"s]    = InterfaceWindow{StructWindow::Create, nullptr};
+   _interface_windows["Files"s]     = InterfaceWindow{FilesWindow::Create, nullptr};
+   _interface_windows["Console"s]   = InterfaceWindow{ConsoleWindow::Create, nullptr};
+   _interface_windows["Log"s]       = InterfaceWindow{LogWindow::Create, nullptr};
+   _interface_windows["Thread"s]    = InterfaceWindow{ThreadsWindow::Create, ThreadsWindow::Update};
+   _interface_windows["Exe"s]       = InterfaceWindow{ExecutableWindow::Create, nullptr};
+   _interface_windows["CmdSearch"s] = InterfaceWindow{CommandSearchWindow::Create, nullptr};
 
    _interface_data_viewers.push_back({"Add bitmap...", BitmapAddDialog});
 
@@ -8180,8 +8156,8 @@ void Context::create_layout(UIElement* parent, const char*& layout_string_curren
          } else if (0 == strcmp(token, ")")) {
             break;
          } else {
-            std::print(std::cerr, "Error: Invalid layout string! Expected ',' or ')' in tab container list; got '{}'.\n",
-                  token);
+            std::print(std::cerr,
+                       "Error: Invalid layout string! Expected ',' or ')' in tab container list; got '{}'.\n", token);
             exit(1);
          }
       }
@@ -8325,6 +8301,8 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
    if (ui_config._has_theme)
       ui->theme() = ui_config._theme;
 
+   // start debugger thread after second `ctx.load_settings` which updates `_gdb_argv`
+   // --------------------------------------------------------------------------------
    ctx.start_debugger_thread();
    CommandSyncWithGvim();
    return ui;

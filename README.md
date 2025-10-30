@@ -174,16 +174,12 @@ Use `Ctrl+Shift+F5/F10/F11` for reverse continue/step.
 
 ## Configuration
 
-gf loads configuration from two files on startup (in order):
-1. `~/.config/gf_config.ini` - Global user settings
-2. `.gf/gf_config.ini` - Project-specific settings, with the `.gf` directory located either in current directory, or one directory up if the current directory starts with `build`. Project-specific settings override Global settings.
+gf loads configuration on startup from `~/.config/gf_config.ini`. (if that file is not present, it will try `~/.config/gf2_config.ini`)
 
 ### Basic Configuration
 
 ```ini
 [executable]
-path=/home/greg/myproj/build/prog
-args="--run_test=abi_tests/optional_*"
 ask_directory=0
 
 [ui]
