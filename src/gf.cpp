@@ -179,6 +179,15 @@ static inline std::unique_ptr<const char[]> mk_cstring(string_view sv) {
    return s;
 }
 
+static inline std::unique_ptr<const char[]> mk_quoted_cstring(string_view sv) {
+   auto sz = sv.size();
+   auto s  = std::make_unique<char[]>(sz + 1 + 2);
+   std::memcpy(&s[1], &sv[0], sz);
+   s[0] = s[sz-1] = '\"';
+   s[sz] = 0;
+   return s;
+}
+
 static inline int sv_atoi(string_view str, size_t offset = 0) { return sv_atoi_impl<int>(str, offset); }
 
 static inline uint32_t sv_atoui(string_view str, size_t offset = 0) { return sv_atoi_impl<uint32_t>(str, offset); }
@@ -268,6 +277,11 @@ struct ReceiveMessageType {
 struct ExeStartInfo {
    std::string _path;
    std::string _args;
+
+   friend std::ostream& operator<<(std::ostream& os, const ExeStartInfo& esi) {
+      os << "ExeStartInfo(\"" << esi._path << "\", \"" <<  esi._args << "\")";
+      return os;
+   }
 
    NLOHMANN_DEFINE_TYPE_INTRUSIVE(ExeStartInfo, _path, _args)
 };
@@ -379,6 +393,7 @@ struct GF_Config {
    // -----------------
    ExeStartInfo _exe;
    bool         _ask_dir = false;
+   bool         _allow_exe_config = false;
 
    // misc
    // ----
@@ -479,6 +494,8 @@ public:
 
       return res;
    }
+
+   UIConfig load_settings(bool earlyPass);
 };
 
 GF_Config gfc;
@@ -585,7 +602,6 @@ struct Context {
    }
 
    void           debugger_thread_fn();
-   UIConfig       load_settings(bool earlyPass);
    void           add_builtin_windows_and_commands();
    void           register_extensions();
    void           show_menu(UIButton* self);
@@ -595,10 +611,9 @@ struct Context {
    void           additional_setup();
    UIElement*     switch_to_window_and_focus(string_view name);
    UIElement*     find_window(string_view name);
+   void           emplace_gdb_args_from_ini_file(std::string_view val);
+   ExeStartInfo   emplace_gdb_args_from_command_line(int argc, char** argv);
    unique_ptr<UI> gf_main(int argc, char** argv);
-
-private:
-   void _emplace_gdb_args(std::string_view val);
 };
 
 Context ctx;
@@ -1615,7 +1630,7 @@ static void SettingsAddTrustedFolder() {
    INI_File{gfc._global_config_path}.insert_in_section(section_string, text, INI_File::at_end);
 }
 
-void Context::_emplace_gdb_args(std::string_view value) {
+void Context::emplace_gdb_args_from_ini_file(std::string_view value) {
 
    char        buffer[2048];
    auto        sz  = value.size();
@@ -1672,14 +1687,14 @@ void Context::_emplace_gdb_args(std::string_view value) {
 //   +  "gdb"
 //   +  "theme"
 // ------------------------------------------------------------------------------
-UIConfig Context::load_settings(bool earlyPass) {
+UIConfig GF_Config::load_settings(bool earlyPass) {
    bool        currentFolderIsTrusted = false;
    static bool cwdConfigNotTrusted    = false;
    UIConfig    ui_config;
 
    // load global config (from ~/.config/gf_config.ini or, if not present, ~/.config/gf2_config.ini)
    // ----------------------------------------------------------------------------------------------
-   const auto config = LoadFile(gfc._global_config_path.native());
+   const auto config = LoadFile(_global_config_path.native());
    if (!config)
       return ui_config;
 
@@ -1698,49 +1713,53 @@ UIConfig Context::load_settings(bool earlyPass) {
          // ---------
          if (section == "ui") {
             if (key == "font_size") {
-               gfc._interface_font_size = gfc._code_font_size = sv_atoi(value);
+               _interface_font_size = _code_font_size = sv_atoi(value);
             } else {
                // clang-format off
                parse_res.parse_str  ("font_path", ui_config.font_path) ||
-               parse_res.parse_int  ("font_size_code", gfc._code_font_size) ||
-               parse_res.parse_int  ("font_size_interface", gfc._interface_font_size) ||
-               parse_res.parse_float("scale", gfc._ui_scale) ||
-               parse_res.parse_str  ("layout", gfc._layout_string) ||
-               parse_res.parse_bool ("maximize", gfc._maximize) ||
-               parse_res.parse_bool ("restore_watch_window", gfc._restore_watch_window) ||
-               parse_res.parse_bool ("restore_breakpoints", gfc._restore_breakpoints) ||
-               parse_res.parse_bool ("restore_prog_args", gfc._restore_prog_args) ||
-               parse_res.parse_bool ("selectable_source", gfc._selectable_source) ||
-               parse_res.parse_int  ("window_width", gfc._window_width) ||
-               parse_res.parse_int  ("window_height", gfc._window_height) ||
-               parse_res.parse_bool ("grab_focus_on_breakpoint", gfc._grab_focus_on_breakpoint);
+               parse_res.parse_int  ("font_size_code", _code_font_size) ||
+               parse_res.parse_int  ("font_size_interface", _interface_font_size) ||
+               parse_res.parse_float("scale", _ui_scale) ||
+               parse_res.parse_str  ("layout", _layout_string) ||
+               parse_res.parse_bool ("maximize", _maximize) ||
+               parse_res.parse_bool ("restore_watch_window", _restore_watch_window) ||
+               parse_res.parse_bool ("restore_breakpoints", _restore_breakpoints) ||
+               parse_res.parse_bool ("restore_prog_args", _restore_prog_args) ||
+               parse_res.parse_bool ("selectable_source", _selectable_source) ||
+               parse_res.parse_int  ("window_width", _window_width) ||
+               parse_res.parse_int  ("window_height", _window_height) ||
+               parse_res.parse_bool ("grab_focus_on_breakpoint", _grab_focus_on_breakpoint);
                // clang-format on
             }
          } else if (section == "commands" && !value.empty()) {
-            gfc._preset_commands.push_back(Command{._key = std::string(key), ._value = std::string(value)});
+            _preset_commands.push_back(Command{._key = std::string(key), ._value = std::string(value)});
          } else if (section == "trusted_folders") {
-            if (key == gfc.get_local_config_dir().native())
+            if (key == get_local_config_dir().native())
                currentFolderIsTrusted = true;
          } else if (section == "vim" && key == "server_name") {
-            gfc._vim_server_name = value;
+            _vim_server_name = value;
          } else if (section == "pipe") {
             if (key == "log") {
-               gfc._log_pipe_path = value;
-               mkfifo(gfc._log_pipe_path.c_str(), 6 + 6 * 8 + 6 * 64);
+               _log_pipe_path = value;
+               mkfifo(_log_pipe_path.c_str(), 6 + 6 * 8 + 6 * 64);
             } else if (key == "control") {
-               gfc._control_pipe_path = mk_cstring(value);
-               mkfifo(gfc._control_pipe_path.get(), 6 + 6 * 8 + 6 * 64);
+               _control_pipe_path = mk_cstring(value);
+               mkfifo(_control_pipe_path.get(), 6 + 6 * 8 + 6 * 64);
                pthread_t thread = 0;
                pthread_create(&thread, nullptr, ControlPipe::thread_proc, nullptr);
             }
          } else if (section == "executable") {
-            // clang-format off
-            parse_res.parse_str ("path", gfc._exe._path) ||
-            parse_res.parse_str ("arguments", gfc._exe._args) ||
-            parse_res.parse_bool("ask_directory", gfc._ask_dir);
-            // clang-format on
+            // disallow "path" and "arguments" keys by default, unless "allow_exe_config=1" is added.
+            if (_allow_exe_config && _exe._path.empty() && _exe._args.empty()) {
+               if (key == "path")
+                  parse_res.parse_str("path", _exe._path);
+               if (key == "arguments")
+                  parse_res.parse_str("arguments", _exe._args);
+            }
+            parse_res.parse_bool("ask_directory", _ask_dir) ||
+               parse_res.parse_bool("allow_exe_config", _allow_exe_config);
          } else if (!section.empty() && !value.empty()) {
-            if (auto it = _interface_windows.find(std::string(section)); it != _interface_windows.end()) {
+            if (auto it = ctx._interface_windows.find(std::string(section)); it != ctx._interface_windows.end()) {
                const auto& [name, window] = *it;
                if (window._config) {
                   window._config(key, value);
@@ -1794,15 +1813,15 @@ UIConfig Context::load_settings(bool earlyPass) {
             } else {
                s_main_window->register_shortcut(std::move(shortcut));
             }
-         } else if (section == "gdb") {
+         } else if (section == "gdb" && ctx._gdb_path.contains("gdb")) {
             if (key == "argument") {
-               _gdb_argv.emplace_back(mk_cstring(value));
+               ctx._gdb_argv.emplace_back(mk_cstring(value));
             } else if (key == "arguments") {
-               _emplace_gdb_args(value);
+               ctx.emplace_gdb_args_from_ini_file(value);
             } else if (key == "path") {
                ctx._gdb_path = value;
             } else if (key == "log_all_output" && sv_atoi(value)) {
-               if (auto it = _interface_windows.find("Log"); it != _interface_windows.end()) {
+               if (auto it = ctx._interface_windows.find("Log"); it != ctx._interface_windows.end()) {
                   const auto& [name, window] = *it;
                   ctx._log_window            = static_cast<UICode*>(window._el);
                }
@@ -1812,9 +1831,9 @@ UIConfig Context::load_settings(bool earlyPass) {
                }
             } else {
                // clang-format off
-               parse_res.parse_bool("confirm_command_kill", gfc._confirm_command_kill) ||
-               parse_res.parse_bool("confirm_command_connect", gfc._confirm_command_connect) ||
-               parse_res.parse_int ("backtrace_count_limit", gfc._backtrace_count_limit);
+               parse_res.parse_bool("confirm_command_kill", _confirm_command_kill) ||
+               parse_res.parse_bool("confirm_command_connect", _confirm_command_connect) ||
+               parse_res.parse_int ("backtrace_count_limit", _backtrace_count_limit);
                // clang-format on
             }
          } else if (section == "theme" && !value.empty()) {
@@ -5229,6 +5248,9 @@ UIElement* ExecutableWindow::Create(UIElement* parent) {
    ExecutableWindow* win = s_executable_window = new ExecutableWindow;
    UIPanel*          panel                     = &parent->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND);
 
+   // if (!gfc._exe._path.empty()) use this path, else get latest from .gf/gf_config.ini
+   // if (!gfc._exe._args.empty()) use these args else get latest from .gf/<prog>.ini
+
    // figure out index of current program in `.gf` directory list of `.ini` files
    // ---------------------------------------------------------------------------
    size_t cur = 0;
@@ -5272,10 +5294,12 @@ UIElement* ExecutableWindow::Create(UIElement* parent) {
          win->_arguments =
             &p.add_textbox(0).replace_text(gfc._exe._args, false).on_key_up_down([win](UITextbox& t, UIKeycode code) {
                if (code == UIKeycode::DOWN) {
-                  win->update_args(gfc.get_prog_config_path(), 1, false);
-               } else {
-                  assert(code == UIKeycode::UP);
+                  // down goes forward in time, so goes up the list since args stored most recent first in .ini
                   win->update_args(gfc.get_prog_config_path(), -1, false);
+               } else {
+                  // up goes back in time, so goes down the list since args stored most recent first in .ini
+                  assert(code == UIKeycode::UP);
+                  win->update_args(gfc.get_prog_config_path(), 1, false);
                }
                return true;
             });
@@ -8217,6 +8241,101 @@ bool Context::copy_layout_to_clipboard() {
    return true;
 }
 
+// ----------------------------------------------------------------------------------------------
+// Add gdb command line options to `_gdb_argv`, with the exception or the exe name and
+// its arguments which are returned in ExeStartInfo if present.
+// The gdb command line:
+//     gdb [OPTIONS] [prog | prog procID | prog core]
+//
+// relevant OPTIONS:
+//          --exec=file
+//          -e file
+//
+//          --args prog [arglist]
+//             Change interpretation of command line so that arguments following this option are
+//             passed as arguments to the inferior.
+// ----------------------------------------------------------------------------------------------
+ExeStartInfo Context::emplace_gdb_args_from_command_line(int argc, char** argv) {
+   ExeStartInfo esi;
+
+   auto valid_executable = [](const char* arg) { return fs::is_regular_file(arg) && access(arg, X_OK) == 0; };
+
+   // check whether last two arguments are either `prog procID` or `prog core`
+   auto check_last_two = [&]() {
+      if (argc < 3)
+         return false;
+      if (!valid_executable(argv[argc - 2])) // check that before last arg is an executable program
+         return false;
+
+      // check that last arg is a core file
+      const char* last_arg = argv[argc - 1];
+      if (fs::is_regular_file(last_arg) && access(last_arg, R_OK) == 0)
+         return true;
+
+      // or a pid
+      const char*            last_arg_end = last_arg + strlen(last_arg);
+      pid_t                  pid;
+      std::from_chars_result result = std::from_chars(last_arg, last_arg_end, pid);
+      if (result.ec == std::errc{} && result.ptr == last_arg_end && kill(pid, 0) == 0)
+         return true;
+
+      return false;
+   };
+
+   assert(_gdb_argv.size() == 1); // _gdb_argv[0] set in Context::Context()
+   for (int i = 1; i < argc; ++i)
+      _gdb_argv.emplace_back(mk_cstring(argv[i]));
+
+   if (argc == 2 && strcmp(argv[1], "--rr-replay") == 0) {
+      _gdb_argv.clear();
+      _gdb_path = "rr";
+      _gdb_argv.emplace_back(mk_cstring("rr"));
+      _gdb_argv.emplace_back(mk_cstring("replay"));
+   } else {
+      if (check_last_two())
+         esi._path = argv[argc - 2]; // don't decrement argc so that last two args are also passed to gdb
+
+      if (argc >= 2 && valid_executable(argv[argc - 1])) //  gdb [OPTIONS] <prog>
+         esi._path = argv[argc - 1];
+
+      for (int i = 1; i < argc; ++i) {
+         if (strcmp(argv[i], "-e") == 0 && i + 1 < argc) //  -e file
+            esi._path = argv[++i];
+         else if (strncmp(argv[i], "--exec=", 7) == 0) // --exec=file
+            esi._path = argv[i] + 7;
+         else if (strcmp(argv[i], "--args") == 0 && i + 1 < argc) { // --args prog [arglist]
+            esi._path = argv[++i];
+            esi._args.reserve(256);
+            for (++i; i < argc; ++i) {
+               esi._args += argv[i];
+               if (i + 1 < argc)
+                  esi._args += " ";
+            }
+            if (strpbrk(esi._args.c_str(), " \t*") != nullptr) {
+               // quote it
+               std::stringstream ss;
+               ss << std::quoted(esi._args);
+               esi._args = ss.str();
+            }
+         } else {
+            // regular gdb arg... pass to gdb
+            // add quotes if `argv[i]` contains spaces or '*' characters.
+            // ----------------------------------------------------------
+            if (strpbrk(argv[i], " \t*") != nullptr) {
+               // quote it
+               _gdb_argv.emplace_back(mk_quoted_cstring(argv[i]));
+            } else
+               _gdb_argv.emplace_back(mk_cstring(argv[i]));
+         }
+      }
+   }
+
+   if (!esi._path.empty() && !valid_executable(esi._path.c_str()))
+      esi = ExeStartInfo{};
+   std::cout << esi << '\n';
+   return esi;
+}
+
 unique_ptr<UI> Context::gf_main(int argc, char** argv) {
    if (argc == 2 && (0 == strcmp(argv[1], "-?") || 0 == strcmp(argv[1], "-h") || 0 == strcmp(argv[1], "--help"))) {
       std::print(std::cerr,
@@ -8237,22 +8356,13 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
 
    // process command arguments and create updated version to pass to gdb
    // -------------------------------------------------------------------
-   assert(ctx._gdb_argv.size() == 1); // _gdb_argv[0] set in Context::Context()
-   for (int i = 1; i < argc; ++i)
-      ctx._gdb_argv.emplace_back(mk_cstring(argv[i]));
-
-   if (argc >= 2 && strcmp(argv[1], "--rr-replay") == 0) {
-      ctx._gdb_argv.clear();
-      ctx._gdb_path = "rr";
-      ctx._gdb_argv.emplace_back(mk_cstring("rr"));
-      ctx._gdb_argv.emplace_back(mk_cstring("replay"));
-   }
+   gfc._exe = ctx.emplace_gdb_args_from_command_line(argc, argv);
 
    // load settings and initialize ui
    // -------------------------------
    gfc.init();
 
-   UIConfig ui_config = ctx.load_settings(true);
+   UIConfig ui_config = gfc.load_settings(true);
 
    ui_config.default_font_size = gfc._interface_font_size;
 
@@ -8297,7 +8407,7 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
 
    additional_setup();
 
-   ui_config = ctx.load_settings(false);
+   ui_config = gfc.load_settings(false);
    if (ui_config._has_theme)
       ui->theme() = ui_config._theme;
 
