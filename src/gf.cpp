@@ -8348,13 +8348,24 @@ ExeStartInfo Context::emplace_gdb_args_from_command_line(int argc, char** argv) 
 }
 
 unique_ptr<UI> Context::gf_main(int argc, char** argv) {
-   if (argc == 2 && (0 == strcmp(argv[1], "-?") || 0 == strcmp(argv[1], "-h") || 0 == strcmp(argv[1], "--help"))) {
-      std::print(std::cerr,
-                 "Usage: {} [GDB args]\n\n"
-                 "GDB args: Pass any GDB arguments here, they will be forwarded to GDB.\n\n"
-                 "For more information, view the README at https://github.com/greg7mdp/gf/blob/main/README.md.\n",
-                 argv[0]);
-      return {};
+   if (argc == 2) {
+      if ((0 == strcmp(argv[1], "-?") || 0 == strcmp(argv[1], "-h") || 0 == strcmp(argv[1], "--help"))) {
+         std::print(std::cerr,
+                    "Usage: {} [GDB args]\n\n"
+                    "GDB args: Pass any GDB arguments here, they will be forwarded to GDB.\n\n"
+                    "For more information, view the README at https://github.com/greg7mdp/gf/blob/main/README.md.\n",
+                    argv[0]);
+         return {};
+      }
+
+      if ((0 == strcmp(argv[1], "-v") || 0 == strcmp(argv[1], "--version"))) {
+#ifdef GF_VERSION_STRING
+         std::print(std::cout, "gf version {}\n", GF_VERSION_STRING);
+#else
+         std::print(std::cout, "gf version {}", "unknown");
+#endif
+         return {};
+      }
    }
 
    // catch some signals

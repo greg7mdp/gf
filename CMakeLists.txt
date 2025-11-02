@@ -72,9 +72,10 @@ if (NOT MSVC)
     add_executable(${PROJECT_NAME} WIN32 src/gf.cpp src/re/cpp.cpp src/re/gdb.cpp)
 
     ## dmalloc: link with `-ldmalloc` and run command: `dmalloc -l logfile -i 100 high`
-    
+
     target_include_directories(${PROJECT_NAME} PRIVATE src deps/include )
     target_link_libraries(${PROJECT_NAME} luigi Threads::Threads)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE GF_VERSION_STRING="${PROJECT_VERSION}")
 endif ()
 
 
