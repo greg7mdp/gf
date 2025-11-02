@@ -3704,6 +3704,14 @@ std::string_view UITextbox::_text() {
 
 int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
    UI* ui = this->ui();
+
+   auto column_from_pos = [&](const UIPoint& pt) {
+      UIFont*      active_font = ui->active_font();
+      return (_window->cursor_pos().x - _bounds.l + _scroll - scale(ui_size::textbox_margin) +
+                    active_font->_glyph_width / 2) /
+                   active_font->_glyph_width;
+   };
+
    if (msg == UIMessage::GET_HEIGHT) {
       return scale(ui_size::textbox_height);
    }
@@ -3750,12 +3758,14 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
       return static_cast<int>(UICursor::text);
    } else if (msg == UIMessage::LEFT_DOWN) {
       scoped_guard _([this]() { _save_state(); }); // save undo state if needed
-      UIFont*      active_font = ui->active_font();
-      int          column      = (_window->cursor_pos().x - _bounds.l + _scroll - scale(ui_size::textbox_margin) +
-                    active_font->_glyph_width / 2) /
-                   active_font->_glyph_width;
+      int column = column_from_pos(_window->cursor_pos());
       _carets[0] = _carets[1] = column <= 0 ? 0 : _column_to_byte(_text(), column);
       focus();
+   } else if (msg == UIMessage::MOUSE_DRAG && _window->pressed_button() == 1) {
+      scoped_guard _([this]() { _save_state(); }); // save undo state if needed
+      int          column = column_from_pos(_window->cursor_pos());
+      _carets[1] = column <= 0 ? 0 : _column_to_byte(_text(), column);
+      repaint(nullptr);
    } else if (msg == UIMessage::UPDATE) {
       repaint(nullptr);
    } else if (msg == UIMessage::DEALLOCATE) {
