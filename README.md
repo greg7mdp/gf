@@ -110,7 +110,9 @@ cmake --build build
 ./build/gf --args ./myprog arg1 arg2
 ```
 
-Running `gf` with `--args` is quite useful as it will load the correct config file from the `.gf` directory, which may contain additional setup commands. If you have run the same program before, no need to provide the arguments again, they will be loaded from the program `.ini` file in the `.gf` directory.
+If you have run the same program before, no need to provide the arguments again, they will be loaded from the program `.ini` file in the `.gf` directory. 
+
+Also, you can use the `up` and `down` arrow keys to scroll through previously used executables and their arguments.
 
 
 ### Essential Shortcuts
@@ -125,7 +127,7 @@ Running `gf` with `--args` is quite useful as it will load the correct config fi
 | **Break** | `F8` | Interrupt running program |
 | **Run Until Line** | `Ctrl+Click` | Continue execution to clicked line |
 | **Jump to Line** | `Shift+Click` | Skip to line without executing |
-| **Inspect Line** | `` ` `` (backtick) | Evaluate all expressions on current line |
+| **Inspect Line** | `` ` `` (backtick) | Evaluate expressions on current line |
 
 ### Using with rr (Record/Replay)
 
@@ -153,7 +155,6 @@ Use `Ctrl+Shift+F5/F10/F11` for reverse continue/step.
 ## Documentation
 
 ### User Guides
-- **[Quick Tips](https://github.com/greg7mdp/gf#tips)** - Essential keyboard shortcuts and features
 - **[Configuration Guide](https://github.com/greg7mdp/gf#configuration)** - Customize gf to your workflow
 - **[Special Commands](https://github.com/greg7mdp/gf#special-commands)** - gf-specific GDB commands
 - **[Watch Hooks](https://github.com/greg7mdp/gf#watch-window-hooks)** - Python integration for custom types

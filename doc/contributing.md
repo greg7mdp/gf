@@ -280,4 +280,3 @@ This enables additional debug output for the UI system.
 - **Documentation**: See files in `doc/` directory
 - **Examples**: Check `examples/luigi_example.cpp`
 - **Issue Tracker**: Report bugs or ask questions on GitHub
-- **Code Comments**: The codebase includes helpful comments

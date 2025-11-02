@@ -183,7 +183,7 @@ private:
    bool       _should_ask{false};
 
 public:
-   size_t     _current_prog_index = 0;  // current index of <prog>.ini in .gf
+   size_t     _current_path_index = 0;  // current index of `_path` in <prog>.ini in .gf
    size_t     _current_arg_index = 0;   // current index of `_arguments` in `get_prog_config_path()`
 
    void              start_or_run(bool pause);
@@ -192,6 +192,7 @@ public:
 
    std::string       get_path() const { return std::string{_path->text()}; }
    std::string       get_arguments() const { return std::string{_arguments->text()}; }
+   void              update_path(const fs::path& prog_config_path, int incr); // should be -1, 0 or +1
    void              update_args(const fs::path& prog_config_path, int incr, // should be -1, 0 or +1
                                  bool update_exe_path);
 

@@ -5134,6 +5134,13 @@ void ExecutableWindow::save_prog_args() {
    // "[program]" section.
    // --------------------------------------------------------------------
    INI_File{_prog_config_path}.insert_in_section("[program]\n", exe_json, 0);
+
+   // Also save program path in `.gf/gf_config.ini` so that we can cycle through the
+   // most recently used executables
+   // ------------------------------------------------------------------------------
+   std::string path{_path->text()};
+   path += "\n";
+   INI_File{gfc._local_config_path}.insert_in_section("[program]\n", path, 0);
 }
 
 
@@ -5216,6 +5223,25 @@ void ExecutableWindow::start_or_run(bool pause) {
    }
 }
 
+void ExecutableWindow::update_path(const fs::path& local_config_path, int incr) {
+   INI_File{local_config_path}.with_section("[program]\n", [&](string_view sv) {
+      auto v = get_lines(sv);
+      if (v.empty())
+         return;
+      auto& cur = _current_path_index;
+      cur       = std::clamp(cur, 0ul, v.size() - 1);
+      if (incr == 1) {
+         cur = cur >= v.size() - 1 ? 0 : cur + 1;
+      } else if (incr == -1) {
+         cur = cur == 0 ? v.size() - 1 : cur - 1;
+      } else {
+         assert(incr == 0);
+      }
+      _path->select_all();
+      _path->replace_text(v[cur], false);
+   });
+}
+
 void ExecutableWindow::update_args(const fs::path& prog_config_path, int incr, // should be -1, 0 or +1
                                    bool update_exe_path) {
    INI_File{prog_config_path}.with_section("[program]\n", [&](string_view sv) {
@@ -5248,46 +5274,29 @@ UIElement* ExecutableWindow::Create(UIElement* parent) {
    ExecutableWindow* win = s_executable_window = new ExecutableWindow;
    UIPanel*          panel                     = &parent->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND);
 
-   // if (!gfc._exe._path.empty()) use this path, else get latest from .gf/gf_config.ini
-   // if (!gfc._exe._args.empty()) use these args else get latest from .gf/<prog>.ini
-
-   // figure out index of current program in `.gf` directory list of `.ini` files
-   // ---------------------------------------------------------------------------
-   size_t cur = 0;
-   auto   v   = gfc.get_progs();
-   if (!v.empty()) {
-      for (cur = 0; cur < v.size(); ++cur)
-         if (gfc._exe._path.contains(v[cur].stem().native()))
-            break;
-   }
-   if (cur == v.size())
-      cur = 0;
-   win->_current_prog_index = cur;
+   if (gfc._exe._path.empty())
+      gfc._exe._args.clear();
 
    panel->add_n(
       [&](auto& p) { p.add_label(0, "Path to executable:"); },
       [&](auto& p) {
          win->_path =
             &p.add_textbox(0).replace_text(gfc._exe._path, false).on_key_up_down([win](UITextbox& t, UIKeycode code) {
-               auto v = gfc.get_progs();
-               if (!v.empty()) {
-                  auto cur = std::clamp(win->_current_prog_index, 0ul, v.size() - 1);
-                  if (code == UIKeycode::DOWN) {
-                     cur = (cur + 1) % v.size();
-                  } else {
-                     assert(code == UIKeycode::UP);
-                     cur = cur == 0 ? v.size() - 1 : cur - 1;
-                  }
-                  if (cur != win->_current_prog_index) {
-                     win->_current_prog_index = cur;
-
-                     // switch to other prog
-                     win->_current_arg_index = 0;
-                     win->update_args(v[cur], 0, true);
-                  }
+               if (code == UIKeycode::DOWN) {
+                  // down goes forward in time, so goes up the list since paths stored most recent first in .ini
+                  win->update_path(gfc._local_config_path, -1);
+               } else {
+                  // up goes back in time, so goes down the list since paths stored most recent first in .ini
+                  assert(code == UIKeycode::UP);
+                  win->update_path(gfc._local_config_path, 1);
                }
+               win->update_args(gfc.get_prog_config_path(), 0, false);
                return true;
             });
+
+         // if not already set, make sure we initialize `_path` with the first entry of the `.gf/gf_config.ini` file
+         if (gfc._exe._path.empty())
+            win->update_path(gfc._local_config_path, 0);
       },
       [&](auto& p) { p.add_label(0, "Command line arguments:"); },
       [&](auto& p) {
@@ -5303,8 +5312,10 @@ UIElement* ExecutableWindow::Create(UIElement* parent) {
                }
                return true;
             });
-         // make sure we initialize `args` with the first entry of the program ini file
-         win->update_args(gfc.get_prog_config_path(), 0, false);
+
+         // if not already set, make sure we initialize `args` with the first entry of the program ini file
+         if (gfc._exe._path.empty())
+            win->update_args(gfc.get_prog_config_path(), 0, false);
       },
       [&](auto& p) {
          p.add_checkbox(0, "Ask GDB for working directory").set_checked(gfc._ask_dir).track(&win->_should_ask);
