@@ -113,7 +113,7 @@ std::unordered_map<std::string, UITheme> ui_themes{
        .codeFocused      = 0x9CD6FF,
        .codeBackground   = 0xE8F2FF,
        .codeDefault      = 0x000000,
-       .codeComment      = 0x7B6F81,
+       .codeComment      = 0xAB6F81,
        .codeString       = 0x0F7D32,
        .codeNumber       = 0x0058F5,
        .codeOperator     = 0x720EE7,
@@ -2653,7 +2653,7 @@ int UICode::hittest(int x, int y) {
 }
 
 int UIPainter::draw_string_highlighted(UIRectangle lineBounds, std::string_view string, int tabSize,
-                                       UIStringSelection* selection) {
+                                       UIStringSelection* selection, bool* inCommentPtr) {
    UI* ui = this->ui();
    if (string.size() > 10000)
       string = string.substr(0, 10000);
@@ -2673,14 +2673,15 @@ int UIPainter::draw_string_highlighted(UIRectangle lineBounds, std::string_view 
       theme.codeNumber,  theme.codeOperator, theme.codePreprocessor,
    };
 
-   int              lineHeight = ui->string_height();
-   int              x          = lineBounds.l;
-   int              y          = (lineBounds.t + lineBounds.b - lineHeight) / 2;
-   int              ti         = 0;
-   _UICodeTokenType tokenType  = UI_CODE_TOKEN_TYPE_DEFAULT;
-   bool     inComment = false, inIdentifier = false, inChar = false, startedString = false, startedPreprocessor = false;
-   uint32_t last = 0;
-   int      j    = 0;
+   int              lineHeight   = ui->string_height();
+   int              x            = lineBounds.l;
+   int              y            = (lineBounds.t + lineBounds.b - lineHeight) / 2;
+   int              ti           = 0;
+   bool             inComment    = inCommentPtr ? *inCommentPtr : false;
+   _UICodeTokenType tokenType    = inComment ? UI_CODE_TOKEN_TYPE_COMMENT : UI_CODE_TOKEN_TYPE_DEFAULT;
+   bool             inIdentifier = false, inChar = false, startedString = false, startedPreprocessor = false;
+   uint32_t         last = 0;
+   int              j    = 0;
 
    size_t bytes = string.size();
    while (bytes) {
@@ -2707,7 +2708,7 @@ int UIPainter::draw_string_highlighted(UIRectangle lineBounds, std::string_view 
       } else if (tokenType == UI_CODE_TOKEN_TYPE_OPERATOR) {
          tokenType = UI_CODE_TOKEN_TYPE_DEFAULT;
       } else if (tokenType == UI_CODE_TOKEN_TYPE_COMMENT) {
-         if ((last & 0xFF0000) == ('*' << 16) && (last & 0xFF00) == ('/' << 8) && inComment) {
+         if (((last >> 8) & 0xFF) == '*' && (last & 0xFF) == '/' && inComment) {
             tokenType = startedPreprocessor ? UI_CODE_TOKEN_TYPE_PREPROCESSOR : UI_CODE_TOKEN_TYPE_DEFAULT;
             inComment = false;
          }
@@ -2780,6 +2781,11 @@ int UIPainter::draw_string_highlighted(UIRectangle lineBounds, std::string_view 
 
    if (selection && selection->carets[0] == j) {
       draw_invert(UIRectangle(x, x + 1, y, y + lineHeight));
+   }
+
+   // Update the multiline comment state for the next line
+   if (inCommentPtr) {
+      *inCommentPtr = inComment;
    }
 
    return x;
@@ -2868,7 +2874,58 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
       selection.colorBackground   = theme.selected;
       selection.colorText         = theme.textSelected;
 
-      for (size_t i = _vscroll->position() / lineHeight; i < num_lines(); i++) {
+      bool inComment = false;
+      size_t startLine = _vscroll->position() / lineHeight;
+
+      // Find the comment state at the start line by scanning from the beginning of the
+      // file (we need to track multiline comments across lines).
+      // Right now we do this every time we render a file. If this is too slow, we could
+      // store the `inComment` bool in `UICode::code_line_t`
+      // -------------------------------------------------------------------------------
+      for (size_t j = 0; j < startLine && j < num_lines(); j++) {
+         std::string_view lineText = line(j);
+         bool inSingleLineComment = false;
+         bool inString = false;
+
+         for (size_t pos = 0; pos < lineText.size(); pos++) {
+            if (inSingleLineComment) {
+               continue; // rest of line is comment
+            }
+            if (inString) {
+               if (lineText[pos] == '"' && (pos == 0 || lineText[pos-1] != '\\')) {
+                  inString = false;
+               }
+               continue;
+            }
+
+            // Check for string start
+            if (lineText[pos] == '"') {
+               inString = true;
+               continue;
+            }
+
+            // Check for comments
+            if (!inString && pos + 1 < lineText.size()) {
+               if (lineText[pos] == '/' && lineText[pos+1] == '/') {
+                  inSingleLineComment = true;
+                  pos++; // skip second '/'
+                  continue;
+               }
+               if (!inComment && lineText[pos] == '/' && lineText[pos+1] == '*') {
+                  inComment = true;
+                  pos++; // skip the '*'
+                  continue;
+               }
+               if (inComment && lineText[pos] == '*' && lineText[pos+1] == '/') {
+                  inComment = false;
+                  pos++; // skip the '/'
+                  continue;
+               }
+            }
+         }
+      }
+
+      for (size_t i = startLine; i < num_lines(); i++) {
          if (lineBounds.t > _clip.b) {
             break;
          }
@@ -2914,7 +2971,7 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
             selection.carets[1] = (i == _sel[1].line) ? byte_to_column(i, _sel[1].offset) : static_cast<int>(line(i).size());
          }
 
-         int x = painter->draw_string_highlighted(lineBounds, line(i), tab_columns(), selected ? &selection : nullptr);
+         int x = painter->draw_string_highlighted(lineBounds, line(i), tab_columns(), selected ? &selection : nullptr, &inComment);
          int y = (lineBounds.t + lineBounds.b - ui->string_height()) / 2;
 
          if (selected && i < _sel[1].line) {
@@ -2926,8 +2983,7 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
             lineBounds.l += _hscroll->position();
          painter->_clip = oldClip;
 
-         UICodeDecorateLine m;
-         m.x = x, m.y = y, m.bounds = lineBounds, m.index = static_cast<int>(i), m.painter = painter;
+         UICodeDecorateLine m{.bounds = lineBounds, .index = static_cast<int>(i), .x = x, .y = y, .painter = painter};
          message(UIMessage::CODE_DECORATE_LINE, 0, &m);
 
          lineBounds.t += lineHeight;

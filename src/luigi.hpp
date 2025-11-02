@@ -2063,7 +2063,7 @@ struct UIPainter {
    UIPainter& draw_control_default(UIRectangle bounds, uint32_t mode, std::string_view label, double position,
                                    float scale);
    int        draw_string_highlighted(UIRectangle lineBounds, std::string_view string, int tabSize,
-                                      UIStringSelection* selection);
+                                      UIStringSelection* selection, bool* inComment = nullptr);
 };
 // clang-format on
 
