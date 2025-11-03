@@ -2920,10 +2920,12 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
          bool selected = is_focused() && i >= _sel[0].line && i <= _sel[1].line;
          if (selected) {
             selection.carets[0] = (i == _sel[0].line) ? byte_to_column(i, _sel[0].offset) : 0;
-            selection.carets[1] = (i == _sel[1].line) ? byte_to_column(i, _sel[1].offset) : static_cast<int>(line(i).size());
+            selection.carets[1] =
+               (i == _sel[1].line) ? byte_to_column(i, _sel[1].offset) : static_cast<int>(line(i).size());
          }
 
-         int x = painter->draw_string_highlighted(lineBounds, line(i), tab_columns(), selected ? &selection : nullptr, &inComment);
+         int x = painter->draw_string_highlighted(lineBounds, line(i), tab_columns(), selected ? &selection : nullptr,
+                                                  &inComment);
          int y = (lineBounds.t + lineBounds.b - ui->string_height()) / 2;
 
          if (selected && i < _sel[1].line) {

@@ -340,6 +340,7 @@ struct HistoryManager : public FileImage {
       : _max_size(max_size)
       , _size_incr(incr) {
       load();
+      _idx = _lines.size() - 1;
    }
 
    void add_line(string_view line) {
@@ -5093,11 +5094,9 @@ void ExecutableWindow::save_watches() {
       ss << ';' << exp->key() << '\n'; // semicolon to protect the rest of the json in case it contains a '='
 
    auto new_watches = ss.str();
-   if (!new_watches.empty()) {
-      if (!INI_File{_prog_config_path}.replace_section("[watch]\n", new_watches)) {
-         std::print(std::cerr, "Warning: Could not save the contents of the watch window; '{}' was not accessible.\n",
-                    _prog_config_path.native());
-      }
+   if (!INI_File{_prog_config_path}.replace_section("[watch]\n", new_watches)) {
+      std::print(std::cerr, "Warning: Could not save the contents of the watch window; '{}' was not accessible.\n",
+                 _prog_config_path.native());
    }
 }
 
@@ -5113,10 +5112,8 @@ void ExecutableWindow::save_breakpoints() {
    });
 
    auto new_breakpoints = ss.str();
-   if (!new_breakpoints.empty()) {
-      if (!INI_File{_prog_config_path}.replace_section("[breakpoints]\n", new_breakpoints)) {
-         std::print(std::cerr, "Warning: Could not save breakpoints.");
-      }
+   if (!INI_File{_prog_config_path}.replace_section("[breakpoints]\n", new_breakpoints)) {
+      std::print(std::cerr, "Warning: Could not save breakpoints.");
    }
 }
 
