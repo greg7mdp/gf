@@ -1663,7 +1663,7 @@ public:
 // ------------------------------------------------------------------------------------------------
 struct textbox_state_t {
    std::string             _buffer;
-   std::array<uint32_t, 2> _carets{0, 0}; // carets[0] is the cursor position, carets[1] end of selection
+   std::array<uint32_t, 2> _carets{0, 0}; // carets[0] is the cursor position, carets[1] end of selection, not ordered
    int                     _scroll{0};
 
    bool operator==(const textbox_state_t& o) const {

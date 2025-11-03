@@ -529,6 +529,7 @@ struct Context {
    vector<std::unique_ptr<const char[]>> _gdb_argv;
    SPSCQueue<std::string>                _evaluate_result_queue;
    std::atomic<bool>                     _program_running = true;
+   bool                                  _program_started = false; // So we know to restart the program if it has exited
 
    std::unordered_map<std::string, InterfaceWindow> _interface_windows;
    vector<InterfaceCommand>                         _interface_commands;
@@ -998,6 +999,10 @@ void Context::debugger_thread_fn() {
             continue;
          }
          // std::print("================ got ({}) catBuffer=\"{}\"\n", evaluateMode, catBuffer);
+
+         // keep track of profram state (running or exited)
+         if (catBuffer.contains("exited normally"))
+            _program_started = false;
 
          // Notify the main thread we have data.
          // ------------------------------------
@@ -5203,6 +5208,8 @@ void ExecutableWindow::start_or_run(bool pause) {
 
    [[maybe_unused]] auto start_res = ctx.eval_command(std::format("start {}", _arguments->text()));
    // std::print("start_res={}\n", start_res);
+   if (start_res.contains("Starting program"))
+      ctx._program_started = true;
 
    if (_should_ask) {
       CommandParseInternal("gf-get-pwd", true);
@@ -7862,6 +7869,19 @@ auto gdb_invoker(string_view cmd, int flags = 0) {
    };
 }
 
+auto gdb_invoker_or_start(string_view cmd, int flags = 0) {
+   auto invoker = gdb_invoker(cmd, flags);
+   return [cmd, flags, invoker]() {
+      if (!ctx._program_started) {
+         // not running a program yet. Use ExecutableWindow::start_or_run
+         s_executable_window->start_or_run(cmd == "gf-next");
+      } else {
+         invoker();
+      }
+      return true;
+   };
+}
+
 void Context::add_builtin_windows_and_commands() {
    _interface_windows["Stack"s]       = InterfaceWindow{StackWindow::Create, StackWindow::Update};
    _interface_windows["Source"s]      = InterfaceWindow{SourceWindow::Create, SourceWindow::Update};
@@ -7901,10 +7921,10 @@ void Context::add_builtin_windows_and_commands() {
    });
    _interface_commands.push_back({
       ._label = "Continue\tF5",
-      ._shortcut{.code = UI_KEYCODE_FKEY(5), .invoke = gdb_invoker("c", invoker_restore_focus)}
+      ._shortcut{.code = UI_KEYCODE_FKEY(5), .invoke = gdb_invoker_or_start("c", invoker_restore_focus)}
    });
    _interface_commands.push_back({
-      ._label = "Step over\tF10", ._shortcut{.code = UI_KEYCODE_FKEY(10), .invoke = gdb_invoker("gf-next")}
+      ._label = "Step over\tF10", ._shortcut{.code = UI_KEYCODE_FKEY(10), .invoke = gdb_invoker_or_start("gf-next")}
    });
    _interface_commands.push_back({
       ._label = "Step out of block\tShift+F10",
