@@ -1388,8 +1388,9 @@ private:
    };
 
    struct code_line_t {
-      size_t offset = 0;
-      size_t bytes  = 0;
+      size_t offset            = 0;
+      size_t bytes             = 0;
+      bool   starts_in_comment = false; // true if line starts within a multiline comment
    };
 
    struct buffer_t {

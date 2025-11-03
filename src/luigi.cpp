@@ -2874,56 +2874,8 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
       selection.colorBackground   = theme.selected;
       selection.colorText         = theme.textSelected;
 
-      bool inComment = false;
       size_t startLine = _vscroll->position() / lineHeight;
-
-      // Find the comment state at the start line by scanning from the beginning of the
-      // file (we need to track multiline comments across lines).
-      // Right now we do this every time we render a file. If this is too slow, we could
-      // store the `inComment` bool in `UICode::code_line_t`
-      // -------------------------------------------------------------------------------
-      for (size_t j = 0; j < startLine && j < num_lines(); j++) {
-         std::string_view lineText = line(j);
-         bool inSingleLineComment = false;
-         bool inString = false;
-
-         for (size_t pos = 0; pos < lineText.size(); pos++) {
-            if (inSingleLineComment) {
-               continue; // rest of line is comment
-            }
-            if (inString) {
-               if (lineText[pos] == '"' && (pos == 0 || lineText[pos-1] != '\\')) {
-                  inString = false;
-               }
-               continue;
-            }
-
-            // Check for string start
-            if (lineText[pos] == '"') {
-               inString = true;
-               continue;
-            }
-
-            // Check for comments
-            if (!inString && pos + 1 < lineText.size()) {
-               if (lineText[pos] == '/' && lineText[pos+1] == '/') {
-                  inSingleLineComment = true;
-                  pos++; // skip second '/'
-                  continue;
-               }
-               if (!inComment && lineText[pos] == '/' && lineText[pos+1] == '*') {
-                  inComment = true;
-                  pos++; // skip the '*'
-                  continue;
-               }
-               if (inComment && lineText[pos] == '*' && lineText[pos+1] == '/') {
-                  inComment = false;
-                  pos++; // skip the '/'
-                  continue;
-               }
-            }
-         }
-      }
+      bool   inComment = startLine >= _buffer->_lines.size() ? false : _buffer->_lines[startLine].starts_in_comment;
 
       for (size_t i = startLine; i < num_lines(); i++) {
          if (lineBounds.t > _clip.b) {
@@ -3221,7 +3173,7 @@ void UICode::buffer_t::insert_content(std::string_view new_content) {
    }
 
    size_t orig_lines = _lines.size();
-   _lines.reserve(orig_lines + num_new_lines);
+   _lines.reserve(std::bit_ceil(orig_lines + num_new_lines + 1)); // bit_ceil to avoid vector copy on every reserve
 
    for (size_t i = 0, offset = 0; i <= sz; ++i) {
       if (i == sz || new_content[i] == '\n') { // if `new_content` not `\n` terminated, still process the last line
@@ -3237,6 +3189,55 @@ void UICode::buffer_t::insert_content(std::string_view new_content) {
       }
    }
 
+   // populate `code_line::starts_in_comment` member
+   // ----------------------------------------------
+   size_t start_line = orig_lines == 0 ? 0 : orig_lines - 1;
+   bool   in_comment = orig_lines == 0 ? false : _lines[orig_lines - 1].starts_in_comment;
+
+   for (size_t j = start_line; j < _lines.size(); ++j) {
+      _lines[j].starts_in_comment = in_comment;
+
+      std::string_view cur_line               = line(j);
+      bool             in_single_line_comment = false;
+      bool             in_string              = false;
+
+      for (size_t pos = 0; pos < cur_line.size(); pos++) {
+         if (in_single_line_comment) {
+            continue;                           // rest of line is comment
+         }
+         if (in_string) {
+            if (cur_line[pos] == '"' && (pos == 0 || cur_line[pos - 1] != '\\')) {
+               in_string = false;
+            }
+            continue;
+         }
+
+         // Check for string start
+         if (cur_line[pos] == '"') {
+            in_string = true;
+            continue;
+         }
+
+         // Check for comments
+         if (!in_string && pos + 1 < cur_line.size()) {
+            if (cur_line[pos] == '/' && cur_line[pos + 1] == '/') {
+               in_single_line_comment = true;
+               pos++;                           // skip second '/'
+               continue;
+            }
+            if (!in_comment && cur_line[pos] == '/' && cur_line[pos + 1] == '*') {
+               in_comment = true;
+               pos++;                           // skip the '*'
+               continue;
+            }
+            if (in_comment && cur_line[pos] == '*' && cur_line[pos + 1] == '/') {
+               in_comment = false;
+               pos++;                           // skip the '/'
+               continue;
+            }
+         }
+      }
+   }
 }
 
 UICode& UICode::insert_content(std::string_view new_content, bool replace) {
