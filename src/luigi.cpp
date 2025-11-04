@@ -2799,6 +2799,14 @@ UICode& UICode::copy(sel_target_t t) {
    return *this;
 }
 
+void UICode::highlight(const code_pos_pair_t& pos) {
+   _sel[2] = pos[0];
+   _sel[3] = pos[1];
+   update_selection();
+   _move_scroll_to_caret_next_layout = true;
+   animate(false);
+}
+
 UICode& UICode::update_selection() {
    bool swap      = _sel[3].line < _sel[2].line || (_sel[3].line == _sel[2].line && _sel[3].offset < _sel[2].offset);
    _sel[1 - swap] = _sel[3];
@@ -3150,10 +3158,11 @@ UICode& UICode::move_caret(bool backward, bool word) {
 }
 
 // Line numbers are 1-indexed!!
-UICode& UICode::set_focus_line(size_t index) {
+UICode& UICode::set_focus_line(size_t index, bool do_refresh /* = true */) {
    _focus_line                       = index;
    _move_scroll_to_focus_next_layout = true;
-   refresh();
+   if (do_refresh)
+      refresh();
    return *this;
 }
 

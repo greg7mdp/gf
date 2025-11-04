@@ -11,6 +11,18 @@
 // TODO More data visualization tools in the data window.
 
 #include "gf.hpp"
+#include "clangd.hpp"
+
+#include <cstdio>
+#include <ctype.h>
+#include <memory>
+#include <dirent.h>
+#include <fcntl.h>
+#include <poll.h>
+#include <unistd.h>
+#include <semaphore.h>
+#include <spawn.h>
+#include <sys/stat.h>
 
 namespace rng          = std::ranges;
 static const auto npos = std::string::npos;
@@ -218,14 +230,6 @@ static inline std::string my_getcwd() {
    return std::string{getcwd(buff, sizeof(buff))};
 }
 
-static inline void set_thread_name(const char* name) {
-#if defined(__linux__) || defined(__FreeBSD__)
-   pthread_setname_np(pthread_self(), name);
-#elif defined(__APPLE__)
-   pthread_setname_np(name);
-#endif
-}
-
 // hacky way to remove all occurences of `pattern` from `str`
 // ----------------------------------------------------------
 static inline void remove_pattern(std::string& str, string_view pattern) {
@@ -265,6 +269,44 @@ struct InterfaceDataViewer {
 struct Command {
    std::string _key;
    std::string _value;
+};
+
+// --------------------------------------------------------------------------------------------
+// Navigation history for go-to-definition / go-back
+// --------------------------------------------------------------------------------------------
+struct NavLocation {
+   std::string             _file;
+   UICode::code_pos_pair_t _pos;
+};
+
+struct NavigationHistory {
+   std::vector<NavLocation> _history;
+   size_t                   _current = 0;  // index in history, 1-based
+
+   void push(std::string_view file, const UICode::code_pos_pair_t& pos) {
+      // Remove any forward history when pushing a new location
+      if (_current < _history.size()) {
+         _history.resize(_current);
+      }
+      _history.emplace_back(std::string(file), pos);
+      _current = _history.size();
+   }
+
+   std::optional<NavLocation> go_back() {
+      if (_current > 0) {
+         _current--;
+         return _history[_current];
+      }
+      return std::nullopt;
+   }
+
+   std::optional<NavLocation> go_forward() {
+      if (_current < _history.size()) {
+         _current++;
+         return _history[_current - 1];
+      }
+      return std::nullopt;
+   }
 };
 
 // --------------------------------------------------------------------------------------------
@@ -535,6 +577,8 @@ struct Context {
    std::unordered_map<std::string, InterfaceWindow> _interface_windows;
    vector<InterfaceCommand>                         _interface_commands;
    vector<InterfaceDataViewer>                      _interface_data_viewers;
+   NavigationHistory                                _nav_history;
+   ClangdClient                                     _clangd;
 
    Context();
 
@@ -625,6 +669,7 @@ WatchWindow*               firstWatchWindow = nullptr;
 UIMessage                  msgReceivedData;
 UIMessage                  msgReceivedLog;
 UIMessage                  msgReceivedControl;
+UIMessage                  msgReceivedClangd;
 UIMessage                  msgReceivedNext = (UIMessage::USER_PLUS_1);
 
 
@@ -1883,11 +1928,7 @@ UIElement* SourceWindow::Create(UIElement* parent) {
    return s_display_code;
 }
 
-// --------------------------------
-// `line`, if present, is `0-based`
-// --------------------------------
-bool SourceWindow::display_set_position(const std::string_view file, std::optional<size_t> line,
-                                        bool useGDBToGetFullPath) {
+bool SourceWindow::load_file(const std::string_view file, bool useGDBToGetFullPath) {
    if (_showing_disassembly)
       return false;
 
@@ -1926,6 +1967,16 @@ bool SourceWindow::display_set_position(const std::string_view file, std::option
       s_display_code->load_file(_current_file, UICode::reload_if_modified);
 
    _auto_print_result[0] = 0;
+   return true;
+}
+
+// --------------------------------
+// `line`, if present, is `0-based`
+// --------------------------------
+bool SourceWindow::display_set_position(const std::string_view file, std::optional<size_t> line,
+                                        bool useGDBToGetFullPath) {
+   if (!load_file(file, useGDBToGetFullPath))
+      return false;
 
    auto currentLine = s_display_code->current_line();
    bool changed     = !currentLine; // `load_file` does `_current_line.reset();` when file was reloaded
@@ -1940,6 +1991,30 @@ bool SourceWindow::display_set_position(const std::string_view file, std::option
    s_display_code->refresh();
 
    return changed;
+}
+
+void SourceWindow::jump_to_position(const std::string_view file, const UICode::code_pos_pair_t& pos,
+                                    bool useGDBToGetFullPath) {
+   if (!load_file(file, useGDBToGetFullPath))
+      return;
+
+   if (pos[0] == pos[1]) {
+      // if we started navigating from a single position (no selection), select expression under the cursor
+      // so that the location we returned to is more obvious and we don't have to hunt for the caret.
+      // --------------------------------------------------------------------------------------------------
+      auto line   = s_display_code->line(pos[0].line);
+      auto bounds = ctx._lang_re->find_at_pos(line, code_look_for::selectable_expression, pos[0].offset);
+      if (bounds) {
+         auto [start, end] = *bounds;
+         UICode::code_pos_pair_t sel{
+            UICode::code_pos_t{pos[0].line, start},
+            UICode::code_pos_t{pos[0].line, end  }
+         };
+         s_display_code->highlight(sel);
+         return;
+      }
+   }
+   s_display_code->highlight(pos);
 }
 
 void SourceWindow::display_set_position_from_stack() {
@@ -2183,10 +2258,11 @@ int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* 
          auto bounds = ctx._lang_re->find_at_pos(line, code_look_for::selectable_expression, pos.offset);
          if (bounds) {
             auto [start, end] = *bounds;
-            code->set_selection(2, pos.line, start); // anchor
-            code->set_selection(3, pos.line, end);   // caret
-            code->update_selection();
-            code->refresh();
+            UICode::code_pos_pair_t sel{
+               UICode::code_pos_t{pos.line, start},
+               UICode::code_pos_t{pos.line, end  }
+            };
+            code->highlight(sel);
             return 1;
          }
          return 0;
@@ -2254,7 +2330,11 @@ int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* 
 
       if (code->hittest(code->cursor_pos()) == m->index && code->is_hovered() && code->is_modifier_on() &&
           !code->_window->textbox_modified_flag()) {
+#if 0
+         // very annoying to have these pop up whenever `Alt` or `Ctrl` is pressed, since we use `Alt-.`
+         // and `Alt-,` for code navigation
          m->painter->draw_border(m->bounds, code->is_ctrl_on() ? theme.selected : theme.codeOperator, UIRectangle(2));
+#endif
          m->painter->draw_string(m->bounds, code->is_ctrl_on() ? "=> run until " : "=> skip to ", theme.text,
                                  UIAlign::right, nullptr);
       } else if (m->index == _current_end_of_block) {
@@ -7879,6 +7959,44 @@ auto gdb_invoker_or_start(string_view cmd, int flags = 0) {
    };
 }
 
+bool CommandGotoDefinition() {
+   auto content = s_display_code->content();
+   if (!s_source_window || s_source_window->_current_file.empty() || content.empty()) {
+      return false;
+   }
+
+   std::string file_path = s_source_window->_current_file;
+
+   // Open document with clangd first
+   // -------------------------------
+   if (!s_display_code->sent_to_clangd()) {
+      s_display_code->set_sent_to_clangd(true);
+      ctx._clangd.open_document(file_path, content);
+   }
+
+   // Save current location to history before jumping
+   // -----------------------------------------------
+   ctx._nav_history.push(file_path, s_display_code->get_highlight());
+
+   // Request definition from clangd
+   // ------------------------------
+   UICode::code_pos_t caret = s_display_code->caret_pos();
+   ctx._clangd.goto_definition(file_path, caret, [](const std::string& file, UICode::code_pos_pair_t pos) {
+      s_source_window->jump_to_position(file, pos, false);
+   });
+
+   return true;
+}
+
+bool CommandGoBack() {
+   if (auto location = ctx._nav_history.go_back(); location) {
+      auto& pos = location->_pos;
+      s_source_window->jump_to_position(location->_file, pos, false);
+      return true;
+   }
+   return false;
+}
+
 void Context::add_builtin_windows_and_commands() {
    _interface_windows["Stack"s]       = InterfaceWindow{StackWindow::Create, StackWindow::Update};
    _interface_windows["Source"s]      = InterfaceWindow{SourceWindow::Create, SourceWindow::Update};
@@ -7976,6 +8094,29 @@ void Context::add_builtin_windows_and_commands() {
    _interface_commands.push_back({
       ._label = "Inspect line", ._shortcut{.code = UIKeycode::BACKTICK, .invoke = CommandInspectLine}
    });
+
+   // clangd navigation
+   // -----------------
+   _interface_commands.push_back({
+      ._label = "Go to definition\tAlt+.",
+      ._shortcut{.code = UIKeycode::PERIOD, .alt = true, .invoke = CommandGotoDefinition}
+   });
+   _interface_commands.push_back({
+      ._label = "Go to definition\tF12",
+      ._shortcut{.code =  UI_KEYCODE_FKEY(12), .invoke = CommandGotoDefinition}
+   });
+
+   _interface_commands.push_back({
+      ._label = "Go back\tAlt+,", ._shortcut{.code = UIKeycode::COMMA, .alt = true, .invoke = CommandGoBack}
+   });
+   _interface_commands.push_back({
+      ._label = "Go back\tCtrl+-", ._shortcut{.code = UIKeycode::MINUS, .ctrl = true, .invoke = CommandGoBack}
+   });
+   _interface_commands.push_back({
+      ._label = "Go back\tAlt+<-", ._shortcut{.code = UIKeycode::LEFT, .alt = true, .invoke = CommandGoBack}
+   });
+
+
    _interface_commands.push_back({
       ._label = nullptr, ._shortcut{.code = UI_KEYCODE_LETTER('G'), .ctrl = true, .invoke = []() {
                                        CommandWatchViewSourceAtAddress();
@@ -8024,6 +8165,10 @@ void Context::add_builtin_windows_and_commands() {
       ctx._log_window->insert_content(*buffer, false);
       ctx._log_window->refresh();
    });
+
+   // clangd responses need a separate message type since they use ClangdResponse instead of std::string
+   msgReceivedClangd = msgReceivedNext;
+   msgReceivedNext = static_cast<UIMessage>(static_cast<uint32_t>(msgReceivedNext) + 1);
 }
 
 void Context::show_menu(UIButton* self) {
@@ -8082,6 +8227,10 @@ int MainWindowMessageProc(UIElement*, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::WINDOW_ACTIVATE) {
       // make a copy as DisplaySetPosition modifies `s_source_window->_current_file_full`
       DisplaySetPosition(s_source_window->_current_file, s_display_code->current_line());
+   } else if (msg == msgReceivedClangd) {
+      // Handle clangd response on main thread
+      std::unique_ptr<ClangdResponse> response(static_cast<ClangdResponse*>(dp));
+      response->callback(response->result);
    } else {
       for (const auto& msgtype : receiveMessageTypes) {
          if (msgtype._msg == msg) {
@@ -8454,6 +8603,17 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
    // --------------------------------------------------------------------------------
    ctx.start_debugger_thread();
    CommandSyncWithGvim();
+
+   // Start clangd for code navigation
+   // ---------------------------------
+   // todo: should we look for `compile_commands.json` in the current directory or above to determine the root dir?
+   auto root_dir =
+      gfc._current_directory.empty() ? std::filesystem::current_path().native() : gfc._current_directory.native();
+   ctx._clangd.start(root_dir, [&](std::function<void(const json&)> callback, const json& message) {
+      auto* response = new ClangdResponse{.callback = std::move(callback), .result = message.value("result", json())};
+      s_main_window->post_message(msgReceivedClangd, response);
+   });
+
    return ui;
 }
 

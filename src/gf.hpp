@@ -92,7 +92,9 @@ private:
 public:
    std::array<char, 1024>& auto_print_result() { return _auto_print_result; }
 
+   bool load_file(const std::string_view file, bool useGDBToGetFullPath);
    bool display_set_position(const std::string_view file, std::optional<size_t> line, bool useGDBToGetFullPath);
+   void jump_to_position(const std::string_view file, const UICode::code_pos_pair_t& pos, bool useGDBToGetFullPath);
    void display_set_position_from_stack();
    void disassembly_load();
    void disassembly_update_line();

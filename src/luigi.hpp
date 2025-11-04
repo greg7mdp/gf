@@ -26,6 +26,7 @@
 #include <iostream>
 #include <format>
 #include <unordered_map>
+#include <vector>
 #include <version>
 
 #ifdef __cpp_lib_print
@@ -121,7 +122,10 @@ enum class UIKeycode : int {
    BACKTICK   = XK_grave,
    PAGE_UP    = XK_Page_Up,
    PAGE_DOWN  = XK_Page_Down,
-   UNDERSCORE = XK_underscore
+   UNDERSCORE = XK_underscore,
+   COMMA      = XK_comma,
+   PERIOD     = XK_period,
+   MINUS      = XK_minus
 };
 #endif
 
@@ -146,7 +150,10 @@ enum class UIKeycode : int {
    BACKTICK   = VK_OEM_3,
    PAGE_UP    = VK_PRIOR,
    PAGE_DOWN  = VK_NEXT,
-   UNDERSCORE = 0x5f
+   UNDERSCORE = 0x5f,
+   COMMA      = VK_OEM_COMMA,
+   PERIOD     = VK_OEM_PERIOD,
+   MINUS      = VK_OEM_MINUS
 };
 #endif
 
@@ -1381,12 +1388,16 @@ public:
 struct UICode : public UIElementCast<UICode>, public UIScrollbarPair {
    enum buffer_flags_t { reload_if_modified = 1 << 0 };
 
-private:
    struct code_pos_t {
       size_t line   = 0;
-      size_t offset = 0;
+      size_t offset = 0;                // text column in line
+
+      friend bool operator==(const code_pos_t&, const code_pos_t&) = default;
    };
 
+   using code_pos_pair_t = std::array<code_pos_t, 2>; // start pos, end pos
+
+private:
    struct code_line_t {
       size_t offset            = 0;
       size_t bytes             = 0;
@@ -1396,12 +1407,14 @@ private:
    struct buffer_t {
       std::vector<char>         _content;
       std::vector<code_line_t>  _lines;
-      size_t                    _max_columns = 0;
+      size_t                    _max_columns    = 0;
+      bool                      _sent_to_clangd = false;
 
       void clear() {
          _content.clear();
          _lines.clear();
          _max_columns = 0;
+         _sent_to_clangd = false;
       }
 
       [[nodiscard]] std::string_view line(size_t line) const {
@@ -1418,6 +1431,9 @@ private:
       [[nodiscard]] const char& operator[](size_t idx) const { return _content[idx]; }
       [[nodiscard]] size_t      offset(const code_pos_t& pos) const { return _lines[pos.line].offset + pos.offset; }
       [[nodiscard]] size_t      max_columns() const { return _max_columns; }
+
+      [[nodiscard]] std::string_view content() const { return _content.empty() ? std::string_view{} :
+                                                              std::string_view{_content.data(), _content.size()}; }
 
       void emplace_back_line(size_t offset, size_t bytes) {
          if (bytes > _max_columns)
@@ -1501,11 +1517,21 @@ public:
    [[nodiscard]] size_t           num_lines() const   { return _buffer->num_lines(); }
    [[nodiscard]] size_t           size() const        { return _buffer->size(); }
    [[nodiscard]] bool             empty() const       { return _buffer->empty(); }
+   [[nodiscard]] std::string_view content() const     { return _buffer->content(); }
+   [[nodiscard]] bool             sent_to_clangd() const { return _buffer->_sent_to_clangd; }
+   void                           set_sent_to_clangd(bool b) { _buffer->_sent_to_clangd = b; }
 
    [[nodiscard]] std::string_view selection() const {
       size_t from = offset(selection(0));
       size_t to   = offset(selection(1));
       return from >= to ?  std::string_view{} : std::string_view{&(*this)[from], to - from};
+   }
+
+   [[nodiscard]] code_pos_t caret_pos() const { return _sel[3]; }
+   void set_caret_pos(const code_pos_t& pos, bool do_scroll) {
+      _sel[3] = pos;
+      if (do_scroll)
+         _move_scroll_to_caret_next_layout = true;
    }
 
    [[nodiscard]] code_pos_t selection(size_t idx) const { assert(idx < _sel.size()); return _sel[idx]; }
@@ -1522,7 +1548,7 @@ public:
    UICode&    set_tab_columns(uint32_t sz) { _tab_columns = sz; return *this; }
    uint32_t   tab_columns() const { return _tab_columns; }
 
-   UICode&    set_focus_line(size_t index);                                        // Line numbers are 0-based
+   UICode&    set_focus_line(size_t index, bool do_refresh = true);      // Line numbers are 0-based
    size_t     focus_line() const { return _focus_line; }
 
    bool       left_down_in_margin() const { return _left_down_in_margin; }
@@ -1546,6 +1572,9 @@ public:
    [[nodiscard]] const char& operator[](size_t idx) const { return (*_buffer)[idx]; }
 
    [[nodiscard]] size_t      offset(const code_pos_t& pos) const { return _buffer->offset(pos); }
+
+   void            highlight(const code_pos_pair_t& pos);
+   code_pos_pair_t get_highlight() { return code_pos_pair_t{_sel[2], _sel[3]}; }
 
    UICode&    set_font(UIFont* font) { _font = font; return *this; }
    [[nodiscard]] UIFont*    font() const { return _font; }
