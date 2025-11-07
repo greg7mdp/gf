@@ -253,19 +253,19 @@ void lex(val_t* val, int next) {
          break;
       case read_int:
          if (ch >= '0' && ch <= '9') {
-            if (tpos < sizeof(token)) {
+            if (tpos < sizeof(token) - 1) {
                token[tpos++] = ch;
             } else {
-               token[tpos] = 0;
+               token[sizeof(token) - 1] = 0;
                printf("Number too long: %s\n", token);
             }
          } else if (ch == 'x' && tpos == 1) {
             state = read_hex;
          } else if (ch == '.') {
-            if (tpos < sizeof(token)) {
+            if (tpos < sizeof(token) - 1) {
                token[tpos++] = ch;
             } else {
-               token[tpos] = 0;
+               token[sizeof(token) - 1] = 0;
                printf("Number too long: %s\n", token);
             }
             state = read_mantissa;
@@ -280,10 +280,10 @@ void lex(val_t* val, int next) {
          break;
       case read_mantissa:
          if (ch >= '0' && ch <= '9') {
-            if (tpos < sizeof(token)) {
+            if (tpos < sizeof(token) - 1) {
                token[tpos++] = ch;
             } else {
-               token[tpos] = 0;
+               token[sizeof(token) - 1] = 0;
                printf("Number too long: %s\n", token);
                longjmp(env, 1);
             }
@@ -315,10 +315,10 @@ void lex(val_t* val, int next) {
          break;
       case read_var:
          if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '_') {
-            if (tpos < sizeof(token)) {
+            if (tpos < sizeof(token) - 1) {
                token[tpos++] = ch;
             } else {
-               token[tpos] = 0;
+               token[sizeof(token) - 1] = 0;
                printf("Variable too long: %s", token);
                longjmp(env, 1);
             }
