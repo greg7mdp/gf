@@ -92,15 +92,9 @@ public:
       shutdown();
    }
 
-   bool start(const std::string& root_path, fwd_resp_t forward_clang_response) {
+   bool start(const std::string& root_path, const std::string& clangd_path, fwd_resp_t forward_clang_response) {
       _fwd_response = std::move(forward_clang_response);
       _root_path = root_path;
-
-      // Check if clangd is available
-      if (system("which clangd > /dev/null 2>&1") != 0) {
-         CLANGD_LOG("clangd not found in PATH\n");
-         return false;
-      }
 
       // Create pipes
       if (pipe(_pipe_to_clangd) == -1 || pipe(_pipe_from_clangd) == -1) {
@@ -120,6 +114,14 @@ public:
          dup2(_pipe_to_clangd[0], STDIN_FILENO);
          dup2(_pipe_from_clangd[1], STDOUT_FILENO);
 
+         close(_pipe_to_clangd[0]);
+         close(_pipe_to_clangd[1]);
+         close(_pipe_from_clangd[0]);
+         close(_pipe_from_clangd[1]);
+
+         // Save original stderr in case exec fails
+         int stderr_backup = dup(STDERR_FILENO);
+
          // Redirect stderr to /dev/null to suppress clangd's logging
          int dev_null = open("/dev/null", O_WRONLY);
          if (dev_null != -1) {
@@ -127,12 +129,15 @@ public:
             close(dev_null);
          }
 
-         close(_pipe_to_clangd[0]);
-         close(_pipe_to_clangd[1]);
-         close(_pipe_from_clangd[0]);
-         close(_pipe_from_clangd[1]);
+         execlp(clangd_path.c_str(), clangd_path.c_str(), "--background-index", nullptr);
 
-         execlp("clangd", "clangd", "--background-index", nullptr);
+         // If we get here, exec failed - restore stderr and print error
+         if (stderr_backup != -1) {
+            dup2(stderr_backup, STDERR_FILENO);
+            close(stderr_backup);
+         }
+         std::print(std::cerr, "Failed to execute clangd at path: {}\n", clangd_path);
+
          _exit(1);
       }
 

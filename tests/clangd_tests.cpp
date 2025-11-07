@@ -84,7 +84,7 @@ TEST_CASE("ClangdClient basic functionality") {
    ClangdClient client;
 
    SUBCASE("Start clangd") {
-      bool started = client.start(root_path.string(),
+      bool started = client.start(root_path.string(), "clangd",
          [&](std::function<void(const json&)> callback, const json& message) {
             // Execute callback immediately (we're in test, no UI thread needed)
             callback(message.value("result", json()));
@@ -98,7 +98,7 @@ TEST_CASE("ClangdClient basic functionality") {
    }
 
    SUBCASE("Open document and goto definition") {
-      bool started = client.start(root_path.string(),
+      bool started = client.start(root_path.string(), "clangd",
          [&](std::function<void(const json&)> callback, const json& message) {
             callback(message.value("result", json()));
          });
@@ -151,7 +151,7 @@ TEST_CASE("ClangdClient basic functionality") {
    }
 
    SUBCASE("Multiple goto_definition requests") {
-      bool started = client.start(root_path.string(),
+      bool started = client.start(root_path.string(), "clangd",
          [&](std::function<void(const json&)> callback, const json& message) {
             callback(message.value("result", json()));
          });

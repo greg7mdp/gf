@@ -579,6 +579,7 @@ struct Context {
    vector<InterfaceDataViewer>                      _interface_data_viewers;
    NavigationHistory                                _nav_history;
    ClangdClient                                     _clangd;
+   std::string                                      _clangd_path = "clangd";
 
    Context();
 
@@ -979,10 +980,15 @@ void Context::debugger_thread_fn() {
    posix_spawnattr_init(&attrs);
    posix_spawnattr_setflags(&attrs, POSIX_SPAWN_SETSID);
 
-   posix_spawnp(&_gdb_pid, _gdb_path.c_str(), &actions, &attrs, (char**)&_gdb_argv[0], environ);
+   int spawn_result = posix_spawnp(&_gdb_pid, _gdb_path.c_str(), &actions, &attrs, (char**)&_gdb_argv[0], environ);
 
    posix_spawn_file_actions_destroy(&actions);
    posix_spawnattr_destroy(&attrs);
+
+   if (spawn_result != 0) {
+      std::print(std::cerr, "Error: Couldn't execute gdb at path '{}': {}\n", _gdb_path, strerror(spawn_result));
+      exit(EXIT_FAILURE);
+   }
 #endif
 
    _pipe_to_gdb = inputPipe[1];
@@ -1886,6 +1892,10 @@ UIConfig GF_Config::load_settings(bool earlyPass) {
                parse_res.parse_bool("confirm_command_connect", _confirm_command_connect) ||
                parse_res.parse_int ("backtrace_count_limit", _backtrace_count_limit);
                // clang-format on
+            }
+         } else if (section == "clangd") {
+            if (key == "path") {
+               ctx._clangd_path = value;
             }
          } else if (section == "theme" && !value.empty()) {
             for (uintptr_t i = 0; i < sizeof(themeItems) / sizeof(themeItems[0]); i++) {
@@ -8609,7 +8619,7 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
    // todo: should we look for `compile_commands.json` in the current directory or above to determine the root dir?
    auto root_dir =
       gfc._current_directory.empty() ? std::filesystem::current_path().native() : gfc._current_directory.native();
-   ctx._clangd.start(root_dir, [&](std::function<void(const json&)> callback, const json& message) {
+   ctx._clangd.start(root_dir, ctx._clangd_path, [&](std::function<void(const json&)> callback, const json& message) {
       auto* response = new ClangdResponse{.callback = std::move(callback), .result = message.value("result", json())};
       s_main_window->post_message(msgReceivedClangd, response);
    });
