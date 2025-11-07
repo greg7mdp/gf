@@ -1,3 +1,5 @@
+#pragma once
+
 #include "luigi.hpp"
 
 #include <mutex>

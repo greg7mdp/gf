@@ -11,6 +11,7 @@
 // TODO More data visualization tools in the data window.
 
 #include "gf.hpp"
+#include "utils.hpp"
 #include "clangd.hpp"
 
 #include <cstdio>
@@ -8614,16 +8615,19 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
    ctx.start_debugger_thread();
    CommandSyncWithGvim();
 
-   // Start clangd for code navigation
-   // ---------------------------------
-   // todo: should we look for `compile_commands.json` in the current directory or above to determine the root dir?
-   auto root_dir =
-      gfc._current_directory.empty() ? std::filesystem::current_path().native() : gfc._current_directory.native();
-   ctx._clangd.start(root_dir, ctx._clangd_path, [&](std::function<void(const json&)> callback, const json& message) {
-      auto* response = new ClangdResponse{.callback = std::move(callback), .result = message.value("result", json())};
-      s_main_window->post_message(msgReceivedClangd, response);
-   });
-
+   if (is_executable_in_path(ctx._clangd_path)) {
+      // Start clangd for code navigation
+      // ---------------------------------
+      auto root_dir =
+         gfc._current_directory.empty() ? std::filesystem::current_path().native() : gfc._current_directory.native();
+      ctx._clangd.start(
+         root_dir, ctx._clangd_path, [&](std::function<void(const json&)> callback, const json& message) {
+            auto* response =
+               new ClangdResponse{.callback = std::move(callback), .result = message.value("result", json())};
+            s_main_window->post_message(msgReceivedClangd, response);
+         });
+   } else
+      std::print(std::cerr, "\"{}\" not found in path... clangd navigation will not be available.\n", ctx._clangd_path);
    return ui;
 }
 
