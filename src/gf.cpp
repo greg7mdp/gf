@@ -196,8 +196,8 @@ static inline std::unique_ptr<const char[]> mk_quoted_cstring(string_view sv) {
    auto sz = sv.size();
    auto s  = std::make_unique<char[]>(sz + 1 + 2);
    std::memcpy(&s[1], &sv[0], sz);
-   s[0] = s[sz-1] = '\"';
-   s[sz] = 0;
+   s[0] = s[sz - 1] = '\"';
+   s[sz]            = 0;
    return s;
 }
 
@@ -282,7 +282,7 @@ struct NavLocation {
 
 struct NavigationHistory {
    std::vector<NavLocation> _history;
-   size_t                   _current = 0;  // index in history, 1-based
+   size_t                   _current = 0; // index in history, 1-based
 
    void push(std::string_view file, const UICode::code_pos_pair_t& pos) {
       // Remove any forward history when pushing a new location
@@ -322,7 +322,7 @@ struct ExeStartInfo {
    std::string _args;
 
    friend std::ostream& operator<<(std::ostream& os, const ExeStartInfo& esi) {
-      os << "ExeStartInfo(\"" << esi._path << "\", \"" <<  esi._args << "\")";
+      os << "ExeStartInfo(\"" << esi._path << "\", \"" << esi._args << "\")";
       return os;
    }
 
@@ -436,7 +436,7 @@ struct GF_Config {
    // executable window
    // -----------------
    ExeStartInfo _exe;
-   bool         _ask_dir = false;
+   bool         _ask_dir          = false;
    bool         _allow_exe_config = false;
 
    // misc
@@ -1676,7 +1676,8 @@ const char* themeItems[] = {
    "panel1",         "panel2",       "selected",         "border",        "text",           "textDisabled",
    "textSelected",   "buttonNormal", "buttonHovered",    "buttonPressed", "buttonDisabled", "textboxNormal",
    "textboxFocused", "codeFocused",  "codeBackground",   "codeDefault",   "codeComment",    "codeString",
-   "codeNumber",     "codeOperator", "codePreprocessor", "accent1",       "accent2",
+   "codeNumber",     "codeOperator", "codePreprocessor", "codeKeyword",   "codeType",       "codeVariable",
+   "codeFunction",   "accent1",      "accent2",
 };
 
 static void SettingsAddTrustedFolder() {
@@ -1899,16 +1900,16 @@ UIConfig GF_Config::load_settings(bool earlyPass) {
                ctx._clangd_path = value;
             }
          } else if (section == "theme" && !value.empty()) {
-            for (uintptr_t i = 0; i < sizeof(themeItems) / sizeof(themeItems[0]); i++) {
+            for (size_t i = 0; i < sizeof(themeItems) / sizeof(themeItems[0]); i++) {
                if (key != themeItems[i])
                   continue;
-               std::from_chars(value.data(), value.data() + value.size(),
-                               (reinterpret_cast<uint32_t*>(&ui_config._theme))[i], 16);
+               std::from_chars(value.data(), value.data() + value.size(), ui_config._theme[i], 16);
                ui_config._has_theme = true;
             }
             if (key == "predefined") {
-               if (auto itr = ui_themes.find(std::string(value)); itr != ui_themes.end()) {
-                  ui_config._theme     = itr->second;
+               auto theme = ctx._ui->get_theme(std::string(value));
+               if (theme) {
+                  ui_config._theme = *theme;
                   ui_config._has_theme = true;
                }
             }
@@ -1938,6 +1939,8 @@ UIElement* SourceWindow::Create(UIElement* parent) {
                         .set_user_proc(SourceWindow::DisplayCodeMessage);
    return s_display_code;
 }
+
+static void ProcessSemanticTokens(const std::vector<uint32_t>& data, const UICode::buffer_ptr& code_buffer);
 
 bool SourceWindow::load_file(const std::string_view file, bool useGDBToGetFullPath) {
    if (_showing_disassembly)
@@ -1974,8 +1977,33 @@ bool SourceWindow::load_file(const std::string_view file, bool useGDBToGetFullPa
       }
    }
 
-   if (!_current_file.empty())
+   if (!_current_file.empty()) {
       s_display_code->load_file(_current_file, UICode::reload_if_modified);
+
+      // Open document with clangd
+      // -------------------------
+      auto& buffer = s_display_code->get_buffer();
+
+      if (buffer && !s_display_code->sent_to_clangd()) {
+         std::string file_path = s_source_window->_current_file;
+         auto        content   = buffer->content();
+
+         if (!content.empty()) {
+            s_display_code->set_sent_to_clangd(true);
+
+            // open document
+            ctx._clangd.open_document(file_path, content);
+
+            // Request semantic tokens
+            ctx._clangd.get_semantic_tokens(file_path,
+                                            [buffer = s_display_code->get_buffer()](const std::vector<uint32_t>& data) {
+                                               if (!data.empty() && s_display_code) {
+                                                  ProcessSemanticTokens(data, buffer);
+                                               }
+                                            });
+         }
+      }
+   }
 
    _auto_print_result[0] = 0;
    return true;
@@ -3656,7 +3684,7 @@ public:
       return panel;
    }
 
-   static UIElement* CreateLocalsWindow(UIElement* parent) {
+   static UIElement* CreateLoc(UIElement* parent) {
       return WatchWindow::Create(parent, "Locals", WatchWindow::WATCH_LOCALS);
    }
 
@@ -3803,7 +3831,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
             } else if (watch->_highlight) {
                painter->draw_string(row, buffer, 0xFF0000, UIAlign::left, nullptr);
             } else {
-               painter->draw_string_highlighted(row, buffer, 1, nullptr);
+               painter->draw_string_highlighted(row, buffer, 1, nullptr, nullptr, nullptr);
             }
          }
       }
@@ -7949,6 +7977,7 @@ void ControlPipe::on_command(std::unique_ptr<std::string> input) {
 enum invoker_flags { invoker_restore_focus = 1 << 0 };
 
 auto gdb_invoker(string_view cmd, int flags = 0) {
+   //std::print(std::cerr, "invoke: \"{}\"\n", cmd);
    return [cmd, flags]() {
       CommandSendToGDB(cmd);
       if (flags & invoker_restore_focus)
@@ -7970,6 +7999,111 @@ auto gdb_invoker_or_start(string_view cmd, int flags = 0) {
    };
 }
 
+// ---------------------------------------------------------------------------
+// Process semantic tokens from clangd and populate sem_t arrays in code lines
+// Semantic Token Types:
+//        1. namespace
+//        2. type (classes, structs, enums)
+//        3. class
+//        4. enum
+//        5. interface
+//        6. struct
+//        7. typeParameter (template parameters)
+//        8. parameter (function parameters)
+//        9. variable
+//        10. property (member variables)
+//        11. enumMember
+//        12. function
+//        13. method
+//        14. macro
+//        15. keyword
+//        16. modifier (const, static, etc.)
+//        17. comment
+//        18. string
+//        19. number
+//        20. operator
+//
+//        Semantic Token Modifiers:
+//        1. declaration
+//        2. definition
+//        3. readonly (const)
+//        4. static
+//        5. deprecated
+//        6. abstract
+//        7. async
+//        8. modification
+//        9. documentation
+//        10. defaultLibrary (standard library entities)
+// ---------------------------------------------------------------------------
+static void ProcessSemanticTokens(const std::vector<uint32_t>& data, const UICode::buffer_ptr& code_buffer) {
+   if (data.size() % 5 != 0) {
+      CLANGD_LOG("Invalid semantic tokens data size: {}\n", data.size());
+      return;
+   }
+
+   // Get token type legend from clangd
+   auto& token_types = ctx._clangd._token_types;
+   if (token_types.empty()) {
+      CLANGD_LOG("No token types available\n");
+      return;
+   }
+
+   // ---------------------------------------------------------------------------------------
+   auto finalize_line = [&](size_t line_num, std::vector<UICode::sem_t>& tokens) {
+      if (tokens.empty())
+         return;
+
+      size_t count     = tokens.size();
+      auto   sem_array = std::make_unique<UICode::sem_t[]>(count + 1);
+
+      static_assert(std::is_trivially_copyable_v<UICode::sem_t>);
+      std::memcpy(&sem_array[0], &tokens[0], count * sizeof(UICode::sem_t));
+      sem_array[count] = {0, 0, sem_tok_t::comment};
+
+      code_buffer->set_sem(line_num, std::move(sem_array));
+   };
+
+   std::vector<UICode::sem_t> line_tokens;
+   uint32_t                   current_line = 0;
+   uint32_t                   current_col  = 0;
+   size_t                     num_lines    = 0;
+
+   // Decode the delta-encoded semantic tokens. Each 5-token group describe an area within a
+   // single line (tokens cannot span multiple lines). Multi-line constructs (like multi-line
+   // comments or strings) are represented as multiple tokens, one per line
+   // ---------------------------------------------------------------------------------------
+   for (size_t i = 0; i < data.size(); i += 5) {
+      uint32_t delta_line     = data[i];
+      uint32_t delta_start    = data[i + 1];
+      uint32_t length         = data[i + 2];
+      uint32_t token_type_idx = data[i + 3];
+      // uint32_t token_modifiers = data[i + 4];  // Not using modifiers for now
+
+      // If we're starting a new line, finalize the previous line
+      if (delta_line > 0) {
+         finalize_line(current_line, line_tokens);
+         line_tokens.clear();
+         current_line += delta_line;
+         current_col = delta_start;
+         num_lines++;
+      } else {
+         current_col += delta_start;
+      }
+
+      if (token_type_idx >= token_types.size())
+         continue;
+
+      sem_tok_t sem_type = token_types[token_type_idx];
+      line_tokens.push_back({static_cast<uint16_t>(current_col), static_cast<uint16_t>(length), sem_type});
+   }
+
+   finalize_line(current_line, line_tokens); // Finalize the last line
+   if (!line_tokens.empty())
+      num_lines++;
+
+   CLANGD_LOG("Processed semantic tokens for {} lines\n", num_lines);
+}
+
 bool CommandGotoDefinition() {
    auto content = s_display_code->content();
    if (!s_source_window || s_source_window->_current_file.empty() || content.empty()) {
@@ -7978,12 +8112,7 @@ bool CommandGotoDefinition() {
 
    std::string file_path = s_source_window->_current_file;
 
-   // Open document with clangd first
-   // -------------------------------
-   if (!s_display_code->sent_to_clangd()) {
-      s_display_code->set_sent_to_clangd(true);
-      ctx._clangd.open_document(file_path, content);
-   }
+
 
    // Save current location to history before jumping
    // -----------------------------------------------
@@ -8014,8 +8143,7 @@ void Context::add_builtin_windows_and_commands() {
    _interface_windows["Breakpoints"s] = InterfaceWindow{BreakpointsWindow::Create, BreakpointsWindow::Update};
    _interface_windows["Registers"s]   = InterfaceWindow{RegistersWindow::Create, RegistersWindow::Update};
    _interface_windows["Watch"s]       = InterfaceWindow{WatchWindow::Create, WatchWindow::Update, WatchWindow::Focus};
-   _interface_windows["Locals"s] =
-      InterfaceWindow{WatchWindow::CreateLocalsWindow, WatchWindow::Update, WatchWindow::Focus};
+   _interface_windows["Locals"s]    = InterfaceWindow{WatchWindow::CreateLoc, WatchWindow::Update, WatchWindow::Focus};
    _interface_windows["Commands"s]  = InterfaceWindow{CommandsWindow::Create, nullptr};
    _interface_windows["Data"s]      = InterfaceWindow{DataWindow::Create, nullptr};
    _interface_windows["Struct"s]    = InterfaceWindow{StructWindow::Create, nullptr};
@@ -8113,8 +8241,7 @@ void Context::add_builtin_windows_and_commands() {
       ._shortcut{.code = UIKeycode::PERIOD, .alt = true, .invoke = CommandGotoDefinition}
    });
    _interface_commands.push_back({
-      ._label = "Go to definition\tF12",
-      ._shortcut{.code =  UI_KEYCODE_FKEY(12), .invoke = CommandGotoDefinition}
+      ._label = "Go to definition\tF12", ._shortcut{.code = UI_KEYCODE_FKEY(12), .invoke = CommandGotoDefinition}
    });
 
    _interface_commands.push_back({
@@ -8127,6 +8254,23 @@ void Context::add_builtin_windows_and_commands() {
       ._label = "Go back\tAlt+<-", ._shortcut{.code = UIKeycode::LEFT, .alt = true, .invoke = CommandGoBack}
    });
 
+   // theme switching
+   // ---------------
+   _interface_commands.push_back({
+      ._label = "Switch tTheme\tCtrl+T", ._shortcut{.code = UI_KEYCODE_LETTER('T'), .ctrl = true, .invoke = []() {
+                                                       ctx._ui->next_theme(true);
+                                                       s_main_window->refresh();
+                                                       return true;
+                                                    }}
+   });
+   _interface_commands.push_back({
+      ._label = "Switch tTheme\tCtrl+Shift+T",
+      ._shortcut{.code = UI_KEYCODE_LETTER('T'), .ctrl = true, .shift = true, .invoke = []() {
+                    ctx._ui->next_theme(false);
+                    s_main_window->refresh();
+                    return true;
+                 }}
+   });
 
    _interface_commands.push_back({
       ._label = nullptr, ._shortcut{.code = UI_KEYCODE_LETTER('G'), .ctrl = true, .invoke = []() {
@@ -8179,7 +8323,7 @@ void Context::add_builtin_windows_and_commands() {
 
    // clangd responses need a separate message type since they use ClangdResponse instead of std::string
    msgReceivedClangd = msgReceivedNext;
-   msgReceivedNext = static_cast<UIMessage>(static_cast<uint32_t>(msgReceivedNext) + 1);
+   msgReceivedNext   = static_cast<UIMessage>(static_cast<uint32_t>(msgReceivedNext) + 1);
 }
 
 void Context::show_menu(UIButton* self) {
@@ -8621,10 +8765,21 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
       auto root_dir =
          gfc._current_directory.empty() ? std::filesystem::current_path().native() : gfc._current_directory.native();
       ctx._clangd.start(
-         root_dir, ctx._clangd_path, [&](std::function<void(const json&)> callback, const json& message) {
+         root_dir, ctx._clangd_path,
+         // Response callback
+         [&](std::function<void(const json&)> callback, const json& message) {
             auto* response =
                new ClangdResponse{.callback = std::move(callback), .result = message.value("result", json())};
             s_main_window->post_message(msgReceivedClangd, response);
+         },
+         // Notification callback
+         [&](const std::string& method, const json& params) {
+            CLANGD_LOG("Clangd notification: {} with params\n", method);
+            // ------------------------------------------------------------------------
+            // TODO: Handle specific notifications like textDocument/publishDiagnostics
+            // or clangd's custom textDocument/inactiveRegions
+            // ------------------------------------------------------------------------
+            (void)params; // Suppress unused warning for now
          });
    } else
       std::print(std::cerr, "\"{}\" not found in path... clangd navigation will not be available.\n", ctx._clangd_path);

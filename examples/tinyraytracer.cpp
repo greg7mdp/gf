@@ -162,7 +162,7 @@ int main() {
    constexpr int     height = 768;
    constexpr float   fov    = 1.05; // 60 degrees field of view in radians
    std::vector<vec3> framebuffer(width * height);
-#pragma omp parallel for
+//#pragma omp parallel for
    for (int pix = 0; pix < width * height; pix++) { // actual rendering loop
       float dir_x      = (pix % width + 0.5) - width / 2.;
       float dir_y      = -(pix / width + 0.5) + height / 2.; // this flips the image at the same time

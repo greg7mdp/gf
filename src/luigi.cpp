@@ -1,4 +1,5 @@
 #include "luigi.hpp"
+#include "themes.hpp"
 
 #ifdef _MSC_VER
    #pragma warning(disable : 4100) // unreferenced formal parameter
@@ -29,151 +30,6 @@ namespace rng   = std::ranges;
 std::string UITextbox::_hidden_str;
 
 
-// --------------------------------------------------
-// Themes.
-// --------------------------------------------------
-std::unordered_map<std::string, UITheme> ui_themes{
-   {"classic",
-    UITheme{
-       .panel1   = 0xFFF0F0F0,
-       .panel2   = 0xFFFFFFFF,
-       .selected = 0xFF94BEFE,
-       .border   = 0xFF404040,
-
-       .text         = 0xFF000000,
-       .textDisabled = 0xFF404040,
-       .textSelected = 0xFF000000,
-
-       .buttonNormal   = 0xFFE0E0E0,
-       .buttonHovered  = 0xFFF0F0F0,
-       .buttonPressed  = 0xFFA0A0A0,
-       .buttonDisabled = 0xFFF0F0F0,
-
-       .textboxNormal  = 0xFFF8F8F8,
-       .textboxFocused = 0xFFFFFFFF,
-
-       .codeFocused      = 0xFFE0E0E0,
-       .codeBackground   = 0xFFFFFFFF,
-       .codeDefault      = 0xFF000000,
-       .codeComment      = 0xFFA11F20,
-       .codeString       = 0xFF037E01,
-       .codeNumber       = 0xFF213EF1,
-       .codeOperator     = 0xFF7F0480,
-       .codePreprocessor = 0xFF545D70,
-
-       .accent1 = 0xFF0000,
-       .accent2 = 0x00FF00,
-    }                   },
-   {"dark",
-    UITheme{
-       .panel1   = 0xFF252B31,
-       .panel2   = 0xFF14181E,
-       .selected = 0xFF94BEFE,
-       .border   = 0xFF000000,
-
-       .text         = 0xFFFFFFFF,
-       .textDisabled = 0xFF787D81,
-       .textSelected = 0xFF000000,
-
-       .buttonNormal   = 0xFF383D41,
-       .buttonHovered  = 0xFF4B5874,
-       .buttonPressed  = 0xFF0D0D0F,
-       .buttonDisabled = 0xFF1B1F23,
-
-       .textboxNormal  = 0xFF31353C,
-       .textboxFocused = 0xFF4D4D59,
-
-       .codeFocused      = 0xFF505055,
-       .codeBackground   = 0xFF212126,
-       .codeDefault      = 0xFFFFFFFF,
-       .codeComment      = 0xFFB4B4B4,
-       .codeString       = 0xFFF5DDD1,
-       .codeNumber       = 0xFFC3F5D3,
-       .codeOperator     = 0xFFF5D499,
-       .codePreprocessor = 0xFFF5F3D1,
-
-       .accent1 = 0xF01231,
-       .accent2 = 0x45F94E,
-    }                   },
-   {"ice",
-    UITheme{
-       .panel1           = 0xF1F4FF,
-       .panel2           = 0xFFFFFF,
-       .selected         = 0xB5D0FE,
-       .border           = 0x000000,
-       .text             = 0x000000,
-       .textDisabled     = 0x787D81,
-       .textSelected     = 0x000000,
-       .buttonNormal     = 0xEAEDFF,
-       .buttonHovered    = 0xF0F8FF,
-       .buttonPressed    = 0xB6C5FB,
-       .buttonDisabled   = 0x1B1F23,
-       .textboxNormal    = 0xFFFFFF,
-       .textboxFocused   = 0xFFFFFF,
-       .codeFocused      = 0x9CD6FF,
-       .codeBackground   = 0xE8F2FF,
-       .codeDefault      = 0x000000,
-       .codeComment      = 0xAB6F81,
-       .codeString       = 0x0F7D32,
-       .codeNumber       = 0x0058F5,
-       .codeOperator     = 0x720EE7,
-       .codePreprocessor = 0x900092,
-       .accent1          = 0xFF0000,
-       .accent2          = 0x00FF00,
-    }                   },
-   {"lotus",
-    UITheme{
-       .panel1           = 0xFFF1F4,
-       .panel2           = 0xFFFFFF,
-       .selected         = 0xFEB5D0,
-       .border           = 0x000000,
-       .text             = 0x000000,
-       .textDisabled     = 0x81787D,
-       .textSelected     = 0x000000,
-       .buttonNormal     = 0xFFEAED,
-       .buttonHovered    = 0xFFF0F8,
-       .buttonPressed    = 0xFBB6C5,
-       .buttonDisabled   = 0x231B1F,
-       .textboxNormal    = 0xFFFFFF,
-       .textboxFocused   = 0xFFFFFF,
-       .codeFocused      = 0xFCBAFF,
-       .codeBackground   = 0xFFE8F2,
-       .codeDefault      = 0x000000,
-       .codeComment      = 0x817B6F,
-       .codeString       = 0x704697,
-       .codeNumber       = 0xC21140,
-       .codeOperator     = 0xC76716,
-       .codePreprocessor = 0x7A7092,
-       .accent1          = 0xFF0000,
-       .accent2          = 0x00FF00,
-    }                   },
-   {"hero",
-    UITheme{
-       .panel1           = 0x202020,
-       .panel2           = 0x202020,
-       .selected         = 0x3C3836,
-       .border           = 0x404040,
-       .text             = 0xDDDDDD,
-       .textDisabled     = 0x787D81,
-       .textSelected     = 0xFFFFFF,
-       .buttonNormal     = 0x202020,
-       .buttonHovered    = 0x4B5874,
-       .buttonPressed    = 0x0D0D0F,
-       .buttonDisabled   = 0x1B1F23,
-       .textboxNormal    = 0x202020,
-       .textboxFocused   = 0x3C3836,
-       .codeFocused      = 0x3C3836,
-       .codeBackground   = 0x202020,
-       .codeDefault      = 0xBDA175,
-       .codeComment      = 0xA8A5A2,
-       .codeString       = 0xB3B54A,
-       .codeNumber       = 0xD3869B,
-       .codeOperator     = 0xBDA175,
-       .codePreprocessor = 0xA0B8A0,
-       .accent1          = 0xFF0000,
-       .accent2          = 0x00FF00,
-    }}
-};
 
 // ---------------------------------------------------------------------------------------------
 //                              Utilities
@@ -865,7 +721,7 @@ UIPainter& UIPainter::draw_invert(UIRectangle rectangle) {
 
    if (rectangle.valid()) {
       for (int line = rectangle.t; line < rectangle.b; line++) {
-         uint32_t* bits  = _bits + static_cast<size_t>(line * _width + rectangle.l) ;
+         uint32_t* bits  = _bits + static_cast<size_t>(line * _width + rectangle.l);
          int       count = rectangle.width();
 
          while (count--) {
@@ -1134,8 +990,9 @@ UIPainter& UIPainter::draw_control_default(UIRectangle bounds, uint32_t mode, st
       draw_string(bounds, label, textColor, UIAlign::left, nullptr);
    } else if (which == UIControl::table_background) {
       draw_block(bounds, theme.panel2);
-      draw_rectangle(UIRectangle(bounds.l, bounds.r, bounds.t, bounds.t + static_cast<int>(ui_size::table_header * scale)),
-                     theme.panel1, theme.border, UIRectangle(0, 0, 0, 1));
+      draw_rectangle(
+         UIRectangle(bounds.l, bounds.r, bounds.t, bounds.t + static_cast<int>(ui_size::table_header * scale)),
+         theme.panel1, theme.border, UIRectangle(0, 0, 0, 1));
    } else if (which == UIControl::table_header) {
       draw_string(bounds, label, theme.text, UIAlign::left, nullptr);
       if (selected)
@@ -1534,7 +1391,7 @@ std::string_view UIWindow::show_dialog(uint32_t flags, const char* format, ...) 
 
    // Run the modal message loop.
    // ---------------------------
-   int result = 0;
+   int result           = 0;
    UI* ui               = this->ui();
    ui->_dialog_result   = nullptr;
    ui->_dialog_can_exit = buttonCount != 0;
@@ -1725,7 +1582,7 @@ bool UIElement::_destroy() {
    if (has_flag(destroy_flag)) {
       message(UIMessage::DEALLOCATE, 0, nullptr);
 
-      auto *win = _window;
+      auto* win = _window;
 
       if (is_pressed()) {
          win->set_pressed(nullptr, 0);
@@ -2203,7 +2060,8 @@ int UISplitter::_class_message_proc(UIMessage msg, int di, void* dp) {
       int   space        = (vertical ? splitPane->_bounds.height() : splitPane->_bounds.width()) - splitterSize;
       float oldWeight    = splitPane->weight();
       splitPane->set_weight(
-         (cursor - static_cast<float>(splitterSize) / 2 - (vertical ? splitPane->_bounds.t : splitPane->_bounds.l)) / space);
+         (cursor - static_cast<float>(splitterSize) / 2 - (vertical ? splitPane->_bounds.t : splitPane->_bounds.l)) /
+         space);
       splitPane->set_weight(std::clamp(splitPane->weight(), 0.05f, 0.95f));
 
       if (splitPane->_children[2]->_class_proc == UISplitPane::_ClassMessageProc &&
@@ -2393,7 +2251,8 @@ int UIScrollBar::_class_message_proc(UIMessage msg, int di, void* dp) {
             _position = maximum() - page();
          }
 
-         int thumbPosition = static_cast<int>(static_cast<double>(_position) / (maximum() - page()) * (size - thumbSize));
+         int thumbPosition =
+            static_cast<int>(static_cast<double>(_position) / (maximum() - page()) * (size - thumbSize));
 
          if (_position == maximum() - page()) {
             thumbPosition = size - thumbSize;
@@ -2596,7 +2455,8 @@ UICode& UICode::clear() {
    return *this;
 }
 
-UICode& UICode::load_file(const std::string& path, uint32_t flags /* = 0 */, std::optional<std::string_view> err /* = {} */) {
+UICode& UICode::load_file(const std::string& path, uint32_t flags /* = 0 */,
+                          std::optional<std::string_view> err /* = {} */) {
    if (has_flag(UICode::MANAGE_BUFFER)) {
       auto new_buffer = buffer_mgr.load_buffer(path, flags, err);
       if (new_buffer == _buffer)
@@ -2614,10 +2474,10 @@ UICode& UICode::load_file(const std::string& path, uint32_t flags /* = 0 */, std
 }
 
 UICode::code_pos_t UICode::code_pos_from_point(UIPoint pt) {
-   with_font fnt(_font); // measure using _font
-   UI* ui = this->ui();
-   int      lineHeight   = ui->string_height();
-   UIFont*  active_font  = ui->active_font();
+   with_font  fnt(_font); // measure using _font
+   UI*        ui          = this->ui();
+   int        lineHeight  = ui->string_height();
+   UIFont*    active_font = ui->active_font();
    code_pos_t pos;
    pos.line = std::max(static_cast<int64_t>(0), (pt.y - _bounds.t + _vscroll->position()) / lineHeight);
    if (pos.line >= num_lines())
@@ -2641,8 +2501,8 @@ int UICode::hittest(int x, int y) {
    y -= _bounds.t - _vscroll->position();
 
    with_font fnt(_font); // measure using _font
-   int     lineHeight   = ui->string_height();
-   bool    inMargin     = x < ui->code_margin() + ui->code_margin_gap() / 2 && !has_flag(UICode::NO_MARGIN);
+   int       lineHeight = ui->string_height();
+   bool      inMargin   = x < ui->code_margin() + ui->code_margin_gap() / 2 && !has_flag(UICode::NO_MARGIN);
 
    if (y < 0 || y >= lineHeight * static_cast<int>(num_lines())) {
       return 0;
@@ -2652,105 +2512,142 @@ int UICode::hittest(int x, int y) {
    return inMargin ? -line : line;
 }
 
+static int get_next_char(std::string_view& string) {
+#ifdef UI_UNICODE
+   size_t bytesConsumed;
+   int    c = Utf8GetCodePoint(string.data(), string.size(), &bytesConsumed);
+
+   assert(bytesConsumed > 0);
+   string = string.substr(bytesConsumed);
+#else
+   char c = string[0];
+   string = string.substr(1);
+#endif
+   return c;
+}
+
 int UIPainter::draw_string_highlighted(UIRectangle lineBounds, std::string_view string, int tabSize,
-                                       UIStringSelection* selection, bool* inCommentPtr) {
+                                       UIStringSelection* selection, bool* inCommentPtr, UICode::sem_t* sem) {
    UI* ui = this->ui();
    if (string.size() > 10000)
       string = string.substr(0, 10000);
 
-   enum _UICodeTokenType {
-      UI_CODE_TOKEN_TYPE_DEFAULT,
-      UI_CODE_TOKEN_TYPE_COMMENT,
-      UI_CODE_TOKEN_TYPE_STRING,
-      UI_CODE_TOKEN_TYPE_NUMBER,
-      UI_CODE_TOKEN_TYPE_OPERATOR,
-      UI_CODE_TOKEN_TYPE_PREPROCESSOR,
-   };
+   auto& theme = ui->theme();
 
-   auto&    theme    = ui->theme();
-   uint32_t colors[] = {
-      theme.codeDefault, theme.codeComment,  theme.codeString,
-      theme.codeNumber,  theme.codeOperator, theme.codePreprocessor,
-   };
+   int       lineHeight   = ui->string_height();
+   int       x            = lineBounds.l;
+   int       y            = (lineBounds.t + lineBounds.b - lineHeight) / 2;
+   int       ti           = 0;
+   bool      inComment    = inCommentPtr ? *inCommentPtr : false;
+   sem_tok_t tokenType    = inComment ? sem_tok_t::comment : sem_tok_t::def;
+   bool      inIdentifier = false, inChar = false, startedString = false, startedPreprocessor = false;
+   uint32_t  last    = 0;
+   int       j       = 0;
+   int       sem_idx = 0;
+   int       sem_end = 0; // End position of current semantic token
 
-   int              lineHeight   = ui->string_height();
-   int              x            = lineBounds.l;
-   int              y            = (lineBounds.t + lineBounds.b - lineHeight) / 2;
-   int              ti           = 0;
-   bool             inComment    = inCommentPtr ? *inCommentPtr : false;
-   _UICodeTokenType tokenType    = inComment ? UI_CODE_TOKEN_TYPE_COMMENT : UI_CODE_TOKEN_TYPE_DEFAULT;
-   bool             inIdentifier = false, inChar = false, startedString = false, startedPreprocessor = false;
-   uint32_t         last = 0;
-   int              j    = 0;
-
-   size_t bytes = string.size();
-   while (bytes) {
-#ifdef UI_UNICODE
-      size_t bytesConsumed;
-      int    c = Utf8GetCodePoint(string.data(), bytes, &bytesConsumed);
-
-      assert(bytesConsumed > 0);
-      string = string.substr(bytesConsumed);
-      bytes -= bytesConsumed;
-#else
-      char c = string[0];
-      string = string.substr(1);
-      bytes--;
-#endif
+   while (!string.empty()) {
+      int c = get_next_char(string);
 
       last <<= 8;
       last |= c & 0xFF;
 
-      if (tokenType == UI_CODE_TOKEN_TYPE_PREPROCESSOR) {
-         if (bytes && c == '/' && (string[0] == '/' || string[0] == '*')) {
-            tokenType = UI_CODE_TOKEN_TYPE_DEFAULT;
-         }
-      } else if (tokenType == UI_CODE_TOKEN_TYPE_OPERATOR) {
-         tokenType = UI_CODE_TOKEN_TYPE_DEFAULT;
-      } else if (tokenType == UI_CODE_TOKEN_TYPE_COMMENT) {
-         if (((last >> 8) & 0xFF) == '*' && (last & 0xFF) == '/' && inComment) {
-            tokenType = startedPreprocessor ? UI_CODE_TOKEN_TYPE_PREPROCESSOR : UI_CODE_TOKEN_TYPE_DEFAULT;
-            inComment = false;
-         }
-      } else if (tokenType == UI_CODE_TOKEN_TYPE_NUMBER) {
-         if (!UI::is_alnum(c)) {
-            tokenType = UI_CODE_TOKEN_TYPE_DEFAULT;
-         }
-      } else if (tokenType == UI_CODE_TOKEN_TYPE_STRING) {
-         if (!startedString) {
-            if (!inChar && ((last >> 8) & 0xFF) == '"' && ((last >> 16) & 0xFF) != '\\') {
-               tokenType = UI_CODE_TOKEN_TYPE_DEFAULT;
-            } else if (inChar && ((last >> 8) & 0xFF) == '\'' && ((last >> 16) & 0xFF) != '\\') {
-               tokenType = UI_CODE_TOKEN_TYPE_DEFAULT;
+      // -------------------------------------------------------------
+      // Determine if we're inside a semantic token provided by clangd.
+      // If that's the case we can get the color from the theme and
+      // stop there.
+      // -------------------------------------------------------------
+      bool in_semantic_token = false;
+      if (sem) {
+         sem_tok_t current_sem_type = sem_tok_t::def;
+
+         if (j >= sem_end) {
+            // Move to next semantic token if current one ended
+            while (sem[sem_idx].len > 0) {
+               if (j >= sem[sem_idx].start && j < sem[sem_idx].start + sem[sem_idx].len) {
+                  in_semantic_token = true;
+                  current_sem_type  = sem[sem_idx].t;
+                  sem_end           = sem[sem_idx].start + sem[sem_idx].len;
+                  break;
+               } else if (sem[sem_idx].start > j) {
+                  // Future token, wait for it
+                  break;
+               }
+               sem_idx++;
+            }
+         } else if (j < sem_end) {
+            // Still inside current semantic token
+            in_semantic_token = true;
+            // Find the current token (sem_idx might have moved)
+            for (int i = 0; sem[i].len > 0; i++) {
+               if (j >= sem[i].start && j < sem[i].start + sem[i].len) {
+                  current_sem_type = sem[i].t;
+                  break;
+               }
             }
          }
-
-         startedString = false;
+         if (in_semantic_token) {
+            tokenType = current_sem_type;
+         }
       }
 
-      if (tokenType == UI_CODE_TOKEN_TYPE_DEFAULT) {
-         if (c == '#') {
-            tokenType           = UI_CODE_TOKEN_TYPE_PREPROCESSOR;
-            startedPreprocessor = true;
-         } else if (bytes && c == '/' && string[0] == '/') {
-            tokenType = UI_CODE_TOKEN_TYPE_COMMENT;
-         } else if (bytes && c == '/' && string[0] == '*') {
-            tokenType = UI_CODE_TOKEN_TYPE_COMMENT, inComment = true;
-         } else if (c == '"') {
-            tokenType     = UI_CODE_TOKEN_TYPE_STRING;
-            inChar        = false;
-            startedString = true;
-         } else if (c == '\'') {
-            tokenType     = UI_CODE_TOKEN_TYPE_STRING;
-            inChar        = true;
-            startedString = true;
-         } else if (UI::is_digit(c) && !inIdentifier) {
-            tokenType = UI_CODE_TOKEN_TYPE_NUMBER;
-         } else if (!UI::is_alnum(c)) {
-            tokenType    = UI_CODE_TOKEN_TYPE_OPERATOR;
-            inIdentifier = false;
-         } else {
-            inIdentifier = true;
+
+      if (!in_semantic_token) {
+         // ------------------------------------------------------------------
+         // We're *not* inside a semantic token provided by clangd.
+         // Do our own hacky parsing to recognize strings, numbers, comments...
+         // -------------------------------------------------------------------
+         if (tokenType == sem_tok_t::preprocessor) {
+            if (!string.empty() && c == '/' && (string[0] == '/' || string[0] == '*')) {
+               tokenType = sem_tok_t::def;
+            }
+         } else if (tokenType == sem_tok_t::oper) {
+            tokenType = sem_tok_t::def;
+         } else if (tokenType == sem_tok_t::comment) {
+            if (((last >> 8) & 0xFF) == '*' && (last & 0xFF) == '/' && inComment) {
+               tokenType = startedPreprocessor ? sem_tok_t::preprocessor : sem_tok_t::def;
+               inComment = false;
+            }
+         } else if (tokenType == sem_tok_t::number) {
+            if (!UI::is_alnum(c)) {
+               tokenType = sem_tok_t::def;
+            }
+         } else if (tokenType == sem_tok_t::string) {
+            if (!startedString) {
+               if (!inChar && ((last >> 8) & 0xFF) == '"' && ((last >> 16) & 0xFF) != '\\') {
+                  tokenType = sem_tok_t::def;
+               } else if (inChar && ((last >> 8) & 0xFF) == '\'' && ((last >> 16) & 0xFF) != '\\') {
+                  tokenType = sem_tok_t::def;
+               }
+            }
+
+            startedString = false;
+         }
+
+         if (tokenType == sem_tok_t::def) {
+            if (c == '#') {
+               tokenType           = sem_tok_t::preprocessor;
+               startedPreprocessor = true;
+            } else if (!string.empty() && c == '/' && string[0] == '/') {
+               tokenType = sem_tok_t::comment;
+            } else if (!string.empty() && c == '/' && string[0] == '*') {
+               tokenType = sem_tok_t::comment, inComment = true;
+            } else if (c == '"') {
+               tokenType     = sem_tok_t::string;
+               inChar        = false;
+               startedString = true;
+            } else if (c == '\'') {
+               tokenType     = sem_tok_t::string;
+               inChar        = true;
+               startedString = true;
+            } else if (UI::is_digit(c) && !inIdentifier) {
+               tokenType = sem_tok_t::number;
+            } else if (!UI::is_alnum(c)) {
+               tokenType    = sem_tok_t::oper;
+               inIdentifier = false;
+            } else {
+               inIdentifier = true;
+            }
          }
       }
 
@@ -2762,7 +2659,7 @@ int UIPainter::draw_string_highlighted(UIRectangle lineBounds, std::string_view 
          while (ti % tabSize)
             x += active_font->_glyph_width, ti++, j++;
       } else {
-         draw_glyph(x, y, c, colors[tokenType]);
+         draw_glyph(x, y, c, theme[tokenType]);
          x += active_font->_glyph_width, ti++;
       }
 
@@ -2833,7 +2730,7 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
       auto str_height = ui->string_height();
 
       with_font fnt(font()); // measure using font()
-      int     scrollBarSize = scale(ui_size::scroll_bar);
+      int       scrollBarSize = scale(ui_size::scroll_bar);
       _vscroll->set_maximum(num_lines() * str_height);
       _hscroll->set_maximum(max_columns() * font()->_glyph_width); // TODO This doesn't take into account tab sizes!
       int vSpace = _bounds.height();
@@ -2883,7 +2780,7 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
       selection.colorText         = theme.textSelected;
 
       size_t startLine = _vscroll->position() / lineHeight;
-      bool   inComment = startLine >= _buffer->_lines.size() ? false : _buffer->_lines[startLine].starts_in_comment;
+      bool   inComment = startLine >= _buffer->_lines.size() ? false : code_line(startLine).starts_in_comment;
 
       for (size_t i = startLine; i < num_lines(); i++) {
          if (lineBounds.t > _clip.b) {
@@ -2932,8 +2829,12 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
                (i == _sel[1].line) ? byte_to_column(i, _sel[1].offset) : static_cast<int>(line(i).size());
          }
 
-         int x = painter->draw_string_highlighted(lineBounds, line(i), tab_columns(), selected ? &selection : nullptr,
-                                                  &inComment);
+         auto sem_ptr      = code_line(i).sem.get();
+         auto selected_ptr = selected ? &selection : nullptr;
+
+         int x =
+            painter->draw_string_highlighted(lineBounds, line(i), tab_columns(), selected_ptr, &inComment, sem_ptr);
+
          int y = (lineBounds.t + lineBounds.b - ui->string_height()) / 2;
 
          if (selected && i < _sel[1].line) {
@@ -3184,7 +3085,7 @@ void UICode::buffer_t::insert_content(std::string_view new_content) {
    }
 
    size_t orig_lines = _lines.size();
-   if (orig_lines == 0)  // sometimes lines are appended one at a time, so don't reserve on each append
+   if (orig_lines == 0) // sometimes lines are appended one at a time, so don't reserve on each append
       _lines.reserve(std::max(32ul, num_new_lines + 1));
 
    for (size_t i = 0, offset = 0; i <= sz; ++i) {
@@ -3215,7 +3116,7 @@ void UICode::buffer_t::insert_content(std::string_view new_content) {
 
       for (size_t pos = 0; pos < cur_line.size(); pos++) {
          if (in_single_line_comment) {
-            continue;                           // rest of line is comment
+            continue; // rest of line is comment
          }
          if (in_string) {
             if (cur_line[pos] == '"' && (pos == 0 || cur_line[pos - 1] != '\\')) {
@@ -3234,17 +3135,17 @@ void UICode::buffer_t::insert_content(std::string_view new_content) {
          if (!in_string && pos + 1 < cur_line.size()) {
             if (cur_line[pos] == '/' && cur_line[pos + 1] == '/') {
                in_single_line_comment = true;
-               pos++;                           // skip second '/'
+               pos++; // skip second '/'
                continue;
             }
             if (!in_comment && cur_line[pos] == '/' && cur_line[pos + 1] == '*') {
                in_comment = true;
-               pos++;                           // skip the '*'
+               pos++; // skip the '*'
                continue;
             }
             if (in_comment && cur_line[pos] == '*' && cur_line[pos + 1] == '/') {
                in_comment = false;
-               pos++;                           // skip the '/'
+               pos++; // skip the '/'
                continue;
             }
          }
@@ -3597,7 +3498,8 @@ int UITable::_class_message_proc(UIMessage msg, int di, void* dp) {
          key_input_vscroll(m, scale(ui_size::table_row),
                            (_bounds.t - _hscroll->_bounds.t + ui_size::table_header) * 4 / 5, this);
          return 1;
-      } if ((m->code == UIKeycode::LEFT || m->code == UIKeycode::RIGHT) && !is_modifier_on()) {
+      }
+      if ((m->code == UIKeycode::LEFT || m->code == UIKeycode::RIGHT) && !is_modifier_on()) {
          UIFont* active_font = ui()->active_font();
          _hscroll->position() += m->code == UIKeycode::LEFT ? -active_font->_glyph_width : active_font->_glyph_width;
          refresh();
@@ -3671,7 +3573,8 @@ UITextbox& UITextbox::move_caret(bool backward, bool word) {
 
       if (!word) {
          return *this;
-      } if (_carets[0] != cur_text.size() && _carets[0] != 0) {
+      }
+      if (_carets[0] != cur_text.size() && _carets[0] != 0) {
          if (_ui_move_caret_by_word(cur_text, _carets[0]))
             break;
       }
@@ -3719,10 +3622,10 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
    UI* ui = this->ui();
 
    auto column_from_pos = [&](const UIPoint& pt) {
-      UIFont*      active_font = ui->active_font();
+      UIFont* active_font = ui->active_font();
       return (_window->cursor_pos().x - _bounds.l + _scroll - scale(ui_size::textbox_margin) +
-                    active_font->_glyph_width / 2) /
-                   active_font->_glyph_width;
+              active_font->_glyph_width / 2) /
+             active_font->_glyph_width;
    };
 
    if (msg == UIMessage::GET_HEIGHT) {
@@ -3771,13 +3674,13 @@ int UITextbox::_class_message_proc(UIMessage msg, int di, void* dp) {
       return static_cast<int>(UICursor::text);
    } else if (msg == UIMessage::LEFT_DOWN) {
       scoped_guard _([this]() { _save_state(); }); // save undo state if needed
-      int column = column_from_pos(_window->cursor_pos());
+      int          column = column_from_pos(_window->cursor_pos());
       _carets[0] = _carets[1] = column <= 0 ? 0 : _column_to_byte(_text(), column);
       focus();
    } else if (msg == UIMessage::MOUSE_DRAG && _window->pressed_button() == 1) {
       scoped_guard _([this]() { _save_state(); }); // save undo state if needed
       int          column = column_from_pos(_window->cursor_pos());
-      _carets[1] = column <= 0 ? 0 : _column_to_byte(_text(), column);
+      _carets[1]          = column <= 0 ? 0 : _column_to_byte(_text(), column);
       repaint(nullptr);
    } else if (msg == UIMessage::UPDATE) {
       repaint(nullptr);
@@ -4044,14 +3947,14 @@ int UIMDIChild::_class_message_proc(UIMessage msg, int di, void* dp) {
       if (_drag_hit_test > 0) {
 
 #define _UI_MDI_CHILD_MOVE_EDGE(bit, edge, cursor, size, opposite, negate, minimum, offset) \
-   if (_drag_hit_test & (bit))                                                                \
+   if (_drag_hit_test & (bit))                                                              \
       _mdi_bounds.edge = _drag_offset.edge + pos.cursor - _parent->_bounds.offset;          \
-   if ((_drag_hit_test & (bit)) && _mdi_bounds.size() < (minimum))                              \
+   if ((_drag_hit_test & (bit)) && _mdi_bounds.size() < (minimum))                          \
       _mdi_bounds.edge = _mdi_bounds.opposite negate minimum;
 
          auto pos = cursor_pos();
-         _UI_MDI_CHILD_MOVE_EDGE(0b1000, l, x, width,  r, -, ui_size::mdi_child_minimum_width, l);
-         _UI_MDI_CHILD_MOVE_EDGE(0b0100, r, x, width,  l, +, ui_size::mdi_child_minimum_width, l);
+         _UI_MDI_CHILD_MOVE_EDGE(0b1000, l, x, width, r, -, ui_size::mdi_child_minimum_width, l);
+         _UI_MDI_CHILD_MOVE_EDGE(0b0100, r, x, width, l, +, ui_size::mdi_child_minimum_width, l);
          _UI_MDI_CHILD_MOVE_EDGE(0b0010, t, y, height, b, -, ui_size::mdi_child_minimum_height, t);
          _UI_MDI_CHILD_MOVE_EDGE(0b0001, b, y, height, t, +, ui_size::mdi_child_minimum_height, t);
          _parent->refresh();
@@ -4059,9 +3962,9 @@ int UIMDIChild::_class_message_proc(UIMessage msg, int di, void* dp) {
    } else if (msg == UIMessage::DESTROY) {
       auto* client = dynamic_cast<UIMDIClient*>(_parent);
       if (client->_active == this) {
-         client->_active = dynamic_cast<UIMDIChild*>(client->_children.size() == 1
-                                            ? nullptr
-                                            : client->_children[client->_children.size() - 2]); // todo: seems wrong
+         client->_active = dynamic_cast<UIMDIChild*>(
+            client->_children.size() == 1 ? nullptr
+                                          : client->_children[client->_children.size() - 2]); // todo: seems wrong
       }
    } else if (msg == UIMessage::DEALLOCATE) {
    }
@@ -4170,9 +4073,11 @@ UIImageDisplay& UIImageDisplay::_update_viewport() {
 int UIImageDisplay::_class_message_proc(UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::GET_HEIGHT) {
       return _bb.height;
-   } if (msg == UIMessage::GET_WIDTH) {
+   }
+   if (msg == UIMessage::GET_WIDTH) {
       return _bb.width;
-   } if (msg == UIMessage::DEALLOCATE) {
+   }
+   if (msg == UIMessage::DEALLOCATE) {
    } else if (msg == UIMessage::PAINT) {
       auto* painter = static_cast<UIPainter*>(dp);
 
@@ -4180,7 +4085,8 @@ int UIImageDisplay::_class_message_proc(UIMessage msg, int di, void* dp) {
       int x = _UILinearMap(0, _panX, _panX + w / _zoom, 0, w) + _bounds.l;
       int y = _UILinearMap(0, _panY, _panY + h / _zoom, 0, h) + _bounds.t;
 
-      UIRectangle image  = UIRectangle(x, x + static_cast<int>(_bb.width * _zoom), y, static_cast<int>(y + _bb.height * _zoom));
+      UIRectangle image =
+         UIRectangle(x, x + static_cast<int>(_bb.width * _zoom), y, static_cast<int>(y + _bb.height * _zoom));
       UIRectangle bounds = intersection(painter->_clip, intersection(_bounds, image));
       if (!bounds.valid())
          return 0;
@@ -4314,7 +4220,8 @@ int UIMenu::_class_message_proc(UIMessage msg, int di, void* dp) {
       }
 
       return width + 4 + ui_size::scroll_bar;
-   } if (msg == UIMessage::GET_HEIGHT) {
+   }
+   if (msg == UIMessage::GET_HEIGHT) {
       int height = 0;
 
       for (auto child : _children) {
@@ -4324,7 +4231,8 @@ int UIMenu::_class_message_proc(UIMessage msg, int di, void* dp) {
       }
 
       return height + 4;
-   } if (msg == UIMessage::PAINT) {
+   }
+   if (msg == UIMessage::PAINT) {
       static_cast<UIPainter*>(dp)->draw_control(_bounds, UIControl::menu, {}, 0, get_scale());
    } else if (msg == UIMessage::LAYOUT) {
       int position      = _bounds.t + 2 - _vscroll->position();
@@ -4440,8 +4348,8 @@ void UI::update() {
             window->paint(&painter);
             window->endpaint(&painter);
 #ifdef UI_DEBUG
-            window->_last_full_fill_count =
-               static_cast<float>(painter._fill_count) / (window->_update_region.width() * window->_update_region.height());
+            window->_last_full_fill_count = static_cast<float>(painter._fill_count) /
+                                            (window->_update_region.width() * window->_update_region.height());
 #endif
             window->_update_region = UIRectangle(0);
          }
@@ -4451,6 +4359,29 @@ void UI::update() {
 
       window = next;
    }
+}
+
+bool UI::next_theme(bool fwd) {
+   for (auto it = ui_themes.begin(); it != ui_themes.end(); ++it) {
+      if (it->second == _theme) {
+         if (fwd) {
+            ++it;
+            it = it != ui_themes.end() ? it : ui_themes.begin();
+         } else {
+            it = it == ui_themes.begin() ? --(ui_themes.end()) : --it;
+         }
+         _theme = it->second;
+         std::print(std::cerr, "Color theme = {}\n", it->first);
+         return true;
+      }
+   }
+   return false;
+}
+
+std::optional<UITheme> UI::get_theme(std::string theme) {
+   if (auto it = ui_themes.find(theme); it != ui_themes.end())
+      return it->second;
+   return {};
 }
 
 // --------------------------------------------------
@@ -4512,8 +4443,8 @@ UIElement* UIElement::next_or_previous_sibling(bool previous) {
       if (children[i] == this) {
          if (previous) {
             return i > 0 ? children[i - 1] : nullptr;
-         }             return i < children.size() - 1 ? children[i + 1] : nullptr;
-        
+         }
+         return i < children.size() - 1 ? children[i + 1] : nullptr;
       }
    }
 
@@ -4662,6 +4593,7 @@ bool UIWindow::input_event(UIMessage msg, int di, void* dp) {
 
                handled = true;
             } else if (!_dialog) {
+               // std::print("code={}, txt={}\n", static_cast<int>(m->code), m->text);
                for (const auto& shortcut : views::reverse(_shortcuts)) {
                   if (shortcut.code == m->code && shortcut.ctrl == _ctrl && shortcut.shift == _shift &&
                       shortcut.alt == _alt) {
@@ -4967,10 +4899,12 @@ int _UIInspectorTableMessage(UIElement* table, UIMessage msg, int di, void* dp) 
 
       if (m->_column == 0) {
          return m->format_to("{}{}", std::string_view{"                ", depth * 2}, el->class_name());
-      } if (m->_column == 1) {
+      }
+      if (m->_column == 1) {
          const auto& b = el->_bounds;
          return m->format_to("{}:{}, {}:{}", b.l, b.r, b.t, b.b);
-      } if (m->_column == 2) {
+      }
+      if (m->_column == 2) {
          return m->format_to("{}{:c}", el->_id, el->is_focused() ? '*' : ' ');
       }
    } else if (msg == UIMessage::MOUSE_MOVE) {
@@ -5134,7 +5068,8 @@ bool UI::automation_check_table_item_matches(UITable* table, size_t row, size_t 
 // --------------------------------------------------
 
 void UI::_initialize_common(const UIConfig& cfg, const std::string& default_font_path) {
-   _theme = ui_themes["ice"];
+   const std::string default_theme = "light_high_contrast";
+   _theme = ui_themes.contains(default_theme) ? ui_themes[default_theme] : ui_themes.begin()->second;
 
 #ifdef UI_FREETYPE
    FT_Init_FreeType(&_ft);
@@ -5367,8 +5302,8 @@ std::string UI::selection::read_clipboard_text(UI& ui, UIWindow* w) {
       Atom target = 0;
       // This `itemAmount` is actually `bytes_after_return`
       unsigned long size = 0, itemAmount = 0;
-      char*         data = nullptr;
-      int           format = 0;
+      char*         data      = nullptr;
+      int           format    = 0;
       const auto&   sel_event = event.xselection;
       XGetWindowProperty(sel_event.display, sel_event.requestor, sel_event.property, 0L, ~0L, 0, AnyPropertyType,
                          &target, &format, &size, &itemAmount, (unsigned char**)&data);
@@ -5591,14 +5526,14 @@ void UIWindow::endpaint(UIPainter* painter) const {
 }
 
 void UIWindow::get_screen_position(int* _x, int* _y) const {
-   Display* dpy = _ui->native_display();
+   Display* dpy   = _ui->native_display();
    Window   child = 0;
    XTranslateCoordinates(dpy, _window->_xwindow, DefaultRootWindow(dpy), 0, 0, _x, _y, &child);
 }
 
 UIMenu& UIMenu::show() {
-   UI*      ui  = this->ui();
-   Display* dpy = ui->native_display();
+   UI*      ui    = this->ui();
+   Display* dpy   = ui->native_display();
    Window   child = 0;
 
    // Find the screen that contains the point the menu was created at.
@@ -5770,9 +5705,9 @@ bool UI::_process_x11_event(Display* dpy, XEvent* event) {
          };
 
          static std::array<last_click_t, 2> last_clicks;
-         last_click_t        click{
-                   .pos = {event->xbutton.x, event->xbutton.y},
-                   .t = event->xbutton.time, .win = window
+         last_click_t                       click{
+                                  .pos = {event->xbutton.x, event->xbutton.y},
+                                    .t = event->xbutton.time, .win = window
          };
 
          if (event->type == ButtonPress) {
@@ -6109,7 +6044,7 @@ void UI::set_focus(ui_handle window) const {
 }
 
 ui_handle UI::get_focus() const {
-   Window win = 0;
+   Window win              = 0;
    int    revert_to_return = 0;
    XGetInputFocus(native_display(), &win, &revert_to_return);
    return static_cast<ui_handle>(win);

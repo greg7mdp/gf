@@ -22,11 +22,13 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <iostream>
 #include <format>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 #include <version>
 
@@ -104,7 +106,7 @@ inline constexpr auto ft_render_mode = FT_RENDER_MODE_NORMAL;
 
 #ifdef UI_LINUX
 enum class UIKeycode : int {
-   A          = XK_A,
+   A          = XK_a,
    ZERO       = XK_0,
    BACKSPACE  = XK_BackSpace,
    DEL        = XK_Delete,
@@ -593,15 +595,48 @@ inline UIRectangle ui_rect_4pd(int x, int y, int w, int h) { return UIRectangle{
 
 #define UI_RECT_SIZE(_r) (_r).width(), (_r).height()
 
+enum class sem_tok_t:uint8_t { def=0, comment, string, number, oper, preprocessor, keyword,
+                               type, variable, function, bracket };
+
+// ------------------------------------------------------------------------------------------
+// Must match `themeItems` in gf.cpp
 // ------------------------------------------------------------------------------------------
 struct UITheme {
-   uint32_t panel1 = 0, panel2 = 0, selected = 0, border = 0;
-   uint32_t text = 0, textDisabled = 0, textSelected = 0;
-   uint32_t buttonNormal = 0, buttonHovered = 0, buttonPressed = 0, buttonDisabled = 0;
-   uint32_t textboxNormal = 0, textboxFocused = 0;
-   uint32_t codeFocused = 0, codeBackground = 0, codeDefault = 0, codeComment = 0, codeString = 0, codeNumber = 0,
-            codeOperator = 0, codePreprocessor = 0;
-   uint32_t accent1 = 0, accent2 = 0;
+   uint32_t panel1           = 0;
+   uint32_t panel2           = 0;
+   uint32_t selected         = 0;
+   uint32_t border           = 0;
+   uint32_t text             = 0;
+   uint32_t textDisabled     = 0;
+   uint32_t textSelected     = 0;
+   uint32_t buttonNormal     = 0;
+   uint32_t buttonHovered    = 0;
+   uint32_t buttonPressed    = 0;
+   uint32_t buttonDisabled   = 0;
+   uint32_t textboxNormal    = 0;
+   uint32_t textboxFocused   = 0;
+   uint32_t codeFocused      = 0;
+   uint32_t codeBackground   = 0;
+   uint32_t codeDefault      = 0;   // syntax highlighting (start)
+   uint32_t codeComment      = 0;
+   uint32_t codeString       = 0;
+   uint32_t codeNumber       = 0;
+   uint32_t codeOperator     = 0;
+   uint32_t codePreprocessor = 0;
+   uint32_t codeKeyword      = 0;
+   uint32_t codeType         = 0;
+   uint32_t codeVariable     = 0;
+   uint32_t codeFunction     = 0;
+   uint32_t codeBracket      = 0;   // syntax highlighting (end)
+   uint32_t accent1          = 0;
+   uint32_t accent2          = 0;
+
+   uint32_t& operator[](size_t idx) { return *(reinterpret_cast<uint32_t*>(this) + idx); }
+   uint32_t  operator[](sem_tok_t tok) const {
+      constexpr size_t start_offset = offsetof(UITheme, codeDefault) / sizeof(codeDefault);
+      return *(reinterpret_cast<const uint32_t*>(this) + std::to_underlying(tok) + start_offset);
+   }
+   friend bool operator==(const UITheme&, const UITheme&) = default;
 };
 
 // ------------------------------------------------------------------------------------------
@@ -1398,13 +1433,19 @@ struct UICode : public UIElementCast<UICode>, public UIScrollbarPair {
 
    using code_pos_pair_t = std::array<code_pos_t, 2>; // start pos, end pos
 
-private:
-   struct code_line_t {
-      size_t offset            = 0;
-      size_t bytes             = 0;
-      bool   starts_in_comment = false; // true if line starts within a multiline comment
+   struct sem_t {
+      uint16_t   start, len;           // char offset in line, length of the token
+      sem_tok_t  t;                    // what the token is
    };
 
+   struct code_line_t {
+      size_t              offset            = 0;
+      size_t              bytes             = 0;
+      unique_ptr<sem_t[]> sem;                       // if not null, list of sem_t terminated by one sem_t of length 0
+      bool                starts_in_comment = false; // true if line starts within a multiline comment
+   };
+
+private:
    struct buffer_t {
       std::vector<char>         _content;
       std::vector<code_line_t>  _lines;
@@ -1423,7 +1464,7 @@ private:
          return std::string_view{&_content[l.offset], l.bytes};
       }
       [[nodiscard]] size_t      line_offset(size_t line) const { return _lines[line].offset; }
-      [[nodiscard]] code_line_t code_line(size_t idx) { return _lines[idx]; }
+      [[nodiscard]] const code_line_t& code_line(size_t idx) const { return _lines[idx]; }
 
       [[nodiscard]] size_t      num_lines() const { return _lines.size(); }
       [[nodiscard]] size_t      size() const { return _content.size(); }
@@ -1435,6 +1476,12 @@ private:
 
       [[nodiscard]] std::string_view content() const { return _content.empty() ? std::string_view{} :
                                                               std::string_view{_content.data(), _content.size()}; }
+
+      void set_sem(size_t idx, unique_ptr<sem_t[]> sem) {
+         auto& line =  _lines[idx];;
+         assert(!line.sem);
+         line.sem = std::move(sem);
+      }
 
       void emplace_back_line(size_t offset, size_t bytes) {
          if (bytes > _max_columns)
@@ -1453,8 +1500,10 @@ private:
       void insert_content(std::string_view new_content);
    };
 
+public:
    using buffer_ptr = std::shared_ptr<buffer_t>;
 
+private:
    // ------------------------------------------------------------------------------------------
    // Stores loaded files to avoid reloading them all the time
    // ------------------------------------------------------------------------------------------
@@ -1513,7 +1562,7 @@ public:
 
    [[nodiscard]] std::string_view line(size_t line) const { return _buffer->line(line); }
    [[nodiscard]] size_t           line_offset(size_t line) const { return _buffer->line_offset(line); }
-   [[nodiscard]] code_line_t      code_line(size_t idx) const { return _buffer->code_line(idx); }
+   [[nodiscard]] const code_line_t& code_line(size_t idx) const { return _buffer->code_line(idx); }
    
    [[nodiscard]] size_t           num_lines() const   { return _buffer->num_lines(); }
    [[nodiscard]] size_t           size() const        { return _buffer->size(); }
@@ -1521,6 +1570,9 @@ public:
    [[nodiscard]] std::string_view content() const     { return _buffer->content(); }
    [[nodiscard]] bool             sent_to_clangd() const { return _buffer->_sent_to_clangd; }
    void                           set_sent_to_clangd(bool b) { _buffer->_sent_to_clangd = b; }
+   [[nodiscard]] const buffer_ptr& get_buffer() const  { return _buffer; }
+
+   void set_sem(size_t idx, unique_ptr<sem_t[]> sem) { _buffer->set_sem(idx, std::move(sem)); }
 
    [[nodiscard]] std::string_view selection() const {
       size_t from = offset(selection(0));
@@ -1968,6 +2020,8 @@ public:
    UIFont*      create_font(std::string_view path, uint32_t size);
 
    UITheme&     theme() { return _theme; }
+   bool         next_theme(bool fwd);
+   std::optional<UITheme> get_theme(std::string theme);
    UIFont*      active_font() const { return _active_font; }
    UIFont*      default_font() const { return _default_font; }
    void         set_active_font(UIFont *font) { _active_font = font; }
@@ -2094,7 +2148,7 @@ struct UIPainter {
    UIPainter& draw_control_default(UIRectangle bounds, uint32_t mode, std::string_view label, double position,
                                    float scale);
    int        draw_string_highlighted(UIRectangle lineBounds, std::string_view string, int tabSize,
-                                      UIStringSelection* selection, bool* inComment = nullptr);
+                                      UIStringSelection* selection, bool* inComment, UICode::sem_t* sem);
 };
 // clang-format on
 
@@ -2402,10 +2456,3 @@ private:
    }
 };
 
-// ----------------------------------------
-//      Variables
-// ----------------------------------------
-
-// predefined themes are "classic", "dark", "ice", "lotus" and "hero"
-// ------------------------------------------------------------------
-extern std::unordered_map<std::string, UITheme> ui_themes;

@@ -13,9 +13,9 @@ using json = nlohmann::json;
 // #define CLANGD_DEBUG_LOGGING 1
 
 #ifdef CLANGD_DEBUG_LOGGING
-  #define CLANGD_LOG(...) std::print(std::cerr, __VA_ARGS__)
+   #define CLANGD_LOG(...) std::print(std::cerr, __VA_ARGS__)
 #else
-  #define CLANGD_LOG(...) ((void)0)
+   #define CLANGD_LOG(...) ((void)0)
 #endif
 
 // --------------------------------------------------------------------------------------------
@@ -28,27 +28,56 @@ inline void set_thread_name(const char* name) {
 }
 
 // --------------------------------------------------------------------------------------------
+// Map clangd token type string to sem_tok_t
+// --------------------------------------------------------------------------------------------
+static inline sem_tok_t MapTokenType(const std::string& token_type) {
+   if (token_type == "comment")
+      return sem_tok_t::comment;
+   if (token_type == "string")
+      return sem_tok_t::string;
+   if (token_type == "number")
+      return sem_tok_t::number;
+   if (token_type == "operator")
+      return sem_tok_t::oper;
+   if (token_type == "macro")
+      return sem_tok_t::preprocessor;
+   if (token_type == "keyword" || token_type == "modifier")
+      return sem_tok_t::keyword;
+   if (token_type == "type" || token_type == "class" || token_type == "struct" || token_type == "enum" ||
+       token_type == "interface" || token_type == "typeParameter" || token_type == "namespace")
+      return sem_tok_t::type;
+   if (token_type == "variable" || token_type == "parameter" || token_type == "property" || token_type == "enumMember")
+      return sem_tok_t::variable;
+   if (token_type == "function" || token_type == "method")
+      return sem_tok_t::function;
+
+   return sem_tok_t::def;
+}
+
+// --------------------------------------------------------------------------------------------
 // Clangd LSP Client
 // --------------------------------------------------------------------------------------------
 struct ClangdResponse {
    std::function<void(const json&)> callback;
-   json result;
+   json                             result;
 };
 
 class ClangdClient {
-   using fwd_resp_t = std::function<void(std::function<void(const json&)> callback, const json& message)>;
+   using fwd_resp_t        = std::function<void(std::function<void(const json&)> callback, const json& message)>;
+   using notify_callback_t = std::function<void(const std::string& method, const json& params)>;
 
 private:
-   pid_t                _clangd_pid          = -1;
-   int                  _pipe_to_clangd[2]   = {-1, -1};
-   int                  _pipe_from_clangd[2] = {-1, -1};
-   int                  _next_request_id     = 1;
-   bool                 _initialized         = false;
-   std::string          _root_path;
-   std::thread          _clangd_thread;
-   std::atomic<bool>    _kill_thread         = false;
-   std::mutex           _pending_mutex;
-   fwd_resp_t           _fwd_response;
+   pid_t             _clangd_pid          = -1;
+   int               _pipe_to_clangd[2]   = {-1, -1};
+   int               _pipe_from_clangd[2] = {-1, -1};
+   int               _next_request_id     = 1;
+   std::atomic<bool> _initialized         = false;
+   std::string       _root_path;
+   std::thread       _clangd_thread;
+   std::atomic<bool> _kill_thread = false;
+   std::mutex        _pending_mutex;
+   fwd_resp_t        _fwd_response;
+   notify_callback_t _notify_callback;
 
    std::unordered_map<int, std::function<void(const json&)>> _pending_requests;
 
@@ -56,10 +85,10 @@ private:
       int request_id = _next_request_id++;
 
       json request = {
-         {"jsonrpc", "2.0"},
-         {"id", request_id},
-         {"method", method},
-         {"params", params}
+         {"jsonrpc", "2.0"     },
+         {"id",      request_id},
+         {"method",  method    },
+         {"params",  params    }
       };
 
       std::string content = request.dump();
@@ -74,9 +103,9 @@ private:
 
    void send_notification(const std::string& method, const json& params) {
       json notification = {
-         {"jsonrpc", "2.0"},
-         {"method", method},
-         {"params", params}
+         {"jsonrpc", "2.0" },
+         {"method",  method},
+         {"params",  params}
       };
 
       std::string content = notification.dump();
@@ -88,15 +117,18 @@ private:
    }
 
 public:
+   std::vector<sem_tok_t> _token_types;
+   std::vector<std::string>       _token_modifiers;
+
    ClangdClient() = default;
 
-   ~ClangdClient() {
-      shutdown();
-   }
+   ~ClangdClient() { shutdown(); }
 
-   bool start(const std::string& root_path, const std::string& clangd_path, fwd_resp_t forward_clang_response) {
-      _fwd_response = std::move(forward_clang_response);
-      _root_path = root_path;
+   bool start(const std::string& root_path, const std::string& clangd_path, fwd_resp_t forward_clang_response,
+              notify_callback_t notification_callback = nullptr) {
+      _fwd_response    = std::move(forward_clang_response);
+      _notify_callback = std::move(notification_callback);
+      _root_path       = root_path;
 
       // Create pipes
       if (pipe(_pipe_to_clangd) == -1 || pipe(_pipe_from_clangd) == -1) {
@@ -158,50 +190,66 @@ public:
 
    void initialize() {
       json params = {
-         {"processId", getpid()},
-         {"rootUri", "file://" + _root_path},
-         {"capabilities", {
-            {"textDocument", {
-               {"definition", {
-                  {"linkSupport", true}
-               }}
-            }}
-         }}
+         {"processId",    getpid()                       },
+         {"rootUri",      "file://" + _root_path         },
+         {"capabilities",
+          {{"textDocument",
+            {{"definition", {{"linkSupport", true}}},
+             {"semanticTokens",
+              {{"requests", {{"full", true}}},
+               {"tokenTypes",
+                {"namespace", "type",     "class",    "enum",       "interface", "struct",  "typeParameter",
+                 "parameter", "variable", "property", "enumMember", "function",  "method",  "macro",
+                 "keyword",   "modifier", "comment",  "string",     "number",    "operator"}},
+               {"tokenModifiers",
+                {"declaration", "definition", "readonly", "static", "deprecated", "abstract", "async", "modification",
+                 "documentation", "defaultLibrary"}}}}}}}}
       };
 
       send_request("initialize", params, [this](const json& result) {
          _initialized = true;
+
+         // Store semantic token legend if available
+         if (result.contains("capabilities") && result["capabilities"].contains("semanticTokensProvider")) {
+            auto provider = result["capabilities"]["semanticTokensProvider"];
+            if (provider.contains("legend")) {
+               auto token_type_strings = provider["legend"]["tokenTypes"].get<std::vector<std::string>>();
+               _token_modifiers        = provider["legend"]["tokenModifiers"].get<std::vector<std::string>>();
+
+               // Map string token types to sem_tok_t enum
+               _token_types.reserve(token_type_strings.size());
+               for (const auto& type_str : token_type_strings) {
+                  _token_types.push_back(MapTokenType(type_str));
+               }
+
+               CLANGD_LOG("Semantic tokens supported with {} types and {} modifiers\n", _token_types.size(),
+                          _token_modifiers.size());
+            }
+         }
+
          send_notification("initialized", json::object());
       });
    }
 
    void open_document(const std::string& file_path, std::string_view content) {
-      if (!_initialized) return;
+      if (!_initialized)
+         return;
 
       json params = {
-         {"textDocument", {
-            {"uri", "file://" + file_path},
-            {"languageId", "cpp"},
-            {"version", 1},
-            {"text", content}
-         }}
+         {"textDocument", {{"uri", "file://" + file_path}, {"languageId", "cpp"}, {"version", 1}, {"text", content}}}
       };
 
       send_notification("textDocument/didOpen", params);
    }
 
    void goto_definition(const std::string& file_path, const UICode::code_pos_t& pos,
-                       std::function<void(const std::string&, UICode::code_pos_pair_t)> callback) {
-      if (!_initialized) return;
+                        std::function<void(const std::string&, UICode::code_pos_pair_t)> callback) {
+      if (!_initialized)
+         return;
 
       json params = {
-         {"textDocument", {
-            {"uri", "file://" + file_path}
-         }},
-         {"position", {
-            {"line", pos.line},
-            {"character", pos.offset}
-         }}
+         {"textDocument", {{"uri", "file://" + file_path}}               },
+         {"position",     {{"line", pos.line}, {"character", pos.offset}}}
       };
 
       send_request("textDocument/definition", params, [callback](const json& result) {
@@ -220,9 +268,9 @@ public:
             if (uri.starts_with("file://")) {
                uri = uri.substr(7);
             }
-            UICode::code_pos_pair_t pos {
+            UICode::code_pos_pair_t pos{
                UICode::code_pos_t{location["range"]["start"]["line"], location["range"]["start"]["character"]},
-               UICode::code_pos_t{location["range"]["end"]["line"], location["range"]["end"]["character"]}
+               UICode::code_pos_t{location["range"]["end"]["line"],   location["range"]["end"]["character"]  }
             };
             CLANGD_LOG("Jumping to: {} line {} col {}\n", uri, pos[0].line, pos[0].offset);
             callback(uri, pos);
@@ -232,12 +280,36 @@ public:
       });
    }
 
+   void get_semantic_tokens(const std::string& file_path, std::function<void(const std::vector<uint32_t>&)> callback) {
+      if (!_initialized)
+         return;
+
+      json params = {
+         {"textDocument", {{"uri", "file://" + file_path}}}
+      };
+
+      send_request("textDocument/semanticTokens/full", params, [this, callback](const json& result) {
+         CLANGD_LOG("clangd semantic tokens response received\n");
+
+         if (result.is_null() || result.empty() || !result.contains("data")) {
+            CLANGD_LOG("clangd returned null or empty semantic tokens\n");
+            callback({});
+            return;
+         }
+
+         // Extract the data array
+         std::vector<uint32_t> data = result["data"].get<std::vector<uint32_t>>();
+         CLANGD_LOG("Received {} semantic token values\n", data.size());
+         callback(data);
+      });
+   }
+
    void clangd_thread_fn() {
       set_thread_name("clangd_thread");
 
       int pipe_from_clangd = _pipe_from_clangd[0];
 
-      fd_set readfds;
+      fd_set  readfds;
       timeval timeout{0, 10000}; // Wait for 10 ms
 
       std::string buffer;
@@ -263,7 +335,7 @@ public:
             continue;
 
          // Data is available for reading
-         char chunk[4096];
+         char    chunk[4096];
          ssize_t bytes_read = read(pipe_from_clangd, chunk, sizeof(chunk));
 
          if (_kill_thread)
@@ -280,29 +352,35 @@ public:
          while (true) {
             // Look for Content-Length header
             auto header_end = buffer.find("\r\n\r\n");
-            if (header_end == std::string::npos) break;
+            if (header_end == std::string::npos)
+               break;
 
             auto content_length_pos = buffer.find("Content-Length: ");
-            if (content_length_pos == std::string::npos) break;
+            if (content_length_pos == std::string::npos)
+               break;
 
             content_length_pos += 16; // strlen("Content-Length: ")
             auto content_length_end = buffer.find("\r\n", content_length_pos);
-            if (content_length_end == std::string::npos) break;
+            if (content_length_end == std::string::npos)
+               break;
 
-            size_t content_length = std::stoull(buffer.substr(content_length_pos, content_length_end - content_length_pos));
+            size_t content_length =
+               std::stoull(buffer.substr(content_length_pos, content_length_end - content_length_pos));
             size_t message_start = header_end + 4;
 
-            if (buffer.size() < message_start + content_length) break;
+            if (buffer.size() < message_start + content_length)
+               break;
 
             std::string message_content = buffer.substr(message_start, content_length);
             buffer.erase(0, message_start + content_length);
 
-            // Parse JSON and handle response
+            // Parse JSON and handle response or notification
             try {
                json message = json::parse(message_content);
                CLANGD_LOG("Received clangd message: {}\n", message.dump().substr(0, 200));
 
                if (message.contains("id") && !message["id"].is_null()) {
+                  // This is a response to a request
                   int id = message["id"];
                   CLANGD_LOG("Message has id: {}\n", id);
 
@@ -321,6 +399,17 @@ public:
                   // Post to main thread
                   if (callback)
                      _fwd_response(std::move(callback), message);
+               } else if (message.contains("method")) {
+                  // This is a notification from the server
+                  std::string method = message["method"];
+                  json        params = message.contains("params") ? message["params"] : json::object();
+
+                  CLANGD_LOG("Received notification: {}\n", method);
+
+                  // Forward notification to callback if provided
+                  if (_notify_callback) {
+                     _notify_callback(method, params);
+                  }
                }
             } catch (const std::exception& e) {
                CLANGD_LOG("Failed to parse clangd response: {}\n", e.what());
@@ -349,5 +438,5 @@ public:
       }
    }
 
-   bool is_initialized() const { return _initialized; }
+   bool is_initialized() const { return _initialized.load(); }
 };
