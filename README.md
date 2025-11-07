@@ -285,6 +285,34 @@ confirm_command_connect=0
 backtrace_count_limit=50
 ```
 
+### clangd Configuration
+
+gf integrates clangd for code navigation features (goto definition with `Alt+.` and go back with `Alt+,`). If `clangd` is already in your path, no additional configuration is necessary, otherwise you may specify the path to the clangd executable in `~/.config/gf_config.ini`:
+
+```ini
+[clangd]
+# Path to clangd executable (optional, defaults to "clangd" in PATH)
+path=/usr/local/bin/clangd
+```
+
+For best results, generate a `compile_commands.json` compilation database for your project to be debugged.
+
+#### Generating compile_commands.json with CMake
+
+clangd uses the `compile_commands.json` compilation database to understand your project's structure and provide accurate navigation. Generate it with CMake:
+
+```bash
+# During CMake configuration, enable compile commands export
+cmake -Bbuild -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_BUILD_TYPE=Debug .
+
+# For the project you're debugging (not gf itself), create a symlink at the root
+ln -s build/compile_commands.json .
+```
+
+**Note:** The compilation database should be generated for the **project you're debugging**, not for gf itself. Place the `compile_commands.json` file (or a symlink to it) in your project's root directory where you source files are located.
+
+Without a compilation database, clangd may still work but with limited accuracy, especially for complex projects with custom include paths or compiler flags.
+
 ### Text Editor Integration
 
 Configure control pipe for editor integration:
