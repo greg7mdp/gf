@@ -3184,7 +3184,8 @@ void UICode::buffer_t::insert_content(std::string_view new_content) {
    }
 
    size_t orig_lines = _lines.size();
-   _lines.reserve(std::bit_ceil(orig_lines + num_new_lines + 1)); // bit_ceil to avoid vector copy on every reserve
+   if (orig_lines == 0)  // sometimes lines are appended one at a time, so don't reserve on each append
+      _lines.reserve(std::max(32ul, num_new_lines + 1));
 
    for (size_t i = 0, offset = 0; i <= sz; ++i) {
       if (i == sz || new_content[i] == '\n') { // if `new_content` not `\n` terminated, still process the last line
