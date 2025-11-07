@@ -33,6 +33,7 @@ gf is a lightweight, modern GDB frontend built with C++23, featuring an intuitiv
   - `Ctrl+Click` a line → run until that line
   - `Shift+Click` a line → skip to it without executing
   - Double-click → select expression for inspection
+- **clangd code navigarion** - Navigate to function or variable definition and back
 - **Keyboard Shortcuts** - Full keyboard navigation (F5-F11, Ctrl+shortcuts)
 - **Tab Completion** - Auto-complete GDB commands and symbols
 - **Custom Commands** - Define preset command sequences
@@ -128,6 +129,8 @@ Also, you can use the `up` and `down` arrow keys to scroll through previously us
 | **Run Until Line** | `Ctrl+Click` | Continue execution to clicked line |
 | **Jump to Line** | `Shift+Click` | Skip to line without executing |
 | **Inspect Line** | `` ` `` (backtick) | Evaluate expressions on current line |
+| ** Goto definition** | `Alt+.`  | Navigate to function or variable definition in source window |
+| ** Go back** | `Alt+,`  | Navigate back |
 
 ### Using with rr (Record/Replay)
 
