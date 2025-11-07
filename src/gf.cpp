@@ -222,7 +222,7 @@ static std::string get_realpath(std::string_view sv_path) {
    ensure_null_terminated path(sv_path);
 
    char buff[PATH_MAX] = "";
-   realpath(path.data(), buff); // realpath can return 0 if path doesn'tr exist (ENOENT)
+   (void)!realpath(path.data(), buff); // realpath can return 0 if path doesn'tr exist (ENOENT)
    return *buff ? std::string{buff} : std::string{sv_path};
 }
 
@@ -587,8 +587,8 @@ struct Context {
    // make private
    void send_to_gdb(string_view sv) const {
       char newline = '\n';
-      write(_pipe_to_gdb, sv.data(), sv.size());
-      write(_pipe_to_gdb, &newline, 1);
+      (void)!write(_pipe_to_gdb, sv.data(), sv.size());
+      (void)!write(_pipe_to_gdb, &newline, 1);
    }
 
    void interrupt_gdb(size_t wait_time_us = 20ull * 1000) {
@@ -945,8 +945,8 @@ void Context::debugger_thread_fn() {
    int outputPipe[2];
    int inputPipe[2];
 
-   pipe(outputPipe);
-   pipe(inputPipe);
+   (void)!pipe(outputPipe);
+   (void)!pipe(inputPipe);
 
    _gdb_argv[0] = mk_cstring(_gdb_path); // make sure prog name is correct in arg list
    if (_gdb_argv.back() != nullptr)      // make sure arg list is null-terminated
@@ -2805,7 +2805,7 @@ const char* BitmapViewerGetBits(const std::string& pointerString, const std::str
    FILE* f = fopen(bitmapPath.c_str(), "rb");
 
    if (f) {
-      fread(bits.get(), 1, stride * height, f);
+      (void)!fread(bits.get(), 1, stride * height, f);
       fclose(f);
       unlink(bitmapPath.c_str());
    }
@@ -6338,8 +6338,8 @@ void ProfLoadProfileData(void* _window) {
 
    auto* rawEntries = static_cast<ProfProfilingEntry*>(calloc(sizeof(ProfProfilingEntry), rawEntryCount));
 
-   char path[PATH_MAX];
-   realpath(".profile.gf", path);
+   char path[PATH_MAX] = "";
+   (void)!realpath(".profile.gf", path);
    char buffer[PATH_MAX * 2];
    std_format_to_n(buffer, sizeof(buffer),
                    "dump binary memory {} (gfProfilingBuffer) (gfProfilingBuffer+gfProfilingBufferPosition)", path);
@@ -6352,7 +6352,7 @@ void ProfLoadProfileData(void* _window) {
       return;
    }
 
-   fread(rawEntries, 1, sizeof(ProfProfilingEntry) * rawEntryCount, f);
+   (void)!fread(rawEntries, 1, sizeof(ProfProfilingEntry) * rawEntryCount, f);
    fclose(f);
    unlink(path);
 
@@ -6819,7 +6819,7 @@ struct storage_impl_t : public storage_t {
       , _h(h)
       , _storage(w * h) {}
 
-   void read(FILE* f) final { fread(_storage.data(), 1, _w * _h * sizeof(T), f); }
+   void read(FILE* f) final { (void)!fread(_storage.data(), 1, _w * _h * sizeof(T), f); }
 
    [[nodiscard]] const char* data() const final { return (const char*)_storage.data(); }
 };
@@ -7168,8 +7168,8 @@ void ViewWindowView(void* cp) {
          std_format_to_n(address, sizeof(address), "{}", res.substr(1));
       }
 
-      char tempPath[PATH_MAX];
-      realpath(".temp.gf", tempPath);
+      char tempPath[PATH_MAX] = "";
+      (void)!realpath(".temp.gf", tempPath);
       res = ctx.eval_expression(std::format("(size_t)strlen((const char *)({}))", address));
       std::print("'{}' -> '{}'\n", buffer, res);
       const char* lengthString = res.c_str() ? strstr(res.c_str(), "= ") : nullptr;
@@ -7192,7 +7192,7 @@ void ViewWindowView(void* cp) {
       FILE* f = fopen(tempPath, "rb");
 
       if (f) {
-         fread(data.get(), 1, length, f);
+         (void)!fread(data.get(), 1, length, f);
          fclose(f);
          unlink(tempPath);
          data[length] = 0;
@@ -7221,8 +7221,8 @@ void ViewWindowView(void* cp) {
 
       auto* grid = new ViewWindowMatrixGrid(panel, w, h, type[0]);
 
-      char tempPath[PATH_MAX];
-      realpath(".temp.gf", tempPath);
+      char tempPath[PATH_MAX] = "";
+      (void)!realpath(".temp.gf", tempPath);
       char buffer[PATH_MAX * 2];
       std_format_to_n(buffer, sizeof(buffer), "dump binary memory {} ({}) ({}+{})", tempPath, res, res,
                       w * h * itemSize);
@@ -7639,8 +7639,8 @@ const char* WaveformViewerGetSamples(const std::string& pointerString, const std
    size_t byteCount = sampleCount * channels * 4;
    auto*  samples   = static_cast<float*>(malloc(byteCount));
 
-   char transferPath[PATH_MAX];
-   realpath(".transfer.gf", transferPath);
+   char transferPath[PATH_MAX] = "";
+   (void)!realpath(".transfer.gf", transferPath);
 
    char buffer[PATH_MAX * 2];
    std_format_to_n(buffer, sizeof(buffer), "dump binary memory {} ({}) ({}+{})", transferPath,
@@ -7650,7 +7650,7 @@ const char* WaveformViewerGetSamples(const std::string& pointerString, const std
    FILE* f = fopen(transferPath, "rb");
 
    if (f) {
-      fread(samples, 1, byteCount, f);
+      (void)!fread(samples, 1, byteCount, f);
       fclose(f);
       unlink(transferPath);
    }
@@ -7730,7 +7730,7 @@ void WaveformViewerSaveToFile(WaveformDisplay* display) {
    if (result == "Save and open") {
       char buffer[4000];
       std_format_to_n(buffer, sizeof(buffer), "xdg-open \"{}\"", path);
-      system(buffer);
+      (void)!system(buffer);
    }
 }
 

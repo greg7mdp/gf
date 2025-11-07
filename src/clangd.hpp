@@ -66,7 +66,7 @@ private:
       std::string message = std::format("Content-Length: {}\r\n\r\n{}", content.size(), content);
 
       if (_pipe_to_clangd[1] != -1) {
-         write(_pipe_to_clangd[1], message.data(), message.size());
+         (void)!write(_pipe_to_clangd[1], message.data(), message.size());
          std::lock_guard<std::mutex> lock(_pending_mutex);
          _pending_requests[request_id] = callback;
       }
@@ -83,7 +83,7 @@ private:
       std::string message = std::format("Content-Length: {}\r\n\r\n{}", content.size(), content);
 
       if (_pipe_to_clangd[1] != -1) {
-         write(_pipe_to_clangd[1], message.data(), message.size());
+         (void)!write(_pipe_to_clangd[1], message.data(), message.size());
       }
    }
 
