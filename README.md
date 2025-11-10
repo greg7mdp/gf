@@ -129,8 +129,32 @@ Also, you can use the `up` and `down` arrow keys to scroll through previously us
 | **Run Until Line** | `Ctrl+Click` | Continue execution to clicked line |
 | **Jump to Line** | `Shift+Click` | Skip to line without executing |
 | **Inspect Line** | `` ` `` (backtick) | Evaluate expressions on current line |
-| ** Goto definition** | `Alt+.`  | Navigate to function or variable definition in source window |
-| ** Go back** | `Alt+,`  | Navigate back |
+| **Goto definition** | `Alt+.`  | Navigate to function or variable definition in source window |
+| **Go back** | `Alt+,`  | Navigate back |
+
+### Non-essential Shortcuts
+
+| Action | Shortcut | Description |
+|--------|----------|-------------|
+| **Run** | `Shift+F5` | Start program execution from beginning |
+| **Run Paused** | `Ctrl+F5` | Start program and break at main |
+| **Kill** | `F3` | Terminate the debugged program |
+| **Restart GDB** | `Ctrl+R` | Restart GDB process (loses debugging state) |
+| **Connect** | `F4` | Connect to remote target (default: `target remote :1234`) |
+| **Step Out of Block** | `Shift+F10` | Step to next line after closing `}` |
+| **Step Into Outer** | `Shift+F8` | Step into the outer function (when in nested calls) |
+| **Reverse Continue** | `Ctrl+Shift+F5` | Continue execution in reverse (requires rr) |
+| **Reverse Step Over** | `Ctrl+Shift+F10` | Step over in reverse (requires rr) |
+| **Reverse Step In** | `Ctrl+Shift+F11` | Step into in reverse (requires rr) |
+| **Sync with gvim** | `F2` | Synchronize current position with gvim editor |
+| **Sync Working Directory** | `Ctrl+Shift+P` | Ask GDB for working directory and sync |
+| **Set Disassembly Mode** | `Ctrl+M` | Toggle or configure disassembly view mode |
+| **Goto Definition (alt)** | `F12` | Navigate to definition (alternative to `Alt+.`) |
+| **Go Back (alt)** | `Ctrl+-` | Navigate back (alternative to `Alt+,`) |
+| **Go Back (alt)** | `Alt+←` | Navigate back using arrow key |
+| **Next Theme** | `Ctrl+T` | Switch to next color theme (alphabetical order) |
+| **Previous Theme** | `Ctrl+Shift+T` | Switch to previous color theme |
+| **View Source at Address** | `Ctrl+G` | View source code at memory address from watch window |
 
 ### Using with rr (Record/Replay)
 
