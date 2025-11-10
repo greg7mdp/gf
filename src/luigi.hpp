@@ -565,7 +565,7 @@ struct UIRectangle {
       return child;
    }
 
-   friend UIRectangle fit(const UIRectangle& parent, UIRectangle child, bool allowScalingUp);
+   friend UIRectangle fit(const UIRectangle& parent, UIRectangle child, bool allow_scaling_up);
 
    UIRectangle operator+(const UIRectangle& o) const { return { l + o.l, r + o.r, t + o.t, b + o.b }; }
 
@@ -602,38 +602,38 @@ enum class sem_tok_t:uint8_t { def=0, comment, string, number, oper, preprocesso
 // Must match `themeItems` in gf.cpp
 // ------------------------------------------------------------------------------------------
 struct UITheme {
-   uint32_t panel1           = 0;
-   uint32_t panel2           = 0;
-   uint32_t selected         = 0;
-   uint32_t border           = 0;
-   uint32_t text             = 0;
-   uint32_t textDisabled     = 0;
-   uint32_t textSelected     = 0;
-   uint32_t buttonNormal     = 0;
-   uint32_t buttonHovered    = 0;
-   uint32_t buttonPressed    = 0;
-   uint32_t buttonDisabled   = 0;
-   uint32_t textboxNormal    = 0;
-   uint32_t textboxFocused   = 0;
-   uint32_t codeFocused      = 0;
-   uint32_t codeBackground   = 0;
-   uint32_t codeDefault      = 0;   // syntax highlighting (start)
-   uint32_t codeComment      = 0;
-   uint32_t codeString       = 0;
-   uint32_t codeNumber       = 0;
-   uint32_t codeOperator     = 0;
-   uint32_t codePreprocessor = 0;
-   uint32_t codeKeyword      = 0;
-   uint32_t codeType         = 0;
-   uint32_t codeVariable     = 0;
-   uint32_t codeFunction     = 0;
-   uint32_t codeBracket      = 0;   // syntax highlighting (end)
-   uint32_t accent1          = 0;
-   uint32_t accent2          = 0;
+   uint32_t panel1            = 0;
+   uint32_t panel2            = 0;
+   uint32_t selected          = 0;
+   uint32_t border            = 0;
+   uint32_t text              = 0;
+   uint32_t text_disabled     = 0;
+   uint32_t text_selected     = 0;
+   uint32_t button_normal     = 0;
+   uint32_t button_hovered    = 0;
+   uint32_t button_pressed    = 0;
+   uint32_t button_disabled   = 0;
+   uint32_t textbox_normal    = 0;
+   uint32_t textbox_focused   = 0;
+   uint32_t code_focused      = 0;
+   uint32_t code_background   = 0;
+   uint32_t code_default      = 0;   // syntax highlighting (start)
+   uint32_t code_comment      = 0;
+   uint32_t code_string       = 0;
+   uint32_t code_number       = 0;
+   uint32_t code_operator     = 0;
+   uint32_t code_preprocessor = 0;
+   uint32_t code_keyword      = 0;
+   uint32_t code_type         = 0;
+   uint32_t code_variable     = 0;
+   uint32_t code_function     = 0;
+   uint32_t code_bracket      = 0;   // syntax highlighting (end)
+   uint32_t accent1           = 0;
+   uint32_t accent2           = 0;
 
    uint32_t& operator[](size_t idx) { return *(reinterpret_cast<uint32_t*>(this) + idx); }
    uint32_t  operator[](sem_tok_t tok) const {
-      constexpr size_t start_offset = offsetof(UITheme, codeDefault) / sizeof(codeDefault);
+      constexpr size_t start_offset = offsetof(UITheme, code_default) / sizeof(code_default);
       return *(reinterpret_cast<const uint32_t*>(this) + std::to_underlying(tok) + start_offset);
    }
    friend bool operator==(const UITheme&, const UITheme&) = default;
@@ -841,7 +841,7 @@ using  message_proc_t = int(*)(UIElement*, UIMessage msg, int di, void* dp); // 
 // ------------------------------------------------------------------------------------------
 struct UIElement {
 protected:
-   void _destroy_descendents(bool topLevel);
+   void _destroy_descendents(bool top_level);
    bool _destroy();
 
 public:
@@ -880,7 +880,7 @@ public:
    void*                   _cp         = nullptr; // Context pointer (for user).
    message_proc_t          _class_proc = nullptr;
 
-   UIElement(UIElement* parent, uint32_t flags, message_proc_t message_proc, const char* cClassName);
+   UIElement(UIElement* parent, uint32_t flags, message_proc_t message_proc, const char* class_name);
    virtual ~UIElement();
 
    uint32_t       state() const;
@@ -889,7 +889,7 @@ public:
    void           destroy();                  // really just set flags so they'll be destroyed in `_UIUpdate`
    void           destroy_descendents();      // really just set flags so they'll be destroyed in `_UIUpdate`
    int            message(UIMessage msg, int di, void* dp);
-   UIElement*     change_parent(UIElement* newParent, UIElement* insertBefore);
+   UIElement*     change_parent(UIElement* new_parent, UIElement* insert_before);
    UIElement*     next_or_previous_sibling(bool previous);
    UIElement&     parent() { return *_parent; }
    void           measurements_changed(int which);
@@ -947,7 +947,7 @@ public:
    UIButton&       add_button(uint32_t flags, std::string_view label);
    UICheckbox&     add_checkbox(uint32_t flags, std::string_view label);
    UICode&         add_code(uint32_t flags);
-   UIElement&      add_element(uint32_t flags, message_proc_t message_proc, const char* cClassName);
+   UIElement&      add_element(uint32_t flags, message_proc_t message_proc, const char* class_name);
    UIGauge&        add_gauge(uint32_t flags);
    UIImageDisplay& add_imagedisplay(uint32_t flags, UIBitmapBits&& bb);
    UILabel&        add_label(uint32_t flags, std::string_view label);
@@ -1066,7 +1066,7 @@ public:
    static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 #endif
 
-   UIWindow(UI* ui, UIElement* parent, uint32_t flags, message_proc_t message_proc, const char* cClassName);
+   UIWindow(UI* ui, UIElement* parent, uint32_t flags, message_proc_t message_proc, const char* class_name);
    ~UIWindow() override;
 
    void        endpaint(UIPainter* painter) const;
@@ -1172,7 +1172,7 @@ private:
    }
 
    int _layout(UIRectangle bounds, bool measure);
-   int _calculate_per_fill(int* _count, int hSpace, int vSpace, float scale);
+   int _calculate_per_fill(int* _count, int h_space, int v_space, float scale);
    int _measure(int di);
    
 public:
@@ -1408,8 +1408,8 @@ protected:
       : _vscroll(new UIScrollBar(el, 0))
       , _hscroll(new UIScrollBar(el, UIScrollBar::HORIZONTAL)) {}
 
-   void layout_scrollbar_pair(int hSpace, int vSpace, int scrollBarSize, UIElement* el);
-   void key_input_vscroll(UIKeyTyped* m, int rowHeight, int pageHeight, UIElement* el);
+   void layout_scrollbar_pair(int h_space, int v_space, int sb_size, UIElement* el);
+   void key_input_vscroll(UIKeyTyped* m, int row_height, int page_height, UIElement* el);
 
 public:
    void reset_vscroll() { _vscroll->position() = 0; }
@@ -1796,8 +1796,8 @@ public:
    
    [[nodiscard]] std::string_view text() const { return std::string_view(_buffer); }
    
-   UITextbox& replace_text(std::string_view text, bool sendChangedMessage);
-   UITextbox& clear(bool sendChangedMessage);
+   UITextbox& replace_text(std::string_view text, bool send_changed_message);
+   UITextbox& clear(bool send_changed_message);
 
    UITextbox& move_caret(bool backward, bool word);
    UITextbox& select_all();
@@ -1931,7 +1931,7 @@ public:
 // ------------------------------------------------------------------------------------------
 struct UIWrapPanel : public UIElementCast<UIWrapPanel> {
 private:
-   void       _layout_row(uint32_t rowStart, uint32_t rowEnd, int rowY, int rowHeight);
+   void       _layout_row(uint32_t row_start, uint32_t row_end, int row_y, int row_height);
    int        _class_message_proc(UIMessage msg, int di, void* dp);
    
    static int _ClassMessageProc(UIElement* el, UIMessage msg, int di, void* dp) {
@@ -2016,7 +2016,7 @@ public:
    bool         animate(UIElement *el, bool stop);
 
    UIMenu&      create_menu(UIElement* parent, uint32_t flags);
-   UIWindow&    create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int width, int height);
+   UIWindow&    create_window(UIWindow* owner, uint32_t flags, const char* title, int width, int height);
    UIFont*      create_font(std::string_view path, uint32_t size);
 
    UITheme&     theme() { return _theme; }
@@ -2074,7 +2074,7 @@ public:
 private:
    // ----- internal functions  --------------------------------------------------------------
    void         _initialize_common(const UIConfig& cfg, const std::string& default_font_path);
-   UIWindow&    _platform_create_window(UIWindow* owner, uint32_t flags, const char* cTitle, int _width, int _height);
+   UIWindow&    _platform_create_window(UIWindow* owner, uint32_t flags, const char* title, int _width, int _height);
    static int   _platform_message_proc(UIElement* el, UIMessage msg, int di, void* dp);
    void         _inspector_refresh();
 
@@ -2137,18 +2137,18 @@ struct UIPainter {
    UIPainter& draw_glyph(int x0, int y0, int c, uint32_t color);
    UIPainter& draw_block(UIRectangle rectangle, uint32_t color);
    UIPainter& draw_line(int x0, int y0, int x1, int y1, uint32_t color);
-   UIPainter& draw_circle(int cx, int cy, int radius, uint32_t fillColor, uint32_t outlineColor, bool hollow);
+   UIPainter& draw_circle(int cx, int cy, int radius, uint32_t fill_color, uint32_t outline_color, bool hollow);
    UIPainter& draw_triangle(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color);
    UIPainter& draw_triangle_outline(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color);
    UIPainter& draw_invert(UIRectangle rectangle);
    UIPainter& draw_string(UIRectangle r, std::string_view string, uint32_t color, UIAlign align,
                           UIStringSelection* selection);
-   UIPainter& draw_border(UIRectangle r, uint32_t borderColor, UIRectangle borderSize);
-   UIPainter& draw_rectangle(UIRectangle r, uint32_t mainColor, uint32_t borderColor, UIRectangle borderSize);
+   UIPainter& draw_border(UIRectangle r, uint32_t border_color, UIRectangle border_size);
+   UIPainter& draw_rectangle(UIRectangle r, uint32_t main_color, uint32_t border_color, UIRectangle border_size);
    UIPainter& draw_control_default(UIRectangle bounds, uint32_t mode, std::string_view label, double position,
                                    float scale);
-   int        draw_string_highlighted(UIRectangle lineBounds, std::string_view string, int tabSize,
-                                      UIStringSelection* selection, bool* inComment, UICode::sem_t* sem);
+   int        draw_string_highlighted(UIRectangle line_bounds, std::string_view string, int tabSize,
+                                      UIStringSelection* selection, bool* in_comment, UICode::sem_t* sem);
 };
 // clang-format on
 

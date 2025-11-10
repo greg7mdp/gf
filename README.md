@@ -221,8 +221,11 @@ selectable_source=1
 grab_focus_on_breakpoint=1
 
 [theme]
-# predefined themes are "classic", "dark", "ice", "lotus" and "hero"
-predefined=ice
+# see "Themes" section of README for the list of predefined themes.
+predefined=light_high_contrast
+
+# any theme value can be overridden. For example
+# code_comment=7B6F81
 
 [gdb]
 path=/usr/local/bin/gdb
@@ -286,7 +289,32 @@ Separate commands with `;`, use `&` at the end to run asynchronously.
 
 ### Themes
 
-Customize colors in the `[theme]` section.
+gf includes multiple built-in color themes for both light and dark preferences. Switch between themes using `Ctrl+T` (next) and `Ctrl+Shift+T` (previous).
+
+**Available Themes:**
+
+Dark themes:
+- `dark_github` - GitHub Dark theme with warm, balanced colors
+- `dark_github_colorblind` - GitHub Dark Colorblind with accessible color choices
+- `dark_green_tea` - Purple/pink floral palette with pastel accents
+- `dark_high_contrast` - Pure black background with maximum contrast
+- `dark_jacaranda` - Purple/pink themed with light green strings
+- `dark_magnolia` - Dark Dev-C++ adaptation with red operators
+- `dark_modern` - VS Code Dark Modern theme
+- `dark_one_dark_pro` - One Dark Pro with vibrant syntax colors
+- `dark_tsoding` - Minimalist theme with muted colors
+- `dark_vs_cpp` - Visual Studio C++ dark theme
+
+Light themes:
+- `light_dev_cpp` - Dev-C++ style with distinctive red operators
+- `light_github` - GitHub Light with clean, professional appearance
+- `light_high_contrast` - Maximum readability with high contrast
+- `light_quiet` - Quiet Light with muted, soft colors
+- `light_solarized` - Solarized Light with warm beige tones
+- `light_vs_2017_cpp` - Visual Studio 2017 C++ light theme
+- `light_vs_cpp` - Enhanced Visual Studio C++ with colorful syntax
+
+You can also customize colors in the `[theme]` section of your config file.
 
 ### GDB Configuration
 

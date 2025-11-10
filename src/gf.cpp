@@ -1673,11 +1673,33 @@ static void CommandCustom(string_view command) {
 // ------------------------------------------------------
 
 const char* themeItems[] = {
-   "panel1",         "panel2",       "selected",         "border",        "text",           "textDisabled",
-   "textSelected",   "buttonNormal", "buttonHovered",    "buttonPressed", "buttonDisabled", "textboxNormal",
-   "textboxFocused", "codeFocused",  "codeBackground",   "codeDefault",   "codeComment",    "codeString",
-   "codeNumber",     "codeOperator", "codePreprocessor", "codeKeyword",   "codeType",       "codeVariable",
-   "codeFunction",   "accent1",      "accent2",
+   "panel1",
+   "panel2",
+   "selected",
+   "border",
+   "text",
+   "text_disabled",
+   "text_selected",
+   "button_normal",
+   "button_hovered",
+   "button_pressed",
+   "button_disabled",
+   "textbox_normal",
+   "textbox_focused",
+   "code_focused",
+   "code_background",
+   "code_default",
+   "code_comment",
+   "code_string",
+   "code_number",
+   "code_operator",
+   "code_preprocessor",
+   "code_keyword",
+   "code_type",
+   "code_variable",
+   "code_function",
+   "accent1",
+   "accent2",
 };
 
 static void SettingsAddTrustedFolder() {
@@ -1909,7 +1931,7 @@ UIConfig GF_Config::load_settings(bool earlyPass) {
             if (key == "predefined") {
                auto theme = ctx._ui->get_theme(std::string(value));
                if (theme) {
-                  ui_config._theme = *theme;
+                  ui_config._theme     = *theme;
                   ui_config._has_theme = true;
                }
             }
@@ -2223,7 +2245,7 @@ void SourceWindow::draw_inspect_line_mode_overlay(UIPainter* painter) {
                         UIRectangle(xOffset, 0, lineHeight, 8 + lineHeight * (_inspect_results.size() / 2 + 1));
    bounds.r = bounds.l + width;
    painter->draw_block(bounds + UIRectangle(3), theme.border);
-   painter->draw_rectangle(bounds, theme.codeBackground, theme.border, UIRectangle(2));
+   painter->draw_rectangle(bounds, theme.code_background, theme.border, UIRectangle(2));
    UIRectangle line = bounds + UIRectangle(4, -4, 4, 0);
    line.b           = line.t + lineHeight;
    std::string buffer;
@@ -2238,13 +2260,13 @@ void SourceWindow::draw_inspect_line_mode_overlay(UIPainter* painter) {
          buffer = std::format("    {} {}", ir._expression, ir._value);
       }
 
-      painter->draw_string(line, buffer, _no_inspect_results ? theme.codeOperator : theme.codeString, UIAlign::left,
+      painter->draw_string(line, buffer, _no_inspect_results ? theme.code_operator : theme.code_string, UIAlign::left,
                            nullptr);
       line = line + UIRectangle(0, lineHeight);
       ++index;
    }
 
-   painter->draw_string(line, instructions, theme.codeNumber, UIAlign::right, nullptr);
+   painter->draw_string(line, instructions, theme.code_number, UIAlign::right, nullptr);
 }
 
 void CommandDeleteAllBreakpointsOnLine(int line) {
@@ -2364,7 +2386,7 @@ int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* 
       if (m->index == _auto_print_result_line) {
          UIRectangle rectangle =
             UIRectangle(m->x + active_font->_glyph_width, m->bounds.r, m->y, m->y + code->ui()->string_height());
-         m->painter->draw_string(rectangle, _auto_print_result.data(), theme.codeComment, UIAlign::left, nullptr);
+         m->painter->draw_string(rectangle, _auto_print_result.data(), theme.code_comment, UIAlign::left, nullptr);
       }
 
       if (code->hittest(code->cursor_pos()) == m->index && code->is_hovered() && code->is_modifier_on() &&
@@ -2377,7 +2399,7 @@ int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* 
          m->painter->draw_string(m->bounds, code->is_ctrl_on() ? "=> run until " : "=> skip to ", theme.text,
                                  UIAlign::right, nullptr);
       } else if (m->index == _current_end_of_block) {
-         m->painter->draw_string(m->bounds, "[Shift+F10]", theme.codeComment, UIAlign::right, nullptr);
+         m->painter->draw_string(m->bounds, "[Shift+F10]", theme.code_comment, UIAlign::right, nullptr);
       }
 
       if (m->index == _if_condition_line && _if_condition_evaluation) {
@@ -3827,7 +3849,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
             }
 
             if (focused) {
-               painter->draw_string(row, buffer, thm.textSelected, UIAlign::left, nullptr);
+               painter->draw_string(row, buffer, thm.text_selected, UIAlign::left, nullptr);
             } else if (watch->_highlight) {
                painter->draw_string(row, buffer, 0xFF0000, UIAlign::left, nullptr);
             } else {
@@ -4873,10 +4895,10 @@ struct FilesWindow {
          int         i       = button->is_pressed() + button->is_hovered();
          const auto& theme   = button->theme();
          if (i)
-            painter->draw_block(button->_bounds, i == 2 ? theme.buttonPressed : theme.buttonHovered);
+            painter->draw_block(button->_bounds, i == 2 ? theme.button_pressed : theme.button_hovered);
          painter->draw_string(button->_bounds + UIRectangle(ui_size::button_padding, 0, 0, 0), button->label(),
-                              button->has_flag(UIButton::CHECKED) ? theme.codeNumber : theme.codeDefault, UIAlign::left,
-                              nullptr);
+                              button->has_flag(UIButton::CHECKED) ? theme.code_number : theme.code_default,
+                              UIAlign::left, nullptr);
          return 1;
       }
 
@@ -6704,11 +6726,11 @@ private:
 
          {
             std_format_to_n(buffer, sizeof(buffer), "Inspecting memory @{:p}", (void*)_offset);
-            painter->draw_string(row, buffer, thm.codeString, UIAlign::left, 0);
+            painter->draw_string(row, buffer, thm.code_string, UIAlign::left, 0);
             row.t += rowHeight;
             row.b += rowHeight;
             const char* header = "         0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F   0123456789ABCDEF";
-            painter->draw_string(row, header, thm.codeComment, UIAlign::left, 0);
+            painter->draw_string(row, header, thm.code_comment, UIAlign::left, 0);
             row.t += rowHeight;
             row.b += rowHeight;
          }
@@ -6749,26 +6771,26 @@ private:
 
             const auto& thm = theme();
             std_format_to_n(buffer, sizeof(buffer), "{:8X} ", static_cast<uint32_t>(address & 0xFFFFFFFF));
-            painter->draw_string(row, buffer, thm.codeComment, UIAlign::left, 0);
+            painter->draw_string(row, buffer, thm.code_comment, UIAlign::left, 0);
             UIRectangle r          = row + UIRectangle(ui()->string_width(buffer), 0, 0, 0);
             int         glyphWidth = ui()->string_width("a");
 
             for (int i = 0; i < 16; i++) {
                if (address + i >= _offset + _loaded_bytes.size() || _loaded_bytes[address + i - _offset] < 0) {
-                  painter->draw_glyph(r.l + position, r.t, '?', thm.codeOperator);
+                  painter->draw_glyph(r.l + position, r.t, '?', thm.code_operator);
                   position += glyphWidth;
-                  painter->draw_glyph(r.l + position, r.t, '?', thm.codeOperator);
+                  painter->draw_glyph(r.l + position, r.t, '?', thm.code_operator);
                   position += glyphWidth;
                } else {
                   const char* hexChars = "0123456789ABCDEF";
                   uint8_t     byte     = _loaded_bytes[address + i - _offset];
-                  painter->draw_glyph(r.l + position, r.t, hexChars[(byte & 0xF0) >> 4], thm.codeNumber);
+                  painter->draw_glyph(r.l + position, r.t, hexChars[(byte & 0xF0) >> 4], thm.code_number);
                   position += glyphWidth;
-                  painter->draw_glyph(r.l + position, r.t, hexChars[(byte & 0x0F) >> 0], thm.codeNumber);
+                  painter->draw_glyph(r.l + position, r.t, hexChars[(byte & 0x0F) >> 0], thm.code_number);
                   position += glyphWidth;
 
                   if (byte >= 0x20 && byte < 0x7F) {
-                     painter->draw_glyph(r.l + (49 + i) * glyphWidth, r.t, byte, thm.codeString);
+                     painter->draw_glyph(r.l + (49 + i) * glyphWidth, r.t, byte, thm.code_string);
                   }
                }
 
@@ -7023,43 +7045,43 @@ int ViewWindowStringLayout(ViewWindowString* display, UIPainter* painter, int of
          x = clientBounds.l + glyphWidth;
          y += glyphHeight;
          if (painter)
-            painter->draw_glyph(clientBounds.l, y, '>', thm.codeComment);
+            painter->draw_glyph(clientBounds.l, y, '>', thm.code_comment);
       }
 
       if (display->_data[i] < 0x20 || display->_data[i] >= 0x7F) {
          if (display->_data[i] == '\n') {
             if (painter)
-               painter->draw_glyph(x, y, '\\', thm.codeComment);
+               painter->draw_glyph(x, y, '\\', thm.code_comment);
             x += glyphWidth;
             if (painter)
-               painter->draw_glyph(x, y, 'n', thm.codeComment);
+               painter->draw_glyph(x, y, 'n', thm.code_comment);
             x = clientBounds.l;
             y += glyphHeight;
          } else if (display->_data[i] == '\t') {
             if (painter)
-               painter->draw_glyph(x, y, '\\', thm.codeNumber);
+               painter->draw_glyph(x, y, '\\', thm.code_number);
             x += glyphWidth;
             if (painter)
-               painter->draw_glyph(x, y, 't', thm.codeNumber);
+               painter->draw_glyph(x, y, 't', thm.code_number);
             x += glyphWidth;
          } else {
             const char* hexChars = "0123456789ABCDEF";
             if (painter)
-               painter->draw_glyph(x, y, '<', thm.codeNumber);
+               painter->draw_glyph(x, y, '<', thm.code_number);
             x += glyphWidth;
             if (painter)
-               painter->draw_glyph(x, y, hexChars[(display->_data[i] & 0xF0) >> 4], thm.codeNumber);
+               painter->draw_glyph(x, y, hexChars[(display->_data[i] & 0xF0) >> 4], thm.code_number);
             x += glyphWidth;
             if (painter)
-               painter->draw_glyph(x, y, hexChars[(display->_data[i] & 0x0F) >> 0], thm.codeNumber);
+               painter->draw_glyph(x, y, hexChars[(display->_data[i] & 0x0F) >> 0], thm.code_number);
             x += glyphWidth;
             if (painter)
-               painter->draw_glyph(x, y, '>', thm.codeNumber);
+               painter->draw_glyph(x, y, '>', thm.code_number);
             x += glyphWidth;
          }
       } else {
          if (painter)
-            painter->draw_glyph(x, y, display->_data[i], thm.codeDefault);
+            painter->draw_glyph(x, y, display->_data[i], thm.code_default);
          x += glyphWidth;
       }
    }
@@ -7082,7 +7104,7 @@ int ViewWindowStringMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       display->_v_scroll->move(scrollBarBounds, true);
    } else if (msg == UIMessage::PAINT) {
       const auto& thm = el->theme();
-      static_cast<UIPainter*>(dp)->draw_block(el->_bounds, thm.codeBackground);
+      static_cast<UIPainter*>(dp)->draw_block(el->_bounds, thm.code_background);
       ViewWindowStringLayout(display, static_cast<UIPainter*>(dp), display->_v_scroll->position());
    } else if (msg == UIMessage::MOUSE_WHEEL) {
       return display->_v_scroll->message(msg, di, dp);
@@ -7977,7 +7999,7 @@ void ControlPipe::on_command(std::unique_ptr<std::string> input) {
 enum invoker_flags { invoker_restore_focus = 1 << 0 };
 
 auto gdb_invoker(string_view cmd, int flags = 0) {
-   //std::print(std::cerr, "invoke: \"{}\"\n", cmd);
+   // std::print(std::cerr, "invoke: \"{}\"\n", cmd);
    return [cmd, flags]() {
       CommandSendToGDB(cmd);
       if (flags & invoker_restore_focus)

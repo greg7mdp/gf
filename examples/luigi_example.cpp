@@ -31,9 +31,9 @@ int main(int argc, char** argv) {
 
    // optional: set local font if present
    std::string home     = getenv("HOME");
-   std::string fontPath = home + "/.fonts/FiraCode-Regular.ttf";
-   if (fs::exists(fontPath))
-      cfg.font_path = fontPath;
+   std::string font_path = home + "/.fonts/FiraCode-Regular.ttf";
+   if (fs::exists(font_path))
+      cfg.font_path = font_path;
 
    auto     ui_ptr = UI::initialise(cfg);
 
@@ -136,10 +136,10 @@ int main(int argc, char** argv) {
 
    {
       // Bottom-Right pane.
-      UITabPane& tabPane = uisplit_bottom_leftright.add_tabpane(0, "Tab 1\tMiddle Tab\tTab 3");
+      UITabPane& tab_pane = uisplit_bottom_leftright.add_tabpane(0, "Tab 1\tMiddle Tab\tTab 3");
 
       // First tab in tabPane
-      tabPane.add_table(0, "Column 1\tColumn 2")
+      tab_pane.add_table(0, "Column 1\tColumn 2")
          .set_num_items(100000)
          .on_getitem([](UITable&, UITableGetItem& m) -> int {
             m._is_selected = (selected == (int)m._row);
@@ -162,12 +162,12 @@ int main(int argc, char** argv) {
          .resize_columns();
 
       // Second tab
-      tabPane.add_panel(UIPanel::COLOR_1).add_label(0, "you're in tab 2, bucko");
+      tab_pane.add_panel(UIPanel::COLOR_1).add_label(0, "you're in tab 2, bucko");
 
       // Third tab
-      UIPanel& settingsPanel = tabPane.add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING | UIPanel::HORIZONTAL);
-      settingsPanel.add_label(0, "Delete top-left panel buttons on click:");
-      check_delete = &settingsPanel.add_checkbox(0, "Off").on_click([](UICheckbox& cb) {
+      UIPanel& settings_panel = tab_pane.add_panel(UIPanel::COLOR_1 | UIPanel::MEDIUM_SPACING | UIPanel::HORIZONTAL);
+      settings_panel.add_label(0, "Delete top-left panel buttons on click:");
+      check_delete = &settings_panel.add_checkbox(0, "Off").on_click([](UICheckbox& cb) {
          cb.set_label(cb.checked() ? "On" : "Off");
       });
    }
