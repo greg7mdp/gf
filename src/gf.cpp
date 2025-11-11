@@ -2314,7 +2314,7 @@ int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* 
 
       if (m->text == "`") {
          inspect_line();
-         return 0;
+         return 1;
       }
    } else if (msg == UIMessage::LEFT_DBLCLICK && !code->empty() && !code->is_modifier_on()) {
       int hitTest = code->hittest(code->cursor_pos());
