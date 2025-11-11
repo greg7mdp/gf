@@ -2240,9 +2240,11 @@ void SourceWindow::draw_inspect_line_mode_overlay(UIPainter* painter) {
       }
    }
 
-   int         lineHeight = painter->ui()->string_height();
+   int lineHeight = painter->ui()->string_height();
+
+   // add lineHeight to display after current_line
    UIRectangle bounds     = _display_current_line_bounds +
-                        UIRectangle(xOffset, 0, lineHeight, 8 + lineHeight * (_inspect_results.size() / 2 + 1));
+                        UIRectangle(xOffset, 0, lineHeight, 8 + lineHeight * (_inspect_results.size() + 1));
    bounds.r = bounds.l + width;
    painter->draw_block(bounds + UIRectangle(3), theme.border);
    painter->draw_rectangle(bounds, theme.code_background, theme.border, UIRectangle(2));
@@ -2379,18 +2381,19 @@ int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* 
       auto* m           = static_cast<UICodeDecorateLine*>(dp);
       auto  currentLine = s_display_code->current_line();
 
-      if (currentLine && m->index == static_cast<int>(*currentLine)) {
+      if (currentLine && m->index == static_cast<int>(*currentLine) + 1) { // m->index 1-based and currentLine 0-based
          _display_current_line_bounds = m->bounds;
       }
 
+      //std::print(std::cerr, "m->index = {}, _auto_print_result_line = {}\n", m->index, _auto_print_result_line);
       if (m->index == _auto_print_result_line) {
          UIRectangle rectangle =
             UIRectangle(m->x + active_font->_glyph_width, m->bounds.r, m->y, m->y + code->ui()->string_height());
          m->painter->draw_string(rectangle, _auto_print_result.data(), theme.code_comment, UIAlign::left, nullptr);
       }
 
-      if (code->hittest(code->cursor_pos()) == m->index && code->is_hovered() && code->is_modifier_on() &&
-          !code->_window->textbox_modified_flag()) {
+      if (code->hittest(code->cursor_pos()) == m->index && code->is_hovered() &&
+          (code->is_only_ctrl_on() || code->is_only_shift_on()) && !code->_window->textbox_modified_flag()) {
 #if 0
          // very annoying to have these pop up whenever `Alt` or `Ctrl` is pressed, since we use `Alt-.`
          // and `Alt-,` for code navigation
@@ -2470,7 +2473,7 @@ void SourceWindow::_update(const char* data, UICode* el) {
       // If there is an auto-print expression from the previous line, evaluate it.
 #if ALLOW_SIDE_EFFECTS
       if (_auto_print_expression[0]) {
-         auto        res    = ctx.EvaluateCommand(std::format("p {}", _auto_print_expression.data()));
+         auto        res    = ctx.eval_command(std::format("p {}", _auto_print_expression.data()));
          const char* result = strchr(res.c_str(), '=');
 
          if (result) {
@@ -2559,7 +2562,6 @@ void SourceWindow::_update(const char* data, UICode* el) {
       // Try to evaluate simple if conditions.
 
       _if_condition_evaluation = 0;
-
 #if ALLOW_SIDE_EFFECTS
       // missing detection of `++`, `--`, `+=`, etc...
       for (uintptr_t i = 0, phase = 0, expressionStart = 0, depth = 0; i < bytes; i++) {
@@ -2607,7 +2609,7 @@ void SourceWindow::_update(const char* data, UICode* el) {
                // be in the `if` condition, so these side effects are evaluated twice.
                // maybe we can re-enable if we can ensure that the condition has no side effect (++, +=, ...)
                // -------------------------------------------------------------------------------------------
-               auto res = ctx.EvaluateExpression(string_view{&text[expressionStart], i - expressionStart});
+               auto res = ctx.eval_expression(string_view{&text[expressionStart], i - expressionStart});
 
                if (res == "= true") {
                   _if_condition_evaluation = 2;

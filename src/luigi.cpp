@@ -2850,7 +2850,7 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
             line_bounds.l += _hscroll->position();
          painter->_clip = old_clip;
 
-         UICodeDecorateLine m{.bounds = line_bounds, .index = static_cast<int>(i), .x = x, .y = y, .painter = painter};
+         UICodeDecorateLine m{.bounds = line_bounds, .index = static_cast<int>(i+1), .x = x, .y = y, .painter = painter};
          message(UIMessage::CODE_DECORATE_LINE, 0, &m);
 
          line_bounds.t += line_height;

@@ -1528,7 +1528,7 @@ private:
 
    std::string             _path;                                  // path of currently loaded buffer if `MANAGE_BUFFER`
    buffer_ptr              _buffer;
-   std::optional<size_t>   _current_line                     = 0;  // if set, 0 <= _current_line < num_lines()
+   std::optional<size_t>   _current_line                     = 0;  // zero_based, if set, 0 <= _current_line < num_lines()
    size_t                  _focus_line                       = 0;
    UIFont*                 _font;
    bool                    _move_scroll_to_focus_next_layout = false;
@@ -1611,12 +1611,12 @@ public:
 
    size_t     max_columns() const { return _buffer->max_columns(); }
       
-   UICode&    set_current_line(std::optional<size_t> l) {
+   UICode&    set_current_line(std::optional<size_t> l) { // zero-based
       if (!l || *l < num_lines())
          _current_line = l;
       return *this;
    }
-   std::optional<size_t> current_line() {
+   std::optional<size_t> current_line() {  // zero-based
       if (_current_line && *_current_line >= num_lines())
          _current_line.reset();
       return _current_line;
