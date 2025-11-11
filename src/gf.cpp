@@ -311,7 +311,7 @@ struct NavigationHistory {
 };
 
 // --------------------------------------------------------------------------------------------
-struct ReceiveMessageType {
+struct UserMessageTypes {
    UIMessage                                         _msg;
    std::function<void(std::unique_ptr<std::string>)> _callback;
 };
@@ -565,24 +565,49 @@ struct Context {
    unique_ptr<regexp::language_base> _lang_re;
 
    // ========== Debugger interaction ======================
+   using arg_vec = vector<std::unique_ptr<const char[]>>;
+
    int               _pipe_to_gdb     = 0;
    pid_t             _gdb_pid         = 0;
    std::atomic<bool> _kill_gdb_thread = false;
    std::thread       _gdb_thread; // reads gdb output and pushes it to queue (we wait on queue in DebuggerSend
    std::atomic<bool> _evaluate_mode = false; // true means we sent a command to gdb and are waiting for the response
-   vector<std::unique_ptr<const char[]>> _gdb_argv;
-   SPSCQueue<std::string>                _evaluate_result_queue;
-   std::atomic<bool>                     _program_running = true;
-   bool                                  _program_started = false; // So we know to restart the program if it has exited
+   arg_vec           _gdb_argv;
+   SPSCQueue<std::string> _evaluate_result_queue;
+   std::atomic<bool>      _program_running = true;
+   bool                   _program_started = false; // So we know to restart the program if it has exited
 
-   std::unordered_map<std::string, InterfaceWindow> _interface_windows;
-   vector<InterfaceCommand>                         _interface_commands;
-   vector<InterfaceDataViewer>                      _interface_data_viewers;
-   NavigationHistory                                _nav_history;
-   ClangdClient                                     _clangd;
-   std::string                                      _clangd_path = "clangd";
+   //  ========== Gui stuff  ======================
+   using window_map = std::unordered_map<std::string, InterfaceWindow>;
+
+   window_map                  _interface_windows;
+   vector<InterfaceCommand>    _interface_commands;
+   vector<InterfaceDataViewer> _interface_data_viewers;
+   NavigationHistory           _nav_history;
+   WatchWindow*                _first_watch_window = nullptr;
+
+   //  ========== clangd  ======================
+   ClangdClient                _clangd;
+   std::string                 _clangd_path = "clangd";
+
+   //  ========== Messages  ======================
+   vector<UserMessageTypes> _user_message_types;
+   UIMessage                _msg_received_data;
+   UIMessage                _msg_received_log;
+   UIMessage                _msg_received_control;
+   UIMessage                _msg_received_clangd;
+   UIMessage                _msg_received_next = (UIMessage::USER_PLUS_1);
 
    Context();
+
+   // callback frees the `std::string*` received in `void* dp` by inserting it into a
+   // `unique_ptr` in `MainWindowMessageProc`
+   // -------------------------------------------------------------------------------
+   UIMessage register_user_message(std::function<void(std::unique_ptr<std::string>)> callback) {
+      _user_message_types.push_back({._msg = _msg_received_next, ._callback = std::move(callback)});
+      _msg_received_next = static_cast<UIMessage>(static_cast<uint32_t>(_msg_received_next) + 1);
+      return _user_message_types.back()._msg;
+   }
 
    // make private
    void send_to_gdb(string_view sv) const {
@@ -665,16 +690,6 @@ struct Context {
 };
 
 Context ctx;
-
-vector<ReceiveMessageType> receiveMessageTypes;
-WatchWindow*               firstWatchWindow = nullptr;
-UIMessage                  msgReceivedData;
-UIMessage                  msgReceivedLog;
-UIMessage                  msgReceivedControl;
-UIMessage                  msgReceivedClangd;
-UIMessage                  msgReceivedNext = (UIMessage::USER_PLUS_1);
-
-
 
 // Python code:
 
@@ -931,15 +946,6 @@ bool SourceFindOuterFunctionCall(const char** start, const char** end) {
    return found;
 }
 
-// callback frees the `std::string*` received in `void* dp` by inserting it into a
-// `unique_ptr` in `MainWindowMessageProc`
-// -------------------------------------------------------------------------------
-UIMessage ReceiveMessageRegister(std::function<void(std::unique_ptr<std::string>)> callback) {
-   receiveMessageTypes.push_back({._msg = msgReceivedNext, ._callback = std::move(callback)});
-   msgReceivedNext = static_cast<UIMessage>(static_cast<uint32_t>(msgReceivedNext) + 1);
-   return receiveMessageTypes.back()._msg;
-}
-
 void Context::debugger_thread_fn() {
    set_thread_name("gdb_thread");
    int outputPipe[2];
@@ -1034,7 +1040,7 @@ void Context::debugger_thread_fn() {
          // as we receive it, even it it is not complete.
          // ----------------------------------------------------------------------
          if (_log_window && !_evaluate_mode)
-            s_main_window->post_message(msgReceivedLog, new std::string(buffer));
+            s_main_window->post_message(ctx._msg_received_log, new std::string(buffer));
 
          if (catBuffer.size() + count + 1 > catBuffer.capacity())
             catBuffer.reserve(catBuffer.capacity() * 2);
@@ -1064,7 +1070,7 @@ void Context::debugger_thread_fn() {
             _evaluate_mode = false;
          } else {
             // new string converted to unique_ptr in MainWindowMessageProc
-            s_main_window->post_message(msgReceivedData, new std::string(std::move(catBuffer)));
+            s_main_window->post_message(ctx._msg_received_data, new std::string(std::move(catBuffer)));
          }
 
          catBuffer.resize(0);
@@ -1095,7 +1101,7 @@ std::optional<std::string> Context::send_command_to_debugger(string_view command
          s_display_output->refresh();
       }
       if (_log_window)
-         s_main_window->post_message(msgReceivedLog, new std::string(std::format("{}\n", command)));
+         s_main_window->post_message(ctx._msg_received_log, new std::string(std::format("{}\n", command)));
    }
 
    send_to_gdb(command);
@@ -1104,7 +1110,7 @@ std::optional<std::string> Context::send_command_to_debugger(string_view command
       auto res  = _evaluate_result_queue.pop();
       bool quit = !res;
       if (!res) {
-         std::print("Hit timeout on command \"{}\"\n", command);
+         std::print(std::cerr, "Hit timeout on command \"{}\"\n", command);
          res = std::string{}; // in synchronous mode we always return a (possibly empty) string
       } else {
          _program_running = false;
@@ -2105,21 +2111,21 @@ void SourceWindow::disassembly_load() {
    const char* end = strstr(res.c_str(), "End of assembler dump.");
 
    if (!end) {
-      std::print("Disassembly failed. GDB output:\n{}\n", res);
+      std::print(std::cerr, "Disassembly failed. GDB output:\n{}\n", res);
       return;
    }
 
    const char* start = strstr(res.c_str(), ":\n");
 
    if (!start) {
-      std::print("Disassembly failed. GDB output:\n{}\n", res);
+      std::print(std::cerr, "Disassembly failed. GDB output:\n{}\n", res);
       return;
    }
 
    start += 2;
 
    if (start >= end) {
-      std::print("Disassembly failed. GDB output:\n{}\n", res);
+      std::print(std::cerr, "Disassembly failed. GDB output:\n{}\n", res);
       return;
    }
 
@@ -2731,13 +2737,13 @@ struct AutoUpdateViewer {
    void (*_callback)(UIElement*) = nullptr;
 };
 
-vector<AutoUpdateViewer> autoUpdateViewers;
-bool                     autoUpdateViewersQueued;
+vector<AutoUpdateViewer> auto_update_viewers;
+bool                     auto_update_viewers_queued;
 
 bool DataViewerRemoveFromAutoUpdateList(UIElement* el) {
-   if (auto it = rng::find_if(autoUpdateViewers, [&](const auto& auv) { return auv._el == el; });
-       it != rng::end(autoUpdateViewers)) {
-      autoUpdateViewers.erase(it);
+   if (auto it = rng::find_if(auto_update_viewers, [&](const auto& auv) { return auv._el == el; });
+       it != rng::end(auto_update_viewers)) {
+      auto_update_viewers.erase(it);
       return true;
    }
 
@@ -2750,7 +2756,7 @@ int DataViewerAutoUpdateButtonMessage(UIElement* el, UIMessage msg, int di, void
 
       if (el->has_flag(UIButton::CHECKED)) {
          AutoUpdateViewer v = {._el = el->_parent, ._callback = (void (*)(UIElement*))el->_cp};
-         autoUpdateViewers.push_back(v);
+         auto_update_viewers.push_back(v);
       } else {
          [[maybe_unused]] bool found = DataViewerRemoveFromAutoUpdateList(el->_parent);
          assert(found);
@@ -2762,11 +2768,11 @@ int DataViewerAutoUpdateButtonMessage(UIElement* el, UIMessage msg, int di, void
 
 void DataViewersUpdateAll() {
    if (!s_data_tab->has_flag(UIElement::hide_flag)) {
-      for (const auto& auv : autoUpdateViewers) {
+      for (const auto& auv : auto_update_viewers) {
          auv._callback(auv._el);
       }
-   } else if (!autoUpdateViewers.empty()) {
-      autoUpdateViewersQueued = true;
+   } else if (!auto_update_viewers.empty()) {
+      auto_update_viewers_queued = true;
    }
 }
 
@@ -3702,8 +3708,8 @@ public:
       w->_mode = mode;
       if (mode == WatchWindow::WATCH_NORMAL) {
          w->_extra_rows = 1;
-         if (!firstWatchWindow)
-            firstWatchWindow = w;
+         if (!ctx._first_watch_window)
+            ctx._first_watch_window = w;
       }
       return panel;
    }
@@ -3914,7 +3920,7 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
                   (void)ctx.send_command_to_debugger(buffer, true, false);
                });
 
-            if (firstWatchWindow) {
+            if (ctx._first_watch_window) {
                menu.add_item(0, "Add entry for address\tCtrl+E", [this](UIButton&) { add_entry_for_address(); });
             }
 
@@ -4116,7 +4122,7 @@ struct WatchLogger {
    UITable*              _trace = nullptr;
 };
 
-vector<WatchLogger*> watchLoggers;
+vector<WatchLogger*> watch_loggers;
 
 int WatchTextboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::UPDATE) {
@@ -4151,8 +4157,8 @@ int WatchLoggerWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       if (el->_cp) {
          auto* logger = static_cast<WatchLogger*>(el->_cp);
 
-         if (auto it = rng::find(watchLoggers, logger); it != rng::end(watchLoggers))
-            watchLoggers.erase(it);
+         if (auto it = rng::find(watch_loggers, logger); it != rng::end(watch_loggers))
+            watch_loggers.erase(it);
 
          ctx.eval_command(std::format("delete {}", logger->_id));
          delete logger;
@@ -4318,7 +4324,7 @@ void WatchWindow::WatchChangeLoggerCreate() {
    child->set_user_proc(WatchLoggerWindowMessage).set_cp(logger);
    table->set_user_proc(WatchLoggerTableMessage).set_cp(logger);
    trace->set_user_proc(WatchLoggerTraceMessage).set_cp(logger);
-   watchLoggers.push_back(logger);
+   watch_loggers.push_back(logger);
    s_data_window->refresh();
    WatchLoggerResizeColumns(logger);
 
@@ -4357,7 +4363,7 @@ bool WatchLoggerUpdate(std::string _data) {
       return false;
    WatchLogger* logger = nullptr;
 
-   for (const auto& wl : watchLoggers) {
+   for (const auto& wl : watch_loggers) {
       if (wl->_id == id) {
          logger = wl;
          break;
@@ -4726,13 +4732,13 @@ private:
 
 public:
    static int DataTabMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-      if (msg == UIMessage::TAB_SELECTED && autoUpdateViewersQueued) {
+      if (msg == UIMessage::TAB_SELECTED && auto_update_viewers_queued) {
          // If we've switched to the data tab, we may need to update the bitmap viewers.
 
-         for (const auto& auw : autoUpdateViewers)
+         for (const auto& auw : auto_update_viewers)
             auw._callback(auw._el);
 
-         autoUpdateViewersQueued = false;
+         auto_update_viewers_queued = false;
       }
 
       return 0;
@@ -5099,7 +5105,7 @@ struct LogWindow {
                delete s;
                break;
             }
-            s_main_window->post_message(msgReceivedLog,
+            s_main_window->post_message(ctx._msg_received_log,
                                         s); // `s` freed in callback (see unique_ptr in MainWindowMessageProc)
          }
       }
@@ -5229,11 +5235,11 @@ void ExecutableWindow::restore_breakpoints() {
 }
 
 void ExecutableWindow::save_watches() {
-   if (!gfc._restore_watch_window || _current_exe.empty() || _prog_config_path.empty() || !firstWatchWindow)
+   if (!gfc._restore_watch_window || _current_exe.empty() || _prog_config_path.empty() || !ctx._first_watch_window)
       return;
 
    std::stringstream ss;
-   for (const auto& exp : firstWatchWindow->base_expressions())
+   for (const auto& exp : ctx._first_watch_window->base_expressions())
       ss << ';' << exp->key() << '\n'; // semicolon to protect the rest of the json in case it contains a '='
 
    auto new_watches = ss.str();
@@ -5322,8 +5328,8 @@ void ExecutableWindow::start_or_run(bool pause) {
       if (!_same_prog) {
          s_breakpoint_mgr.delete_all_breakpoints();
 
-         if (firstWatchWindow)
-            firstWatchWindow->delete_all_watches();
+         if (ctx._first_watch_window)
+            ctx._first_watch_window->delete_all_watches();
 
          _current_exe_flags = 0;
       }
@@ -5943,7 +5949,7 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
             profRenderThreadCount = 1;
          if (profRenderThreadCount > prof_max_render_thread_count)
             profRenderThreadCount = prof_max_render_thread_count;
-         std::print("Using {} render threads.\n", profRenderThreadCount);
+         std::print(std::cerr, "Using {} render threads.\n", profRenderThreadCount);
 
          sem_init(&profRenderEndSemaphore, 0, 0);
 
@@ -6368,7 +6374,7 @@ void ProfLoadProfileData(void* _window) {
 
    auto pos           = ctx.eval_expression("gfProfilingBufferPosition");
    int  rawEntryCount = sv_atoi(strstr(pos.c_str(), "= "), 2);
-   std::print("Reading {} profiling entries...\n", rawEntryCount);
+   std::print(std::cerr, "Reading {} profiling entries...\n", rawEntryCount);
 
    if (rawEntryCount == 0) {
       return;
@@ -6595,7 +6601,8 @@ void ProfLoadProfileData(void* _window) {
       function._total_time += entry._end_time - entry._start_time;
    }
 
-   std::print("Found {} functions over {} source files.\n", report->_functions.size(), report->_source_files.size());
+   std::print(std::cerr, "Found {} functions over {} source files.\n", report->_functions.size(),
+              report->_source_files.size());
 
    report->_v_scroll->set_maximum((maxDepth + 2) * 30);
 
@@ -7977,7 +7984,7 @@ void* ControlPipe::thread_proc(void*) {
       if (quit)
          delete s;
       else
-         s_main_window->post_message(msgReceivedControl, s); // `s` converted to unique_ptr in MainWindowMessageProc
+         s_main_window->post_message(ctx._msg_received_control, s); // `s` converted to unique_ptr in MainWindowMessageProc
       fclose(file);
    }
    return nullptr;
@@ -8335,19 +8342,19 @@ void Context::add_builtin_windows_and_commands() {
    });
 #endif
 
-   msgReceivedData    = ReceiveMessageRegister(MsgReceivedData);
-   msgReceivedControl = ReceiveMessageRegister(ControlPipe::on_command);
+   _msg_received_data    = register_user_message(MsgReceivedData);
+   _msg_received_control = register_user_message(ControlPipe::on_command);
 
    // received buffer contains debugger output to add to log window
-   msgReceivedLog = ReceiveMessageRegister([](std::unique_ptr<std::string> buffer) {
+   _msg_received_log = register_user_message([](std::unique_ptr<std::string> buffer) {
       assert(ctx._log_window);
       ctx._log_window->insert_content(*buffer, false);
       ctx._log_window->refresh();
    });
 
    // clangd responses need a separate message type since they use ClangdResponse instead of std::string
-   msgReceivedClangd = msgReceivedNext;
-   msgReceivedNext   = static_cast<UIMessage>(static_cast<uint32_t>(msgReceivedNext) + 1);
+   _msg_received_clangd = _msg_received_next;
+   _msg_received_next   = static_cast<UIMessage>(static_cast<uint32_t>(_msg_received_next) + 1);
 }
 
 void Context::show_menu(UIButton* self) {
@@ -8406,12 +8413,12 @@ int MainWindowMessageProc(UIElement*, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::WINDOW_ACTIVATE) {
       // make a copy as DisplaySetPosition modifies `s_source_window->_current_file_full`
       DisplaySetPosition(s_source_window->_current_file, s_display_code->current_line());
-   } else if (msg == msgReceivedClangd) {
+   } else if (msg == ctx._msg_received_clangd) {
       // Handle clangd response on main thread
       std::unique_ptr<ClangdResponse> response(static_cast<ClangdResponse*>(dp));
       response->callback(response->result);
    } else {
-      for (const auto& msgtype : receiveMessageTypes) {
+      for (const auto& msgtype : ctx._user_message_types) {
          if (msgtype._msg == msg) {
             msgtype._callback(std::unique_ptr<std::string>(static_cast<std::string*>(dp)));
             break;
@@ -8496,7 +8503,7 @@ const char* InterfaceLayoutNextToken(const char*& current, const char* expected 
 }
 
 void Context::additional_setup() {
-   if (s_display_code && firstWatchWindow) {
+   if (s_display_code && ctx._first_watch_window) {
       s_display_code->add_selection_menu_item("Add watch", [&](string_view sel) { WatchAddExpression(sel); });
    }
 }
@@ -8794,7 +8801,7 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
          [&](std::function<void(const json&)> callback, const json& message) {
             auto* response =
                new ClangdResponse{.callback = std::move(callback), .result = message.value("result", json())};
-            s_main_window->post_message(msgReceivedClangd, response);
+            s_main_window->post_message(_msg_received_clangd, response);
          },
          // Notification callback
          [&](const std::string& method, const json& params) {
