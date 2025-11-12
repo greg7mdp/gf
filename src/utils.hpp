@@ -49,3 +49,18 @@ static inline bool is_executable_in_path(const std::string& path) {
 
    return false;
 }
+
+// ---------------------------------------------------------------------------
+static inline std::string my_getcwd() {
+   char buff[PATH_MAX] = "";
+   return std::string{getcwd(buff, sizeof(buff))};
+}
+
+// ---------------------------------------------------------------------------
+static inline std::string get_realpath(std::string_view sv_path) {
+   ensure_null_terminated path(sv_path);
+
+   char buff[PATH_MAX] = "";
+   (void)!realpath(path.data(), buff); // realpath can return 0 if path doesn'tr exist (ENOENT)
+   return *buff ? std::string{buff} : std::string{sv_path};
+}

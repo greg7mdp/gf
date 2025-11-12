@@ -11,37 +11,40 @@
 // TODO More data visualization tools in the data window.
 
 #include "gf.hpp"
-#include "utils.hpp"
-#include "clangd.hpp"
 
+#include <csignal>
 #include <cstdio>
 #include <ctype.h>
+#include <ctime>
+#include <ctype.h>
+#include <dirent.h>
+#include <fcntl.h>
+#include <fstream>
 #include <memory>
 #include <dirent.h>
 #include <fcntl.h>
 #include <poll.h>
+#include <ranges>
 #include <unistd.h>
 #include <semaphore.h>
 #include <spawn.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
+#include <thread>
+#include <unistd.h> // for execvp
 
 namespace rng          = std::ranges;
 static const auto npos = std::string::npos;
+
+extern GF_Config     gfc;
+extern Context       ctx;
+extern BreakpointMgr s_breakpoint_mgr;
 
 using std::string;
 using std::string_view;
 using std::unordered_map;
 using std::vector;
 using namespace std::string_literals;
-
-#include <ctre.hpp>
-using namespace ctre::literals;
-
-#include <re/re.hpp>
-using namespace regexp;
-
-#include <nlohmann/json.hpp>
-using json = nlohmann::json;
 
 // skip first character if ';' or '=' - these can be used to read a whole line as a keyword in .ini file
 // -----------------------------------------------------------------------------------------------------
@@ -52,71 +55,6 @@ auto json_parse(std::string_view sv) {
 }
 
 enum class multiline_t { off, on };
-
-// ---------------------------------------------------
-// User interface:
-// ---------------------------------------------------
-struct ConsoleWindow;
-
-UIWindow*         s_main_window       = nullptr;
-UISwitcher*       s_main_switcher     = nullptr;
-UICode*           s_display_code      = nullptr;
-SourceWindow*     s_source_window     = nullptr;
-UICode*           s_display_output    = nullptr;
-UITextbox*        s_input_textbox     = nullptr;
-UISpacer*         s_trafficlight      = nullptr;
-UIMDIClient*      s_data_window       = nullptr;
-UIPanel*          s_data_tab          = nullptr;
-StackWindow*      s_stack_window      = nullptr;
-ExecutableWindow* s_executable_window = nullptr;
-ConsoleWindow*    s_console_window    = nullptr;
-
-// ---------------------------------------------------------------------------------------------
-//                              Generic Data structures
-// ---------------------------------------------------------------------------------------------
-template <typename T>
-class SPSCQueue {
-public:
-   SPSCQueue()
-      : _quit(false) {}
-
-   void push(T&& item) {
-      std::unique_lock lock(_mutex);
-      _queue.push(std::move(item));
-      _cv.notify_one();
-   }
-
-   std::optional<T> pop() {
-      std::unique_lock lock(_mutex);
-      bool             res = _cv.wait_for(lock, std::chrono::seconds(15), [this] { return !_queue.empty() || _quit; });
-
-      if (!res || _quit) { // !res means we hit the timeout
-         return {};
-      }
-
-      auto value = std::move(_queue.front());
-      _queue.pop();
-      return std::optional<T>{std::move(value)};
-   }
-
-   size_t size() const {
-      std::unique_lock lock(_mutex);
-      return _queue.size();
-   }
-
-   void signal_quit() {
-      _quit = true;
-      _cv.notify_all();
-   }
-
-   bool is_quitting() { return _quit; }
-
-private:
-   std::queue<T>           _queue;
-   mutable std::mutex      _mutex;
-   std::condition_variable _cv;
-   std::atomic<bool>       _quit;
-};
 
 // ---------------------------------------------------------------------------------------------
 //                              Utilities
@@ -218,19 +156,6 @@ static inline uint32_t sv_atoui(string_view str, size_t offset = 0) { return sv_
 }
 
 
-static std::string get_realpath(std::string_view sv_path) {
-   ensure_null_terminated path(sv_path);
-
-   char buff[PATH_MAX] = "";
-   (void)!realpath(path.data(), buff); // realpath can return 0 if path doesn'tr exist (ENOENT)
-   return *buff ? std::string{buff} : std::string{sv_path};
-}
-
-static inline std::string my_getcwd() {
-   char buff[PATH_MAX] = "";
-   return std::string{getcwd(buff, sizeof(buff))};
-}
-
 // hacky way to remove all occurences of `pattern` from `str`
 // ----------------------------------------------------------
 static inline void remove_pattern(std::string& str, string_view pattern) {
@@ -242,92 +167,6 @@ static inline void remove_pattern(std::string& str, string_view pattern) {
    }
    str.resize(strlen(s));
 }
-
-// ---------------------------------------------------------------------------------------------
-//                              Data structures
-// ---------------------------------------------------------------------------------------------
-struct InterfaceCommand {
-   const char* _label = nullptr;
-   UIShortcut  _shortcut;
-};
-
-struct InterfaceWindow {
-   UIElement* (*_create)(UIElement* parent)            = nullptr;
-   void (*_update)(const char* data, UIElement* el)    = nullptr;
-   void (*_focus)(UIElement* el)                       = nullptr;
-   UIElement* _el                                      = nullptr; // UIElement returned by `_create` fn
-   bool       _queued_update                           = false;
-   bool       _always_update                           = false;
-   void (*_config)(string_view key, string_view value) = nullptr;
-};
-
-struct InterfaceDataViewer {
-   const char* _add_button_label  = nullptr;
-   void (*_add_button_callback)() = nullptr;
-};
-
-// --------------------------------------------------------------------------------------------
-struct Command {
-   std::string _key;
-   std::string _value;
-};
-
-// --------------------------------------------------------------------------------------------
-// Navigation history for go-to-definition / go-back
-// --------------------------------------------------------------------------------------------
-struct NavLocation {
-   std::string             _file;
-   UICode::code_pos_pair_t _pos;
-};
-
-struct NavigationHistory {
-   std::vector<NavLocation> _history;
-   size_t                   _current = 0; // index in history, 1-based
-
-   void push(std::string_view file, const UICode::code_pos_pair_t& pos) {
-      // Remove any forward history when pushing a new location
-      if (_current < _history.size()) {
-         _history.resize(_current);
-      }
-      _history.emplace_back(std::string(file), pos);
-      _current = _history.size();
-   }
-
-   std::optional<NavLocation> go_back() {
-      if (_current > 0) {
-         _current--;
-         return _history[_current];
-      }
-      return std::nullopt;
-   }
-
-   std::optional<NavLocation> go_forward() {
-      if (_current < _history.size()) {
-         _current++;
-         return _history[_current - 1];
-      }
-      return std::nullopt;
-   }
-};
-
-// --------------------------------------------------------------------------------------------
-struct UserMessageTypes {
-   UIMessage                                         _msg;
-   std::function<void(std::unique_ptr<std::string>)> _callback;
-};
-
-// --------------------------------------------------------------------------------------------
-struct ExeStartInfo {
-   std::string _path;
-   std::string _args;
-
-   friend std::ostream& operator<<(std::ostream& os, const ExeStartInfo& esi) {
-      os << "ExeStartInfo(\"" << esi._path << "\", \"" << esi._args << "\")";
-      return os;
-   }
-
-   NLOHMANN_DEFINE_TYPE_INTRUSIVE(ExeStartInfo, _path, _args)
-};
 
 // --------------------------------------------------------------------------------------------
 // Used for managing a command history saved in a file for example.
@@ -426,274 +265,24 @@ struct HistoryManager : public FileImage {
    }
 };
 
-// --------------------------------------------------------------------------------------------
-//                      Config (mostly read from `gf2_config.ini` file)
-// --------------------------------------------------------------------------------------------
-struct GF_Config {
-   std::string _layout_string = "v(75,h(50,Source,v(50,t(Exe,Breakpoints,Commands,Struct),t(Stack,Files,Thread,"
-                                "CmdSearch))),h(40,Console,t(Watch,Locals,Registers,Data,Log,Prof,Memory,View)))";
+// return <path>/.gf/<progname>.<extension> where path is `cwd` dir where `gf` was launched,
+// or the one above
+fs::path GF_Config::get_prog_path(string_view extension) {
+   auto path = get_local_config_dir();
 
-   // executable window
-   // -----------------
-   ExeStartInfo _exe;
-   bool         _ask_dir          = false;
-   bool         _allow_exe_config = false;
+   // and we have one config file for each program name. Update as path
+   // in executable window can change.
+   // -----------------------------------------------------------------
+   fs::path exe{ctx._executable_window->get_path()};
+   path.append(exe.filename().native() + std::string(extension));
 
-   // misc
-   // ----
-   std::unique_ptr<const char[]> _control_pipe_path;
-   std::string                   _vim_server_name;
-   std::string                   _log_pipe_path;
-   vector<Command>               _preset_commands;
-   fs::path _global_config_path; // ~/.config/gf_config.ini or ~/.config/gf2_config.ini (main config file)
-   fs::path _current_directory;  // <cwd>
-   fs::path _local_config_dir;   // <path>/.gf where <path> is `cwd` dir or the one above<cwd>
-   fs::path _local_config_path;  // <path>/.gf/gf_config.ini (stores overrides to `gf_config.ini`?)
-
-   int   _code_font_size           = 13;
-   int   _interface_font_size      = 11;
-   int   _window_width             = -1;
-   int   _window_height            = -1;
-   float _ui_scale                 = 1;
-   bool  _maximize                 = false;
-   bool  _selectable_source        = true;
-   bool  _restore_watch_window     = true;
-   bool  _restore_breakpoints      = true;
-   bool  _restore_prog_args        = true;
-   bool  _confirm_command_connect  = true;
-   bool  _confirm_command_kill     = true;
-   int   _backtrace_count_limit    = 50;
-   bool  _grab_focus_on_breakpoint = true;
-
-   void init() {
-      assert(_current_directory.empty() && _local_config_dir.empty()); // make sure it is called only once
-
-      _current_directory = get_realpath(my_getcwd());
-
-      // ----------------------------
-      // Figure out local config dir.
-      // start from current dir
-      // ----------------------------
-      _local_config_dir = _current_directory;
-
-      // go one dir up is current directory starts with "build"
-      // ------------------------------------------------------
-      if (_local_config_dir.filename().native().starts_with("build"))
-         _local_config_dir = _local_config_dir.parent_path();
-
-      // `.gf` is the directory holding the local config files
-      // -----------------------------------------------------
-      _local_config_dir.append(".gf");
-      fs::create_directories(_local_config_dir); // create directory if it doesn't exist
-
-      _global_config_path = std::format("{}/.config/gf_config.ini", getenv("HOME"));
-      if (!fs::exists(_global_config_path)) {
-         // if `gf_config.ini` not present, also accept `gf2_config.ini`
-         _global_config_path = std::format("{}/.config/gf2_config.ini", getenv("HOME"));
-      }
-
-      _local_config_path = std::format("{}/gf_config.ini", _local_config_dir.native());
-   }
-
-private:
-   // return <path>/.gf/<progname>.<extension> where path is `cwd` dir where `gf` was launched,
-   // or the one above
-   fs::path get_prog_path(string_view extension) {
-      auto path = get_local_config_dir();
-
-      // and we have one config file for each program name. Update as path
-      // in executable window can change.
-      // -----------------------------------------------------------------
-      fs::path exe{s_executable_window->get_path()};
-      path.append(exe.filename().native() + std::string(extension));
-
-      // std::print("_prog_config_path={}\n", _prog_config_path);
-      return path;
-   }
-
-public:
-   const fs::path& get_local_config_dir() { return _local_config_dir; }
-
-   // <path>/.gf/<progname>.ini
-   fs::path get_prog_config_path() { return get_prog_path(".ini"); }
-
-   // <path>/.gf/<progname>.hist
-   fs::path get_command_history_path() { return get_prog_path(".hist"); }
-
-   std::vector<fs::path> get_progs() {
-      std::vector<fs::path> res;
-      fs::path              path{get_local_config_dir()};
-      assert(fs::is_directory(path));
-
-      for (const auto& entry : fs::directory_iterator(path)) {
-         std::filesystem::path p = entry.path();
-         if (std::filesystem::is_regular_file(p)) {
-            if (p.filename() == "gf_config.ini")
-               continue; // skip local config file
-
-            if (p.extension() == ".ini")
-               res.push_back(entry);
-         }
-      }
-
-      return res;
-   }
-
-   UIConfig load_settings(bool earlyPass);
-};
-
-GF_Config gfc;
-
-// --------------------------------------------------------------------------------------------
-// --------------------------------------------------------------------------------------------
-struct WatchWindow;
-
-struct Context {
-// ========== Debugger config ======================
-#if defined(__OpenBSD__)
-   std::string _gdb_path = "egdb";
-#else
-   std::string _gdb_path = "gdb";
-#endif
-   std::string _initial_gdb_command = "set prompt (gdb) ";
-   bool        _first_update        = true;
-   UICode*     _log_window          = nullptr; // if sent, log all debugger output there
-   ui_handle   _prev_focus_win      = 0;
-   UI*         _ui; // non-owning pointer
-
-   unique_ptr<regexp::debugger_base> _dbg_re;
-   unique_ptr<regexp::language_base> _lang_re;
-
-   // ========== Debugger interaction ======================
-   using arg_vec = vector<std::unique_ptr<const char[]>>;
-
-   int               _pipe_to_gdb     = 0;
-   pid_t             _gdb_pid         = 0;
-   std::atomic<bool> _kill_gdb_thread = false;
-   std::thread       _gdb_thread; // reads gdb output and pushes it to queue (we wait on queue in DebuggerSend
-   std::atomic<bool> _evaluate_mode = false; // true means we sent a command to gdb and are waiting for the response
-   arg_vec           _gdb_argv;
-   SPSCQueue<std::string> _evaluate_result_queue;
-   std::atomic<bool>      _program_running = true;
-   bool                   _program_started = false; // So we know to restart the program if it has exited
-
-   //  ========== Gui stuff  ======================
-   using window_map = std::unordered_map<std::string, InterfaceWindow>;
-
-   window_map                  _interface_windows;
-   vector<InterfaceCommand>    _interface_commands;
-   vector<InterfaceDataViewer> _interface_data_viewers;
-   NavigationHistory           _nav_history;
-   WatchWindow*                _first_watch_window = nullptr;
-
-   //  ========== clangd  ======================
-   ClangdClient _clangd;
-   std::string  _clangd_path = "clangd";
-
-   //  ========== Messages  ======================
-   vector<UserMessageTypes> _user_message_types;
-   UIMessage                _msg_received_data;
-   UIMessage                _msg_received_log;
-   UIMessage                _msg_received_control;
-   UIMessage                _msg_received_clangd;
-   UIMessage                _msg_received_next = (UIMessage::USER_PLUS_1);
-
-   Context();
-
-   // callback frees the `std::string*` received in `void* dp` by inserting it into a
-   // `unique_ptr` in `MainWindowMessageProc`
-   // -------------------------------------------------------------------------------
-   UIMessage register_user_message(std::function<void(std::unique_ptr<std::string>)> callback) {
-      _user_message_types.push_back({._msg = _msg_received_next, ._callback = std::move(callback)});
-      _msg_received_next = static_cast<UIMessage>(static_cast<uint32_t>(_msg_received_next) + 1);
-      return _user_message_types.back()._msg;
-   }
-
-   // make private
-   void send_to_gdb(string_view sv) const {
-      char newline = '\n';
-      (void)!write(_pipe_to_gdb, sv.data(), sv.size());
-      (void)!write(_pipe_to_gdb, &newline, 1);
-   }
-
-   void interrupt_gdb(size_t wait_time_us = 20ull * 1000) {
-      if (_program_running) {
-         kill(_gdb_pid, SIGINT);
-         std::this_thread::sleep_for(std::chrono::microseconds{wait_time_us});
-         _program_running = false;
-      }
-   }
-
-   void kill_gdb_thread() {
-      std::print(std::cerr, "killing gdb thread.\n");
-      _kill_gdb_thread = true;
-      _gdb_thread.join();
-      _kill_gdb_thread = false;
-   }
-
-   void kill_gdb() {
-      kill_gdb_thread();
-      std::print(std::cerr, "killing gdb process {}.\n", _gdb_pid);
-      kill(_gdb_pid, SIGKILL);
-   }
-
-   void start_debugger_thread() {
-      _gdb_thread = std::thread([this]() { debugger_thread_fn(); });
-   }
-
-   std::optional<std::string> send_command_to_debugger(string_view command, bool echo, bool synchronous);
-
-   std::string eval_command(string_view command, bool echo = false) {
-      auto res = send_command_to_debugger(command, echo, true);
-      // if (res) std::print("{} ==> {}\n", command, *res);
-      return std::move(*res);
-   }
-
-   std::string eval_expression(string_view expression, string_view format = {}) {
-      auto cmd = std::format("p{} {}", format, expression);
-      auto res = eval_command(cmd);
-      auto eq  = res.find_first_of('=');
-      if (eq != npos) {
-         res.erase(0, eq);  // remove characters up to '='
-         resize_to_lf(res); // terminate string at '\n'
-      }
-      return res;
-   }
-
-   void restore_focus() {
-      if (_prev_focus_win) {
-         _ui->set_focus(_prev_focus_win);
-         _prev_focus_win = 0;
-      }
-   }
-
-   void grab_focus(UIWindow* win) {
-      if (win && gfc._grab_focus_on_breakpoint) {
-         _prev_focus_win = _ui->get_focus();
-         win->grab_focus(); // grab focus when breakpoint is hit!
-      }
-   }
-
-   void           debugger_thread_fn();
-   void           add_builtin_windows_and_commands();
-   void           register_extensions();
-   void           show_menu(UIButton* self);
-   void           create_layout(UIElement* parent, const char*& current);
-   void           generate_layout_string(UIElement* e, std::string& sb);
-   bool           copy_layout_to_clipboard();
-   void           additional_setup();
-   UIElement*     switch_to_window_and_focus(string_view name);
-   UIElement*     find_window(string_view name);
-   void           emplace_gdb_args_from_ini_file(std::string_view val);
-   ExeStartInfo   emplace_gdb_args_from_command_line(int argc, char** argv);
-   unique_ptr<UI> gf_main(int argc, char** argv);
-};
-
-Context ctx;
+   // std::print("_prog_config_path={}\n", _prog_config_path);
+   return path;
+}
 
 // Python code:
 
-const char* pythonCode = R"(py
+static const char* pythonCode = R"(py
 
 import gdb.types
 
@@ -807,7 +396,6 @@ end
 // Forward declarations:
 // ---------------------
 void WatchAddExpression(string_view string);
-bool CommandInspectLine();
 
 // ------------------------------------------------------
 // Utilities:
@@ -838,15 +426,15 @@ int TrafficLightMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    return 0;
 }
 
-int SourceFindEndOfBlock() {
-   auto current_line = s_display_code->current_line();
+int Context::source_find_end_of_block() {
+   auto current_line = _display_code->current_line();
 
    if (!current_line)
       return -1;
 
    int tabs = 0;
 
-   auto line = s_display_code->line(*current_line);
+   auto line = _display_code->line(*current_line);
    for (char i : line) {
       if (isspace(i))
          tabs++;
@@ -854,11 +442,11 @@ int SourceFindEndOfBlock() {
          break;
    }
 
-   size_t num_lines = s_display_code->num_lines();
+   size_t num_lines = _display_code->num_lines();
    for (size_t j = *current_line + 1; j < num_lines; j++) {
       int t = 0;
 
-      auto line = s_display_code->line(j);
+      auto line = _display_code->line(j);
       if (line.empty())
          continue;
 
@@ -877,24 +465,24 @@ int SourceFindEndOfBlock() {
    return -1;
 }
 
-bool SourceFindOuterFunctionCall(const char** start, const char** end) {
-   auto current_line = s_display_code->current_line();
+bool Context::source_find_outer_function_call(const char** start, const char** end) {
+   auto current_line = _display_code->current_line();
 
    if (!current_line)
       return false;
 
-   size_t offset = s_display_code->line_offset(*current_line);
+   size_t offset = _display_code->line_offset(*current_line);
    bool   found  = false;
 
    // Look forwards for the end of the call ");".
 
-   size_t num_chars = s_display_code->size();
+   size_t num_chars = _display_code->size();
    while (offset < num_chars - 1) {
-      if ((*s_display_code)[offset] == ')' && (*s_display_code)[offset + 1] == ';') {
+      if ((*_display_code)[offset] == ')' && (*_display_code)[offset + 1] == ';') {
          found = true;
          break;
       }
-      if ((*s_display_code)[offset] == ';' || (*s_display_code)[offset] == '{') {
+      if ((*_display_code)[offset] == ';' || (*_display_code)[offset] == '{') {
          break;
       }
 
@@ -909,9 +497,9 @@ bool SourceFindOuterFunctionCall(const char** start, const char** end) {
    int level = 0;
 
    while (offset > 0) {
-      if ((*s_display_code)[offset] == ')') {
+      if ((*_display_code)[offset] == ')') {
          level++;
-      } else if ((*s_display_code)[offset] == '(') {
+      } else if ((*_display_code)[offset] == '(') {
          level--;
          if (level == 0)
             break;
@@ -923,7 +511,7 @@ bool SourceFindOuterFunctionCall(const char** start, const char** end) {
    if (level)
       return false;
 
-   *start = *end = &(*s_display_code)[offset];
+   *start = *end = &(*_display_code)[offset];
    found         = false;
    offset--;
 
@@ -931,13 +519,13 @@ bool SourceFindOuterFunctionCall(const char** start, const char** end) {
    // TODO Support function pointers.
 
    while (offset > 0) {
-      char c = (*s_display_code)[offset];
+      char c = (*_display_code)[offset];
 
       if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c == ' ' || (c >= '0' && c <= '9')) {
          // Part of the function name.
          offset--;
       } else {
-         *start = &(*s_display_code)[offset + 1];
+         *start = &(*_display_code)[offset + 1];
          found  = true;
          break;
       }
@@ -964,10 +552,10 @@ void Context::debugger_thread_fn() {
 
    if (_gdb_pid == 0) {
       setsid();
-      dup2(inputPipe[0], 0);                    // inputPipe[0]  == stdin
-      dup2(outputPipe[1], 1);                   // outputPipe[1] == stdout
-      dup2(outputPipe[1], 2);                   // outputPipe[1] == stderr
-      execvp(_gdb_path, (char**)&_gdb_argv[0]); // execute gdb with arguments _gdb_argv
+      dup2(inputPipe[0], 0);                            // inputPipe[0]  == stdin
+      dup2(outputPipe[1], 1);                           // outputPipe[1] == stdout
+      dup2(outputPipe[1], 2);                           // outputPipe[1] == stderr
+      execvp(_gdb_path.c_str(), (char**)&_gdb_argv[0]); // execute gdb with arguments _gdb_argv
       std::print(std::cerr, "Error: Couldn't execute gdb.\n");
       exit(EXIT_FAILURE);
 
@@ -1040,7 +628,7 @@ void Context::debugger_thread_fn() {
          // as we receive it, even it it is not complete.
          // ----------------------------------------------------------------------
          if (_log_window && !_evaluate_mode)
-            s_main_window->post_message(ctx._msg_received_log, new std::string(buffer));
+            _main_window->post_message(ctx._msg_received_log, new std::string(buffer));
 
          if (cat_buffer.size() + count + 1 > cat_buffer.capacity())
             cat_buffer.reserve(cat_buffer.capacity() * 2);
@@ -1070,7 +658,7 @@ void Context::debugger_thread_fn() {
             _evaluate_mode = false;
          } else {
             // new string converted to unique_ptr in MainWindowMessageProc
-            s_main_window->post_message(ctx._msg_received_data, new std::string(std::move(cat_buffer)));
+            _main_window->post_message(ctx._msg_received_data, new std::string(std::move(cat_buffer)));
          }
 
          cat_buffer.resize(0);
@@ -1082,7 +670,7 @@ void Context::debugger_thread_fn() {
 
 // can be called by: SourceWindowUpdate -> EvaluateExpresion -> EvaluateCommand
 // synchronous means we will wait for the debugger output
-std::optional<std::string> Context::send_command_to_debugger(string_view command, bool echo, bool synchronous) {
+opt_string Context::send_command_to_debugger(string_view command, bool echo, bool synchronous) {
    interrupt_gdb();
 
    if (synchronous)
@@ -1090,18 +678,18 @@ std::optional<std::string> Context::send_command_to_debugger(string_view command
 
    _program_running = true;
 
-   if (s_trafficlight)
-      s_trafficlight->repaint(nullptr);
+   if (_trafficlight)
+      _trafficlight->repaint(nullptr);
 
    // std::cout << "sending: \"" << command << "\"\n";
 
    if (echo) {
-      if (s_display_output) {
-         s_display_output->insert_content(std::format("{}\n", command), false);
-         s_display_output->refresh();
+      if (_display_output) {
+         _display_output->insert_content(std::format("{}\n", command), false);
+         _display_output->refresh();
       }
       if (_log_window)
-         s_main_window->post_message(ctx._msg_received_log, new std::string(std::format("{}\n", command)));
+         _main_window->post_message(ctx._msg_received_log, new std::string(std::format("{}\n", command)));
    }
 
    send_to_gdb(command);
@@ -1114,13 +702,44 @@ std::optional<std::string> Context::send_command_to_debugger(string_view command
          res = std::string{}; // in synchronous mode we always return a (possibly empty) string
       } else {
          _program_running = false;
-         if (!quit && s_trafficlight)
-            s_trafficlight->repaint(nullptr);
+         if (!quit && _trafficlight)
+            _trafficlight->repaint(nullptr);
       }
       return res;
    }
    // std::print("{} ==> {}\n", command, res ? *res : "???"s);
-   return std::optional<std::string>{};
+   return opt_string{};
+}
+
+std::string Context::eval_command(std::string_view command, bool echo /* = false */) {
+   auto res = send_command_to_debugger(command, echo, true);
+   // if (res) std::print("{} ==> {}\n", command, *res);
+   return std::move(*res);
+}
+
+std::string Context::eval_expression(std::string_view expression, std::string_view format /* = {} */) {
+   auto cmd = std::format("p{} {}", format, expression);
+   auto res = eval_command(cmd);
+   auto eq  = res.find_first_of('=');
+   if (eq != std::string::npos) {
+      res.erase(0, eq);  // remove characters up to '='
+      resize_to_lf(res); // terminate string at '\n'
+   }
+   return res;
+}
+
+void Context::restore_focus() {
+   if (_prev_focus_win) {
+      _ui->set_focus(_prev_focus_win);
+      _prev_focus_win = 0;
+   }
+}
+
+void Context::grab_focus(UIWindow* win) {
+   if (win && gfc._grab_focus_on_breakpoint) {
+      _prev_focus_win = _ui->get_focus();
+      win->grab_focus(); // grab focus when breakpoint is hit!
+   }
 }
 
 void StackWindow::update_stack() {
@@ -1241,277 +860,227 @@ public:
    }
 };
 
-static bool DisplaySetPosition(std::string_view file, std::optional<size_t> line) {
-   return s_source_window->display_set_position(file, line, false);
+bool Context::display_set_position(std::string_view file, std::optional<size_t> line) {
+   return _source_window->display_set_position(file, line, false);
 }
 
 // ---------------------------------------------------
 // Breakpoints:
 // ---------------------------------------------------
-enum class bp_command { ena, dis, del };
+void BreakpointMgr::Breakpoint::command(bp_command cmd) const {
+   const char* s = nullptr;
+   switch (cmd) {
+   case bp_command::ena:
+      s = "ena";
+      break;
+   case bp_command::dis:
+      s = "dis";
+      break;
+   case bp_command::del:
+      s = "del";
+      break;
+   default:
+      assert(0);
+   }
+   (void)ctx.send_command_to_debugger(std::format("{} {}", s, _number), true, false);
+}
 
-struct BreakpointMgr {
-private:
-   struct Breakpoint {
-      int      _number{0};
-      string   _file;
-      string   _full_path; // realpath of `_file`, computed, do not serialize
-      int      _line       = 0;
-      int      _hit        = 0; // count of hits - do not serialize
-      bool     _watchpoint = false;
-      bool     _enabled    = false;
-      bool     _multiple   = false;
-      string   _condition;
-      uint64_t _condition_hash = 0; // hash of _condition, computed
+BreakpointMgr::Breakpoint BreakpointMgr::Breakpoint::update() && {
+   if (!_condition.empty() && _condition_hash == 0)
+      _condition_hash = Hash(_condition); // used when deserializing from json
+   if (!_file.empty() && _full_path.empty())
+      _full_path = get_realpath(_file);
+   return std::move(*this);
+}
 
-      [[nodiscard]] bool match(int line, string_view path) const { return _line == line && path == _full_path; }
+// sets that breakpoint in gdb
+void BreakpointMgr::Breakpoint::set() {
+   // no `echo` since we don't echo the output, `sync` needed to set multiple breakpoints in a row.
+   if (!_file.empty() && _line)
+      (void)ctx.eval_command(std::format("b {}:{}", _file, _line));
+}
 
-      void command(bp_command cmd) const {
-         const char* s = nullptr;
-         switch (cmd) {
-         case bp_command::ena:
-            s = "ena";
-            break;
-         case bp_command::dis:
-            s = "dis";
-            break;
-         case bp_command::del:
-            s = "del";
-            break;
-         default:
-            assert(0);
-         }
-         (void)ctx.send_command_to_debugger(std::format("{} {}", s, _number), true, false);
-      }
+void BreakpointMgr::Breakpoint::clear() {
+   // no `echo` since we don't echo the output, `sync` needed to clear multiple breakpoints in a row.
+   if (!_file.empty() && _line)
+      (void)ctx.eval_command(std::format("clear {}:{}", _file, _line));
+}
 
-      void toggle() const { command(_enabled ? bp_command::dis : bp_command::ena); }
+void BreakpointMgr::delete_all_breakpoints() {
+   for_all_breakpoints([](int idx, auto& bp) { bp.command(bp_command::del); });
+}
 
-      Breakpoint update() && {
-         if (!_condition.empty() && _condition_hash == 0)
-            _condition_hash = Hash(_condition); // used when deserializing from json
-         if (!_file.empty() && _full_path.empty())
-            _full_path = get_realpath(_file);
-         return std::move(*this);
-      }
-
-      // sets that breakpoint in gdb
-      void set() {
-         // no `echo` since we don't echo the output, `sync` needed to set multiple breakpoints in a row.
-         if (!_file.empty() && _line)
-            (void)ctx.eval_command(std::format("b {}:{}", _file, _line));
-      }
-
-      void clear() {
-         // no `echo` since we don't echo the output, `sync` needed to clear multiple breakpoints in a row.
-         if (!_file.empty() && _line)
-            (void)ctx.eval_command(std::format("clear {}:{}", _file, _line));
-      }
-
-      NLOHMANN_DEFINE_TYPE_INTRUSIVE(Breakpoint, _file, _line, _watchpoint, _enabled, _condition)
-   };
-
-   friend struct BreakpointsWindow;
-
-   vector<Breakpoint> _breakpoints; // current debugger breakpoints
-
-public:
-   [[nodiscard]] size_t num_breakpoints() const { return _breakpoints.size(); }
-
-   template <class F>
-   void for_all_matching_breakpoints(int line, string_view path, F&& f) {
-      for (size_t i = 0; i < _breakpoints.size(); i++) {
-         if (_breakpoints[i].match(line, path)) {
-            std::forward<F>(f)(i, _breakpoints[i]);
-         }
-      }
+void BreakpointMgr::toggle_breakpoint(int line /* = 0 */) {
+   if (ctx._source_window->_showing_disassembly) {
+      // TODO.
+      return;
    }
 
-   template <class F>
-   void for_all_breakpoints(F&& f) {
-      for (size_t i = 0; i < _breakpoints.size(); i++) {
-         std::forward<F>(f)(i, _breakpoints[i]);
-      }
+   if (!line) {
+      auto current_line = ctx._display_code->current_line();
+      if (!current_line)
+         return;
+      line = *current_line + 1; // gdb line numbers are 1-indexed
    }
 
-   void delete_all_breakpoints() {
-      for_all_breakpoints([](int idx, auto& bp) { bp.command(bp_command::del); });
-   }
-
-   void toggle_breakpoint(int line = 0) {
-      if (s_source_window->_showing_disassembly) {
-         // TODO.
+   for (const auto& bp : _breakpoints) {
+      if (bp.match(line, ctx._source_window->_current_file)) {
+         (void)ctx.send_command_to_debugger(std::format("clear {}:{}", ctx._source_window->_current_file, line), true,
+                                            false);
          return;
       }
-
-      if (!line) {
-         auto current_line = s_display_code->current_line();
-         if (!current_line)
-            return;
-         line = *current_line + 1; // gdb line numbers are 1-indexed
-      }
-
-      for (const auto& bp : _breakpoints) {
-         if (bp.match(line, s_source_window->_current_file)) {
-            (void)ctx.send_command_to_debugger(std::format("clear {}:{}", s_source_window->_current_file, line), true,
-                                               false);
-            return;
-         }
-      }
-
-      (void)ctx.send_command_to_debugger(std::format("b {}:{}", s_source_window->_current_file, line), true, false);
    }
 
-   void restore_breakpoints(const fs::path& ini_path) {
-      INI_File{ini_path}.with_section_lines("[breakpoints]\n", [&](string_view line) {
-         auto       j = json_parse(line);
-         Breakpoint bp;
-         from_json(j, bp);
-         bp.set(); // send breakpoint to gdb
-      });
-      update_breakpoints_from_gdb();
-   }
+   (void)ctx.send_command_to_debugger(std::format("b {}:{}", ctx._source_window->_current_file, line), true, false);
+}
 
-   void update_breakpoints_from_gdb() {
-      auto eval_res = ctx.eval_command("info break");
-      _breakpoints.clear();
+void BreakpointMgr::restore_breakpoints(const fs::path& ini_path) {
+   INI_File{ini_path}.with_section_lines("[breakpoints]\n", [&](string_view line) {
+      auto       j = json_parse(line);
+      Breakpoint bp;
+      from_json(j, bp);
+      bp.set(); // send breakpoint to gdb
+   });
+   update_breakpoints_from_gdb();
+}
 
-      const char* position = eval_res.c_str();
+void BreakpointMgr::update_breakpoints_from_gdb() {
+   auto eval_res = ctx.eval_command("info break");
+   _breakpoints.clear();
+
+   const char* position = eval_res.c_str();
+
+   while (true) {
+      while (true) {
+         position = strchr(position, '\n');
+         if (!position || isdigit(position[1]))
+            break;
+         position++;
+      }
+
+      if (!position)
+         break;
+
+      const char* next = position;
+
+      int number = sv_atoi(position);
+
+      const char* enabledString = strstr(next + 1, " y ");
+      bool        enabled       = enabledString && enabledString < strchr(next + 1, '\n');
 
       while (true) {
-         while (true) {
-            position = strchr(position, '\n');
-            if (!position || isdigit(position[1]))
-               break;
-            position++;
-         }
-
-         if (!position)
+         next = strchr(next + 1, '\n');
+         if (!next || isdigit(next[1]))
             break;
+      }
 
-         const char* next = position;
+      if (!next)
+         next = position + strlen(position);
 
-         int number = sv_atoi(position);
+      const char* file = strstr(position, " at ");
+      if (file)
+         file += 4;
 
-         const char* enabledString = strstr(next + 1, " y ");
-         bool        enabled       = enabledString && enabledString < strchr(next + 1, '\n');
+      Breakpoint breakpoint{._number = number, ._enabled = enabled};
 
-         while (true) {
-            next = strchr(next + 1, '\n');
-            if (!next || isdigit(next[1]))
-               break;
-         }
+      bool recognised = true;
 
-         if (!next)
-            next = position + strlen(position);
+      const char* condition = strstr(position, "stop only if ");
 
-         const char* file = strstr(position, " at ");
-         if (file)
-            file += 4;
+      if (condition && condition < next) {
+         const char* end = strchr(condition, '\n');
+         condition += 13;
+         breakpoint._condition      = string_view{condition, static_cast<size_t>(end - condition)};
+         breakpoint._condition_hash = Hash(breakpoint._condition); // leave it there, used for `bp._multiple`
+      }
 
-         Breakpoint breakpoint{._number = number, ._enabled = enabled};
+      const char* hitCountNeedle = "breakpoint already hit";
+      const char* hitCount       = strstr(position, hitCountNeedle);
+      if (hitCount)
+         hitCount += strlen(hitCountNeedle);
 
-         bool recognised = true;
+      if (hitCount && hitCount < next) {
+         breakpoint._hit = sv_atoi(hitCount);
+      }
 
-         const char* condition = strstr(position, "stop only if ");
+      if (file && file < next) {
+         const char* end = strchr(file, ':');
 
-         if (condition && condition < next) {
-            const char* end = strchr(condition, '\n');
-            condition += 13;
-            breakpoint._condition      = string_view{condition, static_cast<size_t>(end - condition)};
-            breakpoint._condition_hash = Hash(breakpoint._condition); // leave it there, used for `bp._multiple`
-         }
-
-         const char* hitCountNeedle = "breakpoint already hit";
-         const char* hitCount       = strstr(position, hitCountNeedle);
-         if (hitCount)
-            hitCount += strlen(hitCountNeedle);
-
-         if (hitCount && hitCount < next) {
-            breakpoint._hit = sv_atoi(hitCount);
-         }
-
-         if (file && file < next) {
-            const char* end = strchr(file, ':');
-
-            if (end && isdigit(end[1])) {
-               if (file[0] == '.' && file[1] == '/')
-                  file += 2;
-               breakpoint._file = string_view{file, static_cast<size_t>(end - file)};
-               breakpoint._line = sv_atoi(end, 1);
-            } else
-               recognised = false;
+         if (end && isdigit(end[1])) {
+            if (file[0] == '.' && file[1] == '/')
+               file += 2;
+            breakpoint._file = string_view{file, static_cast<size_t>(end - file)};
+            breakpoint._line = sv_atoi(end, 1);
          } else
             recognised = false;
+      } else
+         recognised = false;
 
-         if (recognised) {
-            for (auto& bp : _breakpoints) {
-               if (bp.match(breakpoint._line, breakpoint._full_path) &&
-                   bp._condition_hash == breakpoint._condition_hash) {
-                  bp._multiple = breakpoint._multiple = true;
-                  break;
-               }
+      if (recognised) {
+         for (auto& bp : _breakpoints) {
+            if (bp.match(breakpoint._line, breakpoint._full_path) && bp._condition_hash == breakpoint._condition_hash) {
+               bp._multiple = breakpoint._multiple = true;
+               break;
             }
-            if (!breakpoint._multiple)
-               _breakpoints.push_back(std::move(breakpoint).update());
-         } else if (strstr(position, "watchpoint") != nullptr) {
-            // we have a watchpoint
-            const char* address = strstr(position, enabled ? " y  " : " n  ");
-            if (address) {
-               address += 2;
-               while (*address == ' ')
-                  address++;
-               if (!isspace(*address)) {
-                  const char* end = strchr(address, '\n');
-                  if (end) {
-                     breakpoint._watchpoint = true;
-                     breakpoint._file       = string_view{address, static_cast<size_t>(end - address)};
-                     _breakpoints.push_back(std::move(breakpoint).update());
-                  }
+         }
+         if (!breakpoint._multiple)
+            _breakpoints.push_back(std::move(breakpoint).update());
+      } else if (strstr(position, "watchpoint") != nullptr) {
+         // we have a watchpoint
+         const char* address = strstr(position, enabled ? " y  " : " n  ");
+         if (address) {
+            address += 2;
+            while (*address == ' ')
+               address++;
+            if (!isspace(*address)) {
+               const char* end = strchr(address, '\n');
+               if (end) {
+                  breakpoint._watchpoint = true;
+                  breakpoint._file       = string_view{address, static_cast<size_t>(end - address)};
+                  _breakpoints.push_back(std::move(breakpoint).update());
                }
             }
          }
-
-         position = next;
       }
-   }
-};
 
-BreakpointMgr s_breakpoint_mgr; // singletom
+      position = next;
+   }
+}
 
 // ------------------------------------------------------
 // Commands:
 // ------------------------------------------------------
 
-std::optional<std::string> CommandParseInternal(string_view command, bool synchronous) {
-   std::optional<std::string> res;
+opt_string Context::send_to_gdb_internal(string_view command, bool synchronous) {
+   opt_string res;
    if (command == "gf-step") {
-      if (!ctx._program_running)
-         res = ctx.send_command_to_debugger(s_source_window->_showing_disassembly ? "stepi" : "s", true, synchronous);
+      if (!_program_running)
+         res = send_command_to_debugger(_source_window->_showing_disassembly ? "stepi" : "s", true, synchronous);
    } else if (command == "gf-next") {
-      if (!ctx._program_running)
-         res = ctx.send_command_to_debugger(s_source_window->_showing_disassembly ? "nexti" : "n", true, synchronous);
+      if (!_program_running)
+         res = send_command_to_debugger(_source_window->_showing_disassembly ? "nexti" : "n", true, synchronous);
    } else if (command == "gf-step-out-of-block") {
-      int line = SourceFindEndOfBlock();
+      int line = source_find_end_of_block();
 
       if (line != -1) {
-         (void)ctx.send_command_to_debugger(std::format("until {}", line), true, synchronous);
+         (void)send_command_to_debugger(std::format("until {}", line), true, synchronous);
       }
    } else if (command == "gf-step-into-outer") {
       const char *start, *end;
-      bool        found = SourceFindOuterFunctionCall(&start, &end);
+      bool        found = source_find_outer_function_call(&start, &end);
 
       if (found) {
-         res = ctx.send_command_to_debugger(
-            std::format("advance {}", string_view(start, static_cast<int>(end - start))), true, synchronous);
+         res = send_command_to_debugger(std::format("advance {}", string_view(start, static_cast<int>(end - start))),
+                                        true, synchronous);
       } else {
-         return CommandParseInternal("gf-step", synchronous);
+         return send_to_gdb_internal("gf-step", synchronous);
       }
    } else if (command == "gf-restart-gdb") {
-      ctx._first_update = true;
-      ctx.kill_gdb();
-      ctx.start_debugger_thread();
+      _first_update = true;
+      kill_gdb();
+      start_debugger_thread();
    } else if (command == "gf-get-pwd") {
-      auto        res    = ctx.eval_command("info source");
+      auto        res    = eval_command("info source");
       const char* needle = "Compilation directory is ";
       const char* pwd    = strstr(res.c_str(), needle);
 
@@ -1522,17 +1091,17 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
             *end = 0;
 
          if (!chdir(pwd)) {
-            if (s_display_output) {
-               s_display_output->insert_content(std::format("New working directory: {}\n", pwd), false);
-               s_display_output->refresh();
+            if (_display_output) {
+               _display_output->insert_content(std::format("New working directory: {}\n", pwd), false);
+               _display_output->refresh();
             }
          }
          return {};
       }
 
-      s_main_window->show_dialog(0, "Couldn't get the working directory.\n%f%B", "OK");
+      _main_window->show_dialog(0, "Couldn't get the working directory.\n%f%B", "OK");
    } else if (command.starts_with("gf-switch-to ")) {
-      ctx.switch_to_window_and_focus(command.substr(13));
+      switch_to_window_and_focus(command.substr(13));
    } else if (command.starts_with("gf-command ")) {
       for (const auto& cmd : gfc._preset_commands) {
          if (!cmd._key.starts_with(command.substr(11)))
@@ -1551,10 +1120,10 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
                async = nullptr;
             if (synchronous)
                async = nullptr; // Trim the '&' character, but run synchronously anyway.
-            res = CommandParseInternal(position, !async);
-            if (s_display_output && res) {
-               s_display_output->insert_content(*res, false);
-               s_display_output->insert_content("\n", false);
+            res = send_to_gdb_internal(position, !async);
+            if (_display_output && res) {
+               _display_output->insert_content(*res, false);
+               _display_output->insert_content("\n", false);
             }
             if (end)
                position = end + 1;
@@ -1562,27 +1131,25 @@ std::optional<std::string> CommandParseInternal(string_view command, bool synchr
                break;
          }
 
-         if (s_display_output)
-            s_display_output->refresh();
+         if (_display_output)
+            _display_output->refresh();
          free(copy);
          break;
       }
    } else if (command == "gf-inspect-line") {
-      CommandInspectLine();
+      inspect_line();
    } else if (command == "target remote :1234" && gfc._confirm_command_connect &&
-              s_main_window->show_dialog(0, "Connect to remote target?\n%f%B%C", "Connect", "Cancel") == "Cancel") {
+              _main_window->show_dialog(0, "Connect to remote target?\n%f%B%C", "Connect", "Cancel") == "Cancel") {
    } else if (command == "kill" && gfc._confirm_command_kill &&
-              s_main_window->show_dialog(0, "Kill debugging target?\n%f%B%C", "Kill", "Cancel") == "Cancel") {
+              _main_window->show_dialog(0, "Kill debugging target?\n%f%B%C", "Kill", "Cancel") == "Cancel") {
    } else {
-      res = ctx.send_command_to_debugger(command, true, synchronous);
+      res = send_command_to_debugger(command, true, synchronous);
    }
 
    return res;
 }
 
-static void CommandSendToGDB(string_view s) { (void)CommandParseInternal(s, false); }
-
-static bool CommandSyncWithGvim() {
+bool Context::sync_with_gvim() {
    if (gfc._vim_server_name.empty())
       return false;
 
@@ -1626,19 +1193,19 @@ static bool CommandSyncWithGvim() {
       strcpy(buffer2, name);
    }
 
-   DisplaySetPosition(buffer2, line_number - 1); // lines in vi are 1-based
+   ctx.display_set_position(buffer2, line_number - 1); // lines in vi are 1-based
    return true;
 }
 
-static void CommandCustom(string_view command) {
+void Context::shell_or_send_to_gdb_internal(string_view command) {
    if (command.starts_with("shell ")) {
-      // TODO Move this into CommandParseInternal?
+      // TODO Move this into send_to_gdb_internal?
 
-      if (s_display_output)
-         s_display_output->insert_content(std::format("Running shell command \"{}\"...\n", command), false);
-      int                        start  = time(nullptr);
-      int                        result = system(std::format("{} > .output.gf 2>&1", command).c_str());
-      std::optional<std::string> output = LoadFile(".output.gf");
+      if (_display_output)
+         _display_output->insert_content(std::format("Running shell command \"{}\"...\n", command), false);
+      int        start  = time(nullptr);
+      int        result = system(std::format("{} > .output.gf 2>&1", command).c_str());
+      opt_string output = LoadFile(".output.gf");
       unlink(".output.gf");
       if (!output)
          return;
@@ -1662,15 +1229,15 @@ static void CommandCustom(string_view command) {
          return j;
       });
 
-      if (s_display_output) {
-         s_display_output->insert_content(copy, false);
-         s_display_output->insert_content("\n", false);
-         s_display_output->insert_content(
+      if (_display_output) {
+         _display_output->insert_content(copy, false);
+         _display_output->insert_content("\n", false);
+         _display_output->insert_content(
             std::format("(exit code: {}; time: {}s)\n", result, static_cast<int>(time(nullptr) - start)), false);
-         s_display_output->refresh();
+         _display_output->refresh();
       }
    } else {
-      (void)CommandParseInternal(command, false);
+      (void)send_to_gdb_internal(command, false);
    }
 }
 
@@ -1866,7 +1433,7 @@ UIConfig GF_Config::load_settings(bool earlyPass) {
             shortcut.shift  = k.contains("shift+");
             shortcut.alt    = k.contains("alt+");
             shortcut.invoke = [cmd = std::string(value)]() {
-               CommandCustom(cmd);
+               ctx.shell_or_send_to_gdb_internal(cmd);
                return true;
             };
 
@@ -1898,7 +1465,7 @@ UIConfig GF_Config::load_settings(bool earlyPass) {
             if ((int)shortcut.code == 0) {
                std::print(std::cerr, "Warning: Could not register shortcut for '{}'.\n", key);
             } else {
-               s_main_window->register_shortcut(std::move(shortcut));
+               ctx._main_window->register_shortcut(std::move(shortcut));
             }
          } else if (section == "gdb" && ctx._gdb_path.contains("gdb")) {
             if (key == "argument") {
@@ -1954,18 +1521,19 @@ UIConfig GF_Config::load_settings(bool earlyPass) {
 // ---------------------------------------------------
 // Source display:
 // ---------------------------------------------------
-UIFont*     SourceWindow::s_code_font = nullptr;
 std::string SourceWindow::s_previous_file_loc;
 
 UIElement* SourceWindow::Create(UIElement* parent) {
-   s_source_window = new SourceWindow;
-   uint32_t flags  = gfc._selectable_source ? UICode::SELECTABLE : 0;
+   ctx._source_window             = new SourceWindow;
+   auto code_font                 = ctx._ui->create_font(ctx._ui->default_font_path(), gfc._code_font_size);
+   ctx._source_window->_code_font = code_font;
+   uint32_t flags                 = gfc._selectable_source ? UICode::SELECTABLE : 0;
    flags |= UICode::MANAGE_BUFFER;
-   s_display_code = &parent->add_code(flags)
-                        .set_font(s_code_font)
-                        .set_cp(s_source_window)
-                        .set_user_proc(SourceWindow::DisplayCodeMessage);
-   return s_display_code;
+   ctx._display_code = &parent->add_code(flags)
+                           .set_font(code_font)
+                           .set_cp(ctx._source_window)
+                           .set_user_proc(SourceWindow::DisplayCodeMessage);
+   return ctx._display_code;
 }
 
 static void ProcessSemanticTokens(const std::vector<uint32_t>& data, const UICode::buffer_ptr& code_buffer);
@@ -2001,34 +1569,34 @@ bool SourceWindow::load_file(const std::string_view file, bool useGDBToGetFullPa
 
       if (cleaned_file != _current_file) {
          _current_file = std::move(cleaned_file);
-         s_main_window->set_name(_current_file.c_str());
+         ctx._main_window->set_name(_current_file.c_str());
       }
    }
 
    if (!_current_file.empty()) {
-      s_display_code->load_file(_current_file, UICode::reload_if_modified);
+      ctx._display_code->load_file(_current_file, UICode::reload_if_modified);
 
       // Open document with clangd
       // -------------------------
-      auto& buffer = s_display_code->get_buffer();
+      auto& buffer = ctx._display_code->get_buffer();
 
-      if (buffer && !s_display_code->sent_to_clangd()) {
-         std::string file_path = s_source_window->_current_file;
+      if (buffer && !ctx._display_code->sent_to_clangd()) {
+         std::string file_path = ctx._source_window->_current_file;
          auto        content   = buffer->content();
 
          if (!content.empty()) {
-            s_display_code->set_sent_to_clangd(true);
+            ctx._display_code->set_sent_to_clangd(true);
 
             // open document
             ctx._clangd.open_document(file_path, content);
 
             // Request semantic tokens
-            ctx._clangd.get_semantic_tokens(file_path,
-                                            [buffer = s_display_code->get_buffer()](const std::vector<uint32_t>& data) {
-                                               if (!data.empty() && s_display_code) {
-                                                  ProcessSemanticTokens(data, buffer);
-                                               }
-                                            });
+            ctx._clangd.get_semantic_tokens(
+               file_path, [buffer = ctx._display_code->get_buffer()](const std::vector<uint32_t>& data) {
+                  if (!data.empty() && ctx._display_code) {
+                     ProcessSemanticTokens(data, buffer);
+                  }
+               });
          }
       }
    }
@@ -2045,17 +1613,17 @@ bool SourceWindow::display_set_position(const std::string_view file, std::option
    if (!load_file(file, use_gdb_to_get_full_path))
       return false;
 
-   auto current_line = s_display_code->current_line();
+   auto current_line = ctx._display_code->current_line();
    bool changed      = !current_line; // `load_file` does `_current_line.reset();` when file was reloaded
 
    if (line && (!current_line || current_line != line)) {
-      s_display_code->set_current_line(*line);
-      s_display_code->set_focus_line(*line);
+      ctx._display_code->set_current_line(*line);
+      ctx._display_code->set_focus_line(*line);
       changed = true;
    }
 
-   _current_end_of_block = SourceFindEndOfBlock();
-   s_display_code->refresh();
+   _current_end_of_block = ctx.source_find_end_of_block();
+   ctx._display_code->refresh();
 
    return changed;
 }
@@ -2069,7 +1637,7 @@ void SourceWindow::jump_to_position(const std::string_view file, const UICode::c
       // if we started navigating from a single position (no selection), select expression under the cursor
       // so that the location we returned to is more obvious and we don't have to hunt for the caret.
       // --------------------------------------------------------------------------------------------------
-      auto line   = s_display_code->line(pos[0].line);
+      auto line   = ctx._display_code->line(pos[0].line);
       auto bounds = ctx._lang_re->find_at_pos(line, code_look_for::selectable_expression, pos[0].offset);
       if (bounds) {
          auto [start, end] = *bounds;
@@ -2077,16 +1645,16 @@ void SourceWindow::jump_to_position(const std::string_view file, const UICode::c
             UICode::code_pos_t{pos[0].line, start},
             UICode::code_pos_t{pos[0].line, end  }
          };
-         s_display_code->highlight(sel);
+         ctx._display_code->highlight(sel);
          return;
       }
    }
-   s_display_code->highlight(pos);
+   ctx._display_code->highlight(pos);
 }
 
 void SourceWindow::display_set_position_from_stack() {
-   if (s_stack_window->has_selection()) {
-      auto& current = s_stack_window->current();
+   if (ctx._stack_window->has_selection()) {
+      auto& current = ctx._stack_window->current();
       // std::string location{current._location};
       const auto& loc     = current._location;
       s_previous_file_loc = loc;
@@ -2136,7 +1704,7 @@ void SourceWindow::disassembly_load() {
       pointer[1] = ' ';
    }
 
-   s_display_code->insert_content({start, static_cast<size_t>(end - start)}, true);
+   ctx._display_code->insert_content({start, static_cast<size_t>(end - start)}, true);
 }
 
 void SourceWindow::disassembly_update_line() {
@@ -2151,12 +1719,12 @@ void SourceWindow::disassembly_update_line() {
 
          bool found = false;
 
-         size_t num_lines = s_display_code->num_lines();
+         size_t num_lines = ctx._display_code->num_lines();
          for (size_t i = 0; i < num_lines; i++) {
-            uint64_t b = sv_atoul(s_display_code->line(i), 3);
+            uint64_t b = sv_atoul(ctx._display_code->line(i), 3);
 
             if (a == b) {
-               s_display_code->set_focus_line(i);
+               ctx._display_code->set_focus_line(i);
                _auto_print_expression_line = i;
                found                       = true;
                break;
@@ -2171,7 +1739,7 @@ void SourceWindow::disassembly_update_line() {
          }
       }
 
-      s_display_code->refresh();
+      ctx._display_code->refresh();
    }
 }
 
@@ -2179,29 +1747,29 @@ bool SourceWindow::toggle_disassembly() {
    _showing_disassembly      = !_showing_disassembly;
    _auto_print_result_line   = 0;
    _auto_print_expression[0] = 0;
-   s_display_code->toggle_flag(UICode::NO_MARGIN);
+   ctx._display_code->toggle_flag(UICode::NO_MARGIN);
 
    if (_showing_disassembly) {
-      s_display_code->insert_content("Disassembly could not be loaded.\nPress Ctrl+D to return to source view.\n",
-                                     true);
-      s_display_code->set_tab_columns(8);
+      ctx._display_code->insert_content("Disassembly could not be loaded.\nPress Ctrl+D to return to source view.\n",
+                                        true);
+      ctx._display_code->set_tab_columns(8);
       disassembly_load();
       disassembly_update_line();
    } else {
-      s_display_code->set_current_line({});
+      ctx._display_code->set_current_line({});
       _current_end_of_block = -1;
       _current_file.clear();
       display_set_position_from_stack();
-      s_display_code->set_tab_columns(4);
+      ctx._display_code->set_tab_columns(4);
    }
 
-   s_display_code->refresh();
+   ctx._display_code->refresh();
    return true;
 }
 
 bool SourceWindow::set_disassembly_mode() {
-   auto new_mode = s_main_window->show_dialog(0, "Select the disassembly mode:\n%b\n%b\n%b", "Disassembly only",
-                                              "With source", "Source centric");
+   auto new_mode = ctx._main_window->show_dialog(0, "Select the disassembly mode:\n%b\n%b\n%b", "Disassembly only",
+                                                 "With source", "Source centric");
 
    if (new_mode == "Disassembly only")
       _disassembly_command = "disas";
@@ -2217,8 +1785,6 @@ bool SourceWindow::set_disassembly_mode() {
    return true;
 }
 
-bool CommandSetDisassemblyMode() { return s_source_window->set_disassembly_mode(); }
-
 void SourceWindow::draw_inspect_line_mode_overlay(UIPainter* painter) {
    const auto& theme       = painter->theme();
    auto*       active_font = painter->active_font();
@@ -2233,11 +1799,11 @@ void SourceWindow::draw_inspect_line_mode_overlay(UIPainter* painter) {
    }
 
    int  x_offset     = 0;
-   auto current_line = s_display_code->current_line();
+   auto current_line = ctx._display_code->current_line();
    if (!current_line)
       return;
 
-   string_view cur_line = s_display_code->line(*current_line);
+   string_view cur_line = ctx._display_code->line(*current_line);
    for (auto c : cur_line) {
       if (c == '\t' || c == ' ') {
          x_offset += (c == '\t' ? 4 : 1) * active_font->_glyph_width;
@@ -2278,17 +1844,17 @@ void SourceWindow::draw_inspect_line_mode_overlay(UIPainter* painter) {
 }
 
 void CommandDeleteAllBreakpointsOnLine(int line) {
-   s_breakpoint_mgr.for_all_matching_breakpoints(line, s_source_window->_current_file,
+   s_breakpoint_mgr.for_all_matching_breakpoints(line, ctx._source_window->_current_file,
                                                  [](int idx, auto& bp) { bp.command(bp_command::del); });
 }
 
 void CommandDisableAllBreakpointsOnLine(int line) {
-   s_breakpoint_mgr.for_all_matching_breakpoints(line, s_source_window->_current_file,
+   s_breakpoint_mgr.for_all_matching_breakpoints(line, ctx._source_window->_current_file,
                                                  [](int idx, auto& bp) { bp.command(bp_command::dis); });
 }
 
 void CommandEnableAllBreakpointsOnLine(int line) {
-   s_breakpoint_mgr.for_all_matching_breakpoints(line, s_source_window->_current_file,
+   s_breakpoint_mgr.for_all_matching_breakpoints(line, ctx._source_window->_current_file,
                                                  [](int idx, auto& bp) { bp.command(bp_command::ena); });
 }
 
@@ -2385,7 +1951,7 @@ int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* 
       auto& theme        = code->theme();
       auto  active_font  = code->active_font();
       auto* m            = static_cast<UICodeDecorateLine*>(dp);
-      auto  current_line = s_display_code->current_line();
+      auto  current_line = ctx._display_code->current_line();
 
       if (current_line &&
           m->index == static_cast<int>(*current_line) + 1) { // m->index 1-based and current_line 0-based
@@ -2404,7 +1970,7 @@ int SourceWindow::_code_message_proc(UICode* code, UIMessage msg, int di, void* 
 #if 0
          // very annoying to have these pop up whenever `Alt` or `Ctrl` is pressed, since we use `Alt-.`
          // and `Alt-,` for code navigation
-         m->painter->draw_border(m->bounds, code->is_ctrl_on() ? theme.selected : theme.codeOperator, UIRectangle(2));
+         m->painter->draw_border(m->bounds, code->is_ctrl_on() ? theme.selected : theme.code_operator, UIRectangle(2));
 #endif
          m->painter->draw_string(m->bounds, code->is_ctrl_on() ? "=> run until " : "=> skip to ", theme.text,
                                  UIAlign::right, nullptr);
@@ -2466,16 +2032,16 @@ void SourceWindow::_update(const char* data, UICode* el) {
       }
    }
 
-   if (!s_stack_window->changed() && changed_source_line)
-      s_stack_window->set_selected(0);
-   s_stack_window->set_changed(false);
+   if (!ctx._stack_window->changed() && changed_source_line)
+      ctx._stack_window->set_selected(0);
+   ctx._stack_window->set_changed(false);
 
-   if (changed_source_line && s_stack_window->has_selection() &&
-       s_stack_window->current()._location != s_previous_file_loc) {
+   if (changed_source_line && ctx._stack_window->has_selection() &&
+       ctx._stack_window->current()._location != s_previous_file_loc) {
       display_set_position_from_stack();
    }
 
-   auto current_line = s_display_code->current_line();
+   auto current_line = ctx._display_code->current_line();
    if (changed_source_line && current_line) {
       // If there is an auto-print expression from the previous line, evaluate it.
 #if ALLOW_SIDE_EFFECTS
@@ -2498,7 +2064,7 @@ void SourceWindow::_update(const char* data, UICode* el) {
 #endif
 
       // Parse the new source line.
-      string_view text_sv  = s_display_code->line(*current_line);
+      string_view text_sv  = ctx._display_code->line(*current_line);
       size_t      bytes    = text_sv.size();
       const char* text     = &text_sv[0];
       uintptr_t   position = 0;
@@ -2641,11 +2207,11 @@ bool InspectIsTokenCharacter(char c) { return isalpha(c) || c == '_'; }
 
 void SourceWindow::inspect_current_line() {
    _inspect_results.clear();
-   auto current_line = s_display_code->current_line();
+   auto current_line = ctx._display_code->current_line();
    if (!current_line)
       return;
 
-   auto code = s_display_code->line(*current_line);
+   auto code = ctx._display_code->line(*current_line);
 
    auto expressions = ctx._lang_re->debuggable_expressions(code, avoid_constant_litterals);
    for (auto e : expressions) {
@@ -2670,11 +2236,11 @@ void SourceWindow::inspect_current_line() {
 
 void SourceWindow::exit_inspect_line_mode(UIElement* el) {
    el->destroy();
-   s_input_textbox->focus();
+   ctx._input_textbox->focus();
    _in_inspect_line_mode = false;
-   s_display_code->set_current_line(_inspect_mode_restore_line);
-   s_display_code->set_focus_line(_inspect_mode_restore_line);
-   s_display_code->refresh();
+   ctx._display_code->set_current_line(_inspect_mode_restore_line);
+   ctx._display_code->set_focus_line(_inspect_mode_restore_line);
+   ctx._display_code->refresh();
 }
 
 int SourceWindow::_line_message_proc(UIElement* el, UIMessage msg, int di, void* dp) {
@@ -2693,16 +2259,16 @@ int SourceWindow::_line_message_proc(UIElement* el, UIMessage msg, int di, void*
             WatchAddExpression(_inspect_results[index]._expression);
          }
       } else {
-         auto current_line = s_display_code->current_line();
+         auto current_line = ctx._display_code->current_line();
          if (!current_line)
             return 0;
          if ((m->code == UIKeycode::UP && *current_line != 0) ||
-             (m->code == UIKeycode::DOWN && *current_line + 1 < s_display_code->num_lines())) {
+             (m->code == UIKeycode::DOWN && *current_line + 1 < ctx._display_code->num_lines())) {
             *current_line += m->code == UIKeycode::UP ? -1 : 1;
-            s_display_code->set_current_line(*current_line);
-            s_display_code->set_focus_line(*current_line);
+            ctx._display_code->set_current_line(*current_line);
+            ctx._display_code->set_focus_line(*current_line);
             inspect_current_line();
-            s_display_code->refresh();
+            ctx._display_code->refresh();
          }
       }
 
@@ -2713,38 +2279,28 @@ int SourceWindow::_line_message_proc(UIElement* el, UIMessage msg, int di, void*
 }
 
 bool SourceWindow::inspect_line() {
-   auto current_line = s_display_code->current_line();
+   auto current_line = ctx._display_code->current_line();
    if (!current_line)
       return false;
 
    _inspect_mode_restore_line = *current_line;
    _in_inspect_line_mode      = true;
    inspect_current_line();
-   s_display_code->refresh();
+   ctx._display_code->refresh();
 
    // Create an element to receive key input messages.
-   s_main_window->add_element(0, InspectLineModeMessage, nullptr).set_cp(this).focus();
+   ctx._main_window->add_element(0, InspectLineModeMessage, nullptr).set_cp(this).focus();
    return true;
 }
-
-bool CommandInspectLine() { return s_source_window->inspect_line(); }
 
 // ---------------------------------------------------/
 // Data viewers:
 // ---------------------------------------------------/
 
-struct AutoUpdateViewer {
-   UIElement* _el                = nullptr;
-   void (*_callback)(UIElement*) = nullptr;
-};
-
-vector<AutoUpdateViewer> auto_update_viewers;
-bool                     auto_update_viewers_queued;
-
 bool DataViewerRemoveFromAutoUpdateList(UIElement* el) {
-   if (auto it = rng::find_if(auto_update_viewers, [&](const auto& auv) { return auv._el == el; });
-       it != rng::end(auto_update_viewers)) {
-      auto_update_viewers.erase(it);
+   if (auto it = rng::find_if(ctx._auto_update_viewers, [&](const auto& auv) { return auv._el == el; });
+       it != rng::end(ctx._auto_update_viewers)) {
+      ctx._auto_update_viewers.erase(it);
       return true;
    }
 
@@ -2757,7 +2313,7 @@ int DataViewerAutoUpdateButtonMessage(UIElement* el, UIMessage msg, int di, void
 
       if (el->has_flag(UIButton::CHECKED)) {
          AutoUpdateViewer v = {._el = el->_parent, ._callback = (void (*)(UIElement*))el->_cp};
-         auto_update_viewers.push_back(v);
+         ctx._auto_update_viewers.push_back(v);
       } else {
          [[maybe_unused]] bool found = DataViewerRemoveFromAutoUpdateList(el->_parent);
          assert(found);
@@ -2768,12 +2324,12 @@ int DataViewerAutoUpdateButtonMessage(UIElement* el, UIMessage msg, int di, void
 }
 
 void DataViewersUpdateAll() {
-   if (!s_data_tab->has_flag(UIElement::hide_flag)) {
-      for (const auto& auv : auto_update_viewers) {
+   if (!ctx._data_tab->has_flag(UIElement::hide_flag)) {
+      for (const auto& auv : ctx._auto_update_viewers) {
          auv._callback(auv._el);
       }
-   } else if (!auto_update_viewers.empty()) {
-      auto_update_viewers_queued = true;
+   } else if (!ctx._auto_update_viewers.empty()) {
+      ctx._auto_update_viewers_queued = true;
    }
 }
 
@@ -2884,8 +2440,8 @@ int BitmapViewerDisplayMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          .add_item(0, "Save to file...",
                    [el](UIButton&) {
                       static std::string path;
-                      auto result = s_main_window->show_dialog(0, "Save to file       \nPath:\n%t\n%f%B%C", &path,
-                                                               "Save", "Cancel");
+                      auto result = ctx._main_window->show_dialog(0, "Save to file       \nPath:\n%t\n%f%B%C", &path,
+                                                                  "Save", "Cancel");
                       if (result != "Save")
                          return;
 
@@ -2923,7 +2479,7 @@ void BitmapViewerUpdate(const std::string& pointer_string, const std::string& wi
       bitmap->_height  = height_string;
       bitmap->_stride  = stride_string;
 
-      UIMDIChild* window = &s_data_window->add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Bitmap")
+      UIMDIChild* window = &ctx._data_mdiclient->add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Bitmap")
                                .set_user_proc(BitmapViewerWindowMessage)
                                .set_cp(bitmap);
       bitmap->_auto_toggle = &window->add_button(UIButton::SMALL | UIElement::non_client_flag, "Auto")
@@ -2954,16 +2510,17 @@ void BitmapViewerUpdate(const std::string& pointer_string, const std::string& wi
       bitmap->_label_panel->set_flag(UIElement::hide_flag), bitmap->_display->clear_flag(UIElement::hide_flag);
    bitmap->_label_panel->_parent->refresh();
    owner->refresh();
-   s_data_window->refresh();
+   ctx._data_mdiclient->refresh();
 }
 
 void BitmapAddDialog() {
    static std::string pointer, width, height, stride;
 
-   auto result = s_main_window->show_dialog(0,
-                                            "Add bitmap\n\n%l\n\nPointer to bits: (32bpp, RR GG BB "
-                                            "AA)\n%t\nWidth:\n%t\nHeight:\n%t\nStride: (optional)\n%t\n\n%l\n\n%f%B%C",
-                                            &pointer, &width, &height, &stride, "Add", "Cancel");
+   auto result =
+      ctx._main_window->show_dialog(0,
+                                    "Add bitmap\n\n%l\n\nPointer to bits: (32bpp, RR GG BB "
+                                    "AA)\n%t\nWidth:\n%t\nHeight:\n%t\nStride: (optional)\n%t\n\n%l\n\n%f%B%C",
+                                    &pointer, &width, &height, &stride, "Add", "Cancel");
 
    if (result == "Add")
       BitmapViewerUpdate(pointer, width, height, stride);
@@ -2980,16 +2537,10 @@ private:
 
    void incr_command(int offset) {
       if (auto sv = _history.incr(offset)) {
-         s_input_textbox->clear(false);
-         s_input_textbox->replace_text(*sv, false);
-         s_input_textbox->refresh();
+         ctx._input_textbox->clear(false);
+         ctx._input_textbox->replace_text(*sv, false);
+         ctx._input_textbox->refresh();
       }
-   }
-
-   bool clear_output() {
-      s_display_output->clear();
-      s_display_output->refresh();
-      return true;
    }
 
    int _textbox_message_proc(UITextbox* textbox, UIMessage msg, int di, void* dp) {
@@ -3008,14 +2559,14 @@ private:
          } else if (m->code == UIKeycode::ENTER && !textbox->is_shift_on()) {
             if (!sz) {
                if (auto sv = _history.current_line())
-                  CommandSendToGDB(*sv);
+                  ctx.send_to_gdb_async(*sv);
 
                return 1;
             }
 
             if (_command_log)
                std::print(_command_log, "{}\n", cur_text);
-            CommandSendToGDB(cur_text);
+            ctx.send_to_gdb_async(cur_text);
 
             _history.add_line(cur_text);
 
@@ -3027,19 +2578,19 @@ private:
             tab_completer.run(textbox, last_key_was_tab, false);
             return 1;
          } else if (m->code == UIKeycode::UP) {
-            auto current_line = s_display_code->current_line();
+            auto current_line = ctx._display_code->current_line();
             if (textbox->is_shift_on()) {
                if (current_line && *current_line > 0) {
-                  DisplaySetPosition({}, *current_line - 1);
+                  ctx.display_set_position({}, *current_line - 1);
                }
             } else {
                incr_command(-1);
             }
          } else if (m->code == UIKeycode::DOWN) {
-            auto current_line = s_display_code->current_line();
+            auto current_line = ctx._display_code->current_line();
             if (textbox->is_shift_on()) {
-               if (current_line && *current_line + 1 < s_display_code->num_lines()) {
-                  DisplaySetPosition({}, *current_line + 1);
+               if (current_line && *current_line + 1 < ctx._display_code->num_lines()) {
+                  ctx.display_set_position({}, *current_line + 1);
                }
             } else {
                incr_command(1);
@@ -3055,22 +2606,28 @@ public:
 
    void save_command_history() { _history.dump(); }
 
+   bool clear_output() {
+      ctx._display_output->clear();
+      ctx._display_output->refresh();
+      return true;
+   }
+
    static int TextboxInputMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       return static_cast<ConsoleWindow*>(el->_cp)->_textbox_message_proc(dynamic_cast<UITextbox*>(el), msg, di, dp);
    }
 
    static UIElement* Create(UIElement* parent) {
-      auto* w          = new ConsoleWindow;
-      s_console_window = w;
+      auto* w             = new ConsoleWindow;
+      ctx._console_window = w;
 
-      UIPanel* panel2  = &parent->add_panel(UIPanel::EXPAND);
-      s_display_output = &panel2->add_code(UICode::NO_MARGIN | UIElement::v_fill | UICode::SELECTABLE);
-      UIPanel* panel3  = &panel2->add_panel(UIPanel::HORIZONTAL | UIPanel::EXPAND | UIPanel::COLOR_1)
+      UIPanel* panel2     = &parent->add_panel(UIPanel::EXPAND);
+      ctx._display_output = &panel2->add_code(UICode::NO_MARGIN | UIElement::v_fill | UICode::SELECTABLE);
+      UIPanel* panel3     = &panel2->add_panel(UIPanel::HORIZONTAL | UIPanel::EXPAND | UIPanel::COLOR_1)
                             .set_border(UIRectangle(5))
                             .set_gap(5);
-      s_trafficlight = &panel3->add_spacer(0, 30, 30).set_user_proc(TrafficLightMessage);
+      ctx._trafficlight = &panel3->add_spacer(0, 30, 30).set_user_proc(TrafficLightMessage);
       panel3->add_button(0, "Menu").on_click([](UIButton& buttonMenu) { ctx.show_menu(&buttonMenu); });
-      s_input_textbox = &panel3->add_textbox(UIElement::h_fill).set_user_proc(TextboxInputMessage).set_cp(w).focus();
+      ctx._input_textbox = &panel3->add_textbox(UIElement::h_fill).set_user_proc(TextboxInputMessage).set_cp(w).focus();
       return panel2;
    }
 };
@@ -3207,13 +2764,13 @@ public:
       auto res = evaluate("gf_addressof");
 
       if (res.contains("??")) {
-         s_main_window->show_dialog(0, "Couldn't get the address of the variable.\n%f%B", "OK");
+         ctx._main_window->show_dialog(0, "Couldn't get the address of the variable.\n%f%B", "OK");
          return {};
       }
 
       auto end = res.find_first_of(' ');
       if (end == npos) {
-         s_main_window->show_dialog(0, "Couldn't get the address of the variable.\n%f%B", "OK");
+         ctx._main_window->show_dialog(0, "Couldn't get the address of the variable.\n%f%B", "OK");
          return {};
       }
       res.resize(end);
@@ -3512,7 +3069,7 @@ public:
 
       if (res.contains("No line number")) {
          resize_to_lf(res);
-         s_main_window->show_dialog(0, "%s\n%f%B", res.c_str(), "OK");
+         ctx._main_window->show_dialog(0, "%s\n%f%B", res.c_str(), "OK");
          return false;
       }
 
@@ -3529,7 +3086,7 @@ public:
       const char* end  = strchr(file, '"');
       if (!end)
          return false;
-      s_source_window->display_set_position(std::string_view{file, end}, line - 1, false);
+      ctx._source_window->display_set_position(std::string_view{file, end}, line - 1, false);
       return true;
    }
 
@@ -3665,7 +3222,7 @@ public:
          return;
 
       std::string file_path;
-      auto        result = s_main_window->show_dialog(0, "Path:            \n%t\n%f%B%C", &file_path, "Save", "Cancel");
+      auto result = ctx._main_window->show_dialog(0, "Path:            \n%t\n%f%B%C", &file_path, "Save", "Cancel");
 
       if (result == "Cancel")
          return;
@@ -3673,7 +3230,7 @@ public:
       FILE* f = fopen(file_path.c_str(), "wb");
 
       if (!f) {
-         s_main_window->show_dialog(0, "Could not open the file for writing!\n%f%B", "OK");
+         ctx._main_window->show_dialog(0, "Could not open the file for writing!\n%f%B", "OK");
          return;
       }
 
@@ -3983,9 +3540,9 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
          destroy_textbox();
       } else if (m->code == UIKeycode::UP) {
          if (is_shift_on()) {
-            auto current_line = s_display_code->current_line();
+            auto current_line = ctx._display_code->current_line();
             if (current_line && *current_line > 0) {
-               DisplaySetPosition({}, *current_line - 1);
+               ctx.display_set_position({}, *current_line - 1);
             }
          } else {
             destroy_textbox();
@@ -3994,9 +3551,9 @@ int WatchWindow::_class_message_proc(UIMessage msg, int di, void* dp) {
          }
       } else if (m->code == UIKeycode::DOWN) {
          if (is_shift_on()) {
-            auto current_line = s_display_code->current_line();
-            if (current_line && *current_line + 1 < s_display_code->num_lines()) {
-               DisplaySetPosition({}, *current_line + 1);
+            auto current_line = ctx._display_code->current_line();
+            if (current_line && *current_line + 1 < ctx._display_code->num_lines()) {
+               ctx.display_set_position({}, *current_line + 1);
             }
          } else {
             destroy_textbox();
@@ -4071,7 +3628,7 @@ int WatchWindow::_line_message_proc(UIElement* el, UIMessage msg, int di, void* 
              (m->code == UIKeycode::DOWN && _selected_row + 1 < _rows.size())) {
             _selected_row += m->code == UIKeycode::UP ? -1 : 1;
             inspect_current_line();
-            s_display_code->refresh();
+            ctx._display_code->refresh();
          }
       }
 
@@ -4098,32 +3655,9 @@ bool WatchWindow::inspect_line() {
    refresh();
 
    // Create an element to receive key input messages.
-   s_main_window->add_element(0, InspectLineModeMessage, nullptr).set_cp(this).focus();
+   ctx._main_window->add_element(0, InspectLineModeMessage, nullptr).set_cp(this).focus();
    return true;
 }
-
-struct WatchLogEvaluated {
-   std::string _result;
-};
-
-struct WatchLogEntry {
-   std::string               _value;
-   std::string               _where;
-   vector<WatchLogEvaluated> _evaluated;
-   vector<StackEntry>        _trace;
-};
-
-struct WatchLogger {
-   int                   _id             = 0;
-   int                   _selected_entry = 0;
-   char                  _columns[256]   = {0};
-   std::string           _expressions_to_evaluate;
-   vector<WatchLogEntry> _entries;
-   UITable*              _table = nullptr;
-   UITable*              _trace = nullptr;
-};
-
-vector<WatchLogger*> watch_loggers;
 
 int WatchTextboxMessage(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::UPDATE) {
@@ -4158,8 +3692,8 @@ int WatchLoggerWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       if (el->_cp) {
          auto* logger = static_cast<WatchLogger*>(el->_cp);
 
-         if (auto it = rng::find(watch_loggers, logger); it != rng::end(watch_loggers))
-            watch_loggers.erase(it);
+         if (auto it = rng::find(ctx._watch_loggers, logger); it != rng::end(ctx._watch_loggers))
+            ctx._watch_loggers.erase(it);
 
          ctx.eval_command(std::format("delete {}", logger->_id));
          delete logger;
@@ -4181,7 +3715,7 @@ void WatchLoggerTraceSelectFrame(UIElement* el, int index, WatchLogger* logger) 
    const char* colon = const_cast<char*>(strchr(location.c_str(), ':'));
 
    if (colon) {
-      DisplaySetPosition({location.c_str(), colon}, sv_atoul(colon + 1) - 1);
+      ctx.display_set_position({location.c_str(), colon}, sv_atoul(colon + 1) - 1);
       el->refresh();
    }
 }
@@ -4259,8 +3793,8 @@ void WatchWindow::WatchChangeLoggerCreate() {
       return;
    }
 
-   if (!s_data_tab) {
-      s_main_window->show_dialog(0, "The data window is not open.\nThe watch log cannot be created.\n%f%B", "OK");
+   if (!ctx._data_tab) {
+      ctx._main_window->show_dialog(0, "The data window is not open.\nThe watch log cannot be created.\n%f%B", "OK");
       return;
    }
 
@@ -4270,7 +3804,7 @@ void WatchWindow::WatchChangeLoggerCreate() {
    }
 
    std::string expressions_to_evaluate;
-   auto        result = s_main_window->show_dialog(
+   auto        result = ctx._main_window->show_dialog(
       0, "-- Watch logger settings --\nExpressions to evaluate (separate with semicolons):\n%t\n\n%l\n\n%f%B%C",
       &expressions_to_evaluate, "Start", "Cancel");
 
@@ -4278,13 +3812,13 @@ void WatchWindow::WatchChangeLoggerCreate() {
       return;
 
    UIMDIChild* child =
-      &s_data_window->add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(0), std::format("Log {}", res));
+      &ctx._data_mdiclient->add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(0), std::format("Log {}", res));
 
    res                = ctx.eval_command(std::format("watch * {}", res));
    const char* number = strstr(res.c_str(), "point ");
 
    if (!number) {
-      s_main_window->show_dialog(0, "Couldn't set the watchpoint.\n%f%B", "OK");
+      ctx._main_window->show_dialog(0, "Couldn't set the watchpoint.\n%f%B", "OK");
       return;
    }
 
@@ -4325,11 +3859,11 @@ void WatchWindow::WatchChangeLoggerCreate() {
    child->set_user_proc(WatchLoggerWindowMessage).set_cp(logger);
    table->set_user_proc(WatchLoggerTableMessage).set_cp(logger);
    trace->set_user_proc(WatchLoggerTraceMessage).set_cp(logger);
-   watch_loggers.push_back(logger);
-   s_data_window->refresh();
+   ctx._watch_loggers.push_back(logger);
+   ctx._data_mdiclient->refresh();
    WatchLoggerResizeColumns(logger);
 
-   s_main_window->show_dialog(0, "The log has been setup in the data window.\n%f%B", "OK");
+   ctx._main_window->show_dialog(0, "The log has been setup in the data window.\n%f%B", "OK");
    return;
 }
 
@@ -4364,7 +3898,7 @@ bool WatchLoggerUpdate(std::string _data) {
       return false;
    WatchLogger* logger = nullptr;
 
-   for (const auto& wl : watch_loggers) {
+   for (const auto& wl : ctx._watch_loggers) {
       if (wl->_id == id) {
          logger = wl;
          break;
@@ -4410,9 +3944,9 @@ bool WatchLoggerUpdate(std::string _data) {
    entry._value = value;
    entry._where = where;
 
-   std::swap(entry._trace, s_stack_window->stack());
-   s_stack_window->update_stack();
-   std::swap(entry._trace, s_stack_window->stack());
+   std::swap(entry._trace, ctx._stack_window->stack());
+   ctx._stack_window->update_stack();
+   std::swap(entry._trace, ctx._stack_window->stack());
 
    logger->_entries.push_back(entry);
    ++logger->_table->num_items();
@@ -4422,26 +3956,14 @@ bool WatchLoggerUpdate(std::string _data) {
 }
 
 WatchWindow* WatchGetFocused() {
-   return s_main_window->focused()->_class_proc == WatchWindow::WatchWindowMessage
-             ? static_cast<WatchWindow*>(s_main_window->focused()->_cp)
+   return ctx._main_window->focused()->_class_proc == WatchWindow::WatchWindowMessage
+             ? static_cast<WatchWindow*>(ctx._main_window->focused()->_cp)
              : nullptr;
-}
-
-bool CommandWatchAddEntryForAddress() {
-   if (auto* w = WatchGetFocused())
-      return w->add_entry_for_address();
-   return false;
 }
 
 bool CommandWatchViewSourceAtAddress() {
    if (auto* w = WatchGetFocused())
       return w->view_source_at_address();
-   return false;
-}
-
-bool CommandAddWatch() {
-   if (auto* el = ctx.switch_to_window_and_focus("Watch"))
-      return dynamic_cast<WatchWindow*>(el)->add_watch();
    return false;
 }
 
@@ -4457,8 +3979,8 @@ void StackWindow::set_frame(UIElement* el, int index) {
          _selected = index;
          el->repaint(nullptr);
       } else {
-         s_display_code->set_current_line({}); // force the update in DisplayPosition as we may have scrolled away
-         s_source_window->display_set_position_from_stack();
+         ctx._display_code->set_current_line({}); // force the update in DisplayPosition as we may have scrolled away
+         ctx._source_window->display_set_position_from_stack();
       }
    }
 }
@@ -4498,9 +4020,9 @@ int StackWindow::_table_message_proc(UITable* el, UIMessage msg, int di, void* d
 }
 
 UIElement* StackWindow::Create(UIElement* parent) {
-   s_stack_window = new StackWindow;
+   ctx._stack_window = new StackWindow;
    return &parent->add_table(0, "Index\tFunction\tLocation\tAddress")
-              .set_cp(s_stack_window)
+              .set_cp(ctx._stack_window)
               .set_user_proc(StackWindow::StackWindowMessage);
 }
 
@@ -4672,7 +4194,7 @@ int BreakpointsWindow::_table_message_proc(UITable* uitable, UIMessage msg, int 
          }
 
          if (!bp._watchpoint && rng::find(_selected, bp._number) != rng::end(_selected)) {
-            DisplaySetPosition(bp._file, bp._line - 1);
+            ctx.display_set_position(bp._file, bp._line - 1);
          }
       } else if (!uitable->is_modifier_on()) {
          _selected.clear();
@@ -4713,33 +4235,33 @@ struct DataWindow {
 private:
    UIButton* _fill_window_button{nullptr};
 
+public:
    bool toggle_fill_data_tab() {
-      if (!s_data_tab)
+      if (!ctx._data_tab)
          return false;
       static UIElement *oldParent, *oldBefore;
       _fill_window_button->toggle_flag(UIButton::CHECKED);
 
-      if (s_main_switcher->_active == s_data_tab) {
-         s_main_switcher->switch_to(s_main_switcher->_children[0]);
-         s_data_tab->change_parent(oldParent, oldBefore);
+      if (ctx._main_switcher->_active == ctx._data_tab) {
+         ctx._main_switcher->switch_to(ctx._main_switcher->_children[0]);
+         ctx._data_tab->change_parent(oldParent, oldBefore);
       } else {
-         s_data_tab->message(UIMessage::TAB_SELECTED, 0, nullptr);
-         oldParent = s_data_tab->_parent;
-         oldBefore = s_data_tab->change_parent(s_main_switcher, nullptr);
-         s_main_switcher->switch_to(s_data_tab);
+         ctx._data_tab->message(UIMessage::TAB_SELECTED, 0, nullptr);
+         oldParent = ctx._data_tab->_parent;
+         oldBefore = ctx._data_tab->change_parent(ctx._main_switcher, nullptr);
+         ctx._main_switcher->switch_to(ctx._data_tab);
       }
       return true;
    }
 
-public:
    static int DataTabMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-      if (msg == UIMessage::TAB_SELECTED && auto_update_viewers_queued) {
+      if (msg == UIMessage::TAB_SELECTED && ctx._auto_update_viewers_queued) {
          // If we've switched to the data tab, we may need to update the bitmap viewers.
 
-         for (const auto& auw : auto_update_viewers)
+         for (const auto& auw : ctx._auto_update_viewers)
             auw._callback(auw._el);
 
-         auto_update_viewers_queued = false;
+         ctx._auto_update_viewers_queued = false;
       }
 
       return 0;
@@ -4748,8 +4270,8 @@ public:
    static UIElement* Create(UIElement* parent) {
       auto* w = new DataWindow;
 
-      s_data_tab      = &parent->add_panel(UIPanel::EXPAND);
-      UIPanel* panel5 = &s_data_tab->add_panel(UIPanel::COLOR_1 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
+      ctx._data_tab   = &parent->add_panel(UIPanel::EXPAND);
+      UIPanel* panel5 = &ctx._data_tab->add_panel(UIPanel::COLOR_1 | UIPanel::HORIZONTAL | UIPanel::SMALL_SPACING);
 
       w->_fill_window_button =
          &panel5->add_button(UIButton::SMALL, "Fill window").on_click([w](UIButton&) { w->toggle_fill_data_tab(); });
@@ -4760,9 +4282,9 @@ public:
          });
       }
 
-      s_data_window = &s_data_tab->add_mdiclient(UIElement::v_fill).set_cp(w);
-      s_data_tab->set_user_proc(DataTabMessage);
-      return s_data_tab;
+      ctx._data_mdiclient = &ctx._data_tab->add_mdiclient(UIElement::v_fill).set_cp(w);
+      ctx._data_tab->set_user_proc(DataTabMessage);
+      return ctx._data_tab;
    }
 };
 
@@ -4873,7 +4395,7 @@ struct FilesWindow {
    }
 
    void navigate_to_active_file() {
-      _directory = s_source_window->_current_file;
+      _directory = ctx._source_window->_current_file;
       size_t p   = _directory.size();
       while (p--) {
          if (_directory[p] == '/') {
@@ -4895,7 +4417,7 @@ struct FilesWindow {
                return 0;
             }
          } else if (S_ISREG(mode)) {
-            DisplaySetPosition(directory(), 0);
+            ctx.display_set_position(directory(), 0);
          }
 
          _directory[old_length] = 0;
@@ -5010,10 +4532,10 @@ public:
          if (name_end == name_start + 2 && 0 == memcmp(name_start, "ip", 2))
             is_pc = true;
 
-         auto* sw        = s_source_window;
+         auto* sw        = ctx._source_window;
          auto& ap_result = sw->auto_print_result();
 
-         if (modified && s_source_window->_showing_disassembly && !is_pc) {
+         if (modified && ctx._source_window->_showing_disassembly && !is_pc) {
             if (!any_changes) {
                ap_result[0]                = 0;
                sw->_auto_print_result_line = sw->_auto_print_expression_line;
@@ -5060,7 +4582,7 @@ struct CommandsWindow {
 
       for (const auto& cmd : gfc._preset_commands) {
          panel->add_button(0, cmd._key).on_click([command = std::format("gf-command {}", cmd._key)](UIButton&) {
-            CommandSendToGDB(command);
+            ctx.send_to_gdb_async(command);
          });
       }
 
@@ -5106,8 +4628,8 @@ struct LogWindow {
                delete s;
                break;
             }
-            s_main_window->post_message(ctx._msg_received_log,
-                                        s); // `s` freed in callback (see unique_ptr in MainWindowMessageProc)
+            ctx._main_window->post_message(ctx._msg_received_log,
+                                           s); // `s` freed in callback (see unique_ptr in MainWindowMessageProc)
          }
       }
    }
@@ -5322,7 +4844,7 @@ void ExecutableWindow::start_or_run(bool pause) {
       // --------------------------------------------------
       save_watches();
       save_breakpoints();
-      s_console_window->save_command_history();
+      ctx._console_window->save_command_history();
 
       // then if the one we want to run now is different, delete breakpoints and watches
       // -------------------------------------------------------------------------------
@@ -5345,7 +4867,7 @@ void ExecutableWindow::start_or_run(bool pause) {
    // std::print("res={}\n", res);
 
    if (res.contains("No such file or directory.")) {
-      s_main_window->show_dialog(0, "The executable path is invalid.\n%f%B", "OK");
+      ctx._main_window->show_dialog(0, "The executable path is invalid.\n%f%B", "OK");
       return;
    }
 
@@ -5359,21 +4881,21 @@ void ExecutableWindow::start_or_run(bool pause) {
       ctx._program_started = true;
 
    if (_should_ask) {
-      CommandParseInternal("gf-get-pwd", true);
+      ctx.send_to_gdb_internal("gf-get-pwd", true);
    }
 
    if (!_same_prog)
-      s_console_window->set_history_path(_prog_history_path.native());
+      ctx._console_window->set_history_path(_prog_history_path.native());
 
    save_prog_args(); // do it here when we are actually running the program
    restore_breakpoints();
    // `restore_watches();` done in `MsgReceivedData()`
 
    if (!pause) {
-      (void)CommandParseInternal("run", false);
+      (void)ctx.send_to_gdb_internal("run", false);
    } else {
-      s_stack_window->update_stack();
-      s_source_window->display_set_position_from_stack();
+      ctx._stack_window->update_stack();
+      ctx._source_window->display_set_position_from_stack();
    }
 }
 
@@ -5425,8 +4947,8 @@ void ExecutableWindow::update_args(const fs::path& prog_config_path, int incr, /
 }
 
 UIElement* ExecutableWindow::Create(UIElement* parent) {
-   ExecutableWindow* win = s_executable_window = new ExecutableWindow;
-   UIPanel*          panel                     = &parent->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND);
+   ExecutableWindow* win = ctx._executable_window = new ExecutableWindow;
+   UIPanel*          panel                        = &parent->add_panel(UIPanel::COLOR_1 | UIPanel::EXPAND);
 
    if (gfc._exe._path.empty())
       gfc._exe._args.clear();
@@ -5716,8 +5238,6 @@ struct ProfFunctionEntry {
    string   _name;
 };
 
-int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp);
-
 enum class drag_mode_t { unset, zoom_range, pan, x_pan_and_zoom, x_scroll };
 
 struct ProfFlameGraphReport : public UIElement {
@@ -5754,18 +5274,74 @@ struct ProfFlameGraphReport : public UIElement {
    int         _drag_current_point  = 0;
    double      _drag_scroll_rate    = 0;
 
+   static constexpr int _prof_max_render_thread_count = 8;
+   pthread_t            _prof_render_threads[_prof_max_render_thread_count];
+   sem_t                _prof_render_start_semaphores[_prof_max_render_thread_count];
+   sem_t                _prof_render_end_semaphore;
+   int                  _prof_render_thread_count;
+
+   static int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+      return dynamic_cast<ProfFlameGraphReport*>(el)->_message_proc(msg, di, dp);
+   }
+
+   static int ProfReportWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<ProfFlameGraphReport*>(el->_cp)->_window_message_proc(el, msg, di, dp);
+   }
+
+   static int ProfTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+      return static_cast<ProfFlameGraphReport*>(el->_cp)->_table_message_proc(el, msg, di, dp);
+   }
+
    ProfFlameGraphReport(UIElement* parent, uint32_t flags)
       : UIElement(parent, flags, ProfFlameGraphMessage, "flame graph") {}
+
+   void switch_view() {
+      _showing_table = !_showing_table;
+      _switch_view_button->set_label(_showing_table ? "Graph view" : "Table view");
+      _parent->refresh();
+   }
+
+private:
+   int _message_proc(UIMessage msg, int di, void* dp);
+   int _window_message_proc(UIElement* el, UIMessage msg, int di, void* dp);
+   int _table_message_proc(UIElement* el, UIMessage msg, int di, void* dp);
+
+   static void* _flame_graph_render_thread(void* _unused);
+
+   void show_source() {
+      ProfFlameGraphEntry* entry = _menu_item;
+      if (!_functions.contains(entry->_this_function)) {
+         ctx._main_window->show_dialog(0, "Source information was not found for this function.\n%f%b", "OK");
+         return;
+      }
+      ProfFunctionEntry& function = _functions[entry->_this_function];
+
+      if (!function._name[0]) {
+         ctx._main_window->show_dialog(0, "Source information was not found for this function.\n%f%b", "OK");
+         return;
+      }
+      ctx.display_set_position(_source_files[function._source_file_index]._path, function._line_number - 1);
+   }
+
+   void fill_view() {
+      ProfFlameGraphEntry* entry = _menu_item;
+      _x_start                   = entry->_start_time;
+      _x_end                     = entry->_end_time;
+      repaint(0);
+   }
+
+   static constexpr uint32_t prof_main_color         = 0xFFBFC1C3;
+   static constexpr uint32_t prof_hover_color        = 0xFFBFC1FF;
+   static constexpr uint32_t prof_border_light_color = 0xFFFFFFFF;
+   static constexpr uint32_t prof_border_dark_color  = 0xFF000000;
+   static constexpr uint32_t prof_background_color   = 0xFF505153;
+   static constexpr uint32_t prof_text_color         = 0xFF000000;
+   static constexpr int      prof_zoom_bar_height    = 30;
+   static constexpr int      prof_scale_height       = 20;
+   static constexpr int      prof_row_height         = 30;
 };
 
-const uint32_t prof_main_color         = 0xFFBFC1C3;
-const uint32_t prof_hover_color        = 0xFFBFC1FF;
-const uint32_t prof_border_light_color = 0xFFFFFFFF;
-const uint32_t prof_border_dark_color  = 0xFF000000;
-const uint32_t prof_background_color   = 0xFF505153;
-const uint32_t prof_text_color         = 0xFF000000;
-
-const uint32_t prof_entry_color_palette[] = {
+static const uint32_t prof_entry_color_palette[] = {
    0xFFE5A0A0, 0xFFDBA0E5, 0xFFA0B5E5, 0xFFA0E5C6, 0xFFC9E5A0, 0xFFE5B1A0, 0xFFE5A0DE, 0xFFA0A4E5, 0xFFA0E5D7,
    0xFFB8E5A0, 0xFFE5C3A0, 0xFFE5A0CD, 0xFFAEA0E5, 0xFFA0E2E5, 0xFFA7E5A0, 0xFFE5D4A0, 0xFFE5A0BC, 0xFFBFA0E5,
    0xFFA0D0E5, 0xFFA0E5AA, 0xFFE5E5A0, 0xFFE5A0AA, 0xFFD0A0E5, 0xFFA0BFE5, 0xFFA0E5BC, 0xFFD4E5A0, 0xFFE5A7A0,
@@ -5777,43 +5353,7 @@ const uint32_t prof_entry_color_palette[] = {
    0xFFD7E5A0, 0xFFE5A4A0, 0xFFDEA0E5, 0xFFA0B1E5, 0xFFA0E5C9, 0xFFC6E5A0, 0xFFE5B5A0, 0xFFE5A0DB,
 };
 
-const int prof_zoom_bar_height = 30;
-const int prof_scale_height    = 20;
-const int prof_row_height      = 30;
-
-static constexpr int prof_max_render_thread_count = 8;
-pthread_t            prof_render_threads[prof_max_render_thread_count];
-sem_t                prof_render_start_semaphores[prof_max_render_thread_count];
-sem_t                prof_render_end_semaphore;
-UIPainter* volatile prof_render_painter;
-ProfFlameGraphReport* volatile prof_render_report;
-int          prof_render_thread_count;
-volatile int prof_render_thread_index_allocator;
-volatile int prof_render_active_threads;
-
-void ProfShowSource(ProfFlameGraphReport* report) {
-   ProfFlameGraphEntry* entry = report->_menu_item;
-   if (!report->_functions.contains(entry->_this_function)) {
-      s_main_window->show_dialog(0, "Source information was not found for this function.\n%f%b", "OK");
-      return;
-   }
-   ProfFunctionEntry& function = report->_functions[entry->_this_function];
-
-   if (!function._name[0]) {
-      s_main_window->show_dialog(0, "Source information was not found for this function.\n%f%b", "OK");
-      return;
-   }
-   DisplaySetPosition(report->_source_files[function._source_file_index]._path, function._line_number - 1);
-}
-
-void ProfAddBreakpoint(ProfFlameGraphEntry* entry) { CommandSendToGDB(std::format("b {}", entry->_name)); }
-
-void ProfFillView(ProfFlameGraphReport* report) {
-   ProfFlameGraphEntry* entry = report->_menu_item;
-   report->_x_start           = entry->_start_time;
-   report->_x_end             = entry->_end_time;
-   report->repaint(0);
-}
+void ProfAddBreakpoint(ProfFlameGraphEntry* entry) { ctx.send_to_gdb_async(std::format("b {}", entry->_name)); }
 
 void ProfDrawTransparentOverlay(UIPainter* painter, UIRectangle rectangle, uint32_t color) {
    rectangle = intersection(painter->_clip, rectangle);
@@ -5837,29 +5377,29 @@ void ProfDrawTransparentOverlay(UIPainter* painter, UIRectangle rectangle, uint3
    }
 }
 
-void* ProfFlameGraphRenderThread(void* _unused) {
+void* ProfFlameGraphReport::_flame_graph_render_thread(void* _unused) {
    (void)_unused;
-   int thread_index = __sync_fetch_and_add(&prof_render_thread_index_allocator, 1);
+   int thread_index = __sync_fetch_and_add(&ctx._prof_render_thread_index_allocator, 1);
 
    while (true) {
-      sem_wait(&prof_render_start_semaphores[thread_index]);
+      ProfFlameGraphReport* report = ctx._prof_render_report;
+      sem_wait(&report->_prof_render_start_semaphores[thread_index]);
 
-      ProfFlameGraphReport* report = prof_render_report;
-      UIElement*            el     = report;
+      UIElement* el = report;
 
       double    zoom_x = static_cast<double>(report->_client.width()) / (report->_x_end - report->_x_start);
       UIPainter _painter =
-         *prof_render_painter; // Some of the draw functions modify the painter's clip, so make a copy.
+         *ctx._prof_render_painter; // Some of the draw functions modify the painter's clip, so make a copy.
       UIPainter* painter = &_painter;
 
       int64_t pr = 0, pd = 0;
       auto    x_start_f = static_cast<float>(report->_x_start);
       auto    x_end_f   = static_cast<float>(report->_x_end);
 
-      size_t start_index = report->_entries.size() / prof_render_thread_index_allocator * thread_index;
-      size_t end_index   = report->_entries.size() / prof_render_thread_index_allocator * (thread_index + 1);
+      size_t start_index = report->_entries.size() / ctx._prof_render_thread_index_allocator * thread_index;
+      size_t end_index   = report->_entries.size() / ctx._prof_render_thread_index_allocator * (thread_index + 1);
 
-      if (prof_render_thread_count == thread_index + 1) {
+      if (report->_prof_render_thread_count == thread_index + 1) {
          end_index = report->_entries.size();
       }
 
@@ -5926,72 +5466,69 @@ void* ProfFlameGraphRenderThread(void* _unused) {
          }
       }
 
-      __sync_fetch_and_sub(&prof_render_active_threads, 1);
-      sem_post(&prof_render_end_semaphore);
+      __sync_fetch_and_sub(&ctx._prof_render_active_threads, 1);
+      sem_post(&report->_prof_render_end_semaphore);
    }
 }
 
-int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-   auto* report = dynamic_cast<ProfFlameGraphReport*>(el);
-
+int ProfFlameGraphReport::_message_proc(UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::PAINT) {
-      with_font fnt(report->_font); // measure using report->_font
+      with_font fnt(_font); // measure using _font
 
-      if (report->_x_start < 0)
-         report->_x_start = 0;
-      if (report->_x_end > report->_total_time)
-         report->_x_end = report->_total_time;
-      if (report->_x_end < report->_x_start + 1e-7)
-         report->_x_end = report->_x_start + 1e-7;
+      if (_x_start < 0)
+         _x_start = 0;
+      if (_x_end > _total_time)
+         _x_end = _total_time;
+      if (_x_end < _x_start + 1e-7)
+         _x_end = _x_start + 1e-7;
 
-      double zoom_x = static_cast<double>(report->_client.width()) / (report->_x_end - report->_x_start);
+      double zoom_x = static_cast<double>(_client.width()) / (_x_end - _x_start);
 
-      if (!prof_render_thread_count) {
-         prof_render_thread_count = sysconf(_SC_NPROCESSORS_CONF);
-         if (prof_render_thread_count < 1)
-            prof_render_thread_count = 1;
-         if (prof_render_thread_count > prof_max_render_thread_count)
-            prof_render_thread_count = prof_max_render_thread_count;
-         std::print(std::cerr, "Using {} render threads.\n", prof_render_thread_count);
+      if (!_prof_render_thread_count) {
+         _prof_render_thread_count = sysconf(_SC_NPROCESSORS_CONF);
+         if (_prof_render_thread_count < 1)
+            _prof_render_thread_count = 1;
+         if (_prof_render_thread_count > _prof_max_render_thread_count)
+            _prof_render_thread_count = _prof_max_render_thread_count;
+         std::print(std::cerr, "Using {} render threads.\n", _prof_render_thread_count);
 
-         sem_init(&prof_render_end_semaphore, 0, 0);
+         sem_init(&_prof_render_end_semaphore, 0, 0);
 
-         for (int i = 0; i < prof_render_thread_count; i++) {
-            sem_init(&prof_render_start_semaphores[i], 0, 0);
-            pthread_create(&prof_render_threads[i], nullptr, ProfFlameGraphRenderThread, report);
+         for (int i = 0; i < _prof_render_thread_count; i++) {
+            sem_init(&_prof_render_start_semaphores[i], 0, 0);
+            pthread_create(&_prof_render_threads[i], nullptr, _flame_graph_render_thread, this);
          }
       }
 
       auto* painter = static_cast<UIPainter*>(dp);
-      painter->draw_block(report->_client, prof_background_color);
+      painter->draw_block(_client, prof_background_color);
 
-      prof_render_report         = report;
-      prof_render_painter        = painter;
-      prof_render_active_threads = prof_render_thread_count;
+      ctx._prof_render_report         = this;
+      ctx._prof_render_painter        = painter;
+      ctx._prof_render_active_threads = _prof_render_thread_count;
       __sync_synchronize();
-      for (int i = 0; i < prof_render_thread_count; i++)
-         sem_post(&prof_render_start_semaphores[i]);
-      for (int i = 0; i < prof_render_thread_count; i++)
-         sem_wait(&prof_render_end_semaphore);
-      assert(!__sync_fetch_and_sub(&prof_render_active_threads, 1));
+      for (int i = 0; i < _prof_render_thread_count; i++)
+         sem_post(&_prof_render_start_semaphores[i]);
+      for (int i = 0; i < _prof_render_thread_count; i++)
+         sem_wait(&_prof_render_end_semaphore);
+      assert(!__sync_fetch_and_sub(&ctx._prof_render_active_threads, 1));
 
       {
-         UIRectangle r =
-            UIRectangle(report->_client.l, report->_client.r, report->_client.t, report->_client.t + prof_scale_height);
+         UIRectangle r = UIRectangle(_client.l, _client.r, _client.t, _client.t + prof_scale_height);
          painter->draw_rectangle(r, prof_main_color, prof_border_dark_color, UIRectangle(0, 0, 0, 1));
 
          double increment = 1000.0;
          while (increment > 1e-6 && increment * zoom_x > 600.0)
             increment *= 0.1;
 
-         double start = (painter->_clip.l - report->_client.l) / zoom_x + report->_x_start;
+         double start = (painter->_clip.l - _client.l) / zoom_x + _x_start;
          start -= fmod(start, increment) + increment;
 
-         for (double i = start; i < report->_total_time; i += increment) {
+         for (double i = start; i < _total_time; i += increment) {
             UIRectangle r;
-            r.t = report->_client.t;
+            r.t = _client.t;
             r.b = r.t + prof_scale_height;
-            r.l = report->_client.l + static_cast<int>((i - report->_x_start) * zoom_x);
+            r.l = _client.l + static_cast<int>((i - _x_start) * zoom_x);
             r.r = r.l + static_cast<int>(increment * zoom_x);
             if (r.l > painter->_clip.r)
                break;
@@ -6001,29 +5538,28 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          }
       }
 
-      if (report->_drag_mode == drag_mode_t::zoom_range) {
-         UIRectangle r = report->_client;
-         r.l = report->_drag_initial_point, r.r = report->_drag_current_point;
+      if (_drag_mode == drag_mode_t::zoom_range) {
+         UIRectangle r = _client;
+         r.l = _drag_initial_point, r.r = _drag_current_point;
          if (r.l > r.r)
-            r.r = report->_drag_initial_point, r.l = report->_drag_current_point;
+            r.r = _drag_initial_point, r.l = _drag_current_point;
          painter->draw_invert(r);
       }
 
-      if (report->_thumbnail) {
-         UIRectangle zoom_bar       = UIRectangle(report->_client.l, report->_client.r,
-                                                  report->_client.b - prof_zoom_bar_height, report->_client.b);
+      if (_thumbnail) {
+         UIRectangle zoom_bar       = UIRectangle(_client.l, _client.r, _client.b - prof_zoom_bar_height, _client.b);
          UIRectangle zoom_bar_thumb = zoom_bar;
-         zoom_bar_thumb.l           = zoom_bar.l + zoom_bar.width() * (report->_x_start / report->_total_time);
-         zoom_bar_thumb.r           = zoom_bar.l + zoom_bar.width() * (report->_x_end / report->_total_time);
+         zoom_bar_thumb.l           = zoom_bar.l + zoom_bar.width() * (_x_start / _total_time);
+         zoom_bar_thumb.r           = zoom_bar.l + zoom_bar.width() * (_x_end / _total_time);
          UIRectangle draw_bounds    = intersection(zoom_bar, painter->_clip);
 
          for (int i = draw_bounds.t; i < draw_bounds.b; i++) {
             for (int j = draw_bounds.l; j < draw_bounds.r; j++) {
-               int si = (i - zoom_bar.t) * report->_thumbnail_height / zoom_bar.height();
-               int sj = (j - zoom_bar.l) * report->_thumbnail_width / zoom_bar.width();
+               int si = (i - zoom_bar.t) * _thumbnail_height / zoom_bar.height();
+               int sj = (j - zoom_bar.l) * _thumbnail_width / zoom_bar.width();
 
-               if (si >= 0 && si < report->_thumbnail_height && sj >= 0 && sj < report->_thumbnail_width) {
-                  painter->_bits[i * painter->_width + j] = report->_thumbnail[si * report->_thumbnail_width + sj];
+               if (si >= 0 && si < _thumbnail_height && sj >= 0 && sj < _thumbnail_width) {
+                  painter->_bits[i * painter->_width + j] = _thumbnail[si * _thumbnail_width + sj];
                }
             }
          }
@@ -6032,22 +5568,21 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          painter->draw_border(zoom_bar_thumb, prof_border_light_color, UIRectangle(4));
       }
 
-      if (report->_hover && report->_drag_mode == drag_mode_t::unset) {
-         const ProfFunctionEntry& function = report->_functions[report->_hover->_this_function];
+      if (_hover && _drag_mode == drag_mode_t::unset) {
+         const ProfFunctionEntry& function = _functions[_hover->_this_function];
 
          char line1[256], line2[256], line3[256];
-         std_format_to_n(
-            line1, sizeof(line1), "[{}] {}:{}", report->_hover->_name,
-            function._source_file_index != -1 ? report->_source_files[function._source_file_index]._path.c_str() : "??",
-            function._line_number);
-         std_format_to_n(line2, sizeof(line2), "This call: {:f}ms {:.1f}%%",
-                         report->_hover->_end_time - report->_hover->_start_time,
-                         (report->_hover->_end_time - report->_hover->_start_time) / report->_total_time * 100.0);
+         std_format_to_n(line1, sizeof(line1), "[{}] {}:{}", _hover->_name,
+                         function._source_file_index != -1 ? _source_files[function._source_file_index]._path.c_str()
+                                                           : "??",
+                         function._line_number);
+         std_format_to_n(line2, sizeof(line2), "This call: {:f}ms {:.1f}%%", _hover->_end_time - _hover->_start_time,
+                         (_hover->_end_time - _hover->_start_time) / _total_time * 100.0);
          std_format_to_n(line3, sizeof(line3), "Total: {:f}ms in {} calls ({:f}ms avg) {:.1f}%%", function._total_time,
                          function._call_count, function._total_time / function._call_count,
-                         function._total_time / report->_total_time * 100.0);
+                         function._total_time / _total_time * 100.0);
 
-         UI* ui          = el->ui();
+         UI* ui          = this->ui();
          int width       = 0;
          int line1_width = ui->string_width(line1);
          if (width < line1_width)
@@ -6061,12 +5596,12 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          int line_height = ui->string_height();
          int height      = 3 * line_height;
 
-         auto pos = el->cursor_pos();
+         auto pos = cursor_pos();
          int  x   = pos.x;
-         if (x + width > el->_clip.r)
-            x = el->_clip.r - width;
+         if (x + width > _clip.r)
+            x = _clip.r - width;
          int y = pos.y + 25;
-         if (y + height > el->_clip.b)
+         if (y + height > _clip.b)
             y = pos.y - height - 10;
          UIRectangle rectangle = UIRectangle(x, x + width, y, y + height);
 
@@ -6079,167 +5614,163 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
                               UIAlign::left, nullptr);
       }
    } else if (msg == UIMessage::MOUSE_MOVE) {
-      double               zoom_x = static_cast<double>(report->_client.width()) / (report->_x_end - report->_x_start);
+      double               zoom_x = static_cast<double>(_client.width()) / (_x_end - _x_start);
       ProfFlameGraphEntry* hover  = nullptr;
-      auto                 pos    = el->cursor_pos();
+      auto                 pos    = cursor_pos();
 
-      int  depth = (pos.y - report->_client.t + report->_v_scroll->position() - prof_scale_height) / prof_row_height;
-      auto x_start_f = static_cast<float>(report->_x_start);
-      auto x_end_f   = static_cast<float>(report->_x_end);
+      int  depth     = (pos.y - _client.t + _v_scroll->position() - prof_scale_height) / prof_row_height;
+      auto x_start_f = static_cast<float>(_x_start);
+      auto x_end_f   = static_cast<float>(_x_end);
 
-      for (size_t i = 0; i < report->_entries.size(); i++) {
-         ProfFlameGraphEntryTime* time = &report->_entry_times[i];
+      for (size_t i = 0; i < _entries.size(); i++) {
+         ProfFlameGraphEntryTime* time = &_entry_times[i];
 
          if (time->_depth != depth || time->_end < x_start_f || time->_start > x_end_f) {
             continue;
          }
 
-         int64_t rr = report->_client.l +
-                      static_cast<int64_t>((time->_end - report->_x_start) * zoom_x + 0.999); // RECTANGLE_EARLY
+         int64_t rr = _client.l + static_cast<int64_t>((time->_end - _x_start) * zoom_x + 0.999); // RECTANGLE_EARLY
          // RECTANGLE_OTHER
-         int64_t rl = report->_client.l + static_cast<int64_t>((time->_start - report->_x_start) * zoom_x);
-         int64_t rt =
-            report->_client.t + time->_depth * prof_row_height + prof_scale_height - report->_v_scroll->position();
+         int64_t rl = _client.l + static_cast<int64_t>((time->_start - _x_start) * zoom_x);
+         int64_t rt = _client.t + time->_depth * prof_row_height + prof_scale_height - _v_scroll->position();
          int64_t rb = rt + prof_row_height;
 
          (void)rt;
          (void)rb;
 
          if (pos.x >= rl && pos.x < rr) {
-            hover = &report->_entries[i];
+            hover = &_entries[i];
             break;
          }
       }
 
-      if (hover != report->_hover || hover /* to repaint the tooltip */) {
-         report->_hover = hover;
-         el->repaint(nullptr);
+      if (hover != _hover || hover /* to repaint the tooltip */) {
+         _hover = hover;
+         repaint(nullptr);
       }
    } else if (msg == UIMessage::UPDATE) {
-      if (report->_hover && !el->is_hovered()) {
-         report->_hover = nullptr;
-         el->repaint(nullptr);
+      if (_hover && !is_hovered()) {
+         _hover = nullptr;
+         repaint(nullptr);
       }
    } else if (msg == UIMessage::LEFT_DOWN) {
-      auto pos = el->cursor_pos();
-      if (pos.y < report->_client.b - prof_zoom_bar_height) {
-         report->_drag_mode           = drag_mode_t::pan;
-         report->_drag_initial_value  = report->_x_start;
-         report->_drag_initial_point  = pos.x;
-         report->_drag_initial_value2 = report->_v_scroll->position();
-         report->_drag_initial_point2 = pos.y;
-         el->set_cursor(static_cast<int>(UICursor::hand));
+      auto pos = cursor_pos();
+      if (pos.y < _client.b - prof_zoom_bar_height) {
+         _drag_mode           = drag_mode_t::pan;
+         _drag_initial_value  = _x_start;
+         _drag_initial_point  = pos.x;
+         _drag_initial_value2 = _v_scroll->position();
+         _drag_initial_point2 = pos.y;
+         set_cursor(static_cast<int>(UICursor::hand));
       } else {
-         report->_drag_mode          = drag_mode_t::x_scroll;
-         report->_drag_initial_value = report->_x_start;
-         report->_drag_initial_point = pos.x;
-         report->_drag_scroll_rate   = 1.0;
+         _drag_mode          = drag_mode_t::x_scroll;
+         _drag_initial_value = _x_start;
+         _drag_initial_point = pos.x;
+         _drag_scroll_rate   = 1.0;
 
-         if (pos.x < report->_client.l + report->_client.width() * (report->_x_start / report->_total_time) ||
-             pos.y >= report->_client.l + report->_client.width() * (report->_x_end / report->_total_time)) {
-            report->_drag_scroll_rate = 0.2;
+         if (pos.x < _client.l + _client.width() * (_x_start / _total_time) ||
+             pos.y >= _client.l + _client.width() * (_x_end / _total_time)) {
+            _drag_scroll_rate = 0.2;
          }
       }
    } else if (msg == UIMessage::MIDDLE_DOWN) {
-      auto pos = el->cursor_pos();
-      if (pos.y < report->_client.b - prof_zoom_bar_height) {
-         report->_drag_mode           = drag_mode_t::x_pan_and_zoom;
-         report->_drag_initial_value  = report->_x_start;
-         report->_drag_initial_point  = pos.x;
-         report->_drag_initial_point2 = pos.y;
-         el->set_cursor(static_cast<int>(UICursor::cross_hair));
+      auto pos = cursor_pos();
+      if (pos.y < _client.b - prof_zoom_bar_height) {
+         _drag_mode           = drag_mode_t::x_pan_and_zoom;
+         _drag_initial_value  = _x_start;
+         _drag_initial_point  = pos.x;
+         _drag_initial_point2 = pos.y;
+         set_cursor(static_cast<int>(UICursor::cross_hair));
       }
    } else if (msg == UIMessage::RIGHT_DOWN) {
-      auto pos = el->cursor_pos();
-      if (pos.y < report->_client.b - prof_zoom_bar_height) {
-         report->_drag_mode          = drag_mode_t::zoom_range;
-         report->_drag_initial_point = pos.x;
+      auto pos = cursor_pos();
+      if (pos.y < _client.b - prof_zoom_bar_height) {
+         _drag_mode          = drag_mode_t::zoom_range;
+         _drag_initial_point = pos.x;
       }
    } else if (msg == UIMessage::LEFT_UP || msg == UIMessage::RIGHT_UP || msg == UIMessage::MIDDLE_UP) {
-      if (report->_drag_mode == drag_mode_t::zoom_range && report->_drag_started) {
-         UIRectangle r = report->_client;
-         r.l = report->_drag_initial_point, r.r = report->_drag_current_point;
+      if (_drag_mode == drag_mode_t::zoom_range && _drag_started) {
+         UIRectangle r = _client;
+         r.l = _drag_initial_point, r.r = _drag_current_point;
          if (r.l > r.r)
-            r.r = report->_drag_initial_point, r.l = report->_drag_current_point;
-         double zoom_x    = static_cast<double>(report->_client.width()) / (report->_x_end - report->_x_start);
-         report->_x_end   = (r.r - report->_client.l) / zoom_x + report->_x_start;
-         report->_x_start = (r.l - report->_client.l) / zoom_x + report->_x_start;
-      } else if (!report->_drag_started && msg == UIMessage::RIGHT_UP && report->_hover) {
-         report->_menu_item = report->_hover;
-         el->ui()
-            ->create_menu(el->_window, UIMenu::NO_SCROLL)
-            .add_item(0, "Show source", [report](UIButton&) { ProfShowSource(report); })
-            .add_item(0, "Add breakpoint", [report](UIButton&) { ProfAddBreakpoint(report->_hover); })
-            .add_item(0, "Fill view", [report](UIButton&) { ProfFillView(report); })
+            r.r = _drag_initial_point, r.l = _drag_current_point;
+         double zoom_x = static_cast<double>(_client.width()) / (_x_end - _x_start);
+         _x_end        = (r.r - _client.l) / zoom_x + _x_start;
+         _x_start      = (r.l - _client.l) / zoom_x + _x_start;
+      } else if (!_drag_started && msg == UIMessage::RIGHT_UP && _hover) {
+         _menu_item = _hover;
+         ui()
+            ->create_menu(_window, UIMenu::NO_SCROLL)
+            .add_item(0, "Show source", [this](UIButton&) { show_source(); })
+            .add_item(0, "Add breakpoint", [this](UIButton&) { ProfAddBreakpoint(_hover); })
+            .add_item(0, "Fill view", [this](UIButton&) { fill_view(); })
             .show();
-      } else if (!report->_drag_started && msg == UIMessage::MIDDLE_UP && report->_hover) {
-         report->_menu_item = report->_hover;
-         ProfFillView(report);
+      } else if (!_drag_started && msg == UIMessage::MIDDLE_UP && _hover) {
+         _menu_item = _hover;
+         fill_view();
       }
 
-      report->_drag_mode    = drag_mode_t::unset;
-      report->_drag_started = false;
-      el->repaint(nullptr);
-      el->set_cursor(static_cast<int>(UICursor::arrow));
+      _drag_mode    = drag_mode_t::unset;
+      _drag_started = false;
+      repaint(nullptr);
+      set_cursor(static_cast<int>(UICursor::arrow));
    } else if (msg == UIMessage::MOUSE_DRAG) {
-      report->_drag_started = true;
-      auto pos              = el->cursor_pos();
+      _drag_started = true;
+      auto pos      = cursor_pos();
 
-      if (report->_drag_mode == drag_mode_t::pan) {
-         double delta     = report->_x_end - report->_x_start;
-         report->_x_start = report->_drag_initial_value - static_cast<double>(pos.x - report->_drag_initial_point) *
-                                                             report->_total_time / report->_client.width() * delta /
-                                                             report->_total_time;
-         report->_x_end = report->_x_start + delta;
-         if (report->_x_start < 0) {
-            report->_x_end -= report->_x_start;
-            report->_x_start = 0;
+      if (_drag_mode == drag_mode_t::pan) {
+         double delta = _x_end - _x_start;
+         _x_start     = _drag_initial_value - static_cast<double>(pos.x - _drag_initial_point) * _total_time /
+                                             _client.width() * delta / _total_time;
+         _x_end = _x_start + delta;
+         if (_x_start < 0) {
+            _x_end -= _x_start;
+            _x_start = 0;
          }
-         if (report->_x_end > report->_total_time) {
-            report->_x_start += report->_total_time - report->_x_end;
-            report->_x_end = report->_total_time;
+         if (_x_end > _total_time) {
+            _x_start += _total_time - _x_end;
+            _x_end = _total_time;
          }
-         report->_v_scroll->position() =
-            report->_drag_initial_value2 - static_cast<double>(pos.y - report->_drag_initial_point2);
-         report->_v_scroll->refresh();
-      } else if (report->_drag_mode == drag_mode_t::x_scroll) {
-         double delta     = report->_x_end - report->_x_start;
-         report->_x_start = report->_drag_initial_value + static_cast<double>(pos.x - report->_drag_initial_point) *
-                                                             report->_total_time / report->_client.width() *
-                                                             report->_drag_scroll_rate;
-         report->_x_end = report->_x_start + delta;
-         if (report->_x_start < 0) {
-            report->_x_end -= report->_x_start;
-            report->_x_start = 0;
+         _v_scroll->position() = _drag_initial_value2 - static_cast<double>(pos.y - _drag_initial_point2);
+         _v_scroll->refresh();
+      } else if (_drag_mode == drag_mode_t::x_scroll) {
+         double delta = _x_end - _x_start;
+         _x_start     = _drag_initial_value + static_cast<double>(pos.x - _drag_initial_point) * _total_time /
+                                             _client.width() * _drag_scroll_rate;
+         _x_end = _x_start + delta;
+         if (_x_start < 0) {
+            _x_end -= _x_start;
+            _x_start = 0;
          }
-         if (report->_x_end > report->_total_time) {
-            report->_x_start += report->_total_time - report->_x_end;
-            report->_x_end = report->_total_time;
+         if (_x_end > _total_time) {
+            _x_start += _total_time - _x_end;
+            _x_end = _total_time;
          }
-      } else if (report->_drag_mode == drag_mode_t::x_pan_and_zoom) {
-         double delta = report->_x_end - report->_x_start;
-         report->_x_start += static_cast<double>(pos.x - report->_drag_initial_point) * report->_total_time /
-                             report->_client.width() * delta / report->_total_time * 3.0;
-         report->_x_end = report->_x_start + delta;
-         double factor  = powf(1.02, pos.y - report->_drag_initial_point2);
-         double mouse   = static_cast<double>(pos.x - report->_client.l) / report->_client.width();
+      } else if (_drag_mode == drag_mode_t::x_pan_and_zoom) {
+         double delta = _x_end - _x_start;
+         _x_start += static_cast<double>(pos.x - _drag_initial_point) * _total_time / _client.width() * delta /
+                     _total_time * 3.0;
+         _x_end        = _x_start + delta;
+         double factor = powf(1.02, pos.y - _drag_initial_point2);
+         double mouse  = static_cast<double>(pos.x - _client.l) / _client.width();
 #if 0
          mouse = 0.5;
-         XWarpPointer(ui->display, None, windowMain->window, 0, 0, 0, 0, report->dragInitialPoint, report->dragInitialPoint2);
+         XWarpPointer(ctx._ui->native_display(), None, ctx._main_window->native_window(), 0, 0, 0, 0,
+                      _drag_initial_point, _drag_initial_point);
 #else
-         report->_drag_initial_point  = pos.x;
-         report->_drag_initial_point2 = pos.y;
+         _drag_initial_point  = pos.x;
+         _drag_initial_point2 = pos.y;
 #endif
-         double new_zoom = (report->_x_end - report->_x_start) / report->_total_time * factor;
-         report->_x_start += mouse * (report->_x_end - report->_x_start) * (1 - factor);
-         report->_x_end = new_zoom * report->_total_time + report->_x_start;
-      } else if (report->_drag_mode == drag_mode_t::zoom_range) {
-         report->_drag_current_point = pos.x;
+         double new_zoom = (_x_end - _x_start) / _total_time * factor;
+         _x_start += mouse * (_x_end - _x_start) * (1 - factor);
+         _x_end = new_zoom * _total_time + _x_start;
+      } else if (_drag_mode == drag_mode_t::zoom_range) {
+         _drag_current_point = pos.x;
       }
 
-      el->repaint(nullptr);
+      repaint(nullptr);
    } else if (msg == UIMessage::MOUSE_WHEEL) {
-      auto   pos          = el->cursor_pos();
+      auto   pos          = cursor_pos();
       int    divisions    = di / 72;
       double factor       = 1;
       double per_division = 1.2f;
@@ -6247,68 +5778,60 @@ int ProfFlameGraphMessage(UIElement* el, UIMessage msg, int di, void* dp) {
          factor *= per_division, divisions--;
       while (divisions < 0)
          factor /= per_division, divisions++;
-      double mouse    = static_cast<double>(pos.x - report->_client.l) / report->_client.width();
-      double new_zoom = (report->_x_end - report->_x_start) / report->_total_time * factor;
-      report->_x_start += mouse * (report->_x_end - report->_x_start) * (1 - factor);
-      report->_x_end = new_zoom * report->_total_time + report->_x_start;
-      el->repaint(nullptr);
+      double mouse    = static_cast<double>(pos.x - _client.l) / _client.width();
+      double new_zoom = (_x_end - _x_start) / _total_time * factor;
+      _x_start += mouse * (_x_end - _x_start) * (1 - factor);
+      _x_end = new_zoom * _total_time + _x_start;
+      repaint(nullptr);
       return 1;
    } else if (msg == UIMessage::GET_CURSOR) {
-      return report->_drag_mode == drag_mode_t::pan              ? static_cast<int>(UICursor::hand)
-             : report->_drag_mode == drag_mode_t::x_pan_and_zoom ? static_cast<int>(UICursor::cross_hair)
-                                                                 : static_cast<int>(UICursor::arrow);
+      return _drag_mode == drag_mode_t::pan              ? static_cast<int>(UICursor::hand)
+             : _drag_mode == drag_mode_t::x_pan_and_zoom ? static_cast<int>(UICursor::cross_hair)
+                                                         : static_cast<int>(UICursor::arrow);
    } else if (msg == UIMessage::LAYOUT) {
-      UIRectangle scrollbar_bounds = el->_bounds;
-      scrollbar_bounds.l           = scrollbar_bounds.r - ui_size::scroll_bar * el->get_scale();
-      report->_v_scroll->set_page(el->_bounds.height() - prof_zoom_bar_height);
-      report->_v_scroll->move(scrollbar_bounds, true);
-      report->_client   = el->_bounds;
-      report->_client.r = scrollbar_bounds.l;
+      UIRectangle scrollbar_bounds = _bounds;
+      scrollbar_bounds.l           = scrollbar_bounds.r - ui_size::scroll_bar * get_scale();
+      _v_scroll->set_page(_bounds.height() - prof_zoom_bar_height);
+      _v_scroll->move(scrollbar_bounds, true);
+      _client   = _bounds;
+      _client.r = scrollbar_bounds.l;
    } else if (msg == UIMessage::SCROLLED) {
-      el->refresh();
+      refresh();
    } else if (msg == UIMessage::DESTROY) {
-      report->_entries.clear();
-      report->_functions.clear();
-      report->_source_files.clear();
-      report->_entry_times.clear();
-      free(report->_thumbnail);
+      _entries.clear();
+      _functions.clear();
+      _source_files.clear();
+      _entry_times.clear();
+      free(_thumbnail);
    }
 
    return 0;
 }
 
-int ProfReportWindowMessage(UIElement* el, UIMessage msg, int di, void* dp) {
-   auto* report = static_cast<ProfFlameGraphReport*>(el->_cp);
-
+int ProfFlameGraphReport::_window_message_proc(UIElement* el, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::LAYOUT) {
-      if (report->_showing_table) {
-         report->set_flag(UIElement::hide_flag);
-         report->_table->clear_flag(UIElement::hide_flag);
+      if (_showing_table) {
+         set_flag(UIElement::hide_flag);
+         _table->clear_flag(UIElement::hide_flag);
       } else {
-         report->clear_flag(UIElement::hide_flag);
-         report->_table->set_flag(UIElement::hide_flag);
+         clear_flag(UIElement::hide_flag);
+         _table->set_flag(UIElement::hide_flag);
       }
       el->_class_proc(el, msg, di, dp);
-      report->_table->move(report->_bounds, false);
+      _table->move(_bounds, false);
       return 1;
    }
 
    return 0;
 }
 
-void ProfSwitchView(ProfFlameGraphReport* report) {
-   report->_showing_table = !report->_showing_table;
-   report->_switch_view_button->set_label(report->_showing_table ? "Graph view" : "Table view");
-   report->_parent->refresh();
-}
-
-int ProfTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
+int ProfFlameGraphReport::_table_message_proc(UIElement* el, UIMessage msg, int di, void* dp) {
    auto*    report = static_cast<ProfFlameGraphReport*>(el->_cp);
-   UITable* table  = report->_table;
+   UITable* table  = _table;
 
    if (msg == UIMessage::TABLE_GET_ITEM) {
       auto*              m     = static_cast<UITableGetItem*>(dp);
-      ProfFunctionEntry* entry = &report->_sorted_functions[m->_row];
+      ProfFunctionEntry* entry = &_sorted_functions[m->_row];
 
       switch (m->_column) {
       case 0:
@@ -6320,14 +5843,14 @@ int ProfTableMessage(UIElement* el, UIMessage msg, int di, void* dp) {
       case 3:
          return m->format_to("{:f}", entry->_total_time / entry->_call_count);
       case 4:
-         return m->format_to("{:f}", entry->_total_time / report->_total_time * 100);
+         return m->format_to("{:f}", entry->_total_time / _total_time * 100);
       default:
          assert(0);
          return 0;
       }
    } else if (msg == UIMessage::LEFT_DOWN) {
       int   index = table->header_hittest(el->cursor_pos());
-      auto& sf    = report->_sorted_functions;
+      auto& sf    = _sorted_functions;
 
       if (index != -1) {
          switch (index) {
@@ -6371,7 +5894,7 @@ void ProfLoadProfileData(void* _window) {
    data->_ticks_per_ms             = ticks_per_ms_string ? sv_atoi(ticks_per_ms_string, 2) : 0;
 
    if (!ticks_per_ms_string || !data->_ticks_per_ms) {
-      s_main_window->show_dialog(0, "Profile data could not be loaded (1).\nConsult the guide.\n%f%b", "OK");
+      ctx._main_window->show_dialog(0, "Profile data could not be loaded (1).\nConsult the guide.\n%f%b", "OK");
       return;
    }
 
@@ -6385,7 +5908,7 @@ void ProfLoadProfileData(void* _window) {
 
    if (raw_entry_count > 10000000) {
       // Show a loading message.
-      UIWindow* window = s_main_window;
+      UIWindow* window = ctx._main_window;
       UIPainter painter(window);
       char      string[256];
       std_format_to_n(string, sizeof(string), "Loading data... (estimated time: {} seconds)",
@@ -6408,7 +5931,7 @@ void ProfLoadProfileData(void* _window) {
    FILE* f = fopen(path, "rb");
 
    if (!f) {
-      s_main_window->show_dialog(0, "Profile data could not be loaded (2).\nConsult the guide.\n%f%b", "OK");
+      ctx._main_window->show_dialog(0, "Profile data could not be loaded (2).\nConsult the guide.\n%f%b", "OK");
       free(rawEntries);
       return;
    }
@@ -6495,20 +6018,21 @@ void ProfLoadProfileData(void* _window) {
       }
    }
 
-   UIMDIChild* window = &s_data_window->add_mdichild(UIMDIChild::CLOSE_BUTTON, ui_rect_2s(800, 600), "Flame graph");
-   auto*       report = new ProfFlameGraphReport(window, 0);
+   UIMDIChild* window =
+      &ctx._data_mdiclient->add_mdichild(UIMDIChild::CLOSE_BUTTON, ui_rect_2s(800, 600), "Flame graph");
+   auto* report = new ProfFlameGraphReport(window, 0);
 
    report->_switch_view_button = &window->add_button(UIButton::SMALL | UIElement::non_client_flag, "Table view")
                                      .set_cp(report)
-                                     .on_click([report](UIButton&) { ProfSwitchView(report); });
+                                     .on_click([report](UIButton&) { report->switch_view(); });
    UITable* table = report->_table = &window->add_table(0, "Name\tTime spent (ms)\tCall count\tAverage per call (ms)")
                                          .set_cp(report)
-                                         .set_user_proc(ProfTableMessage);
+                                         .set_user_proc(ProfFlameGraphReport::ProfTableMessage);
 
    report->_v_scroll = &report->add_scrollbar(0);
    report->_font     = data->_font_flame_graph;
 
-   window->set_cp(report).set_user_proc(ProfReportWindowMessage);
+   window->set_cp(report).set_user_proc(ProfFlameGraphReport::ProfReportWindowMessage);
 
    report->_functions    = functions;
    functions             = {};
@@ -6621,7 +6145,7 @@ void ProfLoadProfileData(void* _window) {
       UIPainter painter(report->ui(), width, height, static_cast<uint32_t*>(malloc(width * height * 4)));
 
       report->_client = report->_bounds = report->_clip = painter._clip;
-      ProfFlameGraphMessage(report, UIMessage::PAINT, 0, &painter);
+      ProfFlameGraphReport::ProfFlameGraphMessage(report, UIMessage::PAINT, 0, &painter);
       int new_height = 30;
       ThumbnailResize(painter._bits, painter._width, painter._height, painter._width, new_height);
       report->_thumbnail        = static_cast<uint32_t*>(realloc(painter._bits, painter._width * new_height * 4));
@@ -6640,7 +6164,7 @@ void ProfLoadProfileData(void* _window) {
 
 void ProfStepOverProfiled(ProfWindow* window) {
    (void)ctx.eval_command("call GfProfilingStart()");
-   CommandSendToGDB("gf-next");
+   ctx.send_to_gdb_async("gf-next");
    window->_in_step_over_profiled = true;
 }
 
@@ -6651,7 +6175,7 @@ void ProfWindowUpdate(const char* data, UIElement* el) {
       (void)ctx.eval_command("call GfProfilingStop()");
       ProfLoadProfileData(window);
       ctx.switch_to_window_and_focus("Data");
-      s_data_window->refresh();
+      ctx._data_mdiclient->refresh();
       window->_in_step_over_profiled = false;
    }
 }
@@ -6698,7 +6222,7 @@ private:
    void _add_memory_window() {
       std::string expression;
 
-      if (s_main_window->show_dialog(0, "Enter address expression:\n%t\n%f%b%b", &expression, "Goto", "Cancel") ==
+      if (ctx._main_window->show_dialog(0, "Enter address expression:\n%t\n%f%b%b", &expression, "Goto", "Cancel") ==
           "Goto") {
          char buffer[4096];
          std_format_to_n(buffer, sizeof(buffer), "py gf_valueof(['{}'],' ')", expression);
@@ -6715,10 +6239,10 @@ private:
                _offset = address & ~0xF;
                repaint(nullptr);
             } else {
-               s_main_window->show_dialog(0, "Cannot access memory at address 0.\n%f%b", "OK");
+               ctx._main_window->show_dialog(0, "Cannot access memory at address 0.\n%f%b", "OK");
             }
          } else {
-            s_main_window->show_dialog(0, "Expression did not evaluate to an address.\n%f%b", "OK");
+            ctx._main_window->show_dialog(0, "Expression did not evaluate to an address.\n%f%b", "OK");
          }
       }
    }
@@ -7753,13 +7277,13 @@ int WaveformViewerRefreshMessage(UIElement* el, UIMessage msg, int di, void* dp)
 
 void WaveformViewerSaveToFile(WaveformDisplay* display) {
    static std::string path;
-   auto               result = s_main_window->show_dialog(0, "Save to file       \nPath:\n%t\n%f%b%b%b", &path, "Save",
-                                                          "Save and open", "Cancel");
+   auto result = ctx._main_window->show_dialog(0, "Save to file       \nPath:\n%t\n%f%b%b%b", &path, "Save",
+                                               "Save and open", "Cancel");
    if (result == "Cancel")
       return;
    FILE* f = fopen(path.c_str(), "wb");
    if (!f) {
-      s_main_window->show_dialog(0, "Unable to open file for writing.\n%f%b", "OK");
+      ctx._main_window->show_dialog(0, "Unable to open file for writing.\n%f%b", "OK");
       return;
    }
    int32_t i = 0;
@@ -7824,7 +7348,7 @@ void WaveformViewerUpdate(const std::string& pointer_string, const std::string& 
       if (!channelsString.empty())
          std_format_to_n(viewer->_channels, sizeof(viewer->_channels), "{}", channelsString);
 
-      UIMDIChild* window = &s_data_window->add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Waveform")
+      UIMDIChild* window = &ctx._data_mdiclient->add_mdichild(UIMDIChild::CLOSE_BUTTON, UIRectangle(0), "Waveform")
                                .set_user_proc(WaveformViewerWindowMessage)
                                .set_cp(viewer);
       viewer->_auto_toggle = &window->add_button(UIButton::SMALL | UIElement::non_client_flag, "Auto")
@@ -7858,7 +7382,7 @@ void WaveformViewerUpdate(const std::string& pointer_string, const std::string& 
    viewer->_label->refresh();
    viewer->_label_panel->_parent->refresh();
    owner->refresh();
-   s_data_window->refresh();
+   ctx._data_mdiclient->refresh();
 
    free(samples);
 }
@@ -7866,7 +7390,7 @@ void WaveformViewerUpdate(const std::string& pointer_string, const std::string& 
 void WaveformAddDialog() {
    static std::string pointer, sample_count, channels;
 
-   auto result = s_main_window->show_dialog(
+   auto result = ctx._main_window->show_dialog(
       0,
       "Add waveform\n\n%l\n\nPointer to samples: (float *)\n%t\nSample count (per channel):\n%t\n"
       "Channels (interleaved):\n%t\n\n%l\n\n%f%b%b",
@@ -7914,7 +7438,7 @@ bool ElementHidden(UIElement* el) {
    return false;
 }
 
-void MsgReceivedData(std::unique_ptr<std::string> input) {
+void Context::msg_received_data(std::unique_ptr<std::string> input) {
    ctx._program_running = false;
 
    if (ctx._first_update) {
@@ -7924,22 +7448,22 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
       ctx._first_update = false;
    }
 
-   s_executable_window->restore_watches();
+   _executable_window->restore_watches();
 
    if (WatchLoggerUpdate(*input))
       return;
-   if (s_source_window->_showing_disassembly)
-      s_source_window->disassembly_update_line();
+   if (_source_window->_showing_disassembly)
+      _source_window->disassembly_update_line();
 
    if (!ctx._dbg_re->matches(*input, debug_look_for::stack_or_breakpoint_output)) {
       // we don't want to call `DebuggerGetBreakpoints()` upon receiving the result of `DebuggerGetBreakpoints()`,
       // causing an infinite loop!!!
-      s_stack_window->update_stack();
+      _stack_window->update_stack();
       s_breakpoint_mgr.update_breakpoints_from_gdb();
 
-      ctx.grab_focus(s_input_textbox->_window); // grab focus when breakpoint is hit!
+      ctx.grab_focus(_input_textbox->_window); // grab focus when breakpoint is hit!
    }
-   s_source_window->display_set_position_from_stack();
+   _source_window->display_set_position_from_stack();
 
    for (auto& [name, iw] : ctx._interface_windows) {
       InterfaceWindow* window = &iw;
@@ -7953,13 +7477,13 @@ void MsgReceivedData(std::unique_ptr<std::string> input) {
 
    DataViewersUpdateAll();
 
-   if (s_display_output) {
-      s_display_output->insert_content(*input, false); // don't add `\n` at the end
-      s_display_output->refresh();
+   if (_display_output) {
+      _display_output->insert_content(*input, false); // don't add `\n` at the end
+      _display_output->refresh();
    }
 
-   if (s_trafficlight)
-      s_trafficlight->repaint(nullptr);
+   if (_trafficlight)
+      _trafficlight->repaint(nullptr);
 }
 
 // --------------------------------------------------------------------------
@@ -7987,8 +7511,8 @@ void* ControlPipe::thread_proc(void*) {
       if (quit)
          delete s;
       else
-         s_main_window->post_message(ctx._msg_received_control,
-                                     s); // `s` converted to unique_ptr in MainWindowMessageProc
+         ctx._main_window->post_message(ctx._msg_received_control,
+                                        s); // `s` converted to unique_ptr in MainWindowMessageProc
       fclose(file);
    }
    return nullptr;
@@ -8001,11 +7525,11 @@ void ControlPipe::on_command(std::unique_ptr<std::string> input) {
       *end = 0;
 
    if (start[0] == 'f' && start[1] == ' ') {
-      DisplaySetPosition(start + 2, 0);
+      ctx.display_set_position(start + 2, 0);
    } else if (start[0] == 'l' && start[1] == ' ') {
-      DisplaySetPosition({}, sv_atoul(start + 2) - 1);
+      ctx.display_set_position({}, sv_atoul(start + 2) - 1);
    } else if (start[0] == 'c' && start[1] == ' ') {
-      (void)CommandParseInternal(start + 2, false);
+      (void)ctx.send_to_gdb_internal(start + 2, false);
    }
 }
 
@@ -8014,7 +7538,7 @@ enum invoker_flags { invoker_restore_focus = 1 << 0 };
 auto gdb_invoker(string_view cmd, int flags = 0) {
    // std::print(std::cerr, "invoke: \"{}\"\n", cmd);
    return [cmd, flags]() {
-      CommandSendToGDB(cmd);
+      ctx.send_to_gdb_async(cmd);
       if (flags & invoker_restore_focus)
          ctx.restore_focus(); // restore input focus to the window that had it before `gf` grabbed it
       return true;
@@ -8026,7 +7550,7 @@ auto gdb_invoker_or_start(string_view cmd, int flags = 0) {
    return [cmd, flags, invoker]() {
       if (!ctx._program_started) {
          // not running a program yet. Use ExecutableWindow::start_or_run
-         s_executable_window->start_or_run(cmd == "gf-next");
+         ctx._executable_window->start_or_run(cmd == "gf-next");
       } else {
          invoker();
       }
@@ -8139,34 +7663,34 @@ static void ProcessSemanticTokens(const std::vector<uint32_t>& data, const UICod
    CLANGD_LOG("Processed semantic tokens for {} lines\n", num_lines);
 }
 
-bool CommandGotoDefinition() {
-   auto content = s_display_code->content();
-   if (!s_source_window || s_source_window->_current_file.empty() || content.empty()) {
+bool Context::goto_definition() {
+   auto content = _display_code->content();
+   if (!_source_window || _source_window->_current_file.empty() || content.empty()) {
       return false;
    }
 
-   std::string file_path = s_source_window->_current_file;
+   std::string file_path = _source_window->_current_file;
 
 
 
    // Save current location to history before jumping
    // -----------------------------------------------
-   ctx._nav_history.push(file_path, s_display_code->get_highlight());
+   ctx._nav_history.push(file_path, _display_code->get_highlight());
 
    // Request definition from clangd
    // ------------------------------
-   UICode::code_pos_t caret = s_display_code->caret_pos();
-   ctx._clangd.goto_definition(file_path, caret, [](const std::string& file, UICode::code_pos_pair_t pos) {
-      s_source_window->jump_to_position(file, pos, false);
+   UICode::code_pos_t caret = _display_code->caret_pos();
+   ctx._clangd.goto_definition(file_path, caret, [&](const std::string& file, UICode::code_pos_pair_t pos) {
+      _source_window->jump_to_position(file, pos, false);
    });
 
    return true;
 }
 
-bool CommandGoBack() {
+bool Context::go_back() {
    if (auto location = ctx._nav_history.go_back(); location) {
       auto& pos = location->_pos;
-      s_source_window->jump_to_position(location->_file, pos, false);
+      _source_window->jump_to_position(location->_file, pos, false);
       return true;
    }
    return false;
@@ -8255,7 +7779,8 @@ void Context::add_builtin_windows_and_commands() {
                                                     }}
    });
    _interface_commands.push_back({
-      ._label = "Sync with gvim\tF2", ._shortcut{.code = UI_KEYCODE_FKEY(2), .invoke = CommandSyncWithGvim}
+      ._label = "Sync with gvim\tF2",
+      ._shortcut{.code = UI_KEYCODE_FKEY(2), .invoke = [&]() { return ctx.sync_with_gvim(); }}
    });
    _interface_commands.push_back({
       ._label = "Ask GDB for PWD\tCtrl+Shift+P",
@@ -8263,30 +7788,35 @@ void Context::add_builtin_windows_and_commands() {
    });
    _interface_commands.push_back({
       ._label = "Set disassembly mode\tCtrl+M",
-      ._shortcut{.code = UI_KEYCODE_LETTER('M'), .ctrl = true, .invoke = CommandSetDisassemblyMode}
+      ._shortcut{
+                 .code = UI_KEYCODE_LETTER('M'), .ctrl = true, .invoke = [&]() { return ctx.set_disassembly_mode(); }}
    });
    _interface_commands.push_back({
-      ._label = "Inspect line", ._shortcut{.code = UIKeycode::BACKTICK, .invoke = CommandInspectLine}
+      ._label = "Inspect line",
+      ._shortcut{.code = UIKeycode::BACKTICK, .invoke = [&]() { return ctx.inspect_line(); }}
    });
 
    // clangd navigation
    // -----------------
+   std::function<bool()> go_to_definition = [&]() { return ctx.goto_definition(); };
+   std::function<bool()> go_back          = [&]() { return ctx.go_back(); };
+
    _interface_commands.push_back({
       ._label = "Go to definition\tAlt+.",
-      ._shortcut{.code = UIKeycode::PERIOD, .alt = true, .invoke = CommandGotoDefinition}
+      ._shortcut{.code = UIKeycode::PERIOD, .alt = true, .invoke = go_to_definition}
    });
    _interface_commands.push_back({
-      ._label = "Go to definition\tF12", ._shortcut{.code = UI_KEYCODE_FKEY(12), .invoke = CommandGotoDefinition}
+      ._label = "Go to definition\tF12", ._shortcut{.code = UI_KEYCODE_FKEY(12), .invoke = go_to_definition}
    });
 
    _interface_commands.push_back({
-      ._label = "Go back\tAlt+,", ._shortcut{.code = UIKeycode::COMMA, .alt = true, .invoke = CommandGoBack}
+      ._label = "Go back\tAlt+,", ._shortcut{.code = UIKeycode::COMMA, .alt = true, .invoke = go_back}
    });
    _interface_commands.push_back({
-      ._label = "Go back\tCtrl+-", ._shortcut{.code = UIKeycode::MINUS, .ctrl = true, .invoke = CommandGoBack}
+      ._label = "Go back\tCtrl+-", ._shortcut{.code = UIKeycode::MINUS, .ctrl = true, .invoke = go_back}
    });
    _interface_commands.push_back({
-      ._label = "Go back\tAlt+<-", ._shortcut{.code = UIKeycode::LEFT, .alt = true, .invoke = CommandGoBack}
+      ._label = "Go back\tAlt+<-", ._shortcut{.code = UIKeycode::LEFT, .alt = true, .invoke = go_back}
    });
 
    // theme switching
@@ -8294,7 +7824,7 @@ void Context::add_builtin_windows_and_commands() {
    _interface_commands.push_back({
       ._label = "Switch tTheme\tCtrl+T", ._shortcut{.code = UI_KEYCODE_LETTER('T'), .ctrl = true, .invoke = []() {
                                                        ctx._ui->next_theme(true);
-                                                       s_main_window->refresh();
+                                                       ctx._main_window->refresh();
                                                        return true;
                                                     }}
    });
@@ -8302,51 +7832,58 @@ void Context::add_builtin_windows_and_commands() {
       ._label = "Switch tTheme\tCtrl+Shift+T",
       ._shortcut{.code = UI_KEYCODE_LETTER('T'), .ctrl = true, .shift = true, .invoke = []() {
                     ctx._ui->next_theme(false);
-                    s_main_window->refresh();
+                    ctx._main_window->refresh();
                     return true;
                  }}
    });
 
    _interface_commands.push_back({
       ._label = nullptr, ._shortcut{.code = UI_KEYCODE_LETTER('G'), .ctrl = true, .invoke = []() {
-                                       CommandWatchViewSourceAtAddress();
+                                       if (auto* w = WatchGetFocused())
+                                          w->view_source_at_address();
                                        return true;
                                     }}
    });
-#if 0
-   _interface_commands.push_back({
-      ._label = nullptr,
-      ._shortcut{.code = UI_KEYCODE_LETTER('P'), .ctrl = true, .shift = false, .invoke = CommandPreviousCommand}
-   });
-   _interface_commands.push_back({
-      ._label = nullptr,
-      ._shortcut{.code = UI_KEYCODE_LETTER('N'), .ctrl = true, .shift = false, .invoke = CommandNextCommand}
-   });
-#endif
+
    _interface_commands.push_back(
       {._label = "Copy Layout to Clipboard", ._shortcut{.invoke = [&]() { return ctx.copy_layout_to_clipboard(); }}});
+
 #if 0
    // conflicts with textbox readlime bindings
    // -----------------------------------------
-   interfaceCommands.push_back({
-      .label = "Toggle disassembly\tCtrl+D",
-      .shortcut{.code = UI_KEYCODE_LETTER('D'), .ctrl = true, .invoke = CommandToggleDisassembly}
+   _interface_commands.push_back({
+      ._label = "Toggle disassembly\tCtrl+D", ._shortcut{.code = UI_KEYCODE_LETTER('D'), .ctrl = true, .invoke = [&]() {
+                                                            return ctx._source_window->toggle_disassembly();
+                                                         }}
    });
-   interfaceCommands.push_back({.label = "Add watch", .shortcut{.invoke = CommandAddWatch}});
-   interfaceCommands.push_back({
-      .label = nullptr,
-      .shortcut{.code = UI_KEYCODE_LETTER('E'), .ctrl = true, .invoke = []() { CommandWatchAddEntryForAddress(); return true; } }
+   _interface_commands.push_back({._label = "Add watch", ._shortcut{.invoke = []() {
+                                                            if (auto* el = ctx.switch_to_window_and_focus("Watch"))
+                                                               dynamic_cast<WatchWindow*>(el)->add_watch();
+                                                            return true;
+                                                         }}});
+   _interface_commands.push_back({
+      ._label = nullptr, ._shortcut{.code = UI_KEYCODE_LETTER('E'), .ctrl = true, .invoke = []() {
+                                       if (auto* w = WatchGetFocused())
+                                          w->add_entry_for_address();
+                                       return true;
+                                    }}
    });
-   interfaceCommands.push_back({
-      .label = nullptr, .shortcut{.code = UI_KEYCODE_LETTER('B'), .ctrl = true, .invoke = CommandToggleFillDataTab}
+   _interface_commands.push_back({
+      ._label = nullptr, ._shortcut{.code = UI_KEYCODE_LETTER('B'), .ctrl = true, .invoke = [&]() {
+                                       ctx._data_window->toggle_fill_data_tab();
+                                       return true;
+                                    }}
    });
-   interfaceCommands.push_back({
-      .label = nullptr,
-      .shortcut{.code = UI_KEYCODE_LETTER('L'), .ctrl = true, .shift = false, .invoke = CommandClearOutput}
+   _interface_commands.push_back({
+      ._label = nullptr, ._shortcut{.code = UI_KEYCODE_LETTER('L'), .ctrl = true, .invoke = [&]() {
+                                       ctx._console_window->clear_output();
+                                       return true;
+                                    }}
    });
 #endif
 
-   _msg_received_data    = register_user_message(MsgReceivedData);
+   _msg_received_data =
+      register_user_message([&](std::unique_ptr<std::string> input) { ctx.msg_received_data(std::move(input)); });
    _msg_received_control = register_user_message(ControlPipe::on_command);
 
    // received buffer contains debugger output to add to log window
@@ -8409,14 +7946,14 @@ UIElement* Context::switch_to_window_and_focus(string_view target_name) {
       return w._el;
    }
 
-   s_main_window->show_dialog(0, "Couldn't find the window '%s'.\n%f%B", target_name, "OK");
+   _main_window->show_dialog(0, "Couldn't find the window '%s'.\n%f%B", target_name, "OK");
    return nullptr;
 }
 
 int MainWindowMessageProc(UIElement*, UIMessage msg, int di, void* dp) {
    if (msg == UIMessage::WINDOW_ACTIVATE) {
-      // make a copy as DisplaySetPosition modifies `s_source_window->_current_file_full`
-      DisplaySetPosition(s_source_window->_current_file, s_display_code->current_line());
+      // make a copy as ctx.DisplaySetPosition modifies `s_source_window->_current_file_full`
+      ctx.display_set_position(ctx._source_window->_current_file, ctx._display_code->current_line());
    } else if (msg == ctx._msg_received_clangd) {
       // Handle clangd response on main thread
       std::unique_ptr<ClangdResponse> response(static_cast<ClangdResponse*>(dp));
@@ -8507,8 +8044,8 @@ const char* InterfaceLayoutNextToken(const char*& current, const char* expected 
 }
 
 void Context::additional_setup() {
-   if (s_display_code && ctx._first_watch_window) {
-      s_display_code->add_selection_menu_item("Add watch", [&](string_view sel) { WatchAddExpression(sel); });
+   if (_display_code && ctx._first_watch_window) {
+      _display_code->add_selection_menu_item("Add watch", [&](string_view sel) { WatchAddExpression(sel); });
    }
 }
 
@@ -8603,8 +8140,8 @@ void Context::generate_layout_string(UIElement* e, std::string& sb) {
 bool Context::copy_layout_to_clipboard() {
    std::string sb;
    sb.reserve(512);
-   generate_layout_string(s_main_switcher->_children[0]->_children[0], sb);
-   _ui->write_clipboard_text(sb, s_main_window, sel_target_t::clipboard);
+   generate_layout_string(_main_switcher->_children[0]->_children[0], sb);
+   _ui->write_clipboard_text(sb, _main_window, sel_target_t::clipboard);
    return true;
 }
 
@@ -8749,10 +8286,9 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
 
    // ui->_theme = uiThemeDark; // force it for now, overriding `gf2_config.ini` - should remove though!
 
-   // create fonts for interface and code
-   // -----------------------------------
-   const auto& font_path     = ui->default_font_path();
-   SourceWindow::s_code_font = ui->create_font(font_path, gfc._code_font_size);
+   // create font for interface
+   // -------------------------
+   const auto& font_path = ui->default_font_path();
    ui->create_font(font_path, gfc._interface_font_size)->activate();
 
    if (gfc._window_width == -1 || gfc._window_height == -1) {
@@ -8763,7 +8299,7 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
       gfc._window_width  = (int)((float)dims.x * 0.78f);
       gfc._window_height = (int)((float)dims.y * 0.78f);
    }
-   s_main_window =
+   _main_window =
       &(ui->create_window(0, gfc._maximize ? UIWindow::MAXIMIZE : 0, "gf", gfc._window_width, gfc._window_height)
            .set_scale(gfc._ui_scale)
            .set_user_proc(MainWindowMessageProc));
@@ -8771,13 +8307,13 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
    for (const auto& ic : _interface_commands) {
       if (!(int)ic._shortcut.code)
          continue;
-      s_main_window->register_shortcut(ic._shortcut);
+      _main_window->register_shortcut(ic._shortcut);
    }
 
-   s_main_switcher                   = &s_main_window->add_switcher(0);
+   _main_switcher                    = &_main_window->add_switcher(0);
    const char* layout_string_current = gfc._layout_string.c_str();
-   create_layout(&s_main_switcher->add_panel(UIPanel::EXPAND), layout_string_current);
-   s_main_switcher->switch_to(s_main_switcher->_children[0]);
+   create_layout(&_main_switcher->add_panel(UIPanel::EXPAND), layout_string_current);
+   _main_switcher->switch_to(_main_switcher->_children[0]);
 
    if (*InterfaceLayoutNextToken(layout_string_current)) {
       std::print(std::cerr, "Warning: Layout string has additional text after the end of the top-level entry.\n");
@@ -8792,7 +8328,7 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
    // start debugger thread after second `ctx.load_settings` which updates `_gdb_argv`
    // --------------------------------------------------------------------------------
    ctx.start_debugger_thread();
-   CommandSyncWithGvim();
+   ctx.sync_with_gvim();
 
    if (is_executable_in_path(ctx._clangd_path)) {
       // Start clangd for code navigation
@@ -8805,7 +8341,7 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
          [&](std::function<void(const json&)> callback, const json& message) {
             auto* response =
                new ClangdResponse{.callback = std::move(callback), .result = message.value("result", json())};
-            s_main_window->post_message(_msg_received_clangd, response);
+            _main_window->post_message(_msg_received_clangd, response);
          },
          // Notification callback
          [&](const std::string& method, const json& params) {
@@ -8821,6 +8357,14 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
    return ui;
 }
 
+void Context::save_user_info() {
+   _executable_window->save_prog_args();
+   _executable_window->save_watches();
+   _executable_window->save_breakpoints();
+
+   _console_window->save_command_history();
+}
+
 Context::Context() {
    _gdb_argv.emplace_back(mk_cstring(_gdb_path)); // argv[0] is always the program path
    _dbg_re  = std::make_unique<regexp::gdb_impl>();
@@ -8828,21 +8372,4 @@ Context::Context() {
 
    add_builtin_windows_and_commands();
    register_extensions();
-}
-
-int main(int argc, char** argv) {
-   auto ui_ptr = ctx.gf_main(argc, argv);
-   if (!ui_ptr)
-      return 1;
-
-   ui_ptr->message_loop();
-   ctx.kill_gdb();
-
-   s_executable_window->save_prog_args();
-   s_executable_window->save_watches();
-   s_executable_window->save_breakpoints();
-
-   s_console_window->save_command_history();
-
-   return 0;
 }

@@ -2414,8 +2414,6 @@ inline void UIScrollbarPair::key_input_vscroll(UIKeyTyped* m, int row_height, in
 // --------------------------------------------------
 // Code views.
 // --------------------------------------------------
-UICode::buffer_mgr_t UICode::buffer_mgr;
-
 time_t get_file_modif_time(const char* path) {
    struct stat buf;
 
@@ -2443,6 +2441,12 @@ UICode::buffer_ptr UICode::buffer_mgr_t::load_buffer(const std::string& path, ui
    return buff;
 }
 
+UICode::buffer_ptr UI::load_buffer(const std::string& path, uint32_t flags,
+                                   std::optional<std::string_view> err /* = {} */) {
+   return _buffer_mgr.load_buffer(path, flags, err);
+}
+
+
 int UICode::column_to_byte(size_t ln, size_t column) const {
    return UI::column_to_byte(line(ln), column, tab_columns());
 }
@@ -2459,7 +2463,7 @@ UICode& UICode::clear() {
 UICode& UICode::load_file(const std::string& path, uint32_t flags /* = 0 */,
                           std::optional<std::string_view> err /* = {} */) {
    if (has_flag(UICode::MANAGE_BUFFER)) {
-      auto new_buffer = buffer_mgr.load_buffer(path, flags, err);
+      auto new_buffer = ui()->load_buffer(path, flags, err);
       if (new_buffer == _buffer)
          return *this; // do not reset `_current_line`
       _buffer = new_buffer;

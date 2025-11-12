@@ -1503,7 +1503,6 @@ private:
 public:
    using buffer_ptr = std::shared_ptr<buffer_t>;
 
-private:
    // ------------------------------------------------------------------------------------------
    // Stores loaded files to avoid reloading them all the time
    // ------------------------------------------------------------------------------------------
@@ -1526,6 +1525,7 @@ private:
       std::function<void(std::string_view)> invoke; // invoked on selection
    };
 
+private:
    std::string             _path;                                  // path of currently loaded buffer if `MANAGE_BUFFER`
    buffer_ptr              _buffer;
    std::optional<size_t>   _current_line                     = 0;  // zero_based, if set, 0 <= _current_line < num_lines()
@@ -1540,8 +1540,6 @@ private:
    bool                    _use_vertical_motion_column       = false;
    std::array<code_pos_t, 4> _sel{};                          // start, end (ordered), anchor, caret (unordered)
    std::vector<menu_item>  _menu_items;                       // added to right click menu on selection
-
-   static buffer_mgr_t buffer_mgr;
 
    UICode&    _set_vertical_motion_column(bool restore);
 
@@ -1991,6 +1989,7 @@ private:
    UIFont*                 _active_font  = nullptr;
    UIFont*                 _default_font = nullptr;
    UIPoint                 _screen_size;
+   UICode::buffer_mgr_t    _buffer_mgr;
 
 public:
    bool                    _quit             = false;
@@ -2007,6 +2006,9 @@ public:
    ~UI();
 
    static unique_ptr<UI> initialise(const UIConfig& cfg);  // main entry point of the library
+
+   UICode::buffer_ptr load_buffer(const std::string& path, uint32_t flags,
+                                  std::optional<std::string_view> err = {});
 
    int          message_loop();
    void         update();

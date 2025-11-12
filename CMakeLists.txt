@@ -69,7 +69,7 @@ endif()
 ##                                    gf
 ## ------------------------------------------------------------------------------------
 if (NOT MSVC)
-    add_executable(${PROJECT_NAME} WIN32 src/gf.cpp src/re/cpp.cpp src/re/gdb.cpp)
+    add_executable(${PROJECT_NAME} WIN32 src/gf.cpp src/main.cpp src/re/cpp.cpp src/re/gdb.cpp)
 
     ## dmalloc: link with `-ldmalloc` and run command: `dmalloc -l logfile -i 100 high`
 
