@@ -2374,7 +2374,7 @@ struct INI_File {
    bool insert_in_section(std::string_view section_string, std::string_view text, uint32_t flags) {
       Section sect = _find_section(section_string);
 
-      std::ofstream ofs(_path, std::ofstream::out | std::ofstream::binary);
+      std::ofstream ofs(_path, std::ofstream::out | std::ofstream::binary | std::ofstream::trunc);
       if (!ofs)
          return false;
 
@@ -2400,10 +2400,10 @@ struct INI_File {
          if (!present || !!(flags & allow_duplicates))
             ofs << sv;
          else {
-            // skip test
+            // skip text
             // ---------
-            ofs << std::string_view(&sv[0], pos);
-            ofs << std::string_view(&sv[pos + text.size()]);
+            ofs << sv.substr(0, pos);
+            ofs << sv.substr(pos + text.size());
          }
 
          if (insert_at_end)
@@ -2411,6 +2411,7 @@ struct INI_File {
 
          ofs << sect.config.substr(sect.start_pos + sv.size());
       }
+
       return true;
    }
 

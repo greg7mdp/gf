@@ -28,6 +28,7 @@
 #include <unistd.h>
 #include <semaphore.h>
 #include <spawn.h>
+#include <sstream>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <thread>
@@ -1274,15 +1275,6 @@ const char* themeItems[] = {
    "accent1",
    "accent2",
 };
-
-static void SettingsAddTrustedFolder() {
-   const char* section_string = "[trusted_folders]\n";
-   auto        text           = std::format("{}\n", gfc.get_local_config_dir().native());
-
-   // check that it is not already there
-   // ----------------------------------
-   INI_File{gfc._global_config_path}.insert_in_section(section_string, text, INI_File::at_end);
-}
 
 void Context::emplace_gdb_args_from_ini_file(std::string_view value) {
 
