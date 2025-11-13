@@ -621,8 +621,10 @@ struct Context {
    void           register_extensions();
    void           show_menu(UIButton* self);
    void           create_layout(UIElement* parent, const char*& current);
-   void           generate_layout_string(UIElement* e, std::string& sb);
-   bool           copy_layout_to_clipboard();
+   void           generate_layout_string(UIElement* e, std::string& sb) const;
+   bool           copy_layout_to_clipboard() const;
+   void           save_layout() const;
+   std::string    read_layout(const fs::path& local_config_path) const;
    void           additional_setup();
    UIElement*     switch_to_window_and_focus(std::string_view name);
    UIElement*     find_window(std::string_view name);

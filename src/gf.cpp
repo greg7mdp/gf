@@ -668,7 +668,7 @@ void Context::debugger_thread_fn() {
    return;
 }
 
-// can be called by: SourceWindowUpdate -> EvaluateExpresion -> EvaluateCommand
+// can be called by: SourceWindow::inspect_current_line -> eval_expression -> eval_command
 // synchronous means we will wait for the debugger output
 opt_string Context::send_command_to_debugger(string_view command, bool echo, bool synchronous) {
    interrupt_gdb();
@@ -8049,6 +8049,10 @@ void Context::additional_setup() {
    }
 }
 
+// -------------------------------------------------------------------------------------------
+//                                   Layout
+// -------------------------------------------------------------------------------------------
+
 void Context::create_layout(UIElement* parent, const char*& layout_string_current) {
    const char* token = InterfaceLayoutNextToken(layout_string_current);
 
@@ -8100,7 +8104,7 @@ void Context::create_layout(UIElement* parent, const char*& layout_string_curren
    }
 }
 
-void Context::generate_layout_string(UIElement* e, std::string& sb) {
+void Context::generate_layout_string(UIElement* e, std::string& sb) const {
    char buf[32];
 
    if (e->class_name() == "Split Pane") {
@@ -8137,12 +8141,27 @@ void Context::generate_layout_string(UIElement* e, std::string& sb) {
    }
 }
 
-bool Context::copy_layout_to_clipboard() {
+bool Context::copy_layout_to_clipboard() const {
    std::string sb;
    sb.reserve(512);
    generate_layout_string(_main_switcher->_children[0]->_children[0], sb);
    _ui->write_clipboard_text(sb, _main_window, sel_target_t::clipboard);
    return true;
+}
+
+void Context::save_layout() const {
+   std::string sb;
+   sb.reserve(512);
+   generate_layout_string(_main_switcher->_children[0]->_children[0], sb);
+   sb += "\n";
+   INI_File{gfc._local_config_path}.insert_in_section("[ui_layout]\n", sb, 0);
+}
+
+std::string Context::read_layout(const fs::path& local_config_path) const {
+   return std::string{INI_File{local_config_path}.with_section("[ui_layout]\n", [&](string_view sv) {
+      auto v = get_lines(sv);
+      return v.empty() ? std::string_view{} : v[0];
+   })};
 }
 
 // ----------------------------------------------------------------------------------------------
@@ -8310,8 +8329,10 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
       _main_window->register_shortcut(ic._shortcut);
    }
 
-   _main_switcher                    = &_main_window->add_switcher(0);
-   const char* layout_string_current = gfc._layout_string.c_str();
+   _main_switcher = &_main_window->add_switcher(0);
+   auto saved_layout_string = ctx.read_layout(gfc._local_config_path);
+   std::print("saved_layout_string={}\n", saved_layout_string);
+   const char* layout_string_current = saved_layout_string.empty() ? gfc._layout_string.c_str() : saved_layout_string.c_str();
    create_layout(&_main_switcher->add_panel(UIPanel::EXPAND), layout_string_current);
    _main_switcher->switch_to(_main_switcher->_children[0]);
 
@@ -8363,6 +8384,8 @@ void Context::save_user_info() {
    _executable_window->save_breakpoints();
 
    _console_window->save_command_history();
+
+   save_layout();
 }
 
 Context::Context() {
