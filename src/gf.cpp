@@ -8156,6 +8156,31 @@ std::string Context::read_layout(const fs::path& local_config_path) const {
    })};
 }
 
+void Context::save_window_size() const {
+   auto width = _main_window->width();
+   auto height = _main_window->height();
+   if (_main_window &&
+       ((width != static_cast<uint32_t>(gfc._window_width) || height != static_cast<uint32_t>(gfc._window_height)))) {
+      std::string sz = std::format("window_width={}\nwindow_height={}\n", width, height);
+      INI_File{gfc._local_config_path}.replace_section("[ui_size]\n", sz);
+   }
+}
+
+void Context::read_window_size(const fs::path& local_config_path) const {
+   const auto config = LoadFile(local_config_path.native());
+   if (!config)
+      return;
+   INI_Parser config_view(*config);
+
+   for (auto parse_res : config_view) {
+      auto [section, key, value] = parse_res;
+      if (section == "ui_size") {
+         parse_res.parse_int("window_width", gfc._window_width) ||
+            parse_res.parse_int("window_height", gfc._window_height);
+      }
+   }
+}
+
 // ----------------------------------------------------------------------------------------------
 // Add gdb command line options to `_gdb_argv`, with the exception or the exe name and
 // its arguments which are returned in ExeStartInfo if present.
@@ -8282,7 +8307,7 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
 
    // process command arguments and create updated version to pass to gdb
    // -------------------------------------------------------------------
-   gfc._exe = ctx.emplace_gdb_args_from_command_line(argc, argv);
+   gfc._exe = emplace_gdb_args_from_command_line(argc, argv);
 
    // load settings and initialize ui
    // -------------------------------
@@ -8293,7 +8318,7 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
    ui_config.default_font_size = gfc._interface_font_size;
 
    auto ui = UI::initialise(ui_config); // sets `ui.default_font_path`
-   ctx._ui = ui.get();
+   _ui = ui.get();
 
    // ui->_theme = uiThemeDark; // force it for now, overriding `gf2_config.ini` - should remove though!
 
@@ -8310,6 +8335,7 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
       gfc._window_width  = (int)((float)dims.x * 0.78f);
       gfc._window_height = (int)((float)dims.y * 0.78f);
    }
+   read_window_size(gfc._local_config_path);
    _main_window =
       &(ui->create_window(0, gfc._maximize ? UIWindow::MAXIMIZE : 0, "gf", gfc._window_width, gfc._window_height)
            .set_scale(gfc._ui_scale)
@@ -8322,7 +8348,7 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
    }
 
    _main_switcher = &_main_window->add_switcher(0);
-   auto saved_layout_string = ctx.read_layout(gfc._local_config_path);
+   auto saved_layout_string = read_layout(gfc._local_config_path);
    std::print("saved_layout_string={}\n", saved_layout_string);
    const char* layout_string_current = saved_layout_string.empty() ? gfc._layout_string.c_str() : saved_layout_string.c_str();
    create_layout(&_main_switcher->add_panel(UIPanel::EXPAND), layout_string_current);
@@ -8338,18 +8364,18 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
    if (ui_config._has_theme)
       ui->theme() = ui_config._theme;
 
-   // start debugger thread after second `ctx.load_settings` which updates `_gdb_argv`
+   // start debugger thread after second `load_settings` which updates `_gdb_argv`
    // --------------------------------------------------------------------------------
-   ctx.start_debugger_thread();
-   ctx.sync_with_gvim();
+   start_debugger_thread();
+   sync_with_gvim();
 
-   if (is_executable_in_path(ctx._clangd_path)) {
+   if (is_executable_in_path(_clangd_path)) {
       // Start clangd for code navigation
       // ---------------------------------
       auto root_dir =
          gfc._current_directory.empty() ? std::filesystem::current_path().native() : gfc._current_directory.native();
-      ctx._clangd.start(
-         root_dir, ctx._clangd_path,
+      _clangd.start(
+         root_dir, _clangd_path,
          // Response callback
          [&](std::function<void(const json&)> callback, const json& message) {
             auto* response =
@@ -8365,8 +8391,9 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
             // ------------------------------------------------------------------------
             (void)params; // Suppress unused warning for now
          });
-   } else
-      std::print(std::cerr, "\"{}\" not found in path... clangd navigation will not be available.\n", ctx._clangd_path);
+   } else {
+      std::print(std::cerr, "\"{}\" not found in path... clangd navigation will not be available.\n", _clangd_path);
+   }
    return ui;
 }
 
@@ -8378,6 +8405,7 @@ void Context::save_user_info() {
    _console_window->save_command_history();
 
    save_layout();
+   save_window_size();
 }
 
 Context::Context() {

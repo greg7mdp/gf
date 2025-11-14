@@ -2340,12 +2340,16 @@ struct INI_File {
       }
    };
 
+   // `section_string` should be something like: "[trusted_folders]\n"
+   // --------------------------------------------------------------------------------------------
    template <class F>
    auto with_section(std::string_view section_string, F &&f) const {
       Section sect = _find_section(section_string);
       return std::forward<F>(f)(sect.sv());
    }
 
+   // `section_string` should be something like: "[trusted_folders]\n"
+   // --------------------------------------------------------------------------------------------
    template <class F>
    void with_section_lines(std::string_view section_string, F &&f) const {
       Section sect        = _find_section(section_string);

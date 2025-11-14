@@ -1,12 +1,12 @@
-# Improvements Made to gf
+# Improvements Made to [gf](https://github.com/greg7mdp/gf)
 
-This document lists the major improvements made to gf since the initial fork from the [original repository](https://github.com/nakst/gf). The improvements are organized by category and reflect the evolution from a C-style codebase to a more typical C++ application.
+
+This document lists the major improvements made to [gf](https://github.com/greg7mdp/gf) since the initial fork from the [original repository](https://github.com/nakst/gf). 
 
 ## Table of Contents
 
 - [Feature Implementation Status](#feature-implementation-status)
 - [Code Modernization](#code-modernization)
-- [New Features](#new-features)
 - [User Interface Enhancements](#user-interface-enhancements)
 - [Configuration System](#configuration-system)
 - [Bug Fixes and Stability](#bug-fixes-and-stability)
@@ -27,6 +27,7 @@ This section tracks the implementation status of major features (from GitHub iss
 - **Persist Watches**: Watch expressions saved in `.gf/<progname>.ini`
 - **Persist Executable Launch Parameters**: Program arguments saved in `.gf/<progname>.ini` with up/down arrow keys in executable window to switch between saved configurations
 - **Persist Command History**: Command history saved in `.gf/<progname>.hist`
+- **Persist Layout and Window Size**: Persist layout/window size in `.gf/gf_config.ini` and load if present
 
 #### Code Architecture
 - **Global Buffer Manager**: Implemented for storing `UICode` files (commit ad0d8b7)
@@ -69,9 +70,6 @@ This section tracks the implementation status of major features (from GitHub iss
 - **Find References** (`Alt+?`): Show all locations where a symbol is used throughout the codebase
 - **Hover Information**: Display type information, documentation, and function signatures when hovering over functions
 
-#### Configuration
-- **Save Layout and Window Size**: Persist layout/window size in `.gf/gf_config.ini` and load if present
-
 #### Display Enhancements
 - **Hover for Full Values (Watch Window)**: Show complete, unabbreviated value when hovering in watch window
 - **Hover for Full Values (Code Window)**: Show complete, unabbreviated value when hovering over selected expression
@@ -90,47 +88,12 @@ This section tracks the implementation status of major features (from GitHub iss
 - Converted `malloc/free` to `new/delete` and RAII patterns
 - Proper C++ object initialization
 - Replaced raw pointers with smart pointers where appropriate, eliminated manual memory management in favor of standard containers
-- Implemented modern regular expression support using CTRE (compile-time)
+- Replace some manual string pattern matching with regular expression using CTRE (compile-time regular expressions)
 - Systematically converted camelCase variables to snake_case throughout codebase
 - Replaced preprocessor macros with proper functions and constants
 - Improved const-correctness throughout
 - Ran clang-tidy and sanitizers and addressed issues
 - Added test suites for some new features
-
----
-
-## New Features
-
-### clangd LSP Integration
-- **Semantic Highlighting**: Full syntax highlighting using clangd's semantic tokens
-- **Code Navigation**: Goto definition (`Alt+.`) and go back (`Alt+,`)
-- **Intelligent Parsing**: Type-aware code understanding
-- Configurable clangd path in config file
-- Automatic detection of clangd availability
-- Support for `compile_commands.json` compilation database
-- Added comprehensive clangd test suite (`clangd_tests.cpp`)
-
-### Inspect Line Mode
-- Press backtick (`` ` ``) to evaluate all expressions on current line
-- Displays results in popup window
-- Filters out constant expressions to show only meaningful values
-- Multiple click issue fixed for reliable operation
-
-### Command History Management
-- Implemented `HistoryManager` class for command history
-- Persistent command history saved to file
-- Separate history file per debugged program
-- Arrow up/down navigation in command window
-- Arrow up/down navigation in Executable window for program selection
-
-### Enhanced Textbox
-- Undo functionality for text editing
-- Mouse selection support
-- Copy/paste with both primary and clipboard
-- Middle mouse button paste
-- Hidden character support (for password fields)
-- `on_key_up_down` callback support
-- Configurable `selectable_source` option
 
 ---
 

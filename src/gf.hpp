@@ -4,10 +4,6 @@
 #define GF_VERSION_MINOR 8
 #define GF_VERSION_PATCH 0
 
-#include "luigi.hpp"
-#include "clangd.hpp"
-#include "utils.hpp"
-
 #include <algorithm>
 #include <cassert>
 #include <condition_variable>
@@ -22,6 +18,10 @@
 #include <unordered_map>
 #include <vector>
 #include <iostream>
+
+#include "luigi.hpp"
+#include "clangd.hpp"
+#include "utils.hpp"
 
 namespace fs = std::filesystem;
 
@@ -613,7 +613,6 @@ struct Context {
    int            source_find_end_of_block();
    bool           source_find_outer_function_call(const char** start, const char** end);
    void           msg_received_data(std::unique_ptr<std::string> input);
-   void           save_user_info();
    void           grab_focus(UIWindow* win);
    void           restore_focus();
    void           debugger_thread_fn();
@@ -625,6 +624,9 @@ struct Context {
    bool           copy_layout_to_clipboard() const;
    void           save_layout() const;
    std::string    read_layout(const fs::path& local_config_path) const;
+   void           save_window_size() const;
+   void           read_window_size(const fs::path& local_config_path) const;
+   void           save_user_info();
    void           additional_setup();
    UIElement*     switch_to_window_and_focus(std::string_view name);
    UIElement*     find_window(std::string_view name);

@@ -6,6 +6,7 @@
 #include <thread>
 #include <sys/wait.h>
 #include <fcntl.h>
+#include <unistd.h>
 
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
