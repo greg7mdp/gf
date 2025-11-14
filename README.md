@@ -6,6 +6,13 @@
 
 ---
 
+## Screenshot
+
+![Main debugging interface](https://github.com/greg7mdp/gf/blob/main/img/gf_01.png)
+*Main debugging interface showing source view, watch window, and stack*
+
+---
+
 gf is a lightweight, modern GDB frontend built with C++23, featuring an intuitive UI and powerful debugging capabilities. Built on the custom [Luigi GUI framework](doc/luigi.md), gf provides a responsive debugging experience for Linux.
 
 ## Features
@@ -194,11 +201,6 @@ Use `Ctrl+Shift+F5/F10/F11` for reverse continue/step.
 ### External Resources
 - **[GDB Tutorial](https://handmade.network/forums/articles/t/2883-gdb)** - Introduction to GDB debugging
 - **[rr Project](https://rr-project.org/)** - Record and replay framework
-
-## Screenshots
-
-![Main debugging interface](https://github.com/greg7mdp/gf/blob/main/img/gf.png)
-*Main debugging interface showing source view, watch window, and stack*
 
 ## Configuration
 
