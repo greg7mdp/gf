@@ -2,7 +2,7 @@
 
 #define GF_VERSION_MAJOR 0
 #define GF_VERSION_MINOR 8
-#define GF_VERSION_PATCH 0
+#define GF_VERSION_PATCH 1
 
 #include <algorithm>
 #include <cassert>
