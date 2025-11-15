@@ -2733,8 +2733,8 @@ UICode& UICode::_set_vertical_motion_column(bool restore) {
 }
 
 int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
-   UI* ui = this->ui();
    if (msg == UIMessage::LAYOUT) {
+      UI*  ui         = this->ui(); // don't retrieve this for all messages, see issue #48
       auto str_height = ui->string_height();
 
       with_font fnt(font()); // measure using font()
@@ -2766,7 +2766,8 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
       layout_scrollbar_pair(h_space, v_space, sb_size, this);
 
    } else if (msg == UIMessage::PAINT) {
-      with_font fnt(font()); // measure using font()
+      UI*       ui = this->ui(); // don't retrieve this for all messages, see issue #48
+      with_font fnt(font());     // measure using font()
 
       auto*       painter     = static_cast<UIPainter*>(dp);
       UIRectangle line_bounds = _bounds;
@@ -2886,6 +2887,7 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
          set_last_animate_time(UI_CLOCK());
       }
    } else if (msg == UIMessage::ANIMATE) {
+      UI* ui = this->ui(); // don't retrieve this for all messages, see issue #48
       if (is_pressed() && _window->pressed_button() == 1 && !empty() && !_left_down_in_margin) {
          UI_CLOCK_T previous      = last_animate_time();
          UI_CLOCK_T current       = UI_CLOCK();
@@ -2927,6 +2929,7 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
       _move_scroll_to_focus_next_layout = _move_scroll_to_caret_next_layout = false;
       _use_vertical_motion_column                                           = false;
    } else if (msg == UIMessage::KEY_TYPED && !empty()) {
+      UI*   ui = this->ui(); // don't retrieve this for all messages, see issue #48
       auto* m = static_cast<UIKeyTyped*>(dp);
 
       if ((m->code == UI_KEYCODE_LETTER('C') || m->code == UI_KEYCODE_LETTER('X') || m->code == UIKeycode::INSERT) &&
@@ -3004,6 +3007,7 @@ int UICode::_class_message_proc(UIMessage msg, int di, void* dp) {
 
       return 1;
    } else if (msg == UIMessage::RIGHT_DOWN) {
+      UI* ui       = this->ui(); // don't retrieve this for all messages, see issue #48
       int hit_test = hittest(cursor_pos());
 
       if (hit_test > 0 && has_flag(UICode::SELECTABLE)) {
