@@ -403,7 +403,7 @@ static UITheme light_high_contrast_theme{
    .code_variable     = 0x702C00, // #702C00 - variable (dark brown/orange)
    .code_function     = 0x622CBC, // #622CBC - entity.name.function (dark purple)
    .code_bracket      = 0x4B535D, // #4B535D - brackethighlighter (dark gray)
-   .accent1           = 0x6E011A, // #6E011A - invalid/errors (dark red)
+   .accent1           = 0xCE312A, // #CE312A - invalid/errors (red)
    .accent2           = 0x024C1A, // #024C1A - success (dark green)
 };
 
