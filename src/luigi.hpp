@@ -45,7 +45,10 @@ namespace fs = std::filesystem;
 
 #define UI_DEBUG 0
 #define UI_AUTOMATION_TESTS 1
-#define UI_SSE2
+
+#if (defined(__SSE2__) || defined(__x86_64__)) || (defined(_M_IX86_FP) && (_M_IX86_FP >= 2))
+   #define UI_SSE2
+#endif
 
 #if defined(__linux__) || defined(__APPLE__)
    #define UI_LINUX
@@ -1443,6 +1446,9 @@ struct UICode : public UIElementCast<UICode>, public UIScrollbarPair {
       size_t              bytes             = 0;
       unique_ptr<sem_t[]> sem;                       // if not null, list of sem_t terminated by one sem_t of length 0
       bool                starts_in_comment = false; // true if line starts within a multiline comment
+
+      code_line_t() = default;
+      code_line_t(size_t off, size_t b) : offset(off), bytes(b) {}
    };
 
 private:
@@ -1523,6 +1529,10 @@ public:
    struct menu_item {
       std::string label;
       std::function<void(std::string_view)> invoke; // invoked on selection
+
+      menu_item() = default;
+      menu_item(std::string lbl, std::function<void(std::string_view)> fn)
+         : label(std::move(lbl)), invoke(std::move(fn)) {}
    };
 
 private:

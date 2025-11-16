@@ -21,7 +21,7 @@ jobs:
     - name: Install Dependencies
       run: |
         # XQuartz provides X11 on macOS
-        brew install xquartz freetype
+        brew install xquartz
         # Note: XQuartz needs to be started, but headless build should work
         cmake -E make_directory ${{runner.workspace}}/build
 
