@@ -47,7 +47,7 @@ namespace fs = std::filesystem;
 #define UI_AUTOMATION_TESTS 1
 #define UI_SSE2
 
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
    #define UI_LINUX
    #define UI_UNICODE # requires freetype
 #elif defined(_WIN32)
