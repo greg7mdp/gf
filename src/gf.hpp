@@ -13,6 +13,7 @@
 #include <filesystem>
 #include <memory>
 #include <mutex>
+#include <signal.h>
 #include <unistd.h>
 #include <queue>
 #include <unordered_map>
@@ -75,6 +76,9 @@ private:
    struct InspectResult {
       std::string _expression;
       std::string _value;
+
+      InspectResult() = default;
+      InspectResult(std::string expr, std::string val) : _expression(std::move(expr)), _value(std::move(val)) {}
    };
 
    std::vector<InspectResult> _inspect_results;
@@ -310,6 +314,9 @@ struct InterfaceDataViewer {
 struct NavLocation {
    std::string             _file;
    UICode::code_pos_pair_t _pos;
+
+   NavLocation() = default;
+   NavLocation(std::string f, UICode::code_pos_pair_t p) : _file(std::move(f)), _pos(p) {}
 };
 
 struct NavigationHistory {
