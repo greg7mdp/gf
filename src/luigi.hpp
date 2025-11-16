@@ -45,7 +45,10 @@ namespace fs = std::filesystem;
 
 #define UI_DEBUG 0
 #define UI_AUTOMATION_TESTS 1
-#define UI_SSE2
+
+#if (defined(__SSE2__) || defined(__x86_64__)) || (defined(_M_IX86_FP) && (_M_IX86_FP >= 2))
+   #define UI_SSE2
+#endif
 
 #if defined(__linux__) || defined(__APPLE__)
    #define UI_LINUX
