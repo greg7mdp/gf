@@ -1,7 +1,7 @@
 # gf – A Modern GDB Frontend
 
 [![Linux](https://github.com/greg7mdp/gf/actions/workflows/linux.yml/badge.svg)](https://github.com/greg7mdp/gf/actions/workflows/linux.yml)
-[![macOS](https://github.com/greg7mdp/gf/actions/workflows/macos.yml/badge.svg)](https://github.com/greg7mdp/gf/actions/workflows/macos.yml)
+
 
 
 **[Features](#features)** • **[Installation](#installation)** • **[Quick Start](#quick-start)** • **[Documentation](#documentation)** • **[Configuration](#configuration)** • **[Contributing](doc/contributing.md)** • **[Contributors](#contributors)**
@@ -76,7 +76,7 @@ tar -xzf gf-VERSION-linux-x86_64.tar.gz
 - GDB (15.2+ recommended for best C++ expression evaluation)
 - **Linux**: X11, FreeType
 - **Windows**: Native Win32
-- **MacOS**: XQuartz (X11), (builds, but untested so likely does not work! [See issue #52])
+- **MacOS**: XQuartz (X11), (builds, does not support lldb)
 
 #### Building
 
