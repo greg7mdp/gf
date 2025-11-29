@@ -2337,9 +2337,9 @@ struct INI_File {
        : _path(path) {}
 
    struct Section {
-      std::string config;     // the whole config file in a string
-      size_t      start_pos;  // index of the section *after* section_string
-      size_t      end_pos;    // if set, index of beginning of the next section
+      std::string config;                         // the whole config file in a string
+      size_t      start_pos = std::string::npos;  // index of the section *after* section_string
+      size_t      end_pos   = std::string::npos;  // if set, index of beginning of the next section
 
       std::string_view sv() {
          if (start_pos == std::string::npos)

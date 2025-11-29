@@ -8150,10 +8150,10 @@ void Context::save_layout() const {
 }
 
 std::string Context::read_layout(const fs::path& local_config_path) const {
-   return std::string{INI_File{local_config_path}.with_section("[ui_layout]\n", [&](string_view sv) {
+   return INI_File{local_config_path}.with_section("[ui_layout]\n", [&](string_view sv) {
       auto v = get_lines(sv);
-      return v.empty() ? std::string_view{} : v[0];
-   })};
+      return v.empty() ? std::string{} :  std::string{v[0]};
+   });
 }
 
 void Context::save_window_size() const {
