@@ -8349,7 +8349,7 @@ unique_ptr<UI> Context::gf_main(int argc, char** argv) {
 
    _main_switcher = &_main_window->add_switcher(0);
    auto saved_layout_string = read_layout(gfc._local_config_path);
-   std::print("saved_layout_string={}\n", saved_layout_string);
+   //std::print("saved_layout_string={}\n", saved_layout_string);
    const char* layout_string_current = saved_layout_string.empty() ? gfc._layout_string.c_str() : saved_layout_string.c_str();
    create_layout(&_main_switcher->add_panel(UIPanel::EXPAND), layout_string_current);
    _main_switcher->switch_to(_main_switcher->_children[0]);
