@@ -30,7 +30,12 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 ## ------------------------------------------------------------------------------------
 ##                                  Required packages
 ## ------------------------------------------------------------------------------------
-if (UNIX)
+if(APPLE)
+    set(X11_ROOT "/opt/X11")              # Hint to CMake where XQuartz is installed
+    set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} ${X11_ROOT})
+endif()
+
+if (NOT MSVC)
     find_package(Freetype REQUIRED)
     find_package(X11 REQUIRED)
     find_package(Threads REQUIRED)
@@ -61,7 +66,7 @@ set_property(TARGET luigi PROPERTY PUBLIC_HEADER src/luigi.hpp)
 
 if (NOT MSVC)
     target_link_libraries(luigi ${FREETYPE_LIBRARIES} ${X11_LIBRARIES})
-    target_include_directories(luigi PUBLIC ${FREETYPE_INCLUDE_DIRS} PRIVATE ${X11_INCLUDE_DIR})
+    target_include_directories(luigi PUBLIC ${FREETYPE_INCLUDE_DIRS} ${X11_INCLUDE_DIR})
     target_compile_options(luigi PUBLIC -DUI_FREETYPE -DUI_FREETYPE_SUBPIXEL)
 endif()
 
