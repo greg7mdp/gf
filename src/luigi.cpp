@@ -5428,7 +5428,11 @@ unique_ptr<UI> UI::initialise(const UIConfig& cfg) {
    #ifdef UI_FREETYPE
    if (font_path.empty()) {
       // Ask fontconfig for a monospaced font. If this fails, the fallback font will be used.
+      #if defined(__APPLE__)
+      FILE* f = popen("/opt/X11/bin/fc-list | grep -F `/opt/X11/bin/fc-match mono | awk '{ print($1) }'` "
+      #else
       FILE* f = popen("fc-list | grep -F `fc-match mono | awk '{ print($1) }'` "
+      #endif
                       "| awk 'BEGIN { FS = \":\" } ; { print($1) }'",
                       "r");
 
