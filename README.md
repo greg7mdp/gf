@@ -15,7 +15,7 @@
 
 ---
 
-gf is a lightweight, modern GDB frontend built with C++23, featuring an intuitive UI and powerful debugging capabilities. Built on the custom [Luigi GUI framework](doc/luigi.md), gf provides a responsive debugging experience for Linux.
+gf is a lightweight and full featured GDB frontend for Linux.
 
 ## Features
 
@@ -73,10 +73,9 @@ tar -xzf gf-VERSION-linux-x86_64.tar.gz
 #### Prerequisites
 - C++23 compiler: `clang++-18` or `g++-13` or higher
 - CMake 3.15+
-- GDB (15.2+ recommended for best C++ expression evaluation)
+- GDB (newer version recommended for best C++ expression evaluation)
 - **Linux**: X11, FreeType
-- **Windows**: Native Win32
-- **MacOS**: XQuartz (X11), (builds, does not support lldb)
+- **MacOS**: XQuartz (X11), (builds, requires signed gdb install, does not support lldb)
 
 #### Building
 
@@ -466,16 +465,6 @@ Anders Kaare (sqaxomonophonen)
 Arseniy Khvorov (khvorov45)
 ```
 
-I (`Gregory Popovitch, @greg7mdp`) found `gf` quite useful, but felt like fixing some issues that bothered me in my daily use. The more I hacked at `gf`, the more I was amazed as what it achieved to implement in so few lines of code, and the more fun I had with this process. 
+I found `gf` quite useful, but felt like fixing some issues that bothered me in my daily use. The more I hacked at `gf`, the more I was impressed by what it achieved to implement in so few lines of code, and the more fun I had with this process. 
 
-Eventually I decided to update the code to a more typical C++ implementation, even at the cost of making a few extra string copies if needed. Still, I attempted to stay as close to the metal as possible, in order to retain gf's impressive responsiveness. This is the code you can see in my current repository.
-
-Thank you for contributing to gf!
-
-## License
-
-Check the repository for license information.
-
----
-
-**Built with ❤️ using C++23 and the Luigi GUI framework**
+Eventually I decided to update the code to a more typical C++ implementation. I attempted to stay as close to the metal as possible, in order to retain gf's responsiveness. This is the code you can see in my current repository.
